@@ -1,0 +1,1132 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#8d8a83;font-family:'Zen Kaku Gothic New',system-ui,sans-serif}
+a{color:#c98b4b}a:hover{color:#e0a869}
+[data-t]{--bg:#0B0C0F;--panel:#15171C;--panel2:#1D2027;--ink:#F4F2EE;--ink2:#8E949D;--ink3:#5C626B;--line:#25282F;--accent:#E2B979;--voice:#8FD4C1;--mus:#7FA8D9;--ins:#C9A2E0;--rec:#E2564A;--mistake:#E8806F}
+[data-t="light"]{--bg:#F3F1EC;--panel:#FFFFFF;--panel2:#EDEAE3;--ink:#16181C;--ink2:#5B6169;--ink3:#6B7178;--line:#E1DDD4;--accent:#9A6B22;--voice:#2E8C71;--mus:#3A6EA8;--ins:#7B4FA0;--rec:#C43A2C;--mistake:#B5503F}
+@keyframes liveBar{0%,100%{transform:scaleY(.2)}50%{transform:scaleY(1)}}
+@keyframes pulseRec{0%,100%{opacity:1}50%{opacity:.3}}
+@keyframes toastIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+@keyframes sheetIn{from{transform:translateY(100%)}to{transform:none}}
+</style>
+</helmet>
+<div style="display:flex;justify-content:center;padding:28px 12px">
+<x-import component-from-global-scope="AndroidDevice" from="./android-frame.jsx" dark="{{ isDark }}" hint-size="412px,892px">
+<div data-t="{{ theme }}" data-screen-label="{{ screenLabel }}" style="height:100%;background:var(--bg);color:var(--ink);display:flex;flex-direction:column;position:relative;overflow:hidden;user-select:none;-webkit-user-select:none">
+
+<sc-if value="{{ isHome }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;flex-direction:column;height:100%;overflow:hidden">
+<div style="display:flex;align-items:flex-start;justify-content:space-between;padding:18px 20px 0">
+<div>
+<div style="font-size:12px;color:var(--ink2)">こんにちは</div>
+<div style="font-size:21px;font-weight:700;letter-spacing:-.01em;margin-top:3px">ゆうきのラジオ</div>
+<div style="font-size:10.5px;color:var(--ink3);margin-top:4px;font-family:'DM Mono',ui-monospace,monospace">SEASON 2 · 24 EPISODES</div>
+</div>
+<div style="display:flex;gap:7px">
+<div onClick="{{ toggleTheme }}" style="width:34px;height:34px;display:grid;place-items:center;border-radius:11px;border:1px solid var(--line);color:var(--ink2);font-size:13px">◐</div>
+<div onClick="{{ goSettings }}" style="width:34px;height:34px;display:grid;place-items:center;border-radius:11px;border:1px solid var(--line);color:var(--ink2);font-size:14px">⚙</div>
+</div>
+</div>
+
+<div style="margin:18px 20px 0;padding:16px;border-radius:16px;background:var(--panel);border:1px solid var(--line)">
+<div style="display:flex;align-items:center;gap:7px;font-size:10px;color:var(--accent);letter-spacing:.12em;font-family:'DM Mono',ui-monospace,monospace">● EDITING</div>
+<div style="display:flex;align-items:baseline;gap:8px;margin-top:9px">
+<div style="font-family:'DM Mono',ui-monospace,monospace;font-size:13px;color:var(--ink2)">#24</div>
+<div style="font-size:15px;font-weight:700;line-height:1.3">最近買ってよかったもの</div>
+</div>
+<div style="display:flex;align-items:center;gap:3px;height:26px;margin:12px 0 10px">
+<sc-for list="{{ heroWave }}" as="b" hint-placeholder-count="34">
+<div style="flex:1;border-radius:1px;background:var(--voice);opacity:.75;height:{{ b.h }}%"></div>
+</sc-for>
+</div>
+<div style="display:flex;justify-content:space-between;font-size:10.5px;color:var(--ink3);font-family:'DM Mono',ui-monospace,monospace"><span>{{ durLabel }}</span><span>20分前に編集</span></div>
+<div onClick="{{ goEditor }}" style="margin-top:14px;text-align:center;padding:13px;border-radius:12px;background:var(--ink);color:var(--bg);font-size:13px;font-weight:700" style-active="transform:scale(.98)">編集を続ける</div>
+</div>
+
+<div style="display:flex;align-items:center;justify-content:space-between;padding:22px 20px 8px">
+<div style="font-size:11px;letter-spacing:.12em;color:var(--ink2);font-family:'DM Mono',ui-monospace,monospace">EPISODES</div>
+<div onClick="{{ goLibrary }}" style="font-size:11px;color:var(--accent)">Show Assets ›</div>
+</div>
+<div style="flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:0 20px">
+<sc-for list="{{ episodes }}" as="e" hint-placeholder-count="4">
+<div onClick="{{ e.open }}" style="display:flex;align-items:center;gap:12px;padding:13px 0;border-top:1px solid var(--line)">
+<div style="font-family:'DM Mono',ui-monospace,monospace;font-size:12px;color:var(--ink3);width:26px">{{ e.num }}</div>
+<div style="flex:1;min-width:0">
+<div style="font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ e.title }}</div>
+<div style="font-size:9.5px;color:var(--ink3);margin-top:3px;font-family:'DM Mono',ui-monospace,monospace">{{ e.meta }}</div>
+</div>
+<div style="font-size:9.5px;padding:4px 8px;border-radius:7px;white-space:nowrap;{{ e.badgeCss }}">{{ e.badge }}</div>
+<div onClick="{{ e.menu }}" style="width:30px;height:30px;display:grid;place-items:center;border-radius:9px;color:var(--ink2);font-size:16px;flex:none">⋮</div>
+</div>
+</sc-for>
+</div>
+<div onClick="{{ goNew }}" style="position:absolute;right:20px;bottom:22px;width:58px;height:58px;border-radius:19px;background:var(--rec);color:#fff;display:grid;place-items:center;font-size:26px;box-shadow:0 10px 26px rgba(226,86,74,.32)" style-active="transform:scale(.95)">＋</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ isNew }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;flex-direction:column;height:100%;padding:0 20px">
+<div style="display:flex;align-items:center;gap:10px;padding:14px 0 6px">
+<div onClick="{{ goHome }}" style="width:32px;height:32px;display:grid;place-items:center;border-radius:10px;color:var(--ink2);font-size:20px">‹</div>
+<div style="font-size:15px;font-weight:700">新しいエピソード</div>
+</div>
+<div style="font-size:11px;color:var(--ink2);padding:6px 0 16px;line-height:1.6">テンプレートを選ぶと Opening / Ending が自動で配置され、そのまま録音を始められます。</div>
+<sc-for list="{{ templates }}" as="tp" hint-placeholder-count="4">
+<div onClick="{{ tp.pick }}" style="display:flex;align-items:center;gap:13px;padding:15px;margin-bottom:10px;border-radius:14px;background:var(--panel);{{ tp.css }}" style-active="transform:scale(.99)">
+<div style="width:18px;height:18px;border-radius:50%;flex:none;box-sizing:border-box;{{ tp.dotCss }}"></div>
+<div style="flex:1">
+<div style="font-size:13px;font-weight:500">{{ tp.label }}</div>
+<div style="font-size:10px;color:var(--ink3);margin-top:3px">{{ tp.sub }}</div>
+</div>
+<sc-if value="{{ tp.recent }}" hint-placeholder-val="{{ false }}">
+<div style="font-size:9px;color:var(--accent);border:1px solid var(--accent);border-radius:6px;padding:3px 6px">最近使用</div>
+</sc-if>
+</div>
+</sc-for>
+<div style="flex:1"></div>
+<div onClick="{{ createEpisode }}" style="margin-bottom:22px;text-align:center;padding:15px;border-radius:14px;background:var(--rec);color:#fff;font-size:13.5px;font-weight:700" style-active="transform:scale(.98)">作成して録音へ</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ isEditor }}" hint-placeholder-val="{{ true }}">
+<div style="display:flex;flex-direction:column;height:100%">
+
+<div style="display:flex;align-items:center;gap:10px;padding:10px 12px 6px">
+<div onClick="{{ goEpisode }}" style="width:34px;height:34px;display:grid;place-items:center;border-radius:10px;color:var(--ink2);font-size:20px">‹</div>
+<div style="flex:1;min-width:0">
+<div style="font-size:14px;font-weight:700">Episode #24</div>
+<div style="font-size:10.5px;color:var(--ink2);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ subline }}</div>
+</div>
+<div onClick="{{ toggleTheme }}" style="width:34px;height:34px;display:grid;place-items:center;border-radius:10px;border:1px solid var(--line);color:var(--ink2);font-size:13px">◐</div>
+<div onClick="{{ openMore }}" style="width:34px;height:34px;display:grid;place-items:center;border-radius:10px;color:var(--ink2);font-size:18px">⋮</div>
+</div>
+
+<div style="display:flex;align-items:center;justify-content:center;gap:10px;padding:2px 0 8px">
+<sc-if value="{{ recording }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;align-items:center;gap:6px;font-size:10px;letter-spacing:.12em;color:var(--rec);font-family:'DM Mono',ui-monospace,monospace">
+<div style="width:7px;height:7px;border-radius:50%;background:var(--rec);animation:pulseRec 1.3s ease-in-out infinite"></div>REC {{ recClock }}
+</div>
+</sc-if>
+<div style="font-family:'DM Mono',ui-monospace,monospace;font-size:29px;font-weight:500;letter-spacing:-.01em;line-height:1">{{ clock }}</div>
+<div style="font-family:'DM Mono',ui-monospace,monospace;font-size:12px;color:var(--ink2);align-self:flex-end;padding-bottom:4px">{{ totalLabel }}</div>
+</div>
+
+<div onPointerDown="{{ tlDown }}" style="position:relative;flex:1;min-height:0;overflow:hidden;touch-action:none;cursor:ew-resize;display:flex;flex-direction:column">
+<div style="position:relative;flex:1;min-height:0;display:flex;flex-direction:column">
+
+<div style="position:relative;height:20px;border-bottom:1px solid var(--line)">
+<div style="position:absolute;inset:0;transform:translateX({{ off }}px)">
+<sc-for list="{{ ticks }}" as="k" hint-placeholder-count="6">
+<div style="position:absolute;top:0;{{ k.css }}"><div style="width:1px;height:5px;background:var(--line)"></div><div style="font-family:'DM Mono',ui-monospace,monospace;font-size:8.5px;color:var(--ink2);margin-top:2px">{{ k.label }}</div></div>
+</sc-for>
+</div>
+</div>
+
+<div style="position:relative;height:26px">
+<div style="position:absolute;inset:0;transform:translateX({{ off }}px)">
+<sc-for list="{{ marks }}" as="m" hint-placeholder-count="3">
+<div onClick="{{ m.jump }}" style="position:absolute;top:5px;display:flex;align-items:center;gap:3px;padding:2px 5px;border-radius:6px;font-size:9.5px;white-space:nowrap;{{ m.css }}">{{ m.glyph }} {{ m.label }}</div>
+</sc-for>
+</div>
+</div>
+
+<sc-for list="{{ tracks }}" as="tr" hint-placeholder-count="3">
+<div style="position:relative;margin:0 0 6px;{{ tr.css }}">
+<div style="position:absolute;left:12px;top:-1px;z-index:3;font-family:'DM Mono',ui-monospace,monospace;font-size:9.5px;letter-spacing:.14em;color:var(--ink2);pointer-events:none">{{ tr.label }}</div>
+<div style="position:absolute;inset:0;transform:translateX({{ off }}px)">
+<sc-for list="{{ tr.clips }}" as="c" hint-placeholder-count="2">
+<div onPointerDown="{{ c.down }}" style="position:absolute;top:0;bottom:0;border-radius:7px;box-sizing:border-box;touch-action:none;{{ c.css }}">
+<div style="position:absolute;top:4px;left:7px;right:7px;display:flex;justify-content:space-between;font-size:8.5px;opacity:.85;pointer-events:none;overflow:hidden;white-space:nowrap">
+<span>{{ c.name }}</span><span style="font-family:'DM Mono',ui-monospace,monospace">{{ c.gainLabel }}</span>
+</div>
+<div style="position:absolute;left:5px;right:5px;bottom:5px;top:16px;display:flex;align-items:center;gap:1.5px;pointer-events:none">
+<sc-for list="{{ c.bars }}" as="b" hint-placeholder-count="12">
+<div style="flex:1;min-width:1px;border-radius:1px;background:currentColor;height:{{ b.h }}%"></div>
+</sc-for>
+</div>
+<sc-if value="{{ c.selected }}" hint-placeholder-val="{{ false }}">
+<div onPointerDown="{{ c.trimL }}" style="position:absolute;left:0;top:0;bottom:0;width:15px;display:grid;place-items:center;background:var(--accent);border-radius:7px 0 0 7px;touch-action:none"><div style="width:2px;height:16px;border-radius:2px;background:rgba(0,0,0,.45)"></div></div>
+<div onPointerDown="{{ c.trimR }}" style="position:absolute;right:0;top:0;bottom:0;width:15px;display:grid;place-items:center;background:var(--accent);border-radius:0 7px 7px 0;touch-action:none"><div style="width:2px;height:16px;border-radius:2px;background:rgba(0,0,0,.45)"></div></div>
+</sc-if>
+</div>
+</sc-for>
+<sc-for list="{{ tr.gaps }}" as="g" hint-placeholder-count="0">
+<div onClick="{{ g.close }}" style="position:absolute;top:50%;transform:translate(-50%,-50%);height:24px;display:flex;align-items:center;justify-content:center;gap:4px;padding:0 8px;border-radius:12px;background:var(--bg);border:1px dashed var(--accent);color:var(--accent);font-size:9.5px;white-space:nowrap;overflow:hidden;z-index:3;{{ g.css }}">⇥<span style="{{ g.textCss }}">隙間を詰める</span></div>
+</sc-for>
+</div>
+</div>
+</sc-for>
+
+<div style="position:absolute;left:150px;top:0;bottom:6px;width:1px;pointer-events:none;z-index:4;{{ phCss }}"></div>
+<div style="position:absolute;left:144px;top:0;width:13px;height:13px;border-radius:0 0 7px 7px;pointer-events:none;z-index:4;{{ phHeadCss }}"></div>
+</div>
+<div onClick="{{ nextMistake }}" style="display:flex;align-items:center;gap:9px;margin:14px 12px 0;padding:11px 12px;border-radius:11px;background:var(--panel);border:1px solid var(--line)">
+<span style="color:var(--mistake);font-size:13px">⚑</span>
+<div style="flex:1"><div style="font-size:11.5px">言い間違い {{ mistakeTotal }}件</div><div style="font-size:9.5px;color:var(--ink3);margin-top:2px">順番に確認して、その場で削除・取り消し</div></div>
+<span style="font-size:11px;color:var(--accent)">次へ ›</span>
+</div>
+</div>
+
+<div style="border-top:1px solid var(--line);padding:9px 12px 4px">
+<div style="display:flex;align-items:center;gap:7px">
+<sc-for list="{{ toolbar }}" as="a" hint-placeholder-count="4">
+<div onClick="{{ a.run }}" style="flex:1;text-align:center;padding:9px 2px;border-radius:9px;background:var(--panel);border:1px solid var(--line);font-size:10.5px;{{ a.css }}" style-active="transform:scale(.96)">{{ a.label }}</div>
+</sc-for>
+</div>
+<div style="text-align:center;font-size:9.5px;color:var(--ink2);padding:7px 0 0;min-height:13px">{{ hint }}</div>
+</div>
+
+<div style="position:relative;padding:2px 16px 14px;display:flex;align-items:center;justify-content:space-between">
+<div onClick="{{ undo }}" style="display:flex;flex-direction:column;align-items:center;gap:2px;width:62px;padding:6px 0;border-radius:12px;{{ undoCss }}" style-active="transform:scale(.94)">
+<div style="font-size:22px;line-height:1">↶</div><div style="font-size:9.5px">取り消す</div>
+</div>
+<div onClick="{{ toggleRec }}" style="width:64px;height:64px;border-radius:50%;display:grid;place-items:center;box-shadow:0 8px 22px rgba(226,86,74,.3);{{ recBtnCss }}" style-active="transform:scale(.94)">
+<div style="{{ recGlyphCss }}"></div>
+</div>
+<div onClick="{{ togglePlay }}" style="width:46px;height:46px;border-radius:50%;border:1px solid var(--line);background:var(--panel);display:grid;place-items:center;font-size:15px;{{ playCss }}" style-active="transform:scale(.94)">{{ playGlyph }}</div>
+<div onClick="{{ redo }}" style="display:flex;flex-direction:column;align-items:center;gap:2px;width:62px;padding:6px 0;border-radius:12px;{{ redoCss }}" style-active="transform:scale(.94)">
+<div style="font-size:22px;line-height:1">↷</div><div style="font-size:9.5px">やり直す</div>
+</div>
+<sc-if value="{{ showFloat }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute;bottom:74px;z-index:9;display:flex;align-items:center;gap:7px;padding:7px 11px;border-radius:11px;background:var(--panel2);border:1px solid var(--line);box-shadow:0 10px 26px rgba(0,0,0,.3);font-size:11px;max-width:calc(100% - 32px);box-sizing:border-box;animation:toastIn .16s ease-out;{{ toastPos }}">
+<span style="color:var(--accent);font-size:13px;flex:none">{{ toastGlyph }}</span><span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ toastText }}</span>
+</div>
+</sc-if>
+<sc-if value="{{ showBar }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute;left:12px;right:12px;bottom:78px;z-index:9;display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:12px;background:var(--panel2);border:1px solid var(--line);box-shadow:0 10px 26px rgba(0,0,0,.3);font-size:11.5px;animation:toastIn .16s ease-out">
+<span style="color:var(--accent);font-size:13px">{{ toastGlyph }}</span>
+<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ toastText }}</span>
+<span onClick="{{ toastAction }}" style="font-size:11px;font-weight:700;color:var(--accent)">{{ toastBtn }}</span>
+</div>
+</sc-if>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ isEpisode }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;flex-direction:column;height:100%;overflow:hidden">
+<div style="display:flex;align-items:center;gap:10px;padding:14px 12px 4px">
+<div onClick="{{ goHome }}" style="width:32px;height:32px;display:grid;place-items:center;border-radius:10px;color:var(--ink2);font-size:20px">‹</div>
+<div style="flex:1;font-size:15px;font-weight:700">Episode #24</div>
+<div onClick="{{ openEpMenu }}" style="width:32px;height:32px;display:grid;place-items:center;border-radius:10px;color:var(--ink2);font-size:18px">⋮</div>
+</div>
+<div style="padding:4px 20px 0">
+<div style="font-size:16px;font-weight:700;line-height:1.4">最近買ってよかったもの</div>
+<div style="display:flex;align-items:center;gap:10px;margin-top:8px;font-family:'DM Mono',ui-monospace,monospace;font-size:10.5px;color:var(--ink2)">
+<span style="color:var(--accent)">● EDITING</span><span>{{ durLabel }}</span><span>SEASON 2</span>
+</div>
+</div>
+<div style="flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:18px 20px 0">
+<sc-for list="{{ stepRows }}" as="st" hint-placeholder-count="5">
+<div onClick="{{ st.run }}" style="display:flex;align-items:center;gap:12px;padding:13px 0;border-top:1px solid var(--line)">
+<div style="width:18px;text-align:center;font-size:12px;{{ st.css }}">{{ st.glyph }}</div>
+<div style="flex:1;font-size:12.5px">{{ st.label }}</div>
+<div style="font-size:10px;color:var(--ink2);font-family:'DM Mono',ui-monospace,monospace">{{ st.meta }}</div>
+<div style="color:var(--ink3);font-size:13px">›</div>
+</div>
+</sc-for>
+<div style="display:flex;align-items:center;justify-content:space-between;margin:22px 0 4px">
+<div style="font-size:10px;letter-spacing:.14em;color:var(--ink2);font-family:'DM Mono',ui-monospace,monospace">RECORDINGS</div>
+<div style="font-size:10px;color:var(--ink3)">{{ takeCount }}</div>
+</div>
+<sc-for list="{{ takes }}" as="tk" hint-placeholder-count="3">
+<div onClick="{{ tk.open }}" style="display:flex;align-items:center;gap:11px;padding:11px 0;border-top:1px solid var(--line)">
+<div style="display:flex;align-items:center;gap:1.5px;width:44px;height:20px;flex:none;color:var(--voice)">
+<sc-for list="{{ tk.bars }}" as="b" hint-placeholder-count="10">
+<div style="flex:1;border-radius:1px;background:currentColor;height:{{ b.h }}%"></div>
+</sc-for>
+</div>
+<div style="flex:1;min-width:0"><div style="font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ tk.name }}</div><div style="font-family:'DM Mono',ui-monospace,monospace;font-size:9.5px;color:var(--ink2);margin-top:3px">{{ tk.meta }}</div></div>
+<div onClick="{{ tk.menu }}" style="width:30px;height:30px;display:grid;place-items:center;border-radius:9px;color:var(--ink2);font-size:16px">⋮</div>
+</div>
+</sc-for>
+</div>
+<div onClick="{{ goEditor }}" style="margin:0 20px 22px;text-align:center;padding:15px;border-radius:13px;background:var(--ink);color:var(--bg);font-size:13px;font-weight:700" style-active="transform:scale(.98)">収録・編集を続ける</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ isLibrary }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;flex-direction:column;height:100%;overflow:hidden">
+<div style="display:flex;align-items:center;gap:10px;padding:14px 12px 4px">
+<div onClick="{{ goHome }}" style="width:32px;height:32px;display:grid;place-items:center;border-radius:10px;color:var(--ink2);font-size:20px">‹</div>
+<div style="flex:1;font-size:15px;font-weight:700">Show Assets</div>
+</div>
+<div style="font-size:11px;color:var(--ink2);padding:2px 20px 14px">ファイル名ではなく「番組のどこで使う音か」で並んでいます。すべてのエピソードから挿入できます。</div>
+<div style="flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:0 20px">
+<sc-for list="{{ assetGroups }}" as="g" hint-placeholder-count="4">
+<div style="margin-bottom:16px">
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+<div style="font-size:10px;letter-spacing:.14em;color:var(--ink2);font-family:'DM Mono',ui-monospace,monospace">{{ g.label }}</div>
+<div onClick="{{ g.add }}" style="font-size:10.5px;color:var(--accent)">＋ 追加</div>
+</div>
+<sc-for list="{{ g.items }}" as="i" hint-placeholder-count="2">
+<div onClick="{{ i.play }}" style="display:flex;align-items:center;gap:11px;padding:11px 12px;margin-bottom:7px;border-radius:11px;background:var(--panel);border:1px solid var(--line)">
+<div style="width:28px;height:28px;border-radius:8px;display:grid;place-items:center;font-size:11px;flex:none;{{ i.iconCss }}">▶</div>
+<div style="flex:1;min-width:0;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ i.label }}</div>
+<div style="font-size:11px;color:var(--accent);width:16px;text-align:center">{{ i.fav }}</div>
+<div style="font-family:'DM Mono',ui-monospace,monospace;font-size:10px;color:var(--ink2)">{{ i.dur }}</div>
+</div>
+</sc-for>
+</div>
+</sc-for>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ isSettings }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;flex-direction:column;height:100%;overflow:hidden">
+<div style="display:flex;align-items:center;gap:10px;padding:14px 12px 4px">
+<div onClick="{{ goHome }}" style="width:32px;height:32px;display:grid;place-items:center;border-radius:10px;color:var(--ink2);font-size:20px">‹</div>
+<div style="flex:1;font-size:15px;font-weight:700">設定</div>
+</div>
+<div style="flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:10px 20px 0">
+<div style="font-size:10px;letter-spacing:.14em;color:var(--ink2);font-family:'DM Mono',ui-monospace,monospace;margin-bottom:9px">APPEARANCE</div>
+<div style="display:flex;gap:7px;padding:4px;border-radius:12px;background:var(--panel);border:1px solid var(--line)">
+<sc-for list="{{ themeOpts }}" as="o" hint-placeholder-count="3">
+<div onClick="{{ o.pick }}" style="flex:1;text-align:center;padding:10px 0;border-radius:9px;font-size:11.5px;{{ o.css }}" style-active="transform:scale(.97)">{{ o.label }}</div>
+</sc-for>
+</div>
+<sc-for list="{{ settingGroups }}" as="g" hint-placeholder-count="4">
+<div style="font-size:10px;letter-spacing:.14em;color:var(--ink2);font-family:'DM Mono',ui-monospace,monospace;margin:20px 0 2px">{{ g.label }}</div>
+<sc-for list="{{ g.rows }}" as="r" hint-placeholder-count="3">
+<div onClick="{{ r.run }}" style="display:flex;align-items:center;gap:12px;padding:13px 0;border-top:1px solid var(--line)">
+<div style="flex:1;min-width:0"><div style="font-size:12px">{{ r.label }}</div><div style="font-size:9.5px;color:var(--ink2);margin-top:2px">{{ r.sub }}</div></div>
+<sc-if value="{{ r.isToggle }}" hint-placeholder-val="{{ false }}">
+<div style="width:42px;height:24px;border-radius:12px;padding:2px;box-sizing:border-box;flex:none;{{ r.trackCss }}"><div style="width:20px;height:20px;border-radius:50%;transition:transform .16s;{{ r.knobCss }}"></div></div>
+</sc-if>
+<sc-if value="{{ r.isValue }}" hint-placeholder-val="{{ false }}">
+<div style="font-family:'DM Mono',ui-monospace,monospace;font-size:10.5px;color:var(--ink2);white-space:nowrap;flex:none">{{ r.val }} ›</div>
+</sc-if>
+</div>
+</sc-for>
+</sc-for>
+<div style="font-size:9.5px;color:var(--ink3);padding:18px 0 22px;line-height:1.8">Portrait Podcast Studio 1.0 (MVP)<br>すべての編集は非破壊で、録音の元データは削除されません。</div>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ isDetails }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;flex-direction:column;height:100%;overflow:hidden">
+<div style="display:flex;align-items:center;gap:10px;padding:14px 14px 6px">
+<div onClick="{{ goEditor }}" style="width:32px;height:32px;display:grid;place-items:center;border-radius:10px;color:var(--ink2);font-size:20px">‹</div>
+<div style="flex:1;font-size:15px;font-weight:700">エピソードの詳細</div>
+<div onClick="{{ copyAll }}" style="font-size:11px;color:var(--accent);padding:6px 8px">{{ copyAllLabel }}</div>
+</div>
+<div style="flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:8px 20px 0">
+<div style="display:flex;align-items:center;justify-content:space-between">
+<div style="font-size:10px;letter-spacing:.14em;color:var(--ink2);font-family:'DM Mono',ui-monospace,monospace">TITLE</div>
+<div onClick="{{ copyTitle }}" style="width:30px;height:30px;display:grid;place-items:center;border-radius:9px;color:var(--accent);font-size:13px">{{ titleIcon }}</div>
+</div>
+<div style="font-size:16px;font-weight:700;line-height:1.5;padding:2px 0 12px;border-bottom:1px solid var(--line)">最近買ってよかったもの</div>
+<div style="display:flex;align-items:center;justify-content:space-between;margin-top:16px">
+<div style="font-size:10px;letter-spacing:.14em;color:var(--ink2);font-family:'DM Mono',ui-monospace,monospace">DESCRIPTION</div>
+<div onClick="{{ copyDesc }}" style="width:30px;height:30px;display:grid;place-items:center;border-radius:9px;color:var(--accent);font-size:13px">{{ descIcon }}</div>
+</div>
+<div style="font-size:12px;line-height:1.85;color:var(--ink);padding:2px 0 12px;border-bottom:1px solid var(--line);text-wrap:pretty">今回は最近買ってよかったガジェットについて話しました。スマートフォンで完結する収録環境の話も少しだけ。</div>
+<div style="display:flex;gap:10px;margin-top:18px">
+<div style="flex:1;padding:11px 12px;border-radius:11px;background:var(--panel);border:1px solid var(--line)"><div style="font-size:9.5px;color:var(--ink2)">Episode</div><div style="font-family:'DM Mono',ui-monospace,monospace;font-size:15px;margin-top:3px">24</div></div>
+<div style="flex:1;padding:11px 12px;border-radius:11px;background:var(--panel);border:1px solid var(--line)"><div style="font-size:9.5px;color:var(--ink2)">Season</div><div style="font-family:'DM Mono',ui-monospace,monospace;font-size:15px;margin-top:3px">2</div></div>
+<div style="flex:1.5;padding:11px 12px;border-radius:11px;background:var(--panel);border:1px solid var(--line)"><div style="font-size:9.5px;color:var(--ink2)">Recorded</div><div style="font-family:'DM Mono',ui-monospace,monospace;font-size:12px;margin-top:5px">Sep 18, 2026</div></div>
+</div>
+<div onClick="{{ toggleTpl }}" style="margin-top:16px;padding:13px 14px;border-radius:12px;background:var(--panel);border:1px solid var(--line)">
+<div style="display:flex;align-items:center;justify-content:space-between">
+<div style="font-size:12px">概要欄テンプレートを使う</div>
+<div style="width:42px;height:24px;border-radius:12px;padding:2px;box-sizing:border-box;flex:none;{{ tplTrackCss }}"><div style="width:20px;height:20px;border-radius:50%;transition:transform .16s;{{ tplKnobCss }}"></div></div>
+</div>
+<div style="font-family:'DM Mono',ui-monospace,monospace;font-size:9.5px;line-height:1.9;color:var(--ink2);margin-top:10px;padding-top:10px;border-top:1px solid var(--line)">{{ episode_description }}<br>――――――<br>Podcast: {{ show_name }}<br>X: https://…<br>感想はこちら: #ゆうきのラジオ</div>
+</div>
+</div>
+<div onClick="{{ goSound }}" style="margin:0 20px 22px;text-align:center;padding:14px;border-radius:13px;background:var(--ink);color:var(--bg);font-size:13px;font-weight:700" style-active="transform:scale(.98)">次へ：音の仕上げ</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ isSound }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;flex-direction:column;height:100%;overflow:hidden">
+<div style="display:flex;align-items:center;gap:10px;padding:14px 14px 6px">
+<div onClick="{{ goEditor }}" style="width:32px;height:32px;display:grid;place-items:center;border-radius:10px;color:var(--ink2);font-size:20px">‹</div>
+<div style="flex:1;font-size:15px;font-weight:700">音の仕上げ</div>
+</div>
+<div style="flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:10px 20px 0">
+<div style="padding:14px 16px;border-radius:14px;background:var(--panel);border:1px solid var(--line)">
+<sc-for list="{{ soundChecks }}" as="c" hint-placeholder-count="4">
+<div style="display:flex;align-items:center;gap:10px;padding:7px 0">
+<span style="color:var(--voice);font-size:13px">✓</span><span style="font-size:12px">{{ c.label }}</span>
+</div>
+</sc-for>
+</div>
+<div style="font-size:10px;letter-spacing:.14em;color:var(--ink2);font-family:'DM Mono',ui-monospace,monospace;margin:22px 0 10px">SOUND STYLE</div>
+<sc-for list="{{ styles }}" as="st" hint-placeholder-count="3">
+<div onClick="{{ st.pick }}" style="display:flex;align-items:center;gap:12px;padding:14px;margin-bottom:9px;border-radius:12px;background:var(--panel);{{ st.css }}" style-active="transform:scale(.99)">
+<div style="width:18px;height:18px;border-radius:50%;flex:none;box-sizing:border-box;{{ st.dotCss }}"></div>
+<div style="flex:1"><div style="font-size:13px">{{ st.label }}</div><div style="font-size:10px;color:var(--ink2);margin-top:2px">{{ st.sub }}</div></div>
+</div>
+</sc-for>
+<div onClick="{{ toggleAdv }}" style="display:flex;align-items:center;justify-content:space-between;margin-top:14px;padding:13px 2px;border-top:1px solid var(--line)">
+<div style="font-size:12px;color:var(--ink2)">詳細設定（Advanced）</div><div style="font-size:12px;color:var(--ink2)">{{ advGlyph }}</div>
+</div>
+<sc-if value="{{ adv }}" hint-placeholder-val="{{ false }}">
+<sc-for list="{{ advRows }}" as="r" hint-placeholder-count="5">
+<div style="display:flex;align-items:center;justify-content:space-between;padding:11px 2px;border-top:1px solid var(--line)">
+<div style="font-size:11.5px;color:var(--ink)">{{ r.label }}</div>
+<div style="font-family:'DM Mono',ui-monospace,monospace;font-size:11px;color:var(--ink2)">{{ r.val }}</div>
+</div>
+</sc-for>
+</sc-if>
+</div>
+<div onClick="{{ goExport }}" style="margin:0 20px 22px;text-align:center;padding:14px;border-radius:13px;background:var(--ink);color:var(--bg);font-size:13px;font-weight:700" style-active="transform:scale(.98)">次へ：書き出し</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ isExport }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;flex-direction:column;height:100%;overflow:hidden">
+<div style="display:flex;align-items:center;gap:10px;padding:14px 14px 6px">
+<div onClick="{{ goEditor }}" style="width:32px;height:32px;display:grid;place-items:center;border-radius:10px;color:var(--ink2);font-size:20px">‹</div>
+<div style="flex:1;font-size:15px;font-weight:700">書き出し</div>
+</div>
+<div style="flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:10px 20px 0">
+<div style="font-size:10px;letter-spacing:.14em;color:var(--ink2);font-family:'DM Mono',ui-monospace,monospace;margin-bottom:9px">FORMAT</div>
+<div style="display:flex;gap:8px">
+<sc-for list="{{ formats }}" as="f" hint-placeholder-count="4">
+<div onClick="{{ f.pick }}" style="flex:1;text-align:center;padding:12px 0;border-radius:11px;background:var(--panel);font-family:'DM Mono',ui-monospace,monospace;font-size:11px;{{ f.css }}" style-active="transform:scale(.97)">{{ f.label }}</div>
+</sc-for>
+</div>
+<div style="font-size:10px;letter-spacing:.14em;color:var(--ink2);font-family:'DM Mono',ui-monospace,monospace;margin:22px 0 9px">QUALITY</div>
+<sc-for list="{{ quals }}" as="q" hint-placeholder-count="3">
+<div onClick="{{ q.pick }}" style="display:flex;align-items:center;gap:12px;padding:13px 14px;margin-bottom:8px;border-radius:12px;background:var(--panel);{{ q.css }}" style-active="transform:scale(.99)">
+<div style="width:18px;height:18px;border-radius:50%;flex:none;box-sizing:border-box;{{ q.dotCss }}"></div>
+<div style="flex:1"><div style="font-size:12.5px">{{ q.label }}</div><div style="font-size:10px;color:var(--ink2);margin-top:2px">{{ q.sub }}</div></div>
+<div style="font-family:'DM Mono',ui-monospace,monospace;font-size:10px;color:var(--ink2)">{{ q.spec }}</div>
+</div>
+</sc-for>
+<div style="display:flex;gap:10px;margin-top:16px">
+<div style="flex:1;padding:12px;border-radius:11px;background:var(--panel);border:1px solid var(--line)"><div style="font-size:9.5px;color:var(--ink2)">推定サイズ</div><div style="font-family:'DM Mono',ui-monospace,monospace;font-size:15px;margin-top:3px">{{ sizeLabel }}</div></div>
+<div style="flex:1;padding:12px;border-radius:11px;background:var(--panel);border:1px solid var(--line)"><div style="font-size:9.5px;color:var(--ink2)">長さ</div><div style="font-family:'DM Mono',ui-monospace,monospace;font-size:15px;margin-top:3px">{{ durLabel }}</div></div>
+</div>
+<div style="font-size:10px;letter-spacing:.14em;color:var(--ink2);font-family:'DM Mono',ui-monospace,monospace;margin:22px 0 4px">EXPORT HISTORY</div>
+<sc-for list="{{ history }}" as="h" hint-placeholder-count="2">
+<div style="display:flex;align-items:center;justify-content:space-between;padding:11px 0;border-top:1px solid var(--line)">
+<div style="font-size:11.5px">{{ h.when }}</div>
+<div style="font-family:'DM Mono',ui-monospace,monospace;font-size:10px;color:var(--ink2)">{{ h.spec }}</div>
+</div>
+</sc-for>
+</div>
+<div style="padding:0 20px 22px">
+<sc-if value="{{ exporting }}" hint-placeholder-val="{{ false }}">
+<div style="padding:12px 14px;border-radius:13px;background:var(--panel);border:1px solid var(--line)">
+<div style="display:flex;justify-content:space-between;font-size:11px;color:var(--ink2);margin-bottom:8px"><span>書き出し中…</span><span style="font-family:'DM Mono',ui-monospace,monospace;color:var(--ink)">{{ pctLabel }}</span></div>
+<div style="height:4px;border-radius:2px;background:var(--panel2);overflow:hidden"><div style="height:100%;background:var(--accent);transition:width .2s;width:{{ pct }}%"></div></div>
+</div>
+</sc-if>
+<sc-if value="{{ notExporting }}" hint-placeholder-val="{{ true }}">
+<div onClick="{{ runExport }}" style="text-align:center;padding:15px;border-radius:13px;background:var(--ink);color:var(--bg);font-size:13.5px;font-weight:700" style-active="transform:scale(.98)">書き出す</div>
+</sc-if>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ isPub }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;flex-direction:column;height:100%;overflow:hidden">
+<div style="display:flex;align-items:center;gap:10px;padding:14px 14px 6px">
+<div onClick="{{ goEditor }}" style="width:32px;height:32px;display:grid;place-items:center;border-radius:10px;color:var(--ink2);font-size:20px">‹</div>
+<div style="flex:1;font-size:15px;font-weight:700">配信の準備ができました</div>
+</div>
+<div style="flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:6px 20px 0">
+<div style="display:flex;align-items:baseline;gap:8px">
+<div style="font-family:'DM Mono',ui-monospace,monospace;font-size:12px;color:var(--ink2)">#24</div>
+<div style="font-size:15px;font-weight:700">最近買ってよかったもの</div>
+</div>
+<div style="display:flex;align-items:center;gap:12px;margin-top:16px;padding:13px 14px;border-radius:13px;background:var(--panel);border:1px solid var(--line)">
+<div style="width:36px;height:36px;border-radius:10px;display:grid;place-items:center;background:color-mix(in oklab, var(--voice) 18%, transparent);color:var(--voice);font-size:14px;flex:none">♪</div>
+<div style="flex:1;min-width:0"><div style="font-family:'DM Mono',ui-monospace,monospace;font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">episode-024.mp3</div><div style="font-size:9.5px;color:var(--ink2);margin-top:3px">{{ sizeLabel }} · {{ durLabel }}</div></div>
+<div onClick="{{ share }}" style="font-size:11px;color:var(--accent);padding:8px 10px;border-radius:9px;border:1px solid var(--accent)">共有</div>
+</div>
+<sc-for list="{{ copyRows }}" as="r" hint-placeholder-count="3">
+<div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--line)">
+<div style="display:flex;align-items:center;justify-content:space-between">
+<div style="font-size:10px;letter-spacing:.14em;color:var(--ink2);font-family:'DM Mono',ui-monospace,monospace">{{ r.label }}</div>
+<div onClick="{{ r.copy }}" style="display:flex;align-items:center;gap:6px;padding:6px 10px;border-radius:9px;border:1px solid var(--line);font-size:10.5px;{{ r.btnCss }}">{{ r.icon }} {{ r.btn }}</div>
+</div>
+<div style="font-size:11.5px;line-height:1.75;color:var(--ink);margin-top:7px;text-wrap:pretty">{{ r.value }}</div>
+</div>
+</sc-for>
+</div>
+<div onClick="{{ copyAll }}" style="margin:0 20px 22px;display:flex;align-items:center;justify-content:center;gap:8px;padding:15px;border-radius:13px;background:var(--ink);color:var(--bg);font-size:13px;font-weight:700" style-active="transform:scale(.98)">{{ allIcon }} すべてのメタデータをコピー</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ sheetOpen }}" hint-placeholder-val="{{ false }}">
+<div onClick="{{ closeSheet }}" style="position:absolute;inset:0;background:rgba(0,0,0,.45);z-index:20"></div>
+<div style="position:absolute;left:0;right:0;bottom:0;z-index:21;background:var(--panel);border-radius:20px 20px 0 0;border-top:1px solid var(--line);padding:10px 18px 24px;animation:sheetIn .2s cubic-bezier(.2,.8,.2,1)">
+<div style="width:36px;height:4px;border-radius:2px;background:var(--line);margin:0 auto 14px"></div>
+<div style="font-size:13px;font-weight:700;margin-bottom:2px">{{ sheetTitle }}</div>
+<div style="font-size:10.5px;color:var(--ink2);margin-bottom:14px">{{ sheetSub }}</div>
+
+<sc-if value="{{ isVolSheet }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;justify-content:space-between;font-size:11px;color:var(--ink2);margin-bottom:6px"><span>音量</span><span style="font-family:'DM Mono',ui-monospace,monospace;color:var(--ink)">{{ gainLabel }}</span></div>
+<div onPointerDown="{{ gainDown }}" style="position:relative;height:34px;display:flex;align-items:center;touch-action:none">
+<div style="position:absolute;left:0;right:0;height:3px;border-radius:2px;background:var(--panel2)"></div>
+<div style="position:absolute;left:0;height:3px;border-radius:2px;background:var(--accent);width:{{ gainPct }}%"></div>
+<div style="position:absolute;width:22px;height:22px;border-radius:50%;background:var(--ink);box-shadow:0 2px 8px rgba(0,0,0,.3);margin-left:-11px;left:{{ gainPct }}%"></div>
+</div>
+<div style="font-size:9.5px;color:var(--ink2);margin:0 0 12px">スライダーを動かしている間は1回の操作としてまとめて取り消せます。</div>
+<sc-for list="{{ volToggles }}" as="o" hint-placeholder-count="2">
+<div onClick="{{ o.run }}" style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-top:1px solid var(--line)">
+<div><div style="font-size:12px">{{ o.label }}</div><div style="font-size:9.5px;color:var(--ink2);margin-top:2px">{{ o.sub }}</div></div>
+<div style="width:42px;height:24px;border-radius:12px;padding:2px;box-sizing:border-box;flex:none;{{ o.trackCss }}"><div style="width:20px;height:20px;border-radius:50%;transition:transform .16s;{{ o.knobCss }}"></div></div>
+</div>
+</sc-for>
+</sc-if>
+
+<sc-if value="{{ isInsSheet }}" hint-placeholder-val="{{ false }}">
+<sc-for list="{{ insertItems }}" as="i" hint-placeholder-count="5">
+<div onClick="{{ i.run }}" style="display:flex;align-items:center;gap:12px;padding:13px 0;border-top:1px solid var(--line)">
+<div style="width:34px;height:34px;border-radius:9px;display:grid;place-items:center;font-size:13px;flex:none;{{ i.iconCss }}">▶</div>
+<div style="flex:1;min-width:0"><div style="font-size:12.5px">{{ i.label }}</div><div style="font-size:9.5px;color:var(--ink2);margin-top:2px">{{ i.sub }}</div></div>
+<div style="font-family:'DM Mono',ui-monospace,monospace;font-size:10px;color:var(--ink2)">{{ i.dur }}</div>
+</div>
+</sc-for>
+</sc-if>
+
+<sc-if value="{{ isMoreSheet }}" hint-placeholder-val="{{ false }}">
+<sc-for list="{{ steps }}" as="st" hint-placeholder-count="5">
+<div style="display:flex;align-items:center;gap:10px;padding:9px 0">
+<div style="width:16px;text-align:center;font-size:11px;{{ st.css }}">{{ st.glyph }}</div>
+<div style="flex:1;font-size:12px;{{ st.css }}">{{ st.label }}</div>
+<div style="font-size:9.5px;color:var(--ink2);font-family:'DM Mono',ui-monospace,monospace">{{ st.meta }}</div>
+</div>
+</sc-for>
+<sc-for list="{{ moreItems }}" as="i" hint-placeholder-count="4">
+<div onClick="{{ i.run }}" style="display:flex;align-items:center;justify-content:space-between;padding:14px 0;border-top:1px solid var(--line);{{ i.css }}">
+<div style="font-size:12.5px">{{ i.label }}</div><div style="font-size:10px;color:var(--ink2)">{{ i.meta }}</div>
+</div>
+</sc-for>
+</sc-if>
+
+<sc-if value="{{ isMenuSheet }}" hint-placeholder-val="{{ false }}">
+<sc-for list="{{ menuItems }}" as="i" hint-placeholder-count="5">
+<div onClick="{{ i.run }}" style="display:flex;align-items:center;justify-content:space-between;padding:14px 0;border-top:1px solid var(--line);{{ i.css }}">
+<div style="font-size:12.5px">{{ i.label }}</div><div style="font-size:10px;color:var(--ink2)">{{ i.meta }}</div>
+</div>
+</sc-for>
+</sc-if>
+
+<sc-if value="{{ isStubSheet }}" hint-placeholder-val="{{ false }}">
+<div style="font-size:11.5px;color:var(--ink2);line-height:1.7;padding:4px 0 10px">この画面は次のターンでモックを作成します。</div>
+</sc-if>
+</div>
+</sc-if>
+
+</div>
+</x-import>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:460,&quot;height&quot;:950},&quot;theme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;dark&quot;,&quot;light&quot;],&quot;default&quot;:&quot;dark&quot;,&quot;tsType&quot;:&quot;'dark'|'light'&quot;,&quot;section&quot;:&quot;表示&quot;},&quot;startScreen&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;home&quot;,&quot;episode&quot;,&quot;editor&quot;,&quot;details&quot;,&quot;sound&quot;,&quot;export&quot;,&quot;pub&quot;,&quot;library&quot;,&quot;settings&quot;,&quot;new&quot;],&quot;default&quot;:&quot;editor&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;表示&quot;},&quot;feedbackStyle&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;floating&quot;,&quot;snackbar&quot;],&quot;default&quot;:&quot;floating&quot;,&quot;tsType&quot;:&quot;'floating'|'snackbar'&quot;,&quot;section&quot;:&quot;Undo フィードバック&quot;}}">
+class Component extends DCLogic {
+  PPS = 2.6; PH = 150; TOTAL = 180;
+  state = {
+    screen: this.props.startScreen || 'editor',
+    theme: this.props.theme || 'dark',
+    tpl: 'Standard Episode',
+    doc: {
+      clips: [
+        { id:'v1', tr:'voice', kind:'voice', name:'オープニング トーク', s:0,  d:34, g:0 },
+        { id:'v2', tr:'voice', kind:'voice', name:'本題 1', s:38, d:29, g:0 },
+        { id:'v3', tr:'voice', kind:'voice', name:'本題 2', s:72, d:46, g:0 },
+        { id:'o1', tr:'mus',   kind:'opening', name:'Opening', s:0, d:10, g:-2 },
+        { id:'b1', tr:'mus',   kind:'bgm', name:'BGM — Calm Loop', s:10, d:140, g:-14, duck:true },
+        { id:'j1', tr:'ins',   kind:'jingle', name:'Jingle A', s:35, d:3.5, g:-4 }
+      ],
+      markers: [ {id:'m1',t:58,type:'mark'}, {id:'m2',t:84,type:'mistake'}, {id:'m3',t:112,type:'mistake'} ]
+    },
+    past: [], future: [], lastGroup: null, lastAt: 0,
+    sel: null, t: 8, playing: false, sheet: null, toast: null,
+    recording: false, recStart: 0, recN: 0,
+    fmtSel: 'MP3', qual: 'Podcast', style: 'Natural', adv: false, exporting: null, copied: null, tplOn: true,
+    themeMode: 'Dark', menu: null,
+    cfg: { mono: true, lock: true, haptics: true, autoSilence: false }
+  };
+  openMenu = (title, sub, items) => e => { if (e && e.stopPropagation) e.stopPropagation(); this.setState({ sheet: 'menu', menu: { title, sub, items } }); };
+  cfgSet = k => () => this.setState(s => ({ cfg: Object.assign({}, s.cfg, { [k]: !s.cfg[k] }) }));
+  copy = key => {
+    clearTimeout(this.ctmr);
+    this.setState({ copied: key });
+    this.ctmr = setTimeout(() => this.setState({ copied: null }), 1500);
+  };
+  runExport = () => {
+    this.setState({ exporting: 0 });
+    clearInterval(this.etmr);
+    this.etmr = setInterval(() => {
+      const p = (this.state.exporting || 0) + 9;
+      if (p >= 100) { clearInterval(this.etmr); this.setState({ exporting: null, screen: 'pub' }); }
+      else this.setState({ exporting: p });
+    }, 130);
+  };
+
+  componentDidMount() {
+    this.tick = setInterval(() => {
+      const s = this.state;
+      if (s.recording) {
+        const nt = s.t + 0.2;
+        this.setState({ t: nt, doc: { markers: s.doc.markers, clips: s.doc.clips.map(c => c.id === 'live' ? Object.assign({}, c, { d: Math.round((nt - s.recStart) * 10) / 10 }) : c) } });
+      } else if (s.playing) {
+        this.setState({ t: Math.min(this.total(), s.t + 0.2), playing: s.t < this.total() });
+      }
+    }, 200);
+  }
+  componentWillUnmount() { clearInterval(this.tick); clearInterval(this.etmr); clearTimeout(this.tmr); clearTimeout(this.ctmr); }
+  total() { return Math.max(this.TOTAL, ...this.state.doc.clips.map(c => c.s + c.d)); }
+
+  /* ---------- history ---------- */
+  commit(label, doc, group) {
+    const now = Date.now();
+    this.setState(s => {
+      let past = s.past;
+      if (group && s.lastGroup === group && now - s.lastAt < 1500) {
+        past = s.past.slice(); past[past.length - 1] = { label, doc: past[past.length - 1].doc };
+      } else past = s.past.concat([{ label, doc: s.doc }]).slice(-40);
+      return { doc, past, future: [], lastGroup: group || null, lastAt: now };
+    });
+  }
+  undo = () => {
+    const s = this.state; if (!s.past.length || s.recording) return;
+    const e = s.past[s.past.length - 1];
+    this.setState({ doc: e.doc, past: s.past.slice(0, -1), future: [{ label: e.label, doc: s.doc }].concat(s.future), lastGroup: null, sel: null, sheet: null });
+    this.flash('↶', '「' + e.label + '」を取り消しました', 'やり直す', 'redo');
+  };
+  redo = () => {
+    const s = this.state; if (!s.future.length || s.recording) return;
+    const f = s.future[0];
+    this.setState({ doc: f.doc, future: s.future.slice(1), past: s.past.concat([{ label: f.label, doc: s.doc }]), lastGroup: null, sel: null, sheet: null });
+    this.flash('↷', '「' + f.label + '」をやり直しました', '', '');
+  };
+  flash(glyph, text, btn, act) {
+    clearTimeout(this.tmr);
+    this.setState({ toast: { glyph, text, btn, act } });
+    this.tmr = setTimeout(() => this.setState({ toast: null }), 2600);
+  }
+  patch(id, obj) {
+    const d = this.state.doc;
+    return { markers: d.markers, clips: d.clips.map(c => c.id === id ? Object.assign({}, c, obj) : c) };
+  }
+  snap(v) {
+    const edges = [0].concat(...this.state.doc.clips.map(c => [c.s, c.s + c.d]));
+    for (const e of edges) if (Math.abs(e - v) < 3 / this.PPS) return e;
+    return Math.round(v * 10) / 10;
+  }
+  fmt(sec, ms) {
+    const m = Math.floor(sec / 60), s = sec - m * 60;
+    return String(m).padStart(2, '0') + ':' + (ms ? s.toFixed(1).padStart(4, '0') : String(Math.floor(s)).padStart(2, '0'));
+  }
+  bars(seed, n, kind) {
+    const out = []; let x = seed * 9301 + 49297;
+    for (let i = 0; i < n; i++) {
+      x = (x * 9301 + 49297) % 233280; const r = x / 233280;
+      const base = kind === 'voice' ? 22 + r * 78 : kind === 'bgm' ? 26 + r * 34 : 34 + r * 56;
+      out.push({ h: Math.max(6, Math.round(base * (kind === 'voice' ? (0.55 + 0.45 * Math.sin(i / 3.1)) : 1))) });
+    }
+    return out;
+  }
+
+  /* ---------- drags ---------- */
+  drag(onMove, onUp) {
+    const mv = e => onMove(e);
+    const up = e => { window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', up); if (onUp) onUp(e); };
+    window.addEventListener('pointermove', mv); window.addEventListener('pointerup', up);
+  }
+  tlDown = e => {
+    if (this.state.recording) return;
+    const x0 = e.clientX, t0 = this.state.t;
+    this.drag(ev => this.setState({ t: Math.max(0, Math.min(this.total(), t0 - (ev.clientX - x0) / this.PPS)), playing: false }));
+  };
+  clipDown = (e, id) => {
+    e.stopPropagation(); if (this.state.recording) return;
+    const x0 = e.clientX, t0 = this.state.t, isSel = this.state.sel === id;
+    const c0 = this.state.doc.clips.find(c => c.id === id); let moved = false;
+    this.drag(ev => {
+      const dx = ev.clientX - x0;
+      if (Math.abs(dx) > 5) moved = true;
+      if (!moved) return;
+      if (isSel) this.commit('クリップを移動', this.patch(id, { s: Math.max(0, this.snap(c0.s + dx / this.PPS)) }), 'mv:' + id);
+      else this.setState({ t: Math.max(0, Math.min(this.total(), t0 - dx / this.PPS)), playing: false });
+    }, () => { if (!moved) this.setState({ sel: id, playing: false }); });
+  };
+  trimDown = (e, id, side) => {
+    e.stopPropagation();
+    const x0 = e.clientX, c0 = this.state.doc.clips.find(c => c.id === id);
+    this.drag(ev => {
+      const dt = (ev.clientX - x0) / this.PPS;
+      const obj = side === 'l'
+        ? { s: Math.max(0, Math.min(c0.s + c0.d - 1, this.snap(c0.s + dt))), d: Math.max(1, c0.d - dt) }
+        : { d: Math.max(1, Math.round((c0.d + dt) * 10) / 10) };
+      this.commit('トリミング', this.patch(id, obj), 'tr:' + id + side);
+    });
+  };
+  gainDown = e => {
+    const el = e.currentTarget, id = this.state.sel;
+    const set = ev => {
+      const r = el.getBoundingClientRect();
+      const pct = Math.max(0, Math.min(1, (ev.clientX - r.left) / r.width));
+      this.commit('音量を変更', this.patch(id, { g: Math.round((-30 + pct * 36) * 10) / 10 }), 'g:' + id);
+    };
+    set(e); this.drag(set);
+  };
+
+  /* ---------- recording (merged into the editor) ---------- */
+  toggleRec = () => {
+    const s = this.state;
+    if (s.recording) {
+      const n = s.recN + 1;
+      const live = s.doc.clips.find(c => c.id === 'live');
+      const dur = live ? live.d : 0;
+      this.setState({
+        recording: false, sel: null, recN: n,
+        doc: {
+          markers: s.doc.markers,
+          clips: s.doc.clips.map(c => {
+            if (c.id === 'live') return Object.assign({}, c, { id: 'rec' + n, name: '録音 ' + n, live: false });
+            if (c.tr === 'voice' && c.s >= s.recStart - 0.001) return Object.assign({}, c, { s: Math.round((c.s + dur) * 10) / 10 });
+            return c;
+          })
+        }
+      });
+      this.flash('✓', '録音 ' + n + ' を追加しました（後ろのクリップは後ろへ）', '', '');
+    } else {
+      let t = Math.round(s.t * 10) / 10, bumped = false;
+      const hit = s.doc.clips.filter(c => c.tr === 'voice').find(c => t > c.s - 0.001 && t < c.s + c.d - 0.001);
+      if (hit) { t = Math.round((hit.s + hit.d) * 10) / 10; bumped = true; }
+      this.setState({
+        recording: true, playing: false, sel: null, sheet: null, recStart: t, t,
+        doc: { markers: s.doc.markers, clips: s.doc.clips.concat([{ id: 'live', tr: 'voice', kind: 'voice', name: '録音中', s: t, d: 0.2, g: 0, live: true }]) }
+      });
+      this.flash('●', bumped ? 'クリップの末尾 ' + this.fmt(t) + ' から録音します' : '録音を開始しました（自動保存中）', '', '');
+    }
+  };
+
+  /* ---------- edit ops ---------- */
+  split = () => {
+    const { sel, t, doc } = this.state; const c = doc.clips.find(x => x.id === sel);
+    if (!c || t <= c.s + 0.3 || t >= c.s + c.d - 0.3) { this.flash('!', '再生位置がクリップの中にありません', '', ''); return; }
+    const a = Object.assign({}, c, { d: t - c.s });
+    const b = Object.assign({}, c, { id: c.id + 'b' + Math.round(t), s: t, d: c.s + c.d - t, name: c.name + ' (2)' });
+    this.commit('分割', { markers: doc.markers, clips: doc.clips.flatMap(x => x.id === sel ? [a, b] : [x]) });
+    this.setState({ sel: null });
+  };
+  del = () => {
+    const { sel, doc } = this.state; if (!sel) return;
+    this.commit('クリップを削除', { markers: doc.markers, clips: doc.clips.filter(x => x.id !== sel) });
+    this.setState({ sel: null });
+    this.flash('🗑', 'クリップを削除しました', '取り消す', 'undo');
+  };
+  dup = () => {
+    const { sel, doc } = this.state; const c = doc.clips.find(x => x.id === sel); if (!c) return;
+    this.commit('複製', { markers: doc.markers, clips: doc.clips.concat([Object.assign({}, c, { id: c.id + 'd' + doc.clips.length, s: c.s + c.d + 0.5, name: c.name + ' コピー' })]) });
+  };
+  replace = () => {
+    const s = this.state, c = s.doc.clips.find(x => x.id === s.sel); if (!c) return;
+    this.commit('録り直しの準備', { markers: s.doc.markers, clips: s.doc.clips.filter(x => x.id !== c.id) });
+    this.setState({ t: c.s, sel: null });
+    this.flash('●', c.d.toFixed(1) + '秒を空けました — 録音ボタンで差し替え', '', '');
+  };
+  closeGap = (tr, at, amount) => {
+    const doc = this.state.doc;
+    this.commit('隙間を詰める', { markers: doc.markers, clips: doc.clips.map(c => c.tr === tr && c.s >= at ? Object.assign({}, c, { s: Math.round((c.s - amount) * 10) / 10 }) : c) });
+  };
+  removeSilence = () => {
+    const doc = this.state.doc;
+    const vs = doc.clips.filter(c => c.tr === 'voice').sort((a, b) => a.s - b.s);
+    let cursor = null, shift = 0; const moved = {};
+    vs.forEach(c => {
+      if (cursor !== null) { const gap = c.s - cursor; if (gap > 2) shift += gap - 0.6; }
+      moved[c.id] = Math.round((c.s - shift) * 10) / 10; cursor = c.s + c.d;
+    });
+    this.commit('無音を削除', { markers: doc.markers, clips: doc.clips.map(c => moved[c.id] !== undefined ? Object.assign({}, c, { s: moved[c.id] }) : c) });
+    this.flash('✓', '2秒以上の無音をつめました', '取り消す', 'undo');
+  };
+  addMarker = type => {
+    const doc = this.state.doc;
+    this.commit(type === 'mistake' ? '言い間違いマーカーを追加' : 'マーカーを追加',
+      { clips: doc.clips, markers: doc.markers.concat([{ id: 'mk' + Date.now(), t: Math.round(this.state.t * 10) / 10, type }]) });
+    this.flash(type === 'mistake' ? '⚑' : '●', (type === 'mistake' ? '言い間違い' : 'マーカー') + ' ' + this.fmt(this.state.t), '', '');
+  };
+  nextMistake = () => {
+    const ms = this.state.doc.markers.filter(m => m.type === 'mistake').sort((a, b) => a.t - b.t);
+    if (!ms.length) { this.flash('⚑', '言い間違いマーカーはありません', '', ''); return; }
+    const next = ms.find(m => m.t > this.state.t + 0.2) || ms[0];
+    this.setState({ t: next.t, playing: false });
+    this.flash('⚑', this.fmt(next.t) + ' の言い間違いへ移動', '', '');
+  };
+  insert = (kind, name, d, gain) => {
+    const doc = this.state.doc, t = Math.round(this.state.t * 10) / 10;
+    const tr = (kind === 'bgm' || kind === 'opening' || kind === 'ending') ? 'mus' : 'ins';
+    this.commit(name + 'を挿入', { markers: doc.markers, clips: doc.clips.concat([{ id: kind + Date.now(), tr, kind, name, s: t, d, g: gain }]) });
+    this.setState({ sheet: null });
+  };
+
+  toggleTheme = () => this.setState(s => ({ theme: s.theme === 'dark' ? 'light' : 'dark' }));
+  togglePlay = () => { if (!this.state.recording) this.setState(s => ({ playing: !s.playing })); };
+  closeSheet = () => this.setState({ sheet: null });
+  openMore = () => this.setState({ sheet: 'more' });
+  go = screen => () => this.setState({ screen, sel: null, sheet: null, playing: false, recording: false });
+  stub = () => this.setState({ sheet: 'stub' });
+
+  renderVals() {
+    const s = this.state, d = s.doc, P = this.PPS;
+    const off = this.PH - s.t * P;
+    const sel = d.clips.find(c => c.id === s.sel) || null;
+    const col = { voice: 'var(--voice)', opening: 'var(--mus)', ending: 'var(--mus)', bgm: 'var(--mus)', jingle: 'var(--ins)', sfx: 'var(--ins)' };
+    const trackDefs = [{ key: 'voice', label: 'VOICE', h: 108 }, { key: 'mus', label: 'MUSIC', h: 54 }, { key: 'ins', label: 'INSERT', h: 40 }];
+    const tracks = trackDefs.map(t => {
+      const cl = d.clips.filter(c => c.tr === t.key).sort((a, b) => a.s - b.s);
+      const gaps = [];
+      if (t.key === 'voice' && !s.recording) for (let i = 1; i < cl.length; i++) {
+        const g = cl[i].s - (cl[i - 1].s + cl[i - 1].d);
+        if (g > 1.2) {
+          const w = g * P, wide = w > 74;
+          gaps.push({
+            css: 'left:' + ((cl[i - 1].s + cl[i - 1].d + g / 2) * P) + 'px;' + (wide ? 'max-width:' + (w - 6) + 'px' : ''),
+            textCss: wide ? '' : 'display:none',
+            close: () => this.closeGap(t.key, cl[i].s, g)
+          });
+        }
+      }
+      return {
+        label: t.label,
+        css: (t.key === 'voice' ? 'flex:1;min-height:' + t.h + 'px' : 'height:' + t.h + 'px') + ';background:var(--panel);border-radius:8px;overflow:hidden',
+        gaps,
+        clips: cl.map(c => {
+          const w = Math.max(10, c.d * P), isSel = c.id === s.sel, live = !!c.live;
+          return {
+            id: c.id, name: c.name,
+            gainLabel: c.g === 0 ? '' : c.g.toFixed(1) + ' dB',
+            css: 'left:' + (c.s * P) + 'px;width:' + w + 'px;color:' + (live ? 'var(--rec)' : col[c.kind])
+              + ';background:color-mix(in oklab, ' + (live ? 'var(--rec)' : col[c.kind]) + ' ' + (isSel || live ? 26 : 13) + '%, transparent)'
+              + ';border:' + (isSel ? '1.5px solid var(--accent)' : live ? '1.5px solid var(--rec)' : '1px solid transparent')
+              + (c.g < -10 ? ';opacity:.72' : ''),
+            bars: this.bars(live ? Math.floor(c.d * 3) : c.s + c.d, Math.max(6, Math.floor(w / 3.2)), c.kind === 'voice' ? 'voice' : c.kind === 'bgm' ? 'bgm' : 'ins'),
+            selected: isSel,
+            down: e => this.clipDown(e, c.id),
+            trimL: e => this.trimDown(e, c.id, 'l'),
+            trimR: e => this.trimDown(e, c.id, 'r')
+          };
+        })
+      };
+    });
+    const ticks = [];
+    for (let k = 0; k <= this.total(); k += 15) ticks.push({ css: 'left:' + (k * P) + 'px', label: this.fmt(k) });
+    const marks = d.markers.map(m => ({
+      glyph: m.type === 'mistake' ? '⚑' : '●',
+      label: m.type === 'mistake' ? '言い間違い' : 'マーカー',
+      css: 'left:' + (m.t * P - 6) + 'px;background:var(--panel2);border:1px solid ' + (m.type === 'mistake' ? 'var(--mistake)' : 'var(--line)') + ';color:' + (m.type === 'mistake' ? 'var(--mistake)' : 'var(--ink2)'),
+      jump: () => this.setState({ t: m.t, playing: false })
+    }));
+
+    const toolbar = s.recording
+      ? [
+        { label: '⚑ マーカー', run: () => this.addMarker('mark') },
+        { label: '噛んだ', css: 'color:var(--mistake);border-color:var(--mistake)', run: () => this.addMarker('mistake') },
+        { label: '♪ ジングル', run: () => this.flash('♪', 'Quick Jingle: Jingle A', '', '') },
+        { label: '‖ 停止', run: this.toggleRec }
+      ]
+      : sel
+        ? [
+          { label: '分割', run: this.split },
+          { label: '音量', run: () => this.setState({ sheet: 'vol' }) },
+          { label: '録り直す', run: this.replace },
+          { label: '複製', run: this.dup },
+          { label: '削除', css: 'color:var(--mistake);border-color:var(--mistake)', run: this.del }
+        ]
+        : [
+          { label: '＋ 挿入', run: () => this.setState({ sheet: 'ins' }) },
+          { label: '⚑ マーカー', run: () => this.addMarker('mark') },
+          { label: '無音を削除', run: this.removeSilence },
+          { label: '書き出し', run: this.go('export') }
+        ];
+
+    const gainPct = sel ? Math.max(0, Math.min(100, ((sel.g + 30) / 36) * 100)) : 0;
+    const tgl = on => ({
+      trackCss: 'background:' + (on ? 'var(--accent)' : 'var(--panel2)') + ';border:1px solid var(--line)',
+      knobCss: 'transform:translateX(' + (on ? 18 : 0) + 'px);background:' + (on ? '#141414' : 'var(--ink3)')
+    });
+    const volToggles = !sel ? [] : (sel.kind === 'voice'
+      ? [
+        Object.assign({ label: '声の大きさをそろえる', sub: 'ばらつきを自動で均一に', run: () => this.commit('声の大きさをそろえる', this.patch(sel.id, { consist: !sel.consist })) }, tgl(sel.consist)),
+        Object.assign({ label: 'ノイズを減らす', sub: '空調・環境音を抑える', run: () => this.commit('ノイズを減らす', this.patch(sel.id, { noise: !sel.noise })) }, tgl(sel.noise))
+      ]
+      : [
+        Object.assign({ label: 'しゃべり中は音量を下げる', sub: 'Ducking / 下げ幅 弱め', run: () => this.commit('しゃべり中は音量を下げる', this.patch(sel.id, { duck: !sel.duck })) }, tgl(sel.duck)),
+        Object.assign({ label: 'フェードイン 2秒', sub: '曲の入りをなめらかに', run: () => this.commit('フェードを変更', this.patch(sel.id, { fade: !sel.fade })) }, tgl(sel.fade))
+      ]);
+
+    const insertItems = [
+      { label: 'Opening', sub: '番組冒頭の固定音声', dur: '00:10', kind: 'opening', d: 10, g: -2 },
+      { label: 'Ending', sub: '番組終了時の固定音声', dur: '00:18', kind: 'ending', d: 18, g: -2 },
+      { label: 'Jingle A', sub: '話題転換 ★よく使う', dur: '00:03', kind: 'jingle', d: 3.5, g: -4 },
+      { label: 'Jingle B', sub: '質問コーナー', dur: '00:04', kind: 'jingle', d: 4, g: -4 },
+      { label: 'BGM — Calm Loop', sub: '会話の背景音', dur: '02:20', kind: 'bgm', d: 60, g: -14 },
+      { label: '効果音', sub: 'Show Assets から', dur: '00:01', kind: 'sfx', d: 1.4, g: -6 }
+    ].map(i => ({
+      label: i.label, sub: i.sub, dur: i.dur,
+      iconCss: 'background:color-mix(in oklab, ' + col[i.kind] + ' 18%, transparent);color:' + col[i.kind],
+      run: () => this.insert(i.kind, i.label, i.d, i.g)
+    }));
+    const steps = [
+      { label: '録音', meta: '3テイク', done: true }, { label: '編集', meta: '進行中', done: true },
+      { label: '詳細', meta: '入力済み', done: true }, { label: '音の仕上げ', meta: '4/4', done: true },
+      { label: '書き出し', meta: '未', done: false }
+    ].map(st => ({ label: st.label, meta: st.meta, glyph: st.done ? '✓' : '○', css: st.done ? 'color:var(--ink)' : 'color:var(--ink2)' }));
+    const moreItems = [
+      { label: 'エピソードのトップ', meta: '制作状況・テイク一覧 ›', run: this.go('episode') },
+      { label: 'エピソードの詳細', meta: 'タイトル・概要 ›', run: this.go('details') },
+      { label: '音の仕上げ (Sound)', meta: s.style + ' ›', run: this.go('sound') },
+      { label: '書き出し', meta: s.fmtSel + ' / ' + s.qual + ' ›', run: this.go('export') },
+      { label: '編集履歴', meta: '取り消せる操作 ' + s.past.length + '件', css: 'color:var(--ink2)', run: () => this.flash('↶', '編集履歴の一覧は次のリリースで', '', '') }
+    ];
+
+    const episodes = [
+      { num: '#24', title: '最近買ってよかったもの', meta: this.fmt(this.total()) + ' · 20分前', badge: 'Draft', tone: 'var(--accent)' },
+      { num: '#23', title: 'Androidアプリについて話す', meta: '38:24 · 3日前', badge: 'Ready', tone: 'var(--voice)' },
+      { num: '#22', title: '近況報告とおたより紹介', meta: '41:02 · 先週', badge: 'Exported', tone: 'var(--ink2)' },
+      { num: '#21', title: '夏のポッドキャスト雑談', meta: '29:55 · 2週間前', badge: 'Exported', tone: 'var(--ink2)' }
+    ].map(e => ({
+      num: e.num, title: e.title, meta: e.meta, badge: e.badge,
+      badgeCss: 'color:' + e.tone + ';border:1px solid ' + e.tone,
+      open: this.go('episode'),
+      menu: this.openMenu(e.num + ' ' + e.title, e.meta, [
+        { label: '収録・編集を続ける', run: this.go('editor') },
+        { label: 'エピソードを開く', run: this.go('episode') },
+        { label: 'エピソードの詳細', run: this.go('details') },
+        { label: '書き出し', meta: s.fmtSel, run: this.go('export') },
+        { label: '複製して新しい回にする', run: () => { this.closeSheet(); this.flash('⧉', '複製しました', '', ''); } },
+        { label: 'エピソードを削除', meta: '元の録音は残ります', css: 'color:var(--mistake)', run: () => { this.closeSheet(); this.flash('🗑', e.num + ' を削除しました', '取り消す', 'undo'); } }
+      ])
+    }));
+    const templates = [
+      { label: 'Blank', sub: '空のタイムラインから', id: 'Blank' },
+      { label: 'Standard Episode', sub: 'Opening + Talk + Ending', id: 'Standard Episode', recent: true },
+      { label: 'Short Talk', sub: 'Talk only', id: 'Short Talk' },
+      { label: 'Interview', sub: 'Intro + Conversation + Ending', id: 'Interview' }
+    ].map(t => {
+      const on = s.tpl === t.id;
+      return {
+        label: t.label, sub: t.sub, recent: !!t.recent,
+        css: 'border:1px solid ' + (on ? 'var(--accent)' : 'var(--line)'),
+        dotCss: 'border:' + (on ? '5px solid var(--accent)' : '1.5px solid var(--ink3)'),
+        pick: () => this.setState({ tpl: t.id })
+      };
+    });
+
+    const dur = this.total();
+    const kbps = s.fmtSel === 'WAV' ? 1411 : s.fmtSel === 'FLAC' ? 800 : s.qual === 'High Quality' ? 256 : s.qual === 'Custom' ? 192 : 128;
+    const mb = dur * kbps / 8 / 1024;
+    const pick = (on, onPick) => ({
+      css: 'border:1px solid ' + (on ? 'var(--accent)' : 'var(--line)') + (on ? ';color:var(--ink)' : ''),
+      dotCss: 'border:' + (on ? '5px solid var(--accent)' : '1.5px solid var(--ink3)'),
+      pick: onPick
+    });
+    const icon = key => s.copied === key ? '✓' : '⧉';
+    const detailText = '今回は最近買ってよかったガジェットについて話しました。スマートフォンで完結する収録環境の話も少しだけ。';
+    const extra = {
+      isDetails: s.screen === 'details', isSound: s.screen === 'sound', isExport: s.screen === 'export', isPub: s.screen === 'pub',
+      goSound: this.go('sound'), goExport: this.go('export'),
+      titleIcon: icon('title'), descIcon: icon('desc'), allIcon: s.copied === 'all' ? '✓' : '⧉',
+      copyTitle: () => this.copy('title'), copyDesc: () => this.copy('desc'), copyAll: () => this.copy('all'),
+      copyAllLabel: s.copied === 'all' ? '✓ コピーしました' : 'すべてコピー',
+      share: () => this.copy('share'),
+      toggleTpl: () => this.setState({ tplOn: !s.tplOn }),
+      tplTrackCss: 'background:' + (s.tplOn ? 'var(--accent)' : 'var(--panel2)') + ';border:1px solid var(--line)',
+      tplKnobCss: 'transform:translateX(' + (s.tplOn ? 18 : 0) + 'px);background:' + (s.tplOn ? '#141414' : 'var(--ink3)'),
+      episode_description: '{episode_description}', show_name: '{show_name}',
+      soundChecks: [
+        { label: '声の大きさをそろえました' }, { label: '背景ノイズを抑えました' },
+        { label: '音楽と声のバランスを取りました' }, { label: '全体の音量を最適化しました' }
+      ],
+      styles: [
+        { label: 'Natural', sub: '素の声に近い仕上がり' },
+        { label: 'Warm', sub: '低音を少し足して柔らかく' },
+        { label: 'Clear', sub: '言葉をはっきり立たせる' }
+      ].map(st => Object.assign({ label: st.label, sub: st.sub }, pick(s.style === st.label, () => this.setState({ style: st.label })))),
+      adv: s.adv, advGlyph: s.adv ? '▲' : '▼', toggleAdv: () => this.setState({ adv: !s.adv }),
+      advRows: [
+        { label: 'Loudness target', val: '-16 LUFS' }, { label: 'Compressor', val: '4:1 / soft' },
+        { label: 'Limiter', val: '-1.0 dBTP' }, { label: 'EQ', val: 'Low cut 80Hz' }, { label: 'Noise reduction', val: 'Medium' }
+      ],
+      formats: ['MP3', 'M4A', 'WAV', 'FLAC'].map(f => Object.assign({ label: f }, pick(s.fmtSel === f, () => this.setState({ fmtSel: f })))),
+      quals: [
+        { label: 'Podcast', sub: 'おすすめ', spec: '128 kbps' },
+        { label: 'High Quality', sub: '音楽が多い回に', spec: '256 kbps' },
+        { label: 'Custom', sub: 'ビットレート・チャンネルを指定', spec: '指定' }
+      ].map(q => Object.assign({ label: q.label, sub: q.sub, spec: q.spec }, pick(s.qual === q.label, () => this.setState({ qual: q.label })))),
+      sizeLabel: (mb < 10 ? mb.toFixed(1) : String(Math.round(mb))) + ' MB',
+      durLabel: this.fmt(dur),
+      history: [
+        { when: '今日 14:32', spec: 'MP3 · ' + this.fmt(dur) + ' · ' + Math.max(1, Math.round(dur * 128 / 8 / 1024)) + ' MB' },
+        { when: '昨日 23:14', spec: 'WAV · ' + this.fmt(dur) + ' · ' + Math.max(1, Math.round(dur * 1411 / 8 / 1024)) + ' MB' }
+      ],
+      exporting: s.exporting !== null, notExporting: s.exporting === null,
+      pct: s.exporting || 0, pctLabel: (s.exporting || 0) + '%', runExport: this.runExport,
+      copyRows: [
+        { key: 'title', label: 'TITLE', value: '最近買ってよかったもの' },
+        { key: 'desc', label: 'DESCRIPTION', value: detailText },
+        { key: 'meta', label: 'ALL METADATA', value: '#24 · Season 2 · 2026-09-18 · ' + this.fmt(dur) + ' · episode-024.mp3' }
+      ].map(r => ({
+        label: r.label, value: r.value, icon: icon(r.key),
+        btn: s.copied === r.key ? 'コピーしました' : 'コピー',
+        btnCss: s.copied === r.key ? 'color:var(--voice);border-color:var(--voice)' : 'color:var(--accent)',
+        copy: () => this.copy(r.key)
+      }))
+    };
+    const voiceClips = d.clips.filter(c => c.tr === 'voice' && !c.live).sort((a, b) => a.s - b.s);
+    const goAt = c => () => this.setState({ screen: 'editor', t: c.s, sel: c.id, sheet: null, playing: false });
+    const epMenuItems = [
+      { label: '収録・編集を続ける', meta: '', run: this.go('editor') },
+      { label: 'エピソードの詳細', meta: '', run: this.go('details') },
+      { label: '音の仕上げ', meta: s.style, run: this.go('sound') },
+      { label: '書き出し', meta: s.fmtSel, run: this.go('export') },
+      { label: '複製して新しい回にする', meta: '', run: () => { this.closeSheet(); this.flash('⧉', 'Episode #25 として複製しました', '', ''); } },
+      { label: 'エピソードを削除', meta: '元の録音は残ります', css: 'color:var(--mistake)', run: () => { this.closeSheet(); this.flash('🗑', '削除しました', '取り消す', 'undo'); } }
+    ];
+    Object.assign(extra, {
+      isEpisode: s.screen === 'episode', isLibrary: s.screen === 'library', isSettings: s.screen === 'settings',
+      goEpisode: this.go('episode'),
+      openEpMenu: this.openMenu('Episode #24', '最近買ってよかったもの', epMenuItems),
+      stepRows: [
+        { label: '録音', meta: voiceClips.length + ' テイク', done: true, run: this.go('editor') },
+        { label: '編集', meta: '進行中', done: true, run: this.go('editor') },
+        { label: '詳細（タイトル・概要）', meta: '入力済み', done: true, run: this.go('details') },
+        { label: '音の仕上げ', meta: s.style, done: true, run: this.go('sound') },
+        { label: '書き出し', meta: '未', done: false, run: this.go('export') }
+      ].map(st => ({ label: st.label, meta: st.meta, run: st.run, glyph: st.done ? '✓' : '○', css: st.done ? 'color:var(--voice)' : 'color:var(--ink3)' })),
+      takeCount: voiceClips.length + ' 件',
+      takes: voiceClips.map(c => ({
+        name: c.name, meta: this.fmt(c.s) + ' から · ' + c.d.toFixed(1) + '秒',
+        bars: this.bars(c.s + c.d, 11, 'voice'),
+        open: goAt(c),
+        menu: this.openMenu(c.name, this.fmt(c.s) + ' から · ' + c.d.toFixed(1) + '秒', [
+          { label: 'この位置を編集画面で開く', run: goAt(c) },
+          { label: 'この発言だけ録り直す', run: () => { this.setState({ sel: c.id, sheet: null, screen: 'editor' }); setTimeout(this.replace, 0); } },
+          { label: '音量を調整', run: () => this.setState({ screen: 'editor', sel: c.id, sheet: 'vol' }) },
+          { label: 'タイムラインから削除', css: 'color:var(--mistake)', meta: '元データは残る', run: () => { this.setState({ sel: c.id, sheet: null }); setTimeout(this.del, 0); } }
+        ])
+      })),
+      assetGroups: [
+        { label: 'OPENING', items: [{ label: 'My Opening', dur: '00:10', kind: 'opening' }] },
+        { label: 'ENDING', items: [{ label: 'My Ending', dur: '00:18', kind: 'ending' }] },
+        { label: 'JINGLES', items: [
+          { label: 'Transition A', dur: '00:03', kind: 'jingle', fav: '★' },
+          { label: 'Transition B', dur: '00:04', kind: 'jingle' },
+          { label: 'Question', dur: '00:02', kind: 'jingle' }
+        ] },
+        { label: 'BGM / 効果音', items: [
+          { label: 'Calm Loop', dur: '02:20', kind: 'bgm' },
+          { label: 'Page Turn', dur: '00:01', kind: 'sfx' }
+        ] }
+      ].map(g => ({
+        label: g.label,
+        add: () => this.flash('＋', g.label + ' に音源を追加', '', ''),
+        items: g.items.map(i => ({
+          label: i.label, dur: i.dur, fav: i.fav || '',
+          iconCss: 'background:color-mix(in oklab, ' + col[i.kind] + ' 18%, transparent);color:' + col[i.kind],
+          play: () => this.flash('▶', i.label + ' を再生', '', '')
+        }))
+      })),
+      themeOpts: ['Dark', 'Light', 'System'].map(m => ({
+        label: m,
+        css: s.themeMode === m ? 'background:var(--ink);color:var(--bg);font-weight:700' : 'color:var(--ink2)',
+        pick: () => this.setState({ themeMode: m, theme: m === 'Light' ? 'light' : 'dark' })
+      })),
+      settingGroups: [
+        { label: 'RECORDING', rows: [
+          { label: '録音品質', sub: '48kHz / 24bit', val: 'High', value: true },
+          { label: 'モノラルで録音', sub: '一人語りはファイルが軽くなります', key: 'mono' },
+          { label: '画面を消しても録音を続ける', sub: 'ロック中も収録を継続', key: 'lock' }
+        ] },
+        { label: 'EDITING', rows: [
+          { label: '無音として扱う長さ', sub: 'Remove Silence の検出しきい値', val: '2.0秒', value: true },
+          { label: '無音を自動で詰める', sub: 'オフなら必ず Review を表示', key: 'autoSilence' },
+          { label: 'Undo 履歴', sub: '非破壊編集・自動保存と併用', val: s.past.length + '/40', value: true },
+          { label: 'ハプティクス', sub: '録音・分割・スナップ時', key: 'haptics' }
+        ] },
+        { label: 'EXPORT', rows: [
+          { label: '既定のプリセット', sub: '書き出し画面の初期値', val: 'MP3 128', value: true },
+          { label: '書き出し履歴を残す', sub: '再書き出しと区別できます', val: 'ON', value: true }
+        ] },
+        { label: 'SHOW', rows: [
+          { label: '番組の設定', sub: '番組名・Cover Art・著者', val: '›', value: true, run: () => this.flash('⚙', 'Show Settings は次のモックで', '', '') },
+          { label: 'Show Assets', sub: 'Opening / Ending / Jingle / BGM', val: '›', value: true, run: this.go('library') },
+          { label: '概要欄テンプレート', sub: '変数入りの定型文', val: '›', value: true, run: this.go('details') }
+        ] },
+        { label: 'OTHER', rows: [
+          { label: 'ストレージ', sub: '録音データ 1.2 GB', val: '›', value: true },
+          { label: 'アクセシビリティ', sub: '文字サイズ・読み上げラベル', val: '›', value: true }
+        ] }
+      ].map(g => ({
+        label: g.label,
+        rows: g.rows.map(r => {
+          const on = r.key ? s.cfg[r.key] : false;
+          return Object.assign({
+            label: r.label, sub: r.sub, val: r.val || '',
+            isToggle: !!r.key, isValue: !!r.value,
+            run: r.key ? this.cfgSet(r.key) : (r.run || (() => {}))
+          }, r.key ? tgl(on) : { trackCss: '', knobCss: '' });
+        })
+      })),
+      isMenuSheet: s.sheet === 'menu',
+      menuItems: s.menu ? s.menu.items.map(i => ({ label: i.label, meta: i.meta || '', css: i.css || '', run: i.run })) : []
+    });
+    const floating = (this.props.feedbackStyle || 'floating') === 'floating';
+    return Object.assign(extra, {
+      theme: s.theme, isDark: s.theme === 'dark',
+      isHome: s.screen === 'home', isNew: s.screen === 'new', isEditor: s.screen === 'editor',
+      screenLabel: { home: 'Home', new: 'New Episode', details: 'Episode Details', sound: 'Sound', export: 'Export', pub: 'Distribution Pack' }[s.screen] || 'Editor',
+      goHome: this.go('home'), goEditor: this.go('editor'), goNew: this.go('new'),
+      goSettings: this.go('settings'), goLibrary: this.go('library'), createEpisode: this.go('editor'),
+      episodes, templates,
+      heroWave: this.bars(31, 34, 'voice'),
+      clock: this.fmt(s.t, true), off, ticks, marks, tracks,
+      totalLabel: '/ ' + this.fmt(this.total()),
+      subline: s.recording ? '録音中 — 自動保存しています' : '最近買ってよかったもの · 自動保存済み',
+      nextMistake: this.nextMistake, mistakeTotal: d.markers.filter(m => m.type === 'mistake').length,
+      toolbar,
+      hint: s.recording ? '録音中は編集操作を止めています。マーカーは後でジャンプできます'
+        : sel ? sel.name + ' を選択中 · ドラッグで移動、端をドラッグでトリム'
+          : 'タイムラインを左右にドラッグ／クリップをタップで選択',
+      recording: s.recording, recClock: this.fmt(Math.max(0, s.t - s.recStart)),
+      toggleRec: this.toggleRec,
+      recBtnCss: s.recording ? 'background:var(--panel);border:2px solid var(--rec)' : 'background:var(--rec)',
+      recGlyphCss: s.recording ? 'width:22px;height:22px;border-radius:4px;background:var(--rec)' : 'width:22px;height:22px;border-radius:50%;background:#fff',
+      togglePlay: this.togglePlay, playGlyph: s.playing ? '❚❚' : '▶',
+      playCss: s.recording ? 'opacity:.35;pointer-events:none' : 'color:var(--ink)',
+      undo: this.undo, redo: this.redo, tlDown: this.tlDown,
+      undoCss: (s.past.length && !s.recording) ? 'background:var(--panel);border:1px solid var(--line);color:var(--ink)' : 'background:transparent;border:1px solid var(--line);color:var(--ink3);opacity:.45;pointer-events:none',
+      redoCss: (s.future.length && !s.recording) ? 'background:var(--panel);border:1px solid var(--line);color:var(--ink)' : 'background:transparent;border:1px solid var(--line);color:var(--ink3);opacity:.45;pointer-events:none',
+      phCss: 'background:' + (s.recording ? 'var(--rec)' : 'var(--accent)'),
+      phHeadCss: 'background:' + (s.recording ? 'var(--rec)' : 'var(--accent)'),
+      showFloat: !!s.toast && floating, showBar: !!s.toast && !floating,
+      toastPos: s.toast && s.toast.glyph === '↶' ? 'left:16px' : 'right:16px',
+      toastGlyph: s.toast ? s.toast.glyph : '', toastText: s.toast ? s.toast.text : '',
+      toastBtn: s.toast ? s.toast.btn : '',
+      toastAction: s.toast && s.toast.act === 'undo' ? this.undo : this.redo,
+      toggleTheme: this.toggleTheme, openMore: this.openMore,
+      sheetOpen: !!s.sheet, closeSheet: this.closeSheet,
+      isVolSheet: s.sheet === 'vol', isInsSheet: s.sheet === 'ins', isMoreSheet: s.sheet === 'more', isStubSheet: s.sheet === 'stub',
+      sheetTitle: s.sheet === 'menu' ? (s.menu ? s.menu.title : '') : s.sheet === 'vol' ? (sel && sel.kind === 'voice' ? '声' : '音楽') : s.sheet === 'ins' ? '挿入' : s.sheet === 'stub' ? '準備中' : 'Episode #24',
+      sheetSub: s.sheet === 'menu' ? (s.menu ? s.menu.sub : '') : s.sheet === 'vol' ? (sel ? sel.name : '') : s.sheet === 'ins' ? '再生位置 ' + this.fmt(s.t) + ' に追加します' : s.sheet === 'stub' ? '' : '制作状況',
+      gainLabel: sel ? (sel.g === 0 ? '0.0 dB' : sel.g.toFixed(1) + ' dB') : '',
+      gainPct, gainDown: this.gainDown, volToggles, insertItems, moreItems, steps
+    });
+  }
+}
+</script>
+</body>
+</html>

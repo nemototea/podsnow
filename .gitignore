@@ -1,0 +1,39 @@
+# macOS
+.DS_Store
+
+# Node
+node_modules/
+npm-debug.log*
+*.log
+
+# Expo / React Native
+/.expo/
+/.expo-shared/
+/dist/
+/web-build/
+# prebuild 生成物（CNG 運用。方針は DEVELOPMENT.md §3 参照）
+# 先頭の / が重要: modules/*/ios, modules/*/android のネイティブソースは除外しない
+/ios/
+/android/
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+# Env
+.env*
+
+# Large audio fixtures (small ones under fixtures/ are tracked explicitly)
+*.wav
+*.m4a
+*.mp3
+*.flac
+!fixtures/**/*.wav
+
+# IDE
+.idea/
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json

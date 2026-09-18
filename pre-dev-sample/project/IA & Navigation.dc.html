@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>body{margin:0;background:#0B0C0F;font-family:'Zen Kaku Gothic New',system-ui,sans-serif}a{color:#E2B979}a:hover{color:#f0cd90}</style>
+</helmet>
+<div style="max-width:980px;margin:0 auto;padding:44px 24px 80px;color:#F4F2EE">
+
+<div style="font-family:'DM Mono',ui-monospace,monospace;font-size:11px;letter-spacing:.16em;color:#8E949D">PORTRAIT PODCAST STUDIO</div>
+<h1 style="font-size:26px;font-weight:700;line-height:1.4;margin:10px 0 8px">情報構造とナビゲーションの整理</h1>
+<p style="font-size:13.5px;line-height:1.9;color:#8E949D;margin:0 0 36px;max-width:640px;text-wrap:pretty">「録音」「編集」「詳細」「音の仕上げ」「書き出し」は別々の機能ではなく、ひとつの Episode の中の工程である、という前提で階層を決めています。ユーザーが覚える階層は Show → Episode → 工程 の3段だけです。</p>
+
+<div style="font-family:'DM Mono',ui-monospace,monospace;font-size:10px;letter-spacing:.16em;color:#8E949D;margin-bottom:12px">1 — 包含関係</div>
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;margin-bottom:14px">
+<div style="padding:18px;border-radius:14px;background:#15171C;border:1px solid #25282F">
+<div style="font-size:14px;font-weight:700">SHOW（番組）</div>
+<div style="font-size:11.5px;line-height:1.9;color:#8E949D;margin-top:8px">番組名・概要・Cover Art・著者・既定メタデータ<br>Episode template<br>Show Assets（Opening / Ending / Jingle / BGM / SE）<br>Export presets<br>概要欄テンプレート</div>
+<div style="font-size:10.5px;color:#E2B979;margin-top:12px">画面：Home（ダッシュボード）・Show Assets・番組の設定</div>
+</div>
+<div style="padding:18px;border-radius:14px;background:#15171C;border:1px solid #25282F">
+<div style="font-size:14px;font-weight:700">EPISODE（1回の配信 = 1プロジェクト）</div>
+<div style="font-size:11.5px;line-height:1.9;color:#8E949D;margin-top:8px">Metadata（タイトル・概要・話数・季・収録日）<br>Production（録音テイク・挿入した素材）<br>Edit（タイムライン・編集履歴）<br>Sound（仕上げ設定）<br>Export（形式・履歴）</div>
+<div style="font-size:10.5px;color:#E2B979;margin-top:12px">画面：Episode トップ（制作状況＋テイク一覧）</div>
+</div>
+<div style="padding:18px;border-radius:14px;background:#15171C;border:1px solid #25282F">
+<div style="font-size:14px;font-weight:700">工程（Episode の中の作業画面）</div>
+<div style="font-size:11.5px;line-height:1.9;color:#8E949D;margin-top:8px">収録・編集（統合された Editor）<br>エピソードの詳細<br>音の仕上げ<br>書き出し → 配信の準備</div>
+<div style="font-size:10.5px;color:#E2B979;margin-top:12px">どの工程からも Episode トップへ1タップで戻れる</div>
+</div>
+</div>
+
+<div style="padding:18px 20px;border-radius:14px;background:#15171C;border:1px solid #25282F;font-family:'DM Mono',ui-monospace,monospace;font-size:11.5px;line-height:2.1;color:#F4F2EE;margin-bottom:40px;overflow:auto">
+APP<br>
+├─ Settings（アプリ全般：テーマ・録音・編集・書き出しの既定・ストレージ）<br>
+└─ SHOW<br>
+&nbsp;&nbsp;&nbsp;&nbsp;├─ Show settings / Show Assets / Templates<br>
+&nbsp;&nbsp;&nbsp;&nbsp;└─ EPISODES<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;└─ Episode #24<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├─ 収録・編集（Editor＋Undo/Redo）<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├─ 詳細（Metadata・概要欄テンプレート）<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├─ 音の仕上げ（Sound / Advanced）<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;└─ 書き出し → 配信の準備（Distribution Pack）
+</div>
+
+<div style="font-family:'DM Mono',ui-monospace,monospace;font-size:10px;letter-spacing:.16em;color:#8E949D;margin-bottom:12px">2 — どこに何を置くか</div>
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px;margin-bottom:40px">
+<sc-for list="{{ placement }}" as="p" hint-placeholder-count="5">
+<div style="padding:16px 18px;border-radius:14px;background:#15171C;border:1px solid #25282F">
+<div style="font-size:12.5px;font-weight:700;color:#E2B979">{{ p.where }}</div>
+<div style="font-size:11.5px;line-height:1.9;color:#F4F2EE;margin-top:8px">{{ p.what }}</div>
+<div style="font-size:11px;line-height:1.8;color:#8E949D;margin-top:8px">{{ p.why }}</div>
+</div>
+</sc-for>
+</div>
+
+<div style="font-family:'DM Mono',ui-monospace,monospace;font-size:10px;letter-spacing:.16em;color:#8E949D;margin-bottom:12px">3 — 設定の切り分け</div>
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin-bottom:40px">
+<sc-for list="{{ settingsSplit }}" as="s" hint-placeholder-count="3">
+<div style="padding:16px 18px;border-radius:14px;background:#15171C;border:1px solid #25282F">
+<div style="font-size:12.5px;font-weight:700">{{ s.scope }}</div>
+<div style="font-size:10.5px;color:#8E949D;margin-top:3px">{{ s.rule }}</div>
+<div style="font-size:11.5px;line-height:1.9;color:#F4F2EE;margin-top:10px;padding-top:10px;border-top:1px solid #25282F">{{ s.items }}</div>
+</div>
+</sc-for>
+</div>
+
+<div style="font-family:'DM Mono',ui-monospace,monospace;font-size:10px;letter-spacing:.16em;color:#8E949D;margin-bottom:12px">4 — 一覧から直接できる操作</div>
+<div style="border-radius:14px;background:#15171C;border:1px solid #25282F;overflow:hidden;margin-bottom:40px">
+<sc-for list="{{ menus }}" as="m" hint-placeholder-count="3">
+<div style="display:grid;grid-template-columns:150px 1fr;gap:16px;padding:14px 18px;border-bottom:1px solid #25282F">
+<div style="font-size:11.5px;font-weight:700">{{ m.list }}</div>
+<div style="font-size:11.5px;line-height:1.9;color:#8E949D">{{ m.actions }}</div>
+</div>
+</sc-for>
+</div>
+
+<div style="font-family:'DM Mono',ui-monospace,monospace;font-size:10px;letter-spacing:.16em;color:#8E949D;margin-bottom:12px">5 — 主要フロー</div>
+<div style="display:flex;flex-direction:column;gap:10px;margin-bottom:40px">
+<sc-for list="{{ flows }}" as="f" hint-placeholder-count="4">
+<div style="padding:15px 18px;border-radius:13px;background:#15171C;border:1px solid #25282F">
+<div style="font-size:12px;font-weight:700;margin-bottom:6px">{{ f.name }}</div>
+<div style="font-family:'DM Mono',ui-monospace,monospace;font-size:11px;line-height:1.9;color:#8FD4C1">{{ f.path }}</div>
+<div style="font-size:11px;color:#8E949D;margin-top:7px;line-height:1.8">{{ f.note }}</div>
+</div>
+</sc-for>
+</div>
+
+<div style="font-family:'DM Mono',ui-monospace,monospace;font-size:10px;letter-spacing:.16em;color:#8E949D;margin-bottom:12px">6 — 決めたこと / 未決</div>
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px">
+<div style="padding:16px 18px;border-radius:14px;background:#15171C;border:1px solid #25282F">
+<div style="font-size:12px;font-weight:700;color:#8FD4C1;margin-bottom:8px">決めたこと</div>
+<div style="font-size:11.5px;line-height:2;color:#F4F2EE">録音画面は独立させず Editor に統合する<br>状態（Draft / Ready / Exported）はアプリが自動判定<br>工程の入口は Episode トップに集約し、Editor の ⋮ からも到達可<br>破壊的操作は確認ダイアログを出さず Undo で守る<br>アプリ全般設定と番組設定を分ける</div>
+</div>
+<div style="padding:16px 18px;border-radius:14px;background:#15171C;border:1px solid #25282F">
+<div style="font-size:12px;font-weight:700;color:#E2B979;margin-bottom:8px">相談したいこと</div>
+<div style="font-size:11.5px;line-height:2;color:#F4F2EE">複数 Show を持てるようにするか（今は1番組前提）<br>Episode トップを省略して Home から Editor 直行にするか<br>Edit History 画面をいつ出すか（MVP では非搭載）<br>テンプレートの編集画面を Show 設定に置くか</div>
+</div>
+</div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{}">
+class Component extends DCLogic {
+  renderVals() {
+    return {
+      placement: [
+        { where: 'Home（Show ダッシュボード）', what: '続きのエピソード1件 / エピソード一覧 / ＋新規 / Show Assets / 設定', why: 'ファイル一覧ではなく「今日どこから再開するか」を最初に見せる。番組は1つなので Show 画面は Home が兼ねる。' },
+        { where: 'Episode トップ', what: '制作状況（録音・編集・詳細・音・書き出し）とテイク一覧', why: '5つの工程の唯一の入口。タスク管理ではなく「次に何をすればいいか」を示すだけ。' },
+        { where: '収録・編集（Editor）', what: '録音／タイムライン編集／Undo・Redo／挿入／マーカー／無音削除', why: '録音と編集は同じ素材を同じ画面で扱う。録音ボタンは常に下部にあり、開いて数秒で録り始められる。' },
+        { where: '選択時のボトムシート', what: '音量・フェード・ダッキング・録り直し', why: 'クリップを選んだときだけ出す。DAW 用語を出さず「声」「音楽」の言葉で表示。' },
+        { where: '配信の準備（Distribution Pack）', what: '音声ファイル＋タイトル・概要・全メタデータのコピー', why: '書き出しの終点を「保存しました」にせず、配信管理画面へ貼れる状態で終わらせる。' },
+        { where: '設定（アプリ全般）', what: 'テーマ・録音・編集・書き出しの既定・ストレージ・アクセシビリティ', why: 'エピソードごとの値ではなく「毎回そうしたい」ものだけを置く。番組固有の設定は Show 側へリンク。' }
+      ],
+      settingsSplit: [
+        { scope: 'アプリ全般設定', rule: '端末ごと・毎回共通', items: 'テーマ（Dark / Light / System）・録音品質・モノラル録音・ロック中の録音継続・無音のしきい値・ハプティクス・書き出しの既定プリセット・ストレージ・アクセシビリティ' },
+        { scope: '番組（Show）の設定', rule: 'この番組のすべての回に効く', items: '番組名・概要・Cover Art・著者・既定メタデータ・Episode テンプレート・Show Assets・概要欄テンプレート・Export presets' },
+        { scope: 'エピソードの設定', rule: 'この回だけ', items: 'タイトル・概要・話数・季・収録日・タイムラインと編集履歴・クリップ音量・フェード・ダッキング・Sound style・書き出し形式と履歴' }
+      ],
+      menus: [
+        { list: 'エピソード一覧（Home）', actions: '収録・編集を続ける / エピソードを開く / 詳細 / 書き出し / 複製して新しい回にする / 削除（元の録音は残る・Undo 可）' },
+        { list: 'テイク一覧（Episode トップ）', actions: 'その位置を Editor で開く / この発言だけ録り直す / 音量を調整 / タイムラインから削除（元データは保持）' },
+        { list: 'Show Assets', actions: '再生 / お気に入り（★は Quick Insert の先頭に出る）/ 追加 / 用途ごとの並び替え' }
+      ],
+      flows: [
+        { name: '今日の回を録って出す', path: 'Home → ＋ → テンプレート選択 → Editor（●録音）→ 停止 → 編集 → 詳細 → 音の仕上げ → 書き出し → 配信の準備', note: 'テンプレートから作ると Opening / Ending が配置済み。最短経路で Home から3タップで録音開始。' },
+        { name: '途中から再開する', path: 'Home →「編集を続ける」→ Editor', note: '自動保存された状態と編集履歴をそのまま復元。Undo も続けて使える。' },
+        { name: '言い間違いを直す', path: 'Editor → ⚑ 言い間違い ○件 → 次へ → クリップ選択 → 削除 or 録り直す', note: '削除は確認なしで即実行し、直後に「取り消す」を表示。録り直しは穴を空けてから録音ボタン。' },
+        { name: '配信サービスへ貼る', path: 'Episode トップ → 書き出し → 形式・品質 → 書き出す → 配信の準備 → コピー', note: 'タイトル・概要・全メタデータを個別にコピー。完了表示は小さな ✓ のみ。' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>
