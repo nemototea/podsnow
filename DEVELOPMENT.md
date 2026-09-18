@@ -9,13 +9,55 @@
 - Node.js LTS、npm（パッケージマネージャは npm を既定【仮説: 変更可】）、Watchman、CocoaPods、JDK 17【仮説: SDK 57 の要求バージョンは docs で確認】
 - 開発 Agent: Claude Code、Codex（§8）
 
-## 2. リポジトリ
+## 2. リポジトリとブランチ戦略【事実】
 
-- リモート: https://github.com/nemototea/podsnow（初期状態は空リポジトリ）
-- ローカル: `git init` → `git remote add origin …` → 最初のコミットは設計文書のみ。
-- ブランチ: `main` を保護対象とし、作業は `feat/…` `fix/…` `docs/…` ブランチ → PR → squash merge【仮説: 一人開発なので簡略化可】
-- コミットメッセージ: Conventional Commits（`feat:`, `fix:`, `docs:`, `chore:`, `native:`）
-- `.gitignore`: `node_modules/`, `ios/`, `android/`（prebuild 生成物。CNG 運用【仮説】）, `.expo/`, `*.log`, `.DS_Store`, `*.wav` 等のテスト用大容量音源（`fixtures/` の小さなものは除く）
+- リモート: https://github.com/nemototea/podsnow
+- Issue / PR / ラベル / マイルストーンは GitHub で管理し、`gh` CLI から操作する。
+
+### 2.1 ブランチの 3 層
+
+```
+main ◀── PR ── release/<version> ◀── PR ── issue/<番号>-<slug>
+```
+
+| ブランチ | 役割 | 直接コミット |
+|---|---|---|
+| `main` | **ストアリリース可能な状態のみ**。`release/<version>` からの PR マージでしか進まない。マージ = そのバージョンの公開準備完了 | 禁止（初回コミットのみ例外） |
+| `release/<version>` | そのバージョン（例: `release/0.1.0` = MVP）の統合ブランチ。Issue ブランチの PR 宛先。バージョンに必要な Issue がすべて閉じたら `main` へ PR | 禁止（Issue ブランチ経由） |
+| `issue/<番号>-<slug>` | 1 Issue = 1 ブランチ。`release/<version>` から切り、PR は同じ `release/<version>` 宛て | ここで作業 |
+
+- バージョンは SemVer。MVP = `0.1.0`。次バージョンの作業は `release/0.2.0` を `main` から切って始める。
+- 公開後の緊急修正は `hotfix/<slug>` を `main` から切り、`main` と進行中の `release/*` の両方へ PR。
+- マージ方式は squash merge。Issue ブランチはマージ後に削除。
+
+### 2.2 Issue 運用
+
+- 作業は必ず Issue から始める（MVP 外の構想も Issue にして Backlog に置く）。
+- マイルストーン: `0.1.0 (MVP)` / `Backlog`。バージョンが増えたらマイルストーンも増やす。
+- ラベル:
+  - `phase:0-foundation` … `phase:4-show`: DEVELOPMENT.md §6 のフェーズ
+  - `mvp` / `post-mvp`: スコープ
+  - `native` / `ios` / `android`: ネイティブ実装を含む
+  - `spike`: 技術検証。結果は `docs/adr/` に ADR として残す
+  - `data-safety`: 録音データの保全に関わる（最優先。テスト必須）
+  - `docs` / `infra` / `ui` / `release`
+- PR 本文に `Closes #<番号>` を書き、マージで Issue を自動クローズする。
+
+### 2.3 コミット・PR
+
+- コミットメッセージ: Conventional Commits（`feat:`, `fix:`, `docs:`, `chore:`, `native:`, `spike:`）。日本語可。
+- PR タイトルは Issue タイトルに合わせる。PR は CI（§7）が緑であることを条件にマージ。
+- `.gitignore`: `node_modules/`, ルートの `/ios/` と `/android/`（prebuild 生成物。`modules/*/ios|android` は追跡する）, `.expo/`, `*.log`, `.DS_Store`, 大容量音源（`fixtures/` の小さなものは除く）
+
+### 2.4 典型的な作業手順
+
+```sh
+git switch release/0.1.0 && git pull
+git switch -c issue/12-dsp-language-adr
+# ... 作業・コミット ...
+git push -u origin issue/12-dsp-language-adr
+gh pr create --base release/0.1.0 --fill --body "Closes #12"
+```
 
 ## 3. セットアップ手順（予定）
 
