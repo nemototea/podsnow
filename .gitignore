@@ -44,3 +44,8 @@ expo-env.d.ts
 .kotlin/
 .metro-health-check*
 coverage/
+
+# ローカル Expo Module のビルド成果物
+modules/*/android/build/
+modules/*/android/.cxx/
+modules/*/ios/build/
