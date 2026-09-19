@@ -7,6 +7,7 @@ import expo.modules.interfaces.permissions.PermissionsResponse
 import expo.modules.interfaces.permissions.PermissionsStatus
 import expo.modules.kotlin.Promise
 import expo.modules.kotlin.exception.CodedException
+import expo.modules.kotlin.functions.Queues
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 import expo.modules.kotlin.records.Field
@@ -94,19 +95,19 @@ class PodsnowRecorderModule : Module() {
           ),
         )
       }
-    }.runOnQueue(expo.modules.kotlin.Queues.MAIN)
+    }.runOnQueue(Queues.MAIN)
 
-    AsyncFunction("startAsync") { path: String -> wrap { getEngine().start(path) } }.runOnQueue(expo.modules.kotlin.Queues.MAIN)
-    AsyncFunction("pauseAsync") { wrap { getEngine().pause() } }.runOnQueue(expo.modules.kotlin.Queues.MAIN)
-    AsyncFunction("resumeAsync") { wrap { getEngine().resume() } }.runOnQueue(expo.modules.kotlin.Queues.MAIN)
-    AsyncFunction("stopAsync") { wrap { getEngine().stop("stop") } }.runOnQueue(expo.modules.kotlin.Queues.MAIN)
-    AsyncFunction("releaseAsync") { engine?.release() }.runOnQueue(expo.modules.kotlin.Queues.MAIN)
+    AsyncFunction("startAsync") { path: String -> wrap { getEngine().start(path) } }.runOnQueue(Queues.MAIN)
+    AsyncFunction("pauseAsync") { wrap { getEngine().pause() } }.runOnQueue(Queues.MAIN)
+    AsyncFunction("resumeAsync") { wrap { getEngine().resume() } }.runOnQueue(Queues.MAIN)
+    AsyncFunction("stopAsync") { wrap { getEngine().stop("stop") } }.runOnQueue(Queues.MAIN)
+    AsyncFunction("releaseAsync") { engine?.release() }.runOnQueue(Queues.MAIN)
 
     Function("getState") { engine?.state?.raw ?: "idle" }
     Function("getFrames") { (engine?.frames ?: 0L).toDouble() }
 
     AsyncFunction("getInputsAsync") { getEngine().availableInputs() }
-    AsyncFunction("setInputAsync") { uid: String? -> wrap { getEngine().setInput(uid) } }.runOnQueue(expo.modules.kotlin.Queues.MAIN)
+    AsyncFunction("setInputAsync") { uid: String? -> wrap { getEngine().setInput(uid) } }.runOnQueue(Queues.MAIN)
     AsyncFunction("getCurrentInputAsync") { getEngine().currentInput() }
     AsyncFunction("isSpeakerOutputAsync") { getEngine().isSpeakerOutput() }
 
