@@ -7,7 +7,7 @@ import { useServices } from '@/features/app/ServicesProvider';
 import { useHome } from '@/features/home/useHome';
 import { useT } from '@/i18n';
 import type { EpisodeListItem } from '@/infra/db/repositories/episodesRepo';
-import { Button, Card, Eyebrow, Row, Screen, Sheet, Toast } from '@/ui/components';
+import { Button, Card, Eyebrow, Fab, Row, Screen, Sheet, Toast } from '@/ui/components';
 import { useAppTheme } from '@/ui/ThemeContext';
 import { useToast } from '@/ui/useToast';
 
@@ -17,7 +17,7 @@ export default function HomeScreen() {
   const router = useRouter();
   const { show, episodes, recovered } = useServices();
   const { list, cont, reload } = useHome();
-  const { toast, show: showToast, act } = useToast();
+  const { toast, show: showToast, act, dismiss } = useToast();
   const [menu, setMenu] = useState<EpisodeListItem | null>(null);
   const [creating, setCreating] = useState(false);
 
@@ -88,14 +88,8 @@ export default function HomeScreen() {
     <Screen
       overlay={
         <>
-          <Pressable
-            onPress={create}
-            accessibilityLabel={t.a11y.newEpisode}
-            style={[st.fab, { backgroundColor: c.accent }]}
-          >
-            <Text style={st.fabText}>＋</Text>
-          </Pressable>
-          <Toast toast={toast} onAction={act} />
+          <Fab label="＋" onPress={create} accessibilityLabel={t.a11y.newEpisode} />
+          <Toast toast={toast} onAction={act} onDismiss={dismiss} />
         </>
       }
     >
@@ -287,16 +281,4 @@ const st = StyleSheet.create({
     paddingVertical: 2,
     overflow: 'hidden',
   },
-  fab: {
-    position: 'absolute',
-    right: 20,
-    bottom: 28,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
-    elevation: 4,
-  },
-  fabText: { fontSize: 28, color: '#141414', marginTop: -2 },
 });

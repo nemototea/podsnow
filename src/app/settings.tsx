@@ -48,7 +48,7 @@ export default function SettingsScreen() {
   const router = useRouter();
   const services = useServices();
   const { db, recorder, updateSettings } = services;
-  const { toast, show: showToast, act } = useToast();
+  const { toast, show: showToast, act, dismiss } = useToast();
   const [settings, setSettings] = useState<AppSettings>(services.settings);
   const [sheet, setSheet] = useState<'input' | 'source' | 'preset' | 'monitor' | null>(null);
 
@@ -87,7 +87,7 @@ export default function SettingsScreen() {
     : t.settings.inputOsDefault;
 
   return (
-    <Screen overlay={<Toast toast={toast} onAction={act} />}>
+    <Screen overlay={<Toast toast={toast} onAction={act} onDismiss={dismiss} />}>
       <Header title={t.settings.title} onBack={() => router.back()} />
 
       <Eyebrow>{t.settings.languageEyebrow}</Eyebrow>

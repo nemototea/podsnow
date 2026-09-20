@@ -25,7 +25,7 @@ export default function BackupScreen() {
   const c = useAppTheme();
   const t = useT();
   const services = useServices();
-  const { toast, show: showToast, act } = useToast();
+  const { toast, show: showToast, act, dismiss } = useToast();
   const [phase, setPhase] = useState<Phase>('idle');
   const [progress, setProgress] = useState<BackupProgress | null>(null);
   const [result, setResult] = useState<{
@@ -80,7 +80,7 @@ export default function BackupScreen() {
   const pct = progress ? Math.round(progress.progress * 100) : 0;
 
   return (
-    <Screen overlay={<Toast toast={toast} onAction={act} />}>
+    <Screen overlay={<Toast toast={toast} onAction={act} onDismiss={dismiss} />}>
       <Header title={t.backup.title} subtitle={t.backup.subtitle} onBack={() => router.back()} />
       <Card>
         <Text style={[st.body, { color: c.ink2 }]}>{t.backup.lead}</Text>

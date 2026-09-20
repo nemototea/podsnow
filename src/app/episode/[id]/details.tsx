@@ -54,7 +54,7 @@ export default function EpisodeDetailsScreen() {
   const router = useRouter();
   const { db, show, episodes } = useServices();
   const { episode, reload } = useEpisode(episodeId);
-  const { toast, show: showToast, act } = useToast();
+  const { toast, show: showToast, act, dismiss } = useToast();
   const { copied, copy } = useCopy();
 
   const [title, setTitle] = useState('');
@@ -183,7 +183,7 @@ export default function EpisodeDetailsScreen() {
   const inputStyle = [st.input, { color: c.ink, backgroundColor: c.panel2, borderColor: c.line }];
 
   return (
-    <Screen overlay={<Toast toast={toast} onAction={act} />}>
+    <Screen overlay={<Toast toast={toast} onAction={act} onDismiss={dismiss} />}>
       <Header
         title={t.details.title}
         subtitle={t.episode.headerTitle(episode.episode_number)}

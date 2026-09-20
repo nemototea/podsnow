@@ -31,7 +31,7 @@ export default function EpisodeTopScreen() {
   const router = useRouter();
   const services = useServices();
   const { episode, reload } = useEpisode(episodeId);
-  const { toast, show: showToast, act } = useToast();
+  const { toast, show: showToast, act, dismiss } = useToast();
   const [summary, setSummary] = useState<Summary | null>(null);
   const [menu, setMenu] = useState(false);
   const [takeMenu, setTakeMenu] = useState<TakeRow | null>(null);
@@ -160,7 +160,7 @@ export default function EpisodeTopScreen() {
   };
 
   return (
-    <Screen overlay={<Toast toast={toast} onAction={act} />}>
+    <Screen overlay={<Toast toast={toast} onAction={act} onDismiss={dismiss} />}>
       <Header
         title={t.episode.headerTitle(episode.episode_number)}
         onBack={() => router.back()}

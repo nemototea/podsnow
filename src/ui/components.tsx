@@ -1,8 +1,9 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
   ActivityIndicator,
   Animated,
   Modal,
+  PanResponder,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -11,33 +12,53 @@ import {
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useT } from '@/i18n';
 
+import { BOTTOM_GAP, BottomInsetProvider, useBottomInset } from './BottomInset';
 import { useAppTheme } from './ThemeContext';
 
-export function Screen({
+interface ScreenProps {
+  children: ReactNode;
+  scroll?: boolean;
+  padded?: boolean;
+  style?: StyleProp<ViewStyle>;
+  /** スクロールの外に重ねる要素（FAB、トースト）。 */
+  overlay?: ReactNode;
+  /**
+   * 画面下部に固定する操作バー（エディタのトランスポートなど）。
+   * 高さを実測して `useBottomInset()` に流すので、トーストがこれを覆わない（Issue #89）。
+   * safe area の下端はここで足すため、バー側で余白を持たなくてよい。
+   */
+  bottomBar?: ReactNode;
+}
+
+export function Screen(props: ScreenProps) {
+  return (
+    <BottomInsetProvider>
+      <ScreenBody {...props} />
+    </BottomInsetProvider>
+  );
+}
+
+function ScreenBody({
   children,
   scroll = true,
   padded = true,
   style,
   overlay,
-}: {
-  children: ReactNode;
-  scroll?: boolean;
-  padded?: boolean;
-  style?: StyleProp<ViewStyle>;
-  /** スクロールの外に重ねる要素（FAB、トースト、固定フッター）。 */
-  overlay?: ReactNode;
-}) {
+  bottomBar,
+}: ScreenProps) {
   const c = useAppTheme();
+  const insets = useSafeAreaInsets();
+  const { barHeight, setBarHeight } = useBottomInset();
   const inner = padded ? [s.padded, style] : style;
   return (
     <SafeAreaView style={[s.root, { backgroundColor: c.bg }]} edges={['top', 'left', 'right']}>
       {scroll ? (
         <ScrollView
-          contentContainerStyle={[inner, { paddingBottom: 40 }]}
+          contentContainerStyle={[inner, { paddingBottom: 40 + barHeight }]}
           keyboardShouldPersistTaps="handled"
         >
           {children}
@@ -45,6 +66,14 @@ export function Screen({
       ) : (
         <View style={[s.root, inner]}>{children}</View>
       )}
+      {bottomBar ? (
+        <View
+          style={{ paddingBottom: insets.bottom }}
+          onLayout={(e) => setBarHeight(e.nativeEvent.layout.height)}
+        >
+          {bottomBar}
+        </View>
+      ) : null}
       {overlay}
     </SafeAreaView>
   );
@@ -244,22 +273,66 @@ export function Sheet({
   );
 }
 
+/**
+ * トースト。下部の操作エリアには**重ねず、その上に出す**（Issue #89）。
+ * 位置は定数ではなく `useBottomInset()` の実測値から決める。下へスワイプで消せる。
+ */
 export function Toast({
   toast,
   onAction,
+  onDismiss,
 }: {
   toast: { text: string; action?: string } | null;
   onAction?: () => void;
+  /** スワイプで閉じられたとき。省略時はスワイプしても消えない。 */
+  onDismiss?: () => void;
 }) {
   const c = useAppTheme();
+  const insets = useSafeAreaInsets();
+  const { barHeight, setToastHeight } = useBottomInset();
   const [anim] = useState(() => new Animated.Value(0));
+  const [drag] = useState(() => new Animated.Value(0));
+
   useEffect(() => {
     Animated.timing(anim, { toValue: toast ? 1 : 0, duration: 160, useNativeDriver: true }).start();
-  }, [toast, anim]);
+    if (!toast) drag.setValue(0);
+  }, [toast, anim, drag]);
+
+  // 消えたら高さを 0 に戻す（FAB を元の位置へ戻すため）。
+  useEffect(() => {
+    if (!toast) setToastHeight(0);
+  }, [toast, setToastHeight]);
+
+  // 下へ一定量スワイプしたら閉じる。横スワイプや上方向は拾わない。
+  const pan = useMemo(
+    () =>
+      PanResponder.create({
+        onMoveShouldSetPanResponder: (_e, g) => g.dy > 4 && Math.abs(g.dy) > Math.abs(g.dx),
+        onPanResponderMove: (_e, g) => drag.setValue(Math.max(0, g.dy)),
+        onPanResponderRelease: (_e, g) => {
+          if (g.dy > 24) onDismiss?.();
+          else Animated.spring(drag, { toValue: 0, useNativeDriver: true }).start();
+        },
+      }),
+    [drag, onDismiss],
+  );
+
   if (!toast) return null;
   return (
     <Animated.View
-      style={[s.toast, { backgroundColor: c.panel2, borderColor: c.line, opacity: anim }]}
+      {...pan.panHandlers}
+      onLayout={(e) => setToastHeight(e.nativeEvent.layout.height)}
+      style={[
+        s.toast,
+        {
+          backgroundColor: c.panel2,
+          borderColor: c.line,
+          opacity: anim,
+          // 操作バーがあればその上、無ければ safe area の上。
+          bottom: (barHeight || insets.bottom) + BOTTOM_GAP,
+          transform: [{ translateY: drag }],
+        },
+      ]}
       accessibilityLiveRegion="polite"
     >
       <Text style={{ color: c.ink, flex: 1 }}>{toast.text}</Text>
@@ -268,6 +341,47 @@ export function Toast({
           <Text style={{ color: c.accent, fontWeight: '700' }}>{toast.action}</Text>
         </Pressable>
       ) : null}
+    </Animated.View>
+  );
+}
+
+/**
+ * 画面右下のフローティングボタン。トーストが出ているあいだは、その分だけ上へ退避する
+ * （重ねず押し上げる = M3 の Snackbar と FAB の扱い / Issue #89）。
+ * `Screen` の `overlay` に置いて使う。
+ */
+export function Fab({
+  label,
+  onPress,
+  accessibilityLabel,
+}: {
+  label: string;
+  onPress: () => void;
+  accessibilityLabel?: string;
+}) {
+  const c = useAppTheme();
+  const insets = useSafeAreaInsets();
+  const { toastHeight } = useBottomInset();
+  const [shift] = useState(() => new Animated.Value(0));
+  useEffect(() => {
+    Animated.timing(shift, {
+      toValue: toastHeight > 0 ? -(toastHeight + BOTTOM_GAP) : 0,
+      duration: 160,
+      useNativeDriver: true,
+    }).start();
+  }, [toastHeight, shift]);
+  return (
+    <Animated.View
+      style={[s.fab, { bottom: insets.bottom + BOTTOM_GAP, transform: [{ translateY: shift }] }]}
+    >
+      <Pressable
+        onPress={onPress}
+        accessibilityLabel={accessibilityLabel}
+        accessibilityRole="button"
+        style={[s.fabInner, { backgroundColor: c.accent }]}
+      >
+        <Text style={s.fabText}>{label}</Text>
+      </Pressable>
     </Animated.View>
   );
 }
@@ -362,11 +476,11 @@ const s = StyleSheet.create({
     opacity: 0.5,
   },
   sheetTitle: { fontSize: 17, fontWeight: '700', marginBottom: 4 },
+  // bottom は実測値から決めるのでここには置かない（Issue #89）。
   toast: {
     position: 'absolute',
     left: 16,
     right: 16,
-    bottom: 110,
     borderRadius: 12,
     borderWidth: 1,
     padding: 12,
@@ -374,5 +488,15 @@ const s = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
   },
+  fab: { position: 'absolute', right: 20 },
+  fabInner: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 4,
+  },
+  fabText: { fontSize: 28, color: '#141414', marginTop: -2 },
   chip: { paddingVertical: 6, paddingHorizontal: 12, borderRadius: 999, borderWidth: 1 },
 });
