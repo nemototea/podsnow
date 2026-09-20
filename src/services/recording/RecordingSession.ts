@@ -183,6 +183,8 @@ export class RecordingSession {
         channels: s.channels,
         inputUid: s.inputUid,
         diskLowThresholdBytes: s.diskLowThresholdBytes,
+        // 通知の文言は表示言語を知っている UI 層から来る（Issue #80）。
+        androidNotification: this.deps.labels().androidNotification,
         ...(s.androidAudioSource ? { androidAudioSource: s.androidAudioSource } : {}),
       });
       const input = await this.deps.recorder.getCurrentInput();

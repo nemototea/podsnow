@@ -96,6 +96,13 @@ Tag #PodsNow to share your thoughts`,
     interruptionMarker: 'Recording was cut off by an interruption',
   },
 
+  androidNotification: {
+    title: 'PodsNow — Recording',
+    text: 'Tap to return',
+    channelName: 'Recording',
+    channelDescription: 'Shown while recording',
+  },
+
   undo: {
     punchInPrepare: 'Prepare re-record',
     addMistakeMarker: 'Add flub marker',

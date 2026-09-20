@@ -23,6 +23,24 @@ export interface RecorderConfig {
    * 'unprocessed' は対応端末のみ。iOS では無視。AUDIO_DESIGN.md §3.2【仮説: スパイクで既定を決める】
    */
   androidAudioSource?: 'mic' | 'voice_recognition' | 'unprocessed' | 'camcorder';
+  /**
+   * Android のフォアグラウンドサービス通知の文言（Issue #80）。
+   * ネイティブは文言を持たないので、表示言語を知っている JS 側が渡す。
+   * 省略時は英語の既定値。iOS では無視。
+   */
+  androidNotification?: AndroidNotificationStrings;
+}
+
+/** 録音中に出る Android 通知の文言。 */
+export interface AndroidNotificationStrings {
+  /** 通知のタイトル（例: `PodsNow — 収録中`）。 */
+  title: string;
+  /** 通知の本文（例: `タップして戻る`）。 */
+  text: string;
+  /** 通知チャンネル名（Android の設定に出る）。 */
+  channelName: string;
+  /** 通知チャンネルの説明。 */
+  channelDescription: string;
 }
 
 export interface AudioInput {

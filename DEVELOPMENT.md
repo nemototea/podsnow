@@ -1,4 +1,4 @@
-# DEVELOPMENT.md — podsnow 開発ガイド
+# DEVELOPMENT.md — PodsNow 開発ガイド
 
 > 凡例: **【事実】** 対話で決定した仕様 / **【確認済み】** 公式ドキュメント等で確認済み（出典付き） / **【仮説】** 未検証・要スパイク
 
@@ -87,7 +87,18 @@ npx expo run:android
 - ネイティブ側の公開 API は `modules/<name>/src/index.ts` に型定義し、JS からはそこだけを import する。
 - ネイティブで「録音データが宙に浮く」状態を作らない（Segment 確定 → 通知の順を守る）。
 
-### 4.4 ドキュメント
+### 4.4 文言・ローカライゼーション（Issue #80、FR-I18N-4）
+
+- ユーザーに見える文言は `src/i18n/ja.ts`（キーの正）と `src/i18n/en.ts` の両方に書く。画面や `features/` に直接書かない。`accessibilityLabel` も対象。
+- `en.ts` は `Messages = typeof ja` に縛られているので、キーや関数の引数を変えると **英語側を直すまで `npm run typecheck` が落ちる**。これが翻訳漏れの防波堤。
+- 画面からは `const t = useT();` で引く。`useCallback` / `useEffect` の依存配列には `t` を入れる（言語切替で再生成させる）。
+- 文言に値を差し込むときは関数にする（`takes: (n: number) => ...`）。テンプレート文字列を画面側で組み立てない（語順が言語で変わる）。
+- `domain/` / `services/` / `infra/` は文言を持たない:
+  - エラーは `src/domain/errors.ts` の `AppError` / `AppErrorCode` で投げ、表示は UI 層の `errorText()`。DB の `error` 列にもコードを入れる。
+  - DB に書き込む既定文言は `ServiceLabels`（`src/services/app/labels.ts`）として UI 層から注入する。
+- 新しい言語を足すときは `src/i18n/types.ts` の `LOCALES` にコードを追加し、カタログを 1 つ書き、`app.json` の `expo.locales` と expo-localization プラグインの `supportedLocales` にも足す（ネイティブ側は `npx expo prebuild --clean` が必要）。
+
+### 4.5 ドキュメント
 - 仕様変更は必ず該当 `.md` を更新してからコードを書く（設計と実装の乖離を防ぐ）。
 - 記述には **【事実】/【確認済み】/【仮説】** のいずれかを付ける。【確認済み】には出典 URL を付ける。
 - Expo / React Native / OS の API を **記憶で断定しない**。docs.expo.dev、developer.apple.com、developer.android.com を確認してから書く。【事実】

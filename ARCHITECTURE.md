@@ -1,4 +1,4 @@
-# ARCHITECTURE.md — podsnow 技術アーキテクチャ
+# ARCHITECTURE.md — PodsNow 技術アーキテクチャ
 
 > 凡例: **【事実】** 対話で決定した仕様 / **【確認済み】** 公式ドキュメント等で確認済み（出典付き） / **【仮説】** 未検証・要スパイク
 
@@ -30,6 +30,9 @@
 │ src/features/*  ─ 画面単位のフック・ストア（Zustand）        │
 │   recording / editor / episode / export / assets / ...   │
 ├─────────────────────────────────────────────────────────┤
+│ src/i18n/  ─ 文言カタログ（ja / en）とロケール解決           │
+│   ja.ts（キーの正）/ en.ts / LocaleProvider / useT()      │
+├─────────────────────────────────────────────────────────┤
 │ src/domain/  ─ 純粋 TypeScript。副作用なし                 │
 │   timeline (EDL 計算・時間変換) / edit-ops (操作と逆操作)   │
 │   undo / metadata-template / silence-plan                │
@@ -49,6 +52,11 @@
 - `domain/` はネイティブにも DB にも依存しない。Jest で網羅的にテストする（タイムライン計算、範囲削除、無音カット計画、Undo の逆操作）。
 - `services/` は「1 ユースケース = 1 クラス/関数」。録音セッション、復旧、書き出しはここに状態機械を置く。
 - 画面は `features/` のフックだけを呼ぶ。画面からネイティブモジュールを直接呼ばない。
+- **ユーザーに見える文言は `src/i18n/` だけに置く**（Issue #80、FR-I18N-4）。`domain/` / `services/` / `infra/` は文言を持たない:
+  - エラーは `AppError` + `AppErrorCode`（`src/domain/errors.ts`）で返し、文言は UI 層が `errorText()` で引く。
+  - domain が組み立てる表示テキスト（`formatAllMetadata()` の見出しなど）は見出しを引数で受け取る。
+  - DB に書き込む既定文言（Show 名・概要欄テンプレート・エピソードタイトル・Take 名・割り込みマーカー）は `ServiceLabels`（`src/services/app/labels.ts`）として UI 層が `bootstrap()` に注入する。書き込み済みの行はユーザーのデータなので、言語を切り替えても書き換えない。
+- `src/i18n/` は UI 層（`app/` / `features/` / `ui/`）から使う。逆向きの依存（`domain/` が i18n を import する）は ESLint で禁止している。
 
 ## 3. ディレクトリ構成（予定）
 
@@ -71,10 +79,12 @@ podsnow/
 │   ├── services/
 │   ├── features/
 │   ├── infra/
+│   ├── i18n/                   # 文言カタログ（ja.ts がキーの正）・ロケール解決
 │   └── ui/                     # 共通コンポーネント・テーマ
 ├── modules/
 │   ├── podsnow-recorder/       # Expo Module (Swift / Kotlin)
 │   └── podsnow-audio-engine/   # Expo Module (Swift / Kotlin [+ C++ 共通コア: 仮説])
+├── locales/                    # OS の権限ダイアログ等の文言（app.json の expo.locales）
 ├── docs/                       # 追加の設計メモ・ADR
 ├── PRODUCT.md / REQUIREMENTS.md / ARCHITECTURE.md / DATA_MODEL.md / AUDIO_DESIGN.md / DEVELOPMENT.md
 └── pre-dev-sample/             # デザインハンドオフ（参考）

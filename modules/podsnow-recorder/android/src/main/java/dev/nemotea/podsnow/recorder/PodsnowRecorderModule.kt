@@ -13,6 +13,13 @@ import expo.modules.kotlin.modules.ModuleDefinition
 import expo.modules.kotlin.records.Field
 import expo.modules.kotlin.records.Record
 
+class AndroidNotificationRecord : Record {
+  @Field val title: String? = null
+  @Field val text: String? = null
+  @Field val channelName: String? = null
+  @Field val channelDescription: String? = null
+}
+
 class RecorderConfigRecord : Record {
   @Field val sampleRate: Int = 48000
   @Field val channels: Int = 1
@@ -21,6 +28,8 @@ class RecorderConfigRecord : Record {
   @Field val headerFlushIntervalMs: Double? = null
   @Field val levelIntervalMs: Double? = null
   @Field val androidAudioSource: String? = null
+  /** 通知の文言。表示言語を知っている JS 側が渡す（Issue #80）。 */
+  @Field val androidNotification: AndroidNotificationRecord? = null
 }
 
 class RecorderException(message: String) : CodedException("ERR_RECORDER", message, null)
@@ -83,6 +92,15 @@ class PodsnowRecorderModule : Module() {
     AsyncFunction("prepareAsync") { config: RecorderConfigRecord ->
       wrap {
         val base = RecorderEngine.Config()
+        config.androidNotification?.let { n ->
+          val d = RecorderService.Strings()
+          RecorderService.strings = RecorderService.Strings(
+            title = n.title ?: d.title,
+            text = n.text ?: d.text,
+            channelName = n.channelName ?: d.channelName,
+            channelDescription = n.channelDescription ?: d.channelDescription,
+          )
+        }
         getEngine().prepare(
           base.copy(
             sampleRate = config.sampleRate,

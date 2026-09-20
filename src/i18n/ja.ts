@@ -100,6 +100,14 @@ Podcast: {{show_name}}
     interruptionMarker: '割り込みで録音が途切れました',
   },
 
+  /** Android の録音中通知（フォアグラウンドサービス）。 */
+  androidNotification: {
+    title: 'PodsNow — 収録中',
+    text: 'タップして戻る',
+    channelName: '録音',
+    channelDescription: '収録中に表示されます',
+  },
+
   /** Undo 履歴のラベル（トーストに「〜を取り消しました」として出る）。 */
   undo: {
     punchInPrepare: '録り直しの準備',

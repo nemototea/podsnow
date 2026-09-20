@@ -7,6 +7,12 @@ export const TEST_LABELS: ServiceLabels = {
   episodeTitle: (n) => `Episode ${n}`,
   takeName: (n) => `Recording ${n}`,
   interruptionMarker: 'interrupted',
+  androidNotification: {
+    title: 'Rec',
+    text: 'Tap',
+    channelName: 'Recording',
+    channelDescription: 'While recording',
+  },
 };
 
 /** `ensureDefaultShow` に渡す seed。 */

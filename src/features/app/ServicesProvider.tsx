@@ -14,6 +14,7 @@ function serviceLabels(t: ReturnType<typeof useT>): ServiceLabels {
     episodeTitle: t.seed.episodeTitle,
     takeName: t.seed.takeName,
     interruptionMarker: t.seed.interruptionMarker,
+    androidNotification: t.androidNotification,
   };
 }
 

@@ -19,11 +19,27 @@ import androidx.core.content.ContextCompat
  * Android 14+ ではアプリがフォアグラウンドのときにしか開始できない。
  */
 class RecorderService : Service() {
+  /**
+   * 通知の文言。ネイティブは文言を持たず、表示言語を知っている JS 側から
+   * prepareAsync() で渡してもらう（Issue #80、ARCHITECTURE.md §2）。
+   * 渡されなかった場合の既定値は英語（アプリのフォールバック言語）。
+   */
+  data class Strings(
+    val title: String = "PodsNow — Recording",
+    val text: String = "Tap to return",
+    val channelName: String = "Recording",
+    val channelDescription: String = "Shown while recording",
+  )
+
   companion object {
     const val CHANNEL_ID = "podsnow_recording"
     const val NOTIFICATION_ID = 0x5052 // "PR"
     private const val ACTION_START = "dev.nemotea.podsnow.recorder.START"
     private const val ACTION_STOP = "dev.nemotea.podsnow.recorder.STOP"
+
+    @Volatile
+    @JvmStatic
+    var strings: Strings = Strings()
 
     fun start(context: Context) {
       val i = Intent(context, RecorderService::class.java).setAction(ACTION_START)
@@ -58,10 +74,13 @@ class RecorderService : Service() {
   }
 
   private fun buildNotification(): Notification {
+    val s = strings
     val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
     if (Build.VERSION.SDK_INT >= 26) {
-      val ch = NotificationChannel(CHANNEL_ID, "録音", NotificationManager.IMPORTANCE_LOW).apply {
-        description = "収録中に表示されます"
+      // チャンネル名・説明は既存チャンネルには反映されないが、createNotificationChannel は
+      // 同じ ID なら名前と説明だけを更新する（他の設定はユーザーのものが残る）。
+      val ch = NotificationChannel(CHANNEL_ID, s.channelName, NotificationManager.IMPORTANCE_LOW).apply {
+        description = s.channelDescription
         setSound(null, null)
       }
       nm.createNotificationChannel(ch)
@@ -71,8 +90,8 @@ class RecorderService : Service() {
       PendingIntent.getActivity(this, 0, it, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
     }
     return NotificationCompat.Builder(this, CHANNEL_ID)
-      .setContentTitle("podsnow — 収録中")
-      .setContentText("タップして戻る")
+      .setContentTitle(s.title)
+      .setContentText(s.text)
       .setSmallIcon(android.R.drawable.ic_btn_speak_now)
       .setOngoing(true)
       .setOnlyAlertOnce(true)

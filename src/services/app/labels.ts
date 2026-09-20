@@ -16,4 +16,11 @@ export interface ServiceLabels {
   takeName: (takeNumber: number) => string;
   /** 割り込みからの再開時に打つマーカーのラベル。 */
   interruptionMarker: string;
+  /** Android の録音中通知（フォアグラウンドサービス）の文言。 */
+  androidNotification: {
+    title: string;
+    text: string;
+    channelName: string;
+    channelDescription: string;
+  };
 }
