@@ -71,6 +71,31 @@ npx expo run:android
 ```
 
 - Expo Go は使わない（ローカルネイティブモジュールを含むため）。【事実】
+
+### 3.1 Mac から離れて実機で試す（release variant）【確認済み】
+
+Development Build は JS を Metro から受け取るため、Mac が起動していないとアプリが開かない。
+外出先で空き時間に触りたいときは **release variant** を入れる。JS バンドルと assets がバイナリに
+埋め込まれ、Metro も Mac も不要になる（出典: https://docs.expo.dev/more/expo-cli/ の
+`--variant` / "Production builds will export the project and embed the files in the native binary"。
+このページは v57 のバージョン付き URL が無い）。
+
+```sh
+export ANDROID_HOME=$HOME/Library/Android/sdk        # 未設定なら
+npx expo prebuild --clean --platform android --no-install   # 依存追加・アイコン変更のあとだけ
+npx expo run:android --variant release --device Pixel_9a --no-bundler
+```
+
+- `--device` は `adb devices -l` の `model:` の値（例 `Pixel_9a`）。シリアル番号では見つからない。
+- 署名は prebuild が生成する `android/app/build.gradle` の既定どおり **debug keystore**（release も同じ鍵）。
+  Development Build と鍵が同じなので、上書きインストールできる。ストア配布用の鍵は EAS 導入時に別途決める。
+- R8 / minify は既定で無効（`android.enableMinifyInReleaseBuilds` 未設定）。有効にするなら
+  `expo-build-properties` で `app.json` から設定し、`android/` を手で編集しない（`prebuild --clean` で消える）。
+- 成果物: `android/app/build/outputs/apk/release/app-release.apk`。別の端末には
+  `adb -s <serial> install -r` で入れられる。
+- iOS は Xcode 26 が必要（SDK 57）。用意できたら `npx expo run:ios --configuration Release --device` で同じことができる【仮説: 未検証】。
+- release では `expo-dev-client` のランチャー画面が出ない。起動直後にアプリの Home が出ること、
+  機内モードで開けることを最初に確認する。
 - `ios/` `android/` を Git 管理外にする（Continuous Native Generation）か、コミットするかは Phase 0 で決める。ネイティブモジュールは `modules/` にあるので、いずれでも可【仮説】。
 
 ## 4. プロジェクト規約
@@ -97,7 +122,7 @@ npx expo run:android
 - `domain/` / `services/` / `infra/` は文言を持たない（**ESLint で `@/i18n` の import を禁止**している）:
   - エラーは `src/domain/errors.ts` の `AppError` / `AppErrorCode` で投げ、表示は UI 層の `errorText()`。DB の `error` 列にもコードを入れる。
   - DB に書き込む既定文言は `ServiceLabels`（`src/services/app/labels.ts`）として UI 層から注入する。
-- 新しい言語を足すときは `src/i18n/types.ts` の `LOCALES` にコードを追加し、カタログを 1 つ書き、`app.json` の `expo.locales` と expo-localization プラグインの `supportedLocales` にも足す（ネイティブ側は `npx expo prebuild --clean` が必要）。
+- 新しい言語を足すときは `src/i18n/types.ts` の `LOCALES` にコードを追加し、カタログを 1 つ書き、`app.json` の `expo.locales` と expo-localization プラグインの `supportedLocales` にも足す（ネイティブ側は `npx expo prebuild --clean` が必要）。`locales/*.json` の iOS 専用キー（`CFBundleDisplayName` など）は `ios` の下に入れる。トップレベルに置くと Android の `values-b+xx/strings.xml` にも書き出され、release ビルドの `lintVitalRelease`（ExtraTranslation）が失敗する【確認済み: 2026-09-21 Pixel 9a】。
 
 ### 4.5 ブランド・アイコン（Issue #82）
 

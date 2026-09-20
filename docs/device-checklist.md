@@ -6,6 +6,8 @@ AUDIO_DESIGN.md §11 の S-1〜S-10 に対応。
 ## 前提
 
 - Development Build（`npm run ios` / `npm run android`）。iOS は Xcode 26 以上が必要（Expo SDK 57）。
+- Mac から離れて確認する項目（B / C / D / E / F など）は **release variant** を入れて行う
+  （DEVELOPMENT.md §3.1、`npx expo run:android --variant release --device <model>`）。Metro が不要になる。
 - `expo-localization` の追加とその config plugin（`CFBundleLocalizations` / `locales_config.xml`）を反映するため、**J. の確認前に `npx expo prebuild --clean` をやり直す**（Issue #80）。
 - マイク権限・通知権限（Android 13+）を許可済み。
 - 空き容量 1 GB 以上。
