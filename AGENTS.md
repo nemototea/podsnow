@@ -34,6 +34,7 @@ Claude Code と Codex の両方がこのファイルを読む（`CLAUDE.md` は�
   - `domain/` / `services/` / `infra/` は文言を持たない。エラーは `src/domain/errors.ts` の `AppErrorCode` で返し、表示は UI 層の `errorText()` に任せる。
   - DB に書き込む既定文言は `ServiceLabels`（`src/services/app/labels.ts`）経由で UI 層から渡す。
 - 時間はサンプル数（`Smp`、48 kHz）で持ち、UI 表示時だけ ms に変換する。
+- アイコン・スプラッシュの PNG / SVG を直接編集しない。`scripts/brand/geometry.py` を直して `python3 scripts/brand/generate.py`（理由と使わないモチーフは `assets/brand/README.md`）。
 - 記述には【事実】/【確認済み】/【仮説】を付ける。【確認済み】には出典 URL。
 
 ## 作業の進め方
@@ -50,4 +51,5 @@ npm run lint / npm run typecheck / npm test / npm run format
 npm run ios / npm run android          # Development Build
 npx expo prebuild --clean              # ネイティブ再生成（ios/ android/ は Git 管理外）
 npx create-expo-module@latest --local  # 新しいローカルモジュール → modules/<name>/
+python3 scripts/brand/generate.py     # アイコン・スプラッシュ・ブランド SVG の再生成
 ```

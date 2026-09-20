@@ -98,7 +98,15 @@ npx expo run:android
   - DB に書き込む既定文言は `ServiceLabels`（`src/services/app/labels.ts`）として UI 層から注入する。
 - 新しい言語を足すときは `src/i18n/types.ts` の `LOCALES` にコードを追加し、カタログを 1 つ書き、`app.json` の `expo.locales` と expo-localization プラグインの `supportedLocales` にも足す（ネイティブ側は `npx expo prebuild --clean` が必要）。
 
-### 4.5 ドキュメント
+### 4.5 ブランド・アイコン（Issue #82）
+
+- アプリアイコン・スプラッシュ・favicon とマークの SVG は **`python3 scripts/brand/generate.py` で生成**する。PNG / SVG を直接編集しない（図形の定義は `scripts/brand/geometry.py` の 1 箇所）。
+- マークの意味と、差し替え時に避けるべきモチーフは `assets/brand/README.md` に書いてある。雪・氷（名前の誤読）と電波 / Wi-Fi 的な弧（ネットワークを使わないアプリなので矛盾する）は使わない。
+- 色はマークのために新しく作らず、`src/ui/theme.ts` のトークンを使う。
+- Android のアダプティブアイコンは前景の中央 66%（半径 338px / 1024px 中）しか見える保証がない。`generate.py` が検査して、はみ出していれば失敗する。
+- アイコンを変えたら `npx expo prebuild --clean` → 再ビルドが必要。
+
+### 4.6 ドキュメント
 - 仕様変更は必ず該当 `.md` を更新してからコードを書く（設計と実装の乖離を防ぐ）。
 - 記述には **【事実】/【確認済み】/【仮説】** のいずれかを付ける。【確認済み】には出典 URL を付ける。
 - Expo / React Native / OS の API を **記憶で断定しない**。docs.expo.dev、developer.apple.com、developer.android.com を確認してから書く。【事実】

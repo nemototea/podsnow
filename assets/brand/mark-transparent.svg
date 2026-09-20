@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!-- scripts/brand/generate.py が生成。直接編集せず geometry.py を直すこと。 -->
+  <rect x="338.0" y="289.5" width="210.0" height="300.0" rx="105.0" fill="#E2B979"/>
+  <path d="M 278.0 489.5 A 165.0 165.0 0 0 0 608.0 489.5" fill="none" stroke="#E2B979" stroke-width="34.0" stroke-linecap="butt"/>
+  <rect x="427.0" y="664.5" width="32.0" height="51.0" fill="#E2B979"/>
+  <rect x="363.0" y="701.5" width="160.0" height="33.0" rx="16.0" fill="#E2B979"/>
+  <rect x="607.0" y="361.5" width="32.0" height="96.0" rx="16.0" fill="#8FD4C1"/>
+  <rect x="669.0" y="319.5" width="32.0" height="180.0" rx="16.0" fill="#8FD4C1"/>
+  <rect x="731.0" y="349.5" width="32.0" height="120.0" rx="16.0" fill="#8FD4C1"/>
+</svg>
