@@ -3,7 +3,7 @@ import type { SqlExecutor } from '@/infra/db/executor';
 import { failStaleExports } from '@/infra/db/repositories/exportsRepo';
 import { loadSettings, saveSetting, type AppSettings } from '@/infra/db/repositories/settingsRepo';
 import { ensureDefaultShow, type ShowRow } from '@/infra/db/repositories/showsRepo';
-import { dataRoot, ensureDir, fileExists, fileSize } from '@/infra/files/fileSystem';
+import { dataRoot, ensureDir, fileExists, fileSize, resetTmpDir } from '@/infra/files/fileSystem';
 import { createNativeAudioEngine } from '@/infra/native/audioEngineAdapter';
 import { createNativeRecorder } from '@/infra/native/recorderAdapter';
 
@@ -48,6 +48,7 @@ export async function bootstrap(
 ): Promise<AppServices> {
   const db = await openAppDatabase();
   const root = dataRoot();
+  resetTmpDir();
   const now = () => Date.now();
   const show = await ensureDefaultShow(db, newId, now());
   const settings = await loadSettings(db);
