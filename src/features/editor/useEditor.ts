@@ -183,9 +183,17 @@ export function useEditor(episodeId: string) {
   }, [db, episodeId, loadPeaks, loadTopics, playback, services, syncFromEditing]);
 
   useEffect(() => {
+    let alive = true;
     void services.episodes.touch(episodeId);
-    void reloadAll();
+    // 読み込みはマイクロタスクへ逃がし、アンマウント後や episodeId 切替後には開始しない。
+    // （`reloadAll()` は最初の文が await なので setState は同期的には走らないが、
+    //   react-hooks/set-state-in-effect は await の先まで追えないため直接呼びは弾かれる）
+    void Promise.resolve().then(() => {
+      if (!alive) return;
+      return reloadAll();
+    });
     return () => {
+      alive = false;
       void playback.pause();
     };
   }, [episodeId, playback, reloadAll, services.episodes]);
