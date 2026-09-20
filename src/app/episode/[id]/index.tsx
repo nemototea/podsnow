@@ -151,6 +151,14 @@ export default function EpisodeTopScreen() {
     router.back();
   };
 
+  /** 音声だけ削除（FR-EP-4）。話数・詳細・書き出し履歴は残る。取り消せない。 */
+  const purgeAudio = async () => {
+    setMenu(false);
+    await services.episodes.purgeAudio(episodeId);
+    await loadSummary();
+    showToast({ text: t.episode.audioPurged });
+  };
+
   return (
     <Screen overlay={<Toast toast={toast} onAction={act} />}>
       <Header
@@ -167,7 +175,7 @@ export default function EpisodeTopScreen() {
           </Pressable>
         }
       />
-      <Text style={[st.title, { color: c.ink }]}>{episode.title}</Text>
+      <Text style={[st.title, { color: c.ink }]}>{episode.title || t.episode.untitled}</Text>
       <View style={st.metaRow}>
         <Text style={[st.badge, { color: statusTone, borderColor: statusTone }]}>
           {t.status[episode.status]}
@@ -228,7 +236,7 @@ export default function EpisodeTopScreen() {
         visible={menu}
         onClose={() => setMenu(false)}
         title={t.episode.headerTitle(episode.episode_number)}
-        subtitle={episode.title}
+        subtitle={episode.title || t.episode.untitled}
       >
         <Row
           label={t.episode.continueEditing}
@@ -267,7 +275,23 @@ export default function EpisodeTopScreen() {
             router.push(`/episode/${id}/backup`);
           }}
         />
-        <Row label={t.episode.menu.remove} sub={t.episode.menu.removeSub} danger onPress={remove} />
+        {episode.audio_purged_at ? null : (
+          <Row
+            label={t.episode.menu.purgeAudio}
+            sub={t.episode.menu.purgeAudioSub}
+            onPress={purgeAudio}
+          />
+        )}
+        <Row
+          label={t.episode.menu.remove}
+          sub={
+            episode.status === 'exported'
+              ? t.episode.menu.removeExportedNote(episode.episode_number)
+              : t.episode.menu.removeSub
+          }
+          danger
+          onPress={remove}
+        />
       </Sheet>
 
       <Sheet

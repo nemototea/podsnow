@@ -10,8 +10,6 @@ export interface ServiceLabels {
   showName: string;
   /** 初回起動時に作る概要欄テンプレートの本文。 */
   descriptionTemplate: string;
-  /** 新規エピソードの既定タイトル。 */
-  episodeTitle: (episodeNumber: number) => string;
   /** Take の既定名（`録音 1` / `Recording 1`）。 */
   takeName: (takeNumber: number) => string;
   /** 割り込みからの再開時に打つマーカーのラベル。 */

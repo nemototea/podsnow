@@ -188,7 +188,7 @@ export default function EditorScreen() {
         <Header
           title={
             state.episode
-              ? `#${state.episode.episode_number} ${state.episode.title}`
+              ? `#${state.episode.episode_number} ${state.episode.title || t.episode.untitled}`
               : t.editor.fallbackTitle
           }
           subtitle={

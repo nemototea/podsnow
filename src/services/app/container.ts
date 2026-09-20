@@ -3,7 +3,14 @@ import type { SqlExecutor } from '@/infra/db/executor';
 import { failStaleExports } from '@/infra/db/repositories/exportsRepo';
 import { loadSettings, saveSetting, type AppSettings } from '@/infra/db/repositories/settingsRepo';
 import { ensureDefaultShow, type ShowRow } from '@/infra/db/repositories/showsRepo';
-import { dataRoot, ensureDir, fileExists, fileSize, resetTmpDir } from '@/infra/files/fileSystem';
+import {
+  dataRoot,
+  deleteIfExists,
+  ensureDir,
+  fileExists,
+  fileSize,
+  resetTmpDir,
+} from '@/infra/files/fileSystem';
 import { createNativeAudioEngine } from '@/infra/native/audioEngineAdapter';
 import { createNativeRecorder } from '@/infra/native/recorderAdapter';
 
@@ -92,7 +99,14 @@ export async function bootstrap(
   });
   const playback = new PlaybackService({ db, engine, root });
   const exporter = new ExportService({ db, engine, root, ensureDir, fileSize, newId, now });
-  const episodes = new EpisodeService({ db, newId, now, labels: () => live.labels });
+  const episodes = new EpisodeService({
+    db,
+    newId,
+    now,
+    labels: () => live.labels,
+    root,
+    deleteFile: deleteIfExists,
+  });
   const assets = new AssetsService({ db, engine, root, ensureDir, newId, now });
 
   const services: AppServices = {

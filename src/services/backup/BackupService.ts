@@ -1,5 +1,6 @@
 import { AppError } from '@/domain/errors';
 import type { SqlExecutor, SqlRow } from '@/infra/db/executor';
+import { episodeNumberTaken, nextEpisodeNumber } from '@/infra/db/repositories/episodesRepo';
 import type { FsPort } from '@/infra/files/fsPort';
 import { joinRoot, relPaths } from '@/infra/files/layout';
 import {
@@ -170,6 +171,8 @@ export async function exportEpisodeBackup(
 export interface RestoreResult {
   episodeId: string;
   episodeNumber: number;
+  /** 元の話数が使用中で、別の話数を振り直したか（DATA_MODEL.md §7）。 */
+  renumbered: boolean;
   takes: number;
   reusedAssets: number;
   importedAssets: number;
@@ -178,6 +181,10 @@ export interface RestoreResult {
 /**
  * .podsnow を現在の Show に復元する。ID は全て採番し直す（既存 Show の素材と id が一致すれば再利用）。
  * 音声ファイルは新しい ID のパスへ展開する。
+ *
+ * 話数はバックアップに入っていた値をそのまま使い、同じ話数が使用中のときだけ振り直す
+ * （DATA_MODEL.md §7 / FR-EP-6）。`.podsnow` は「その回の保存」なので、復元で番号が
+ * 変わるのは意図に反する。ストレージクリア後に話数の台帳を作り直せるのもこの性質による。
  */
 export async function importEpisodeBackup(
   deps: BackupDeps,
@@ -250,12 +257,13 @@ export async function importEpisodeBackup(
   // 3: DB へ書く
   onProgress?.({ phase: 'db', progress: 0 });
   const t = now();
-  const show = await db.get<{ next_episode_number: number }>(
-    'SELECT next_episode_number FROM shows WHERE id = ?',
-    [showId],
-  );
-  const episodeNumber = show?.next_episode_number ?? 1;
   const ep = payload.episode;
+  const backedUpNumber = Number(ep.episode_number ?? 0);
+  const renumbered =
+    !Number.isFinite(backedUpNumber) ||
+    backedUpNumber <= 0 ||
+    (await episodeNumberTaken(db, showId, backedUpNumber));
+  const episodeNumber = renumbered ? await nextEpisodeNumber(db, showId) : backedUpNumber;
   await db.transaction(async () => {
     await db.run(
       'INSERT INTO episodes (id, show_id, title, description, description_suggestion, episode_number, season, recorded_at, publish_planned_at, status, last_opened_at, playhead_smp, undo_cursor, sound_settings, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
@@ -278,11 +286,6 @@ export async function importEpisodeBackup(
         t,
       ],
     );
-    await db.run('UPDATE shows SET next_episode_number = ?, updated_at = ? WHERE id = ?', [
-      episodeNumber + 1,
-      t,
-      showId,
-    ]);
     for (const [oldId, m] of assetMap) {
       if (m.reuse) continue;
       const a = payload.assets.find((x) => x.id === oldId)!;
@@ -466,6 +469,7 @@ export async function importEpisodeBackup(
   return {
     episodeId: newEpisodeId,
     episodeNumber,
+    renumbered,
     takes: payload.takes.length,
     reusedAssets: reused,
     importedAssets: imported,

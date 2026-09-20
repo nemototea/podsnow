@@ -4,7 +4,6 @@ import type { ServiceLabels } from '../labels';
 export const TEST_LABELS: ServiceLabels = {
   showName: 'Test Show',
   descriptionTemplate: '{{topics}}\n\nPodcast: {{show_name}}',
-  episodeTitle: (n) => `Episode ${n}`,
   takeName: (n) => `Recording ${n}`,
   interruptionMarker: 'interrupted',
   androidNotification: {

@@ -86,7 +86,6 @@ export const en: Messages = {
 
   seed: {
     showName: 'My Podcast',
-    episodeTitle: (n: number) => `Episode ${n}`,
     takeName: (n: number) => `Recording ${n}`,
     descriptionTemplate: `{{topics}}
 
@@ -156,7 +155,12 @@ Tag #PodsNow to share your thoughts`,
     noEpisodes: 'No episodes yet',
     recovered: (duration: string) => `Recovered an unfinished recording (${duration})`,
     removed: (n: number) => `Deleted #${n} (the original recording is kept)`,
+    restored: (n: number) => `Restored #${n}`,
+    restoredRenumbered: (n: number) => `Restored as #${n} (the original number was in use)`,
+    audioPurged: (n: number) => `Deleted the audio of #${n} (the number and details are kept)`,
     duplicated: (n: number) => `Duplicated as #${n}`,
+    badgeNoAudio: 'No audio',
+    untitled: '(Untitled)',
     menu: {
       openEpisode: 'Open episode',
       details: 'Episode details',
@@ -164,8 +168,15 @@ Tag #PodsNow to share your thoughts`,
       duplicate: 'Duplicate as a new episode',
       backup: 'Back up (.podsnow)',
       backupSub: 'Export the recordings and edit data together',
+      purgeAudio: 'Delete audio',
+      purgeAudioSub:
+        'Free up space by deleting only the recordings. The number, title, description and export history are kept',
+      purgeAudioConfirm:
+        'The recordings will be deleted. This cannot be undone. The number and details are kept.',
       remove: 'Delete episode',
       removeSub: 'The original recording is kept · can be undone',
+      removeExportedNote: (n: number) =>
+        `#${n} has been exported. If you delete it, this number will be reused by the next new episode.`,
     },
   },
 
@@ -302,14 +313,21 @@ Tag #PodsNow to share your thoughts`,
     takeNotOnTimeline: 'This take is not on the timeline',
     takeRemoved: (take: string) => `Removed ${take} from the timeline (the original data is kept)`,
     duplicated: (n: number) => `Duplicated as #${n}`,
+    audioPurged: 'Deleted the audio (the number and details are kept)',
+    untitled: '(Untitled)',
     menu: {
       details: 'Episode details',
       sound: 'Sound polish',
       export: 'Export',
       duplicate: 'Duplicate as a new episode',
       backup: 'Back up (.podsnow)',
+      purgeAudio: 'Delete audio',
+      purgeAudioSub:
+        'Free up space by deleting only the recordings. The number, details and export history are kept',
       remove: 'Delete episode',
       removeSub: 'The original recording is kept · undo from Home',
+      removeExportedNote: (n: number) =>
+        `#${n} has been exported. If you delete it, this number will be reused by the next new episode.`,
     },
     takeMenu: {
       openInEditor: 'Open in the editor',
@@ -435,13 +453,15 @@ Tag #PodsNow to share your thoughts`,
   restore: {
     title: 'Restore from backup',
     subtitle: 'Imports a .podsnow file as a new episode',
-    lead: 'The restored episode is added to your current show as a new episode number. Matching assets already in the show are reused; anything missing is imported too.',
+    lead: 'The restored episode keeps its original episode number; a new number is assigned only if that number is already in use. Matching assets already in the show are reused; anything missing is imported too.',
     pick: 'Choose a file',
     wrongExtension: 'Please choose a .podsnow file',
     phaseDb: 'Writing to the database',
     phaseAudio: 'Extracting audio',
     phaseReading: 'Reading',
     done: (episodeNumber: number) => `Restored as episode ${episodeNumber}`,
+    doneRenumbered: (episodeNumber: number) =>
+      `Restored as episode ${episodeNumber} (the original number was in use)`,
     summary: (takes: number, reused: number, imported: number) =>
       `${takes} ${takes === 1 ? 'take' : 'takes'} · assets reused ${reused} / imported ${imported}`,
     openEpisode: 'Open episode',

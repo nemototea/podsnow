@@ -119,7 +119,7 @@ export default function DistributionPackScreen() {
     <Screen overlay={<Toast toast={toast} onAction={act} />}>
       <Header
         title={t.pack.title}
-        subtitle={`#${episode.episode_number} ${episode.title}`}
+        subtitle={`#${episode.episode_number} ${episode.title || t.episode.untitled}`}
         onBack={() => router.back()}
       />
 

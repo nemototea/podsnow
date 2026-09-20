@@ -49,6 +49,31 @@ describe('migrate', () => {
     }
   });
 
+  it('0002 adds audio_purged_at to an existing v1 database without touching rows', async () => {
+    const db = createNodeSqliteExecutor();
+    // まず v1 まで進め、データを入れてから 0002 を当てる（前進のテスト）。
+    await migrate(db, [MIGRATIONS[0]!]);
+    const now = Date.now();
+    await db.run('INSERT INTO shows (id, created_at, updated_at) VALUES (?, ?, ?)', [
+      's1',
+      now,
+      now,
+    ]);
+    await db.run(
+      'INSERT INTO episodes (id, show_id, episode_number, created_at, updated_at) VALUES (?, ?, ?, ?, ?)',
+      ['e1', 's1', 7, now, now],
+    );
+
+    const r = await migrate(db);
+    expect(r.applied).toEqual(['0002_episode_numbering']);
+
+    const ep = await db.get<{ episode_number: number; audio_purged_at: number | null }>(
+      'SELECT episode_number, audio_purged_at FROM episodes WHERE id = ?',
+      ['e1'],
+    );
+    expect(ep).toEqual({ episode_number: 7, audio_purged_at: null });
+  });
+
   it('rolls back a failing migration without advancing user_version', async () => {
     const db = createNodeSqliteExecutor();
     await migrate(db);
