@@ -93,7 +93,7 @@ npx expo run:android
 - `en.ts` は `Messages = typeof ja` に縛られているので、キーや関数の引数を変えると **英語側を直すまで `npm run typecheck` が落ちる**。これが翻訳漏れの防波堤。
 - 画面からは `const t = useT();` で引く。`useCallback` / `useEffect` の依存配列には `t` を入れる（言語切替で再生成させる）。
 - 文言に値を差し込むときは関数にする（`takes: (n: number) => ...`）。テンプレート文字列を画面側で組み立てない（語順が言語で変わる）。
-- `domain/` / `services/` / `infra/` は文言を持たない:
+- `domain/` / `services/` / `infra/` は文言を持たない（**ESLint で `@/i18n` の import を禁止**している）:
   - エラーは `src/domain/errors.ts` の `AppError` / `AppErrorCode` で投げ、表示は UI 層の `errorText()`。DB の `error` 列にもコードを入れる。
   - DB に書き込む既定文言は `ServiceLabels`（`src/services/app/labels.ts`）として UI 層から注入する。
 - 新しい言語を足すときは `src/i18n/types.ts` の `LOCALES` にコードを追加し、カタログを 1 つ書き、`app.json` の `expo.locales` と expo-localization プラグインの `supportedLocales` にも足す（ネイティブ側は `npx expo prebuild --clean` が必要）。

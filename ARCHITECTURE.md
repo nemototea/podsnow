@@ -56,7 +56,8 @@
   - エラーは `AppError` + `AppErrorCode`（`src/domain/errors.ts`）で返し、文言は UI 層が `errorText()` で引く。
   - domain が組み立てる表示テキスト（`formatAllMetadata()` の見出しなど）は見出しを引数で受け取る。
   - DB に書き込む既定文言（Show 名・概要欄テンプレート・エピソードタイトル・Take 名・割り込みマーカー）は `ServiceLabels`（`src/services/app/labels.ts`）として UI 層が `bootstrap()` に注入する。書き込み済みの行はユーザーのデータなので、言語を切り替えても書き換えない。
-- `src/i18n/` は UI 層（`app/` / `features/` / `ui/`）から使う。逆向きの依存（`domain/` が i18n を import する）は ESLint で禁止している。
+- `src/i18n/` は UI 層（`app/` / `features/` / `ui/`）から使う。`domain/` / `services/` / `infra/` からの import は **ESLint（`no-restricted-imports`）で禁止**している（テストは対象外）。
+- ロケールの値型と解決ロジック（`Locale` / `LanguagePreference` / `resolveLocale()`）は文言ではないので `src/domain/locale.ts` に置く。設定として DB にも入るため、infra が i18n を参照せずに済む。
 
 ## 3. ディレクトリ構成（予定）
 

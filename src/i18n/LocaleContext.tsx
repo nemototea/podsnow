@@ -1,8 +1,15 @@
 import { createContext, useContext, useMemo, type ReactNode } from 'react';
 
+import {
+  FALLBACK_LOCALE,
+  resolveLocale,
+  type LanguagePreference,
+  type Locale,
+} from '@/domain/locale';
+
 import { useDeviceLanguageCodes } from './deviceLocale';
-import { FALLBACK_LOCALE, messagesFor, resolveLocale } from './resolve';
-import type { LanguagePreference, Locale, Messages } from './types';
+import { messagesFor } from './resolve';
+import type { Messages } from './types';
 
 interface LocaleValue {
   /** 実際に表示に使っているロケール。 */

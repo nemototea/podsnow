@@ -1,4 +1,4 @@
-import type { LanguagePreference } from '@/i18n/types';
+import type { LanguagePreference } from '@/domain/locale';
 
 import type { SqlExecutor } from '../executor';
 

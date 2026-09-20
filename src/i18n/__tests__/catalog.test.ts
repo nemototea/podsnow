@@ -1,7 +1,8 @@
+import { LOCALES } from '@/domain/locale';
+
 import { en } from '../en';
 import { ja } from '../ja';
-import { FALLBACK_LOCALE, messagesFor, resolveLocale } from '../resolve';
-import { LOCALES, type Locale } from '../types';
+import { messagesFor } from '../resolve';
 
 type Node = Record<string, unknown>;
 
@@ -78,37 +79,5 @@ describe('文言カタログ', () => {
       }
     }
     expect(suspicious).toEqual([]);
-  });
-});
-
-describe('resolveLocale', () => {
-  it('設定が固定なら端末ロケールを無視する', () => {
-    expect(resolveLocale('ja', ['en-US'])).toBe('ja');
-    expect(resolveLocale('en', ['ja-JP'])).toBe('en');
-  });
-
-  it("'system' なら端末の優先順で最初に対応しているものを採る", () => {
-    expect(resolveLocale('system', ['ja-JP', 'en-US'])).toBe('ja');
-    expect(resolveLocale('system', ['en-US', 'ja-JP'])).toBe('en');
-    expect(resolveLocale('system', ['fr-FR', 'ja'])).toBe('ja');
-  });
-
-  it('地域・大文字・アンダースコア付きのタグを言語コードに正規化する', () => {
-    expect(resolveLocale('system', ['ja-JP'])).toBe('ja');
-    expect(resolveLocale('system', ['ja_JP'])).toBe('ja');
-    expect(resolveLocale('system', ['JA'])).toBe('ja');
-    expect(resolveLocale('system', ['en-GB'])).toBe('en');
-  });
-
-  it('未対応の言語しか無ければフォールバックする', () => {
-    expect(resolveLocale('system', ['fr-FR', 'de-DE'])).toBe(FALLBACK_LOCALE);
-    expect(resolveLocale('system', [])).toBe(FALLBACK_LOCALE);
-    expect(resolveLocale('system', [null, undefined, ''])).toBe(FALLBACK_LOCALE);
-  });
-
-  it('対応ロケールすべてにカタログがある', () => {
-    for (const locale of LOCALES) {
-      expect(typeof messagesFor(locale as Locale).app.name).toBe('string');
-    }
   });
 });

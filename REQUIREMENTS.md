@@ -142,7 +142,7 @@
 | FR-I18N-1 | 対応言語は日本語と英語。フォールバックは英語 | MUST | 【事実】 |
 | FR-I18N-2 | 既定では端末の言語設定に従う。OS の優先順で最初に対応している言語を使い、どれも対応外なら英語 | MUST | 【確認済み】`expo-localization` の `getLocales()` は OS の優先順で返す（node_modules の型定義で確認。docs.expo.dev は本作業環境からは参照不可） |
 | FR-I18N-3 | 設定画面から言語を手動で上書きできる。切り替えは再起動なしで即反映（テーマと同じ挙動） | MUST | 【事実】 |
-| FR-I18N-4 | ユーザーに見える文言は `src/i18n/` に集約する。`domain` / `services` / `infra` は文言を持たず、エラーは `AppErrorCode` で返す | MUST | ARCHITECTURE.md §2 |
+| FR-I18N-4 | ユーザーに見える文言は `src/i18n/` に集約する。`domain` / `services` / `infra` は文言を持たず、エラーは `AppErrorCode` で返す。境界は ESLint で強制する | MUST | ARCHITECTURE.md §2 |
 | FR-I18N-5 | 日本語と英語のキー集合が一致していることをテストで保証する | MUST | 【事実】翻訳漏れを実行時に出さない |
 | FR-I18N-6 | DB に書き込む既定文言（Show 名・概要欄テンプレート・エピソードタイトル・Take 名・割り込みマーカー）は初回作成時の表示言語で作る。作成済みの行はユーザーのデータなので、言語を切り替えても書き換えない | MUST | 【事実】 |
 | FR-I18N-7 | OS の権限ダイアログ（マイク）を端末の言語で出す | SHOULD | 【仮説】`app.json` の `expo.locales` で iOS の `InfoPlist.strings` を生成する。実機で未検証 |
