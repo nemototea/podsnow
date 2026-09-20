@@ -1,7 +1,11 @@
+import type { LanguagePreference } from '@/i18n/types';
+
 import type { SqlExecutor } from '../executor';
 
 /** アプリ全般設定（DATA_MODEL.md §4.16）。型付きの既定値と JSON 値。 */
 export interface AppSettings {
+  /** 表示言語。`'system'` は端末のロケールに従う（FR-I18N-3）。 */
+  language: LanguagePreference;
   theme: 'dark' | 'light' | 'system';
   recording: {
     sampleRate: number;
@@ -18,6 +22,7 @@ export interface AppSettings {
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
+  language: 'system',
   theme: 'dark',
   recording: {
     sampleRate: 48000,

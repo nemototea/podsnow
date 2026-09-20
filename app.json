@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "podsnow",
+    "name": "PodsNow",
     "slug": "podsnow",
     "version": "0.1.0",
     "orientation": "portrait",
@@ -12,7 +12,7 @@
       "bundleIdentifier": "dev.nemotea.podsnow",
       "supportsTablet": false,
       "infoPlist": {
-        "NSMicrophoneUsageDescription": "ポッドキャストを収録するためにマイクを使用します。",
+        "NSMicrophoneUsageDescription": "PodsNow uses the microphone to record your podcast.",
         "UIBackgroundModes": ["audio"]
       },
       "buildNumber": "1"
@@ -44,6 +44,13 @@
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 76
         }
+      ],
+      [
+        "expo-localization",
+        {
+          "supportedLocales": ["ja", "en"],
+          "supportsRTL": false
+        }
       ]
     ],
     "experiments": {
@@ -51,6 +58,10 @@
     },
     "splash": {
       "backgroundColor": "#0B0C0F"
+    },
+    "locales": {
+      "ja": "./locales/ja.json",
+      "en": "./locales/en.json"
     }
   }
 }
