@@ -28,7 +28,8 @@ main ◀── PR ── release/<version> ◀── PR ── issue/<番号>-<s
 
 - バージョンは SemVer。MVP = `0.1.0`。次バージョンの作業は `release/0.2.0` を `main` から切って始める。
 - 公開後の緊急修正は `hotfix/<slug>` を `main` から切り、`main` と進行中の `release/*` の両方へ PR。
-- マージ方式は squash merge。Issue ブランチはマージ後に削除。
+- マージ方式は **マージコミット**（GitHub の "Create a merge commit"）。squash はしない。Issue ブランチのコミットをそのまま残し、1 Issue の作業過程を `release/*` の履歴から追えるようにする。
+- Issue ブランチはマージ後に削除。
 
 ### 2.2 Issue 運用
 
