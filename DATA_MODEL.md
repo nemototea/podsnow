@@ -68,11 +68,17 @@ recovery_journal
 | author | TEXT | |
 | cover_path | TEXT | 相対パス |
 | default_season | INTEGER | 新規エピソードの既定シーズン |
-| next_episode_number | INTEGER | 次の話数（作成時に採番） |
 | default_export_preset | TEXT | JSON |
 | created_at / updated_at / deleted_at | INTEGER | Unix ms |
 
 MVP は起動時に 1 行自動作成。【事実】
+
+話数の採番用カウンター列は持たない。台帳は `episodes` の行そのもので、新規作成時は
+`SELECT COALESCE(MAX(episode_number), 0) + 1 FROM episodes WHERE show_id = ? AND deleted_at IS NULL`
+で導出する（REQUIREMENTS.md §2.1.1 / FR-EP-6）。【事実】
+
+理由: カウンターは `episodes` と二重の真実になるうえ、**ストレージクリアやクリーンインストールで失われたとき復元する手段がない**。
+導出なら状態を持たないので壊れる状態も存在せず、`.podsnow` を復元した時点で台帳が再構築される（§7）。
 
 ### 4.2 `show_layout`（既定構成）
 | 列 | 型 | 説明 |
@@ -130,6 +136,7 @@ MVP は起動時に 1 行自動作成。【事実】
 | playhead_smp | INTEGER | 最後の再生位置 |
 | undo_cursor | INTEGER | `edit_ops.seq` の現在位置（0 = 履歴なし）。§4.12 |
 | sound_settings | TEXT | JSON: `{ loudness: { enabled, targetLufs: -16, truePeakDbtp: -1 }, ducking: { enabled, depthDb, attackMs, releaseMs } }` |
+| audio_purged_at | INTEGER nullable | 「音声を削除」（FR-EP-4）を実行した時刻。録音だけ消し、行・話数・メタデータ・書き出し履歴は残す。一覧では「音声なし」として表示する |
 | created_at / updated_at / deleted_at | INTEGER | |
 
 ### 4.6 `takes`
@@ -323,6 +330,13 @@ takes/<takeId>/seg-0001.wav ...
 assets/<assetId>.wav  (オプション。既定は同梱)
 ```
 復元時、ID が衝突する場合は新 UUID を採番して参照を張り替える。
+
+**話数は `episode.json` の `episode_number` をそのまま使う**（振り直さない）。同じ Show に同じ話数が既にある場合のみ
+§4.1 の式で MAX+1 に振り直し、その旨をユーザーに伝える。【事実: FR-EP-6】
+
+理由: `.podsnow` は「その回の保存」なので、復元で第 5 回が第 8 回になるのは意図に反する。
+また、ストレージクリア後に話数の台帳を再構築できるのはこの性質があるからで、振り直すと
+カウンターを廃止した意味が失われる（§4.1）。
 
 ## 8. 移行戦略
 - `PRAGMA user_version` を 1 から開始。`src/infra/db/migrations/0001_init.sql` … を順に適用。

@@ -68,7 +68,7 @@ export default function DistributionPackScreen() {
   const { db, root } = useServices();
   const { episode } = useEpisode(episodeId);
   const { copied, copy } = useCopy();
-  const { toast, show: showToast, act } = useToast();
+  const { toast, show: showToast, act, dismiss } = useToast();
   const [row, setRow] = useState<ExportRow | null | undefined>(undefined);
 
   const load = useCallback(async () => {
@@ -116,10 +116,10 @@ export default function DistributionPackScreen() {
   };
 
   return (
-    <Screen overlay={<Toast toast={toast} onAction={act} />}>
+    <Screen overlay={<Toast toast={toast} onAction={act} onDismiss={dismiss} />}>
       <Header
         title={t.pack.title}
-        subtitle={`#${episode.episode_number} ${episode.title}`}
+        subtitle={`#${episode.episode_number} ${episode.title || t.episode.untitled}`}
         onBack={() => router.back()}
       />
 

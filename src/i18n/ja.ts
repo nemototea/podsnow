@@ -90,7 +90,6 @@ export const ja = {
   /** 初回起動時に DB へ書き込む既定値。以後はユーザーのデータなので翻訳しない。 */
   seed: {
     showName: 'マイポッドキャスト',
-    episodeTitle: (n: number) => `第${n}回`,
     takeName: (n: number) => `録音 ${n}`,
     descriptionTemplate: `{{topics}}
 
@@ -159,7 +158,12 @@ Podcast: {{show_name}}
     noEpisodes: 'まだエピソードがありません',
     recovered: (duration: string) => `未確定の録音を復元しました（${duration}）`,
     removed: (n: number) => `#${n} を削除しました（元の録音は残ります）`,
+    restored: (n: number) => `#${n} を戻しました`,
+    restoredRenumbered: (n: number) => `#${n} として戻しました（元の話数は使用中でした）`,
+    audioPurged: (n: number) => `#${n} の音声を削除しました（話数と詳細は残ります）`,
     duplicated: (n: number) => `#${n} として複製しました`,
+    badgeNoAudio: '音声なし',
+    untitled: '（タイトル未設定）',
     menu: {
       openEpisode: 'エピソードを開く',
       details: 'エピソードの詳細',
@@ -167,8 +171,13 @@ Podcast: {{show_name}}
       duplicate: '複製して新しい回にする',
       backup: 'バックアップ（.podsnow）',
       backupSub: '録音と編集データをまとめて書き出す',
+      purgeAudio: '音声を削除',
+      purgeAudioSub: '録音だけ消して容量を空ける。話数・タイトル・概要・書き出し履歴は残る',
+      purgeAudioConfirm: '録音を削除します。取り消せません。話数と詳細は残ります',
       remove: 'エピソードを削除',
       removeSub: '元の録音は残ります・取り消し可',
+      removeExportedNote: (n: number) =>
+        `#${n} は書き出し済みです。削除すると、この話数は次の新規作成で再利用されます`,
     },
   },
 
@@ -301,14 +310,20 @@ Podcast: {{show_name}}
     takeNotOnTimeline: 'このテイクはタイムラインに含まれていません',
     takeRemoved: (take: string) => `${take} をタイムラインから削除しました（元データは残ります）`,
     duplicated: (n: number) => `#${n} として複製しました`,
+    audioPurged: '音声を削除しました（話数と詳細は残ります）',
+    untitled: '（タイトル未設定）',
     menu: {
       details: 'エピソードの詳細',
       sound: '音の仕上げ',
       export: '書き出し',
       duplicate: '複製して新しい回にする',
       backup: 'バックアップ（.podsnow）',
+      purgeAudio: '音声を削除',
+      purgeAudioSub: '録音だけ消して容量を空ける。話数・詳細・書き出し履歴は残る',
       remove: 'エピソードを削除',
       removeSub: '元の録音は残ります・Home で取り消せます',
+      removeExportedNote: (n: number) =>
+        `#${n} は書き出し済みです。削除すると、この話数は次の新規作成で再利用されます`,
     },
     takeMenu: {
       openInEditor: '編集画面で開く',
@@ -426,13 +441,15 @@ Podcast: {{show_name}}
   restore: {
     title: 'バックアップから復元',
     subtitle: '.podsnow ファイルを新しいエピソードとして取り込みます',
-    lead: '復元したエピソードは現在の番組に新しい話数として追加されます。番組に同じ素材があればそれを使い、無ければ素材も取り込みます。',
+    lead: '復元したエピソードは元の話数のまま取り込みます。同じ話数が使われている場合だけ新しい話数を振ります。番組に同じ素材があればそれを使い、無ければ素材も取り込みます。',
     pick: 'ファイルを選ぶ',
     wrongExtension: '.podsnow ファイルを選んでください',
     phaseDb: 'データベースへ書き込み中',
     phaseAudio: '音声を展開中',
     phaseReading: '読み込み中',
     done: (episodeNumber: number) => `第${episodeNumber}回として復元しました`,
+    doneRenumbered: (episodeNumber: number) =>
+      `第${episodeNumber}回として復元しました（元の話数は使用中でした）`,
     summary: (takes: number, reused: number, imported: number) =>
       `テイク ${takes} 件 · 素材 再利用 ${reused} / 取り込み ${imported}`,
     openEpisode: 'エピソードを開く',

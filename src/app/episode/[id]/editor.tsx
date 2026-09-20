@@ -26,7 +26,7 @@ export default function EditorScreen() {
   const services = useServices();
   const ed = useEditor(id);
   const { state } = ed;
-  const { toast, show: showToast, act } = useToast();
+  const { toast, show: showToast, act, dismiss } = useToast();
   const [sheet, setSheet] = useState<SheetKind>(null);
   const [pps, setPps] = useState(24);
   const [silencePlan, setSilencePlan] = useState<{ ranges: Range[]; totalRemoved: Smp } | null>(
@@ -183,12 +183,56 @@ export default function EditorScreen() {
   const levelPct = state.level ? Math.max(0, Math.min(1, (state.level.rmsDb + 60) / 60)) : 0;
 
   return (
-    <Screen scroll={false} padded={false} overlay={<Toast toast={toast} onAction={act} />}>
+    <Screen
+      scroll={false}
+      padded={false}
+      overlay={<Toast toast={toast} onAction={act} onDismiss={dismiss} />}
+      bottomBar={
+        <View style={[st.transport, { borderTopColor: c.line }]}>
+          <Pressable
+            onPress={() => void doUndo()}
+            disabled={!state.canUndo || isRec}
+            style={[st.side, { opacity: state.canUndo && !isRec ? 1 : 0.35 }]}
+            accessibilityLabel={t.common.undo}
+          >
+            <Text style={{ color: c.ink, fontSize: 20 }}>↶</Text>
+            <Text style={{ color: c.ink2, fontSize: 10 }}>{t.common.undo}</Text>
+          </Pressable>
+          <Pressable
+            onPress={() => void toggleRec()}
+            accessibilityLabel={isRec ? t.a11y.stopRecording : t.a11y.startRecording}
+            style={[st.recBtn, { backgroundColor: isRec ? c.panel : c.rec, borderColor: c.rec }]}
+          >
+            <View style={isRec ? [st.recStop, { backgroundColor: c.rec }] : st.recDotBig} />
+          </Pressable>
+          <Pressable
+            onPress={() => void ed.togglePlay()}
+            disabled={isRec || state.total === 0}
+            style={[
+              st.playBtn,
+              { borderColor: c.line, opacity: isRec || state.total === 0 ? 0.35 : 1 },
+            ]}
+            accessibilityLabel={state.playing ? t.a11y.pause : t.a11y.play}
+          >
+            <Text style={{ color: c.ink, fontSize: 18 }}>{state.playing ? '❚❚' : '▶'}</Text>
+          </Pressable>
+          <Pressable
+            onPress={() => void doRedo()}
+            disabled={!state.canRedo || isRec}
+            style={[st.side, { opacity: state.canRedo && !isRec ? 1 : 0.35 }]}
+            accessibilityLabel={t.common.redo}
+          >
+            <Text style={{ color: c.ink, fontSize: 20 }}>↷</Text>
+            <Text style={{ color: c.ink2, fontSize: 10 }}>{t.common.redo}</Text>
+          </Pressable>
+        </View>
+      }
+    >
       <View style={{ paddingHorizontal: 16 }}>
         <Header
           title={
             state.episode
-              ? `#${state.episode.episode_number} ${state.episode.title}`
+              ? `#${state.episode.episode_number} ${state.episode.title || t.episode.untitled}`
               : t.editor.fallbackTitle
           }
           subtitle={
@@ -405,46 +449,6 @@ export default function EditorScreen() {
               )
             : t.editor.hintIdle}
       </Text>
-
-      {/* トランスポート */}
-      <View style={[st.transport, { borderTopColor: c.line }]}>
-        <Pressable
-          onPress={() => void doUndo()}
-          disabled={!state.canUndo || isRec}
-          style={[st.side, { opacity: state.canUndo && !isRec ? 1 : 0.35 }]}
-          accessibilityLabel={t.common.undo}
-        >
-          <Text style={{ color: c.ink, fontSize: 20 }}>↶</Text>
-          <Text style={{ color: c.ink2, fontSize: 10 }}>{t.common.undo}</Text>
-        </Pressable>
-        <Pressable
-          onPress={() => void toggleRec()}
-          accessibilityLabel={isRec ? t.a11y.stopRecording : t.a11y.startRecording}
-          style={[st.recBtn, { backgroundColor: isRec ? c.panel : c.rec, borderColor: c.rec }]}
-        >
-          <View style={isRec ? [st.recStop, { backgroundColor: c.rec }] : st.recDotBig} />
-        </Pressable>
-        <Pressable
-          onPress={() => void ed.togglePlay()}
-          disabled={isRec || state.total === 0}
-          style={[
-            st.playBtn,
-            { borderColor: c.line, opacity: isRec || state.total === 0 ? 0.35 : 1 },
-          ]}
-          accessibilityLabel={state.playing ? t.a11y.pause : t.a11y.play}
-        >
-          <Text style={{ color: c.ink, fontSize: 18 }}>{state.playing ? '❚❚' : '▶'}</Text>
-        </Pressable>
-        <Pressable
-          onPress={() => void doRedo()}
-          disabled={!state.canRedo || isRec}
-          style={[st.side, { opacity: state.canRedo && !isRec ? 1 : 0.35 }]}
-          accessibilityLabel={t.common.redo}
-        >
-          <Text style={{ color: c.ink, fontSize: 20 }}>↷</Text>
-          <Text style={{ color: c.ink2, fontSize: 10 }}>{t.common.redo}</Text>
-        </Pressable>
-      </View>
 
       {/* ---- シート ---- */}
       <Sheet
@@ -936,12 +940,12 @@ const st = StyleSheet.create({
     paddingVertical: 6,
   },
   hint: { fontSize: 11, paddingHorizontal: 16, paddingBottom: 6 },
+  // 下端の safe area は Screen の bottomBar が足すので、ここでは持たない（Issue #89）。
   transport: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-evenly',
     paddingVertical: 12,
-    paddingBottom: 28,
     borderTopWidth: StyleSheet.hairlineWidth,
   },
   side: { alignItems: 'center', width: 64 },

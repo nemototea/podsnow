@@ -25,7 +25,7 @@ export default function ShowAssetsScreen() {
   const t = useT();
   const router = useRouter();
   const { assets, show, root, engine, db, now } = useServices();
-  const { toast, show: showToast, act } = useToast();
+  const { toast, show: showToast, act, dismiss } = useToast();
   const loader = useCallback(() => assets.list(show.id), [assets, show.id]);
   const { data: list, reload } = useAsyncData<AssetRow[]>(loader, []);
   const [menu, setMenu] = useState<AssetRow | null>(null);
@@ -131,7 +131,7 @@ export default function ShowAssetsScreen() {
   };
 
   return (
-    <Screen overlay={<Toast toast={toast} onAction={act} />}>
+    <Screen overlay={<Toast toast={toast} onAction={act} onDismiss={dismiss} />}>
       <Header title={t.showAssets.title} subtitle={show.name} onBack={() => router.back()} />
       <Text style={[st.lead, { color: c.ink2 }]}>{t.showAssets.lead}</Text>
 

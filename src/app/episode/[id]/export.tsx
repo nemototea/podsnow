@@ -38,7 +38,7 @@ export default function ExportScreen() {
   const router = useRouter();
   const { db, root, exporter, settings } = useServices();
   const { episode } = useEpisode(episodeId);
-  const { toast, show: showToast, act } = useToast();
+  const { toast, show: showToast, act, dismiss } = useToast();
   const [preset, setPreset] = useState<PresetKey>(settings.export.defaultPreset);
   const [durationSmp, setDurationSmp] = useState<number | null>(null);
   const [history, setHistory] = useState<ExportRow[]>([]);
@@ -111,7 +111,7 @@ export default function ExportScreen() {
   const phaseLabel = job?.phase === 'measuring' ? t.export.phaseMeasuring : t.export.phaseRendering;
 
   return (
-    <Screen overlay={<Toast toast={toast} onAction={act} />}>
+    <Screen overlay={<Toast toast={toast} onAction={act} onDismiss={dismiss} />}>
       <Header
         title={t.export.title}
         subtitle={t.episode.headerTitle(episode.episode_number)}

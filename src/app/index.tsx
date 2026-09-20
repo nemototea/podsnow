@@ -7,7 +7,7 @@ import { useServices } from '@/features/app/ServicesProvider';
 import { useHome } from '@/features/home/useHome';
 import { useT } from '@/i18n';
 import type { EpisodeListItem } from '@/infra/db/repositories/episodesRepo';
-import { Button, Card, Eyebrow, Row, Screen, Sheet, Toast } from '@/ui/components';
+import { Button, Card, Eyebrow, Fab, Row, Screen, Sheet, Toast } from '@/ui/components';
 import { useAppTheme } from '@/ui/ThemeContext';
 import { useToast } from '@/ui/useToast';
 
@@ -17,7 +17,7 @@ export default function HomeScreen() {
   const router = useRouter();
   const { show, episodes, recovered } = useServices();
   const { list, cont, reload } = useHome();
-  const { toast, show: showToast, act } = useToast();
+  const { toast, show: showToast, act, dismiss } = useToast();
   const [menu, setMenu] = useState<EpisodeListItem | null>(null);
   const [creating, setCreating] = useState(false);
 
@@ -57,10 +57,24 @@ export default function HomeScreen() {
       text: t.home.removed(e.episode_number),
       action: t.common.undo,
       onAction: async () => {
-        await episodes.restore(e.id);
+        // 待っている間に新しい回を作ると話数が衝突するので、その場合だけ振り直される。
+        const r = await episodes.restore(e.id);
         await reload();
+        showToast({
+          text: r.renumbered
+            ? t.home.restoredRenumbered(r.episodeNumber)
+            : t.home.restored(r.episodeNumber),
+        });
       },
     });
+  };
+
+  /** 音声だけ削除（FR-EP-4）。話数・タイトル・概要・書き出し履歴は残る。取り消せない。 */
+  const purgeAudio = async (e: EpisodeListItem) => {
+    setMenu(null);
+    await episodes.purgeAudio(e.id);
+    await reload();
+    showToast({ text: t.home.audioPurged(e.episode_number) });
   };
 
   const duplicate = async (e: EpisodeListItem) => {
@@ -74,14 +88,8 @@ export default function HomeScreen() {
     <Screen
       overlay={
         <>
-          <Pressable
-            onPress={create}
-            accessibilityLabel={t.a11y.newEpisode}
-            style={[st.fab, { backgroundColor: c.accent }]}
-          >
-            <Text style={st.fabText}>＋</Text>
-          </Pressable>
-          <Toast toast={toast} onAction={act} />
+          <Fab label="＋" onPress={create} accessibilityLabel={t.a11y.newEpisode} />
+          <Toast toast={toast} onAction={act} onDismiss={dismiss} />
         </>
       }
     >
@@ -115,7 +123,7 @@ export default function HomeScreen() {
           </Text>
           <Text style={[st.contNum, { color: c.ink2 }]}>#{cont.episode_number}</Text>
           <Text style={[st.contTitle, { color: c.ink }]} numberOfLines={2}>
-            {cont.title}
+            {cont.title || t.home.untitled}
           </Text>
           <Text style={[st.meta, { color: c.ink2, marginBottom: 12 }]}>
             {formatSmp(smp(cont.duration_smp))} · {t.home.takes(cont.take_count)}
@@ -156,8 +164,12 @@ export default function HomeScreen() {
         {list.map((e) => (
           <Row
             key={e.id}
-            label={`#${e.episode_number}  ${e.title}`}
-            sub={`${formatSmp(smp(e.duration_smp))} · ${t.home.takes(e.take_count)}`}
+            label={`#${e.episode_number}  ${e.title || t.home.untitled}`}
+            sub={
+              e.audio_purged_at
+                ? t.home.badgeNoAudio
+                : `${formatSmp(smp(e.duration_smp))} · ${t.home.takes(e.take_count)}`
+            }
             onPress={() => router.push(`/episode/${e.id}`)}
             right={
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
@@ -186,7 +198,7 @@ export default function HomeScreen() {
       <Sheet
         visible={!!menu}
         onClose={() => setMenu(null)}
-        title={menu ? `#${menu.episode_number} ${menu.title}` : ''}
+        title={menu ? `#${menu.episode_number} ${menu.title || t.home.untitled}` : ''}
       >
         {menu ? (
           <>
@@ -227,9 +239,20 @@ export default function HomeScreen() {
                 router.push(`/episode/${menu.id}/backup`);
               }}
             />
+            {menu.audio_purged_at ? null : (
+              <Row
+                label={t.home.menu.purgeAudio}
+                sub={t.home.menu.purgeAudioSub}
+                onPress={() => void purgeAudio(menu)}
+              />
+            )}
             <Row
               label={t.home.menu.remove}
-              sub={t.home.menu.removeSub}
+              sub={
+                menu.status === 'exported'
+                  ? t.home.menu.removeExportedNote(menu.episode_number)
+                  : t.home.menu.removeSub
+              }
               danger
               onPress={() => remove(menu)}
             />
@@ -258,16 +281,4 @@ const st = StyleSheet.create({
     paddingVertical: 2,
     overflow: 'hidden',
   },
-  fab: {
-    position: 'absolute',
-    right: 20,
-    bottom: 28,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
-    elevation: 4,
-  },
-  fabText: { fontSize: 28, color: '#141414', marginTop: -2 },
 });

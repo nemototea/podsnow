@@ -11,7 +11,6 @@ function serviceLabels(t: Messages): ServiceLabels {
   return {
     showName: t.seed.showName,
     descriptionTemplate: t.seed.descriptionTemplate,
-    episodeTitle: t.seed.episodeTitle,
     takeName: t.seed.takeName,
     interruptionMarker: t.seed.interruptionMarker,
     androidNotification: t.androidNotification,

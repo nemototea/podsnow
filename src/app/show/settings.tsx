@@ -60,7 +60,7 @@ export default function ShowSettingsScreen() {
   const services = useServices();
   const { db, now, assets } = services;
   const showId = services.show.id;
-  const { toast, show: showToast, act } = useToast();
+  const { toast, show: showToast, act, dismiss } = useToast();
 
   const loader = useCallback(async (): Promise<Loaded> => {
     const [show, layout, template, list] = await Promise.all([
@@ -147,7 +147,7 @@ export default function ShowSettingsScreen() {
   const pickList = picking ? data.assets.filter((a) => a.kind === (picking as AssetKind)) : [];
 
   return (
-    <Screen overlay={<Toast toast={toast} onAction={act} />}>
+    <Screen overlay={<Toast toast={toast} onAction={act} onDismiss={dismiss} />}>
       <Header title={t.showSettings.title} onBack={() => router.back()} />
 
       <Eyebrow>{t.showSettings.showEyebrow}</Eyebrow>

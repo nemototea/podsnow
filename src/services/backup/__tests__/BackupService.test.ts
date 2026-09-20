@@ -138,6 +138,17 @@ async function setup() {
 }
 
 describe('BackupService', () => {
+  it('keeps the backed-up episode number when it is free', async () => {
+    const { tmp, show, db, deps } = await setup();
+    const zip = path.join(tmp, 'out', 'e.podsnow');
+    await exportEpisodeBackup(deps, 'E', zip);
+    // 元の回を消しておけば #3 は空く（ストレージクリア後の復元と同じ状況）。
+    await db.run('UPDATE episodes SET deleted_at = ? WHERE id = ?', [2000, 'E']);
+
+    const res = await importEpisodeBackup(deps, show.id, zip);
+    expect(res).toMatchObject({ episodeNumber: 3, renumbered: false });
+  });
+
   it('round-trips an episode through a .podsnow zip with new IDs and identical audio', async () => {
     const { tmp, root, db, show, deps } = await setup();
     const zip = path.join(tmp, 'out', 'e.podsnow');
@@ -149,7 +160,14 @@ describe('BackupService', () => {
 
     const res = await importEpisodeBackup(deps, show.id, zip);
     expect(res.episodeId).not.toBe('E');
-    expect(res).toMatchObject({ takes: 1, reusedAssets: 1, importedAssets: 0, episodeNumber: 1 });
+    // 元の #3 がまだ残っているので、このときだけ振り直す（DATA_MODEL.md §7）。
+    expect(res).toMatchObject({
+      takes: 1,
+      reusedAssets: 1,
+      importedAssets: 0,
+      episodeNumber: 4,
+      renumbered: true,
+    });
 
     const ep = await db.get<{
       title: string;
@@ -157,7 +175,7 @@ describe('BackupService', () => {
       status: string;
       episode_number: number;
     }>('SELECT title, season, status, episode_number FROM episodes WHERE id = ?', [res.episodeId]);
-    expect(ep).toMatchObject({ title: 'テスト回', season: 2, status: 'ready', episode_number: 1 });
+    expect(ep).toMatchObject({ title: 'テスト回', season: 2, status: 'ready', episode_number: 4 });
 
     const takes = await listTakes(db, res.episodeId);
     expect(takes).toHaveLength(1);
