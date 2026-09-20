@@ -125,7 +125,7 @@ export default function HomeScreen() {
       ) : (
         <Card>
           <Text style={{ color: c.ink, fontSize: 16, fontWeight: '700' }}>
-            最初のエピソードを作りましょう
+            {list.length === 0 ? '最初のエピソードを作りましょう' : '次の回を作りましょう'}
           </Text>
           <Text style={{ color: c.ink2, marginTop: 6, marginBottom: 12, lineHeight: 20 }}>
             「＋」で新しい回を作ると、Show の既定構成（Opening / Ending /
