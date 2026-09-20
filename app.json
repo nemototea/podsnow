@@ -1,0 +1,44 @@
+{
+  "expo": {
+    "name": "podsnow",
+    "slug": "podsnow",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "podsnow",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "bundleIdentifier": "dev.nemotea.podsnow",
+      "supportsTablet": false,
+      "icon": "./assets/expo.icon",
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "ポッドキャストを収録するためにマイクを使用します。"
+      }
+    },
+    "android": {
+      "package": "dev.nemotea.podsnow",
+      "adaptiveIcon": {
+        "backgroundColor": "#0B0C0F",
+        "foregroundImage": "./assets/images/android-icon-foreground.png",
+        "backgroundImage": "./assets/images/android-icon-background.png",
+        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#0B0C0F",
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 76
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

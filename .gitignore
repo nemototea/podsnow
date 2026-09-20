@@ -37,3 +37,10 @@ npm-debug.log*
 .vscode/*
 !.vscode/settings.json
 !.vscode/extensions.json
+
+# Expo / TypeScript 生成物
+expo-env.d.ts
+*.tsbuildinfo
+.kotlin/
+.metro-health-check*
+coverage/

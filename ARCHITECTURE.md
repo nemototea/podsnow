@@ -25,7 +25,7 @@
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│ app/ (expo-router screens)  ─ UI / 画面遷移               │
+│ src/app/ (expo-router screens)  ─ UI / 画面遷移           │
 ├─────────────────────────────────────────────────────────┤
 │ src/features/*  ─ 画面単位のフック・ストア（Zustand）        │
 │   recording / editor / episode / export / assets / ...   │
@@ -54,19 +54,19 @@
 
 ```
 podsnow/
-├── app/                        # expo-router
-│   ├── _layout.tsx
-│   ├── index.tsx               # Home
-│   ├── episode/[id]/index.tsx  # Episode トップ
-│   ├── episode/[id]/editor.tsx # 収録・編集
-│   ├── episode/[id]/details.tsx
-│   ├── episode/[id]/sound.tsx
-│   ├── episode/[id]/export.tsx
-│   ├── episode/[id]/pack.tsx   # Distribution Pack
-│   ├── show/assets.tsx
-│   ├── show/settings.tsx
-│   └── settings.tsx
 ├── src/
+│   ├── app/                    # expo-router（SDK 57 の既定は src/app）
+│   │   ├── _layout.tsx
+│   │   ├── index.tsx               # Home
+│   │   ├── episode/[id]/index.tsx  # Episode トップ
+│   │   ├── episode/[id]/editor.tsx # 収録・編集
+│   │   ├── episode/[id]/details.tsx
+│   │   ├── episode/[id]/sound.tsx
+│   │   ├── episode/[id]/export.tsx
+│   │   ├── episode/[id]/pack.tsx   # Distribution Pack
+│   │   ├── show/assets.tsx
+│   │   ├── show/settings.tsx
+│   │   └── settings.tsx
 │   ├── domain/
 │   ├── services/
 │   ├── features/
