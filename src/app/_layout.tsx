@@ -3,7 +3,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
-import { ServicesProvider, useServices } from '@/features/app/ServicesProvider';
+import { ServiceLabelsSync, ServicesProvider, useServices } from '@/features/app/ServicesProvider';
 import { LocaleProvider, useT } from '@/i18n';
 import { Loading } from '@/ui/components';
 import { ThemeProvider, useAppTheme } from '@/ui/ThemeContext';
@@ -45,6 +45,8 @@ function Themed() {
   );
   return (
     <LocaleProvider pref={language}>
+      {/* 設定で選んだ言語を、DB に書き込む既定文言にも反映する（FR-I18N-6）。 */}
+      <ServiceLabelsSync />
       <ThemeProvider pref={theme}>
         <Navigation />
       </ThemeProvider>
