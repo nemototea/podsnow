@@ -159,7 +159,8 @@ export function useEditor(episodeId: string) {
   }, [db, episodeId, patch]);
 
   const reloadAll = useCallback(async () => {
-    const e = editingRef.current ?? (await services.openEditing(episodeId));
+    // RecordingSession は DB に直接書くので、毎回 DB から開き直す（メモリ上の doc を信用しない）
+    const e = await services.openEditing(episodeId);
     editingRef.current = e;
     const [episode, takes, assets] = await Promise.all([
       getEpisode(db, episodeId),
