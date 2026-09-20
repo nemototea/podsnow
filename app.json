@@ -11,11 +11,11 @@
     "ios": {
       "bundleIdentifier": "dev.nemotea.podsnow",
       "supportsTablet": false,
-      "icon": "./assets/expo.icon",
       "infoPlist": {
         "NSMicrophoneUsageDescription": "ポッドキャストを収録するためにマイクを使用します。",
         "UIBackgroundModes": ["audio"]
-      }
+      },
+      "buildNumber": "1"
     },
     "android": {
       "package": "dev.nemotea.podsnow",
@@ -32,7 +32,8 @@
         "android.permission.FOREGROUND_SERVICE_MICROPHONE",
         "android.permission.POST_NOTIFICATIONS",
         "android.permission.MODIFY_AUDIO_SETTINGS"
-      ]
+      ],
+      "versionCode": 1
     },
     "plugins": [
       "expo-router",
@@ -47,6 +48,9 @@
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "splash": {
+      "backgroundColor": "#0B0C0F"
     }
   }
 }

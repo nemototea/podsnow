@@ -4,6 +4,8 @@ import type { RecorderPort } from '@/services/recording/RecorderPort';
 /** ネイティブモジュールを RecorderPort に適合させる。 */
 export function createNativeRecorder(): RecorderPort {
   return {
+    requestPermissions: () => PodsnowRecorder.requestPermissionsAsync(),
+    getPermissions: () => PodsnowRecorder.getPermissionsAsync(),
     prepare: (c) => PodsnowRecorder.prepareAsync(c),
     start: (p) => PodsnowRecorder.startAsync(p),
     pause: () => PodsnowRecorder.pauseAsync(),

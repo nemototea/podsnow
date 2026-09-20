@@ -1,5 +1,6 @@
 import type {
   AudioInput,
+  PermissionResult,
   PodsnowRecorderModuleEvents,
   RecorderConfig,
   RecorderState,
@@ -15,6 +16,8 @@ export interface Subscription {
  * テスト用の FakeRecorder。
  */
 export interface RecorderPort {
+  requestPermissions(): Promise<PermissionResult>;
+  getPermissions(): Promise<PermissionResult>;
   prepare(config: RecorderConfig): Promise<void>;
   start(path: string): Promise<void>;
   pause(): Promise<void>;

@@ -24,6 +24,12 @@ export class FakeRecorder implements RecorderPort {
   calls: string[] = [];
   private listeners = new Map<string, Set<Listener>>();
 
+  async requestPermissions() {
+    return { microphone: 'granted' as const, notifications: 'granted' as const };
+  }
+  async getPermissions() {
+    return { microphone: 'granted' as const, notifications: 'granted' as const };
+  }
   async prepare(config: RecorderConfig) {
     this.calls.push('prepare');
     this.config = config;

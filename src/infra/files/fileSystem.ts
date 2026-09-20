@@ -32,6 +32,18 @@ export function deleteIfExists(absFile: string): void {
   if (f.exists) f.delete();
 }
 
+/** 中間ファイル置き場（DATA_MODEL.md §2 の tmp/）を空にして作り直す。起動時に呼ぶ。 */
+export function resetTmpDir(): string {
+  const d = new Directory(toUri(joinRoot(dataRoot(), 'tmp')));
+  try {
+    if (d.exists) d.delete();
+  } catch {
+    /* 消せなくても致命的ではない */
+  }
+  if (!d.exists) d.create({ intermediates: true });
+  return stripScheme(d.uri);
+}
+
 export function availableDiskBytes(): number {
   return Paths.availableDiskSpace;
 }
