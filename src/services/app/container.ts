@@ -17,6 +17,7 @@ import type { RecorderPort } from '../recording/RecorderPort';
 import { RecordingSession } from '../recording/RecordingSession';
 import { recoverUnfinishedTakes, type RecoveredTake } from '../recording/RecoveryService';
 import { newId } from './ids';
+import type { ServiceLabels } from './labels';
 
 /** アプリ全体で共有するサービス群（ARCHITECTURE.md §2）。画面はこれ経由でしか infra に触らない。 */
 export interface AppServices {
@@ -33,6 +34,11 @@ export interface AppServices {
   assets: AssetsService;
   openEditing: (episodeId: string) => Promise<EditingService>;
   updateSettings: <K extends keyof AppSettings>(key: K, value: AppSettings[K]) => Promise<void>;
+  /**
+   * DB に書き込む既定文言を差し替える（表示言語が変わったとき）。
+   * 既に保存された行は書き換えない（Issue #80）。
+   */
+  setLabels: (labels: ServiceLabels) => void;
   /** Show 設定の保存後に services.show を最新化する。 */
   reloadShow: () => Promise<ShowRow>;
   /** 設定変更の購読（テーマの即時反映などに使う）。 */
@@ -44,13 +50,19 @@ export interface AppServices {
 }
 
 export async function bootstrap(
+  /** 初回起動時に DB へ書き込む既定文言。UI 層が i18n から渡す（Issue #80）。 */
+  labels: ServiceLabels,
   overrides: { recorder?: RecorderPort; engine?: AudioEnginePort } = {},
 ): Promise<AppServices> {
   const db = await openAppDatabase();
   const root = dataRoot();
   resetTmpDir();
   const now = () => Date.now();
-  const show = await ensureDefaultShow(db, newId, now());
+  const live = { labels };
+  const show = await ensureDefaultShow(db, newId, now(), {
+    name: labels.showName,
+    descriptionTemplate: labels.descriptionTemplate,
+  });
   const settings = await loadSettings(db);
   const recorder = overrides.recorder ?? createNativeRecorder();
   const engine = overrides.engine ?? createNativeAudioEngine();
@@ -58,7 +70,7 @@ export async function bootstrap(
   const recovered = await recoverUnfinishedTakes({ db, recorder, root, fileExists, newId, now });
   await failStaleExports(db, now());
 
-  const live = { settings };
+  const liveSettings = { settings };
   const settingsListeners = new Set<(s: AppSettings) => void>();
   const recording = new RecordingSession({
     db,
@@ -68,18 +80,19 @@ export async function bootstrap(
     newId,
     now,
     settings: () => ({
-      sampleRate: live.settings.recording.sampleRate,
-      channels: live.settings.recording.channels,
-      inputUid: live.settings.recording.preferredInputUid,
-      autoResumeAfterInterruption: live.settings.recording.autoResumeAfterInterruption,
-      expectedMinutes: live.settings.recording.expectedMinutes,
+      sampleRate: liveSettings.settings.recording.sampleRate,
+      channels: liveSettings.settings.recording.channels,
+      inputUid: liveSettings.settings.recording.preferredInputUid,
+      autoResumeAfterInterruption: liveSettings.settings.recording.autoResumeAfterInterruption,
+      expectedMinutes: liveSettings.settings.recording.expectedMinutes,
       diskLowThresholdBytes: 30 * 1024 * 1024,
-      androidAudioSource: live.settings.recording.androidAudioSource,
+      androidAudioSource: liveSettings.settings.recording.androidAudioSource,
     }),
+    labels: () => live.labels,
   });
   const playback = new PlaybackService({ db, engine, root });
   const exporter = new ExportService({ db, engine, root, ensureDir, fileSize, newId, now });
-  const episodes = new EpisodeService({ db, newId, now });
+  const episodes = new EpisodeService({ db, newId, now, labels: () => live.labels });
   const assets = new AssetsService({ db, engine, root, ensureDir, newId, now });
 
   const services: AppServices = {
@@ -97,12 +110,18 @@ export async function bootstrap(
     openEditing: (episodeId) => EditingService.open({ db, newId, now }, episodeId),
     updateSettings: async (key, value) => {
       await saveSetting(db, key, value);
-      live.settings = { ...live.settings, [key]: value };
-      services.settings = live.settings;
-      settingsListeners.forEach((fn) => fn(live.settings));
+      liveSettings.settings = { ...liveSettings.settings, [key]: value };
+      services.settings = liveSettings.settings;
+      settingsListeners.forEach((fn) => fn(liveSettings.settings));
+    },
+    setLabels: (next) => {
+      live.labels = next;
     },
     reloadShow: async () => {
-      const s = await ensureDefaultShow(db, newId, now());
+      const s = await ensureDefaultShow(db, newId, now(), {
+        name: live.labels.showName,
+        descriptionTemplate: live.labels.descriptionTemplate,
+      });
       services.show = s;
       return s;
     },

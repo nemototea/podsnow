@@ -6,14 +6,13 @@ import { formatSmp, smp } from '@/domain/time';
 import { deleteRange, placeVoice } from '@/domain/timeline/voice';
 import { useServices } from '@/features/app/ServicesProvider';
 import { useEpisode, voiceDurationSmp } from '@/features/episode/useEpisode';
+import { useT } from '@/i18n';
 import { listExports } from '@/infra/db/repositories/exportsRepo';
 import type { TakeRow } from '@/infra/db/repositories/takesRepo';
 import { parseSoundSettings } from '@/services/audio/renderDocumentFromDb';
 import { Button, Card, Eyebrow, Header, Loading, Row, Screen, Sheet, Toast } from '@/ui/components';
 import { useAppTheme } from '@/ui/ThemeContext';
 import { useToast } from '@/ui/useToast';
-
-const STATUS_LABEL = { draft: 'DRAFT', ready: 'READY', exported: 'EXPORTED' } as const;
 
 interface Summary {
   durationSmp: number;
@@ -28,6 +27,7 @@ export default function EpisodeTopScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const episodeId = id ?? '';
   const c = useAppTheme();
+  const t = useT();
   const router = useRouter();
   const services = useServices();
   const { episode, reload } = useEpisode(episodeId);
@@ -48,10 +48,12 @@ export default function EpisodeTopScreen() {
       durationSmp,
       takes: takes.filter((t) => t.status === 'ready' || t.status === 'recovered'),
       exportCount: exports.filter((e) => e.status === 'done').length,
-      soundLabel: sound.loudness.enabled ? `${sound.loudness.targetLufs} LUFS` : '正規化なし',
+      soundLabel: sound.loudness.enabled
+        ? `${sound.loudness.targetLufs} LUFS`
+        : t.episode.noNormalization,
       detailsDone: !!ep && ep.title.trim().length > 0 && ep.description.trim().length > 0,
     });
-  }, [episodeId, services]);
+  }, [episodeId, services, t]);
 
   useFocusEffect(
     useCallback(() => {
@@ -60,7 +62,7 @@ export default function EpisodeTopScreen() {
     }, [reload, loadSummary]),
   );
 
-  if (!episode || !summary) return <Loading label="読み込んでいます" />;
+  if (!episode || !summary) return <Loading label={t.common.loading} />;
 
   const go = (path: string) => router.push(path as never);
   const statusTone =
@@ -69,32 +71,35 @@ export default function EpisodeTopScreen() {
 
   const steps = [
     {
-      label: '録音',
-      meta: `${summary.takes.length} テイク`,
+      label: t.episode.steps.record,
+      meta: t.episode.steps.recordMeta(summary.takes.length),
       done: summary.takes.length > 0,
       path: `/episode/${episodeId}/editor`,
     },
     {
-      label: '編集',
-      meta: hasVoice ? formatSmp(smp(summary.durationSmp)) : '未',
+      label: t.episode.steps.edit,
+      meta: hasVoice ? formatSmp(smp(summary.durationSmp)) : t.episode.steps.todo,
       done: hasVoice,
       path: `/episode/${episodeId}/editor`,
     },
     {
-      label: '詳細（タイトル・概要）',
-      meta: summary.detailsDone ? '入力済み' : '未入力',
+      label: t.episode.steps.details,
+      meta: summary.detailsDone ? t.episode.steps.detailsDone : t.episode.steps.detailsTodo,
       done: summary.detailsDone,
       path: `/episode/${episodeId}/details`,
     },
     {
-      label: '音の仕上げ',
+      label: t.episode.steps.sound,
       meta: summary.soundLabel,
       done: true,
       path: `/episode/${episodeId}/sound`,
     },
     {
-      label: '書き出し',
-      meta: summary.exportCount > 0 ? `${summary.exportCount} 件` : '未',
+      label: t.episode.steps.export,
+      meta:
+        summary.exportCount > 0
+          ? t.episode.steps.exportMeta(summary.exportCount)
+          : t.episode.steps.todo,
       done: summary.exportCount > 0,
       path: `/episode/${episodeId}/export`,
     },
@@ -105,10 +110,10 @@ export default function EpisodeTopScreen() {
     const editing = await services.openEditing(episodeId);
     const placed = placeVoice(editing.current.voice).filter((p) => p.segment.takeId === take.id);
     if (!placed.length) {
-      showToast({ text: 'このテイクはタイムラインに含まれていません' });
+      showToast({ text: t.episode.takeNotOnTimeline });
       return;
     }
-    await editing.apply(`${take.name} をタイムラインから削除`, (d) => {
+    await editing.apply(t.undo.removeTakeFromTimeline(take.name), (d) => {
       let voice = d.voice;
       // 後ろから消せば前の座標がずれない
       for (const p of [...placeVoice(voice)]
@@ -121,8 +126,8 @@ export default function EpisodeTopScreen() {
     await services.episodes.refreshStatus(episodeId);
     await loadSummary();
     showToast({
-      text: `${take.name} をタイムラインから削除しました（元データは残ります）`,
-      action: '取り消す',
+      text: t.episode.takeRemoved(take.name),
+      action: t.common.undo,
       onAction: async () => {
         await editing.undo();
         await loadSummary();
@@ -134,8 +139,8 @@ export default function EpisodeTopScreen() {
     setMenu(false);
     const d = await services.episodes.duplicate(episodeId);
     showToast({
-      text: `#${d.episode_number} として複製しました`,
-      action: '開く',
+      text: t.episode.duplicated(d.episode_number),
+      action: t.common.open,
       onAction: () => go(`/episode/${d.id}`),
     });
   };
@@ -149,13 +154,13 @@ export default function EpisodeTopScreen() {
   return (
     <Screen overlay={<Toast toast={toast} onAction={act} />}>
       <Header
-        title={`Episode #${episode.episode_number}`}
+        title={t.episode.headerTitle(episode.episode_number)}
         onBack={() => router.back()}
         right={
           <Pressable
             onPress={() => setMenu(true)}
             hitSlop={10}
-            accessibilityLabel="メニュー"
+            accessibilityLabel={t.a11y.menu}
             accessibilityRole="button"
           >
             <Text style={{ color: c.ink2, fontSize: 22 }}>⋮</Text>
@@ -165,13 +170,13 @@ export default function EpisodeTopScreen() {
       <Text style={[st.title, { color: c.ink }]}>{episode.title}</Text>
       <View style={st.metaRow}>
         <Text style={[st.badge, { color: statusTone, borderColor: statusTone }]}>
-          {STATUS_LABEL[episode.status]}
+          {t.status[episode.status]}
         </Text>
         <Text style={[st.meta, { color: c.ink2 }]}>{formatSmp(smp(summary.durationSmp))}</Text>
-        <Text style={[st.meta, { color: c.ink2 }]}>SEASON {episode.season}</Text>
+        <Text style={[st.meta, { color: c.ink2 }]}>{t.episode.seasonLabel(episode.season)}</Text>
       </View>
 
-      <Eyebrow>制作状況</Eyebrow>
+      <Eyebrow>{t.episode.progress}</Eyebrow>
       <Card style={{ paddingVertical: 4 }}>
         {steps.map((s) => (
           <Row
@@ -184,26 +189,26 @@ export default function EpisodeTopScreen() {
       </Card>
 
       <View style={st.sectionHead}>
-        <Eyebrow>RECORDINGS</Eyebrow>
+        <Eyebrow>{t.episode.sectionRecordings}</Eyebrow>
         <Text style={{ color: c.ink2, fontSize: 12, marginTop: 18 }}>
-          {summary.takes.length} 件
+          {t.common.countItems(summary.takes.length)}
         </Text>
       </View>
       <Card style={{ paddingVertical: 4 }}>
         {summary.takes.length === 0 ? (
-          <Text style={{ color: c.ink3, paddingVertical: 12 }}>まだ録音がありません</Text>
+          <Text style={{ color: c.ink3, paddingVertical: 12 }}>{t.episode.noRecordings}</Text>
         ) : null}
-        {summary.takes.map((t) => (
+        {summary.takes.map((take) => (
           <Row
-            key={t.id}
-            label={t.name}
-            sub={`${formatSmp(smp(t.duration_smp))}${t.input_label ? ` · ${t.input_label}` : ''}${t.status === 'recovered' ? ' · 復元' : ''}`}
+            key={take.id}
+            label={take.name}
+            sub={`${formatSmp(smp(take.duration_smp))}${take.input_label ? ` · ${take.input_label}` : ''}${take.status === 'recovered' ? ` · ${t.episode.recovered}` : ''}`}
             onPress={() => go(`/episode/${episodeId}/editor`)}
             right={
               <Pressable
-                onPress={() => setTakeMenu(t)}
+                onPress={() => setTakeMenu(take)}
                 hitSlop={10}
-                accessibilityLabel={`${t.name} のメニュー`}
+                accessibilityLabel={t.a11y.menuFor(take.name)}
                 accessibilityRole="button"
               >
                 <Text style={{ color: c.ink2, fontSize: 18 }}>⋮</Text>
@@ -214,7 +219,7 @@ export default function EpisodeTopScreen() {
       </Card>
 
       <Button
-        label={summary.takes.length ? '収録・編集を続ける' : '録音を始める'}
+        label={summary.takes.length ? t.episode.continueEditing : t.episode.startRecording}
         onPress={() => go(`/episode/${episodeId}/editor`)}
         style={{ marginTop: 8 }}
       />
@@ -222,25 +227,25 @@ export default function EpisodeTopScreen() {
       <Sheet
         visible={menu}
         onClose={() => setMenu(false)}
-        title={`Episode #${episode.episode_number}`}
+        title={t.episode.headerTitle(episode.episode_number)}
         subtitle={episode.title}
       >
         <Row
-          label="収録・編集を続ける"
+          label={t.episode.continueEditing}
           onPress={() => {
             setMenu(false);
             go(`/episode/${episodeId}/editor`);
           }}
         />
         <Row
-          label="エピソードの詳細"
+          label={t.episode.menu.details}
           onPress={() => {
             setMenu(false);
             go(`/episode/${episodeId}/details`);
           }}
         />
         <Row
-          label="音の仕上げ"
+          label={t.episode.menu.sound}
           sub={summary.soundLabel}
           onPress={() => {
             setMenu(false);
@@ -248,26 +253,21 @@ export default function EpisodeTopScreen() {
           }}
         />
         <Row
-          label="書き出し"
+          label={t.episode.menu.export}
           onPress={() => {
             setMenu(false);
             go(`/episode/${episodeId}/export`);
           }}
         />
-        <Row label="複製して新しい回にする" onPress={duplicate} />
+        <Row label={t.episode.menu.duplicate} onPress={duplicate} />
         <Row
-          label="バックアップ（.podsnow）"
+          label={t.episode.menu.backup}
           onPress={() => {
             setMenu(false);
             router.push(`/episode/${id}/backup`);
           }}
         />
-        <Row
-          label="エピソードを削除"
-          sub="元の録音は残ります・Home で取り消せます"
-          danger
-          onPress={remove}
-        />
+        <Row label={t.episode.menu.remove} sub={t.episode.menu.removeSub} danger onPress={remove} />
       </Sheet>
 
       <Sheet
@@ -279,15 +279,15 @@ export default function EpisodeTopScreen() {
         {takeMenu ? (
           <>
             <Row
-              label="編集画面で開く"
+              label={t.episode.takeMenu.openInEditor}
               onPress={() => {
                 setTakeMenu(null);
                 go(`/episode/${episodeId}/editor`);
               }}
             />
             <Row
-              label="タイムラインから削除"
-              sub="元データは残ります・取り消し可"
+              label={t.episode.takeMenu.removeFromTimeline}
+              sub={t.episode.takeMenu.removeFromTimelineSub}
               danger
               onPress={() => removeTakeFromTimeline(takeMenu)}
             />

@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { useServices } from '@/features/app/ServicesProvider';
+import { useT } from '@/i18n';
 import { expoFsPort } from '@/infra/files/expoFsPort';
 import { joinRoot, relPaths } from '@/infra/files/layout';
 import {
@@ -22,6 +23,7 @@ export default function BackupScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const c = useAppTheme();
+  const t = useT();
   const services = useServices();
   const { toast, show: showToast, act } = useToast();
   const [phase, setPhase] = useState<Phase>('idle');
@@ -38,7 +40,7 @@ export default function BackupScreen() {
     setError(null);
     try {
       const ep = await services.episodes.get(id);
-      if (!ep) throw new Error('エピソードが見つかりません');
+      if (!ep) throw new Error(t.backup.episodeNotFound);
       const name = backupFileName(ep.episode_number, ep.title, new Date(services.now()));
       const out = joinRoot(services.root, `${relPaths.tmp()}/${name}`);
       const r = await exportEpisodeBackup(
@@ -55,8 +57,7 @@ export default function BackupScreen() {
       );
       setResult(r);
       setPhase('done');
-      if (r.missingFiles.length)
-        showToast({ text: `${r.missingFiles.length} 件のファイルが見つからずスキップしました` });
+      if (r.missingFiles.length) showToast({ text: t.backup.skipped(r.missingFiles.length) });
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
       setPhase('error');
@@ -66,12 +67,12 @@ export default function BackupScreen() {
   const share = async () => {
     if (!result) return;
     if (!(await Sharing.isAvailableAsync())) {
-      showToast({ text: 'この端末では共有できません' });
+      showToast({ text: t.common.shareUnavailable });
       return;
     }
     await Sharing.shareAsync(`file://${result.path}`, {
       mimeType: 'application/zip',
-      dialogTitle: 'バックアップを保存',
+      dialogTitle: t.backup.dialogTitle,
     });
   };
 
@@ -80,23 +81,16 @@ export default function BackupScreen() {
 
   return (
     <Screen overlay={<Toast toast={toast} onAction={act} />}>
-      <Header
-        title="バックアップ"
-        subtitle="録音素材と編集データを 1 ファイルにまとめます"
-        onBack={() => router.back()}
-      />
+      <Header title={t.backup.title} subtitle={t.backup.subtitle} onBack={() => router.back()} />
       <Card>
-        <Text style={[st.body, { color: c.ink2 }]}>
-          録音（WAV）・素材・タイムライン・マーカー・トークテーマを .podsnow
-          ファイルに書き出します。別の端末で「バックアップから復元」すると同じエピソードを再現できます。
-        </Text>
+        <Text style={[st.body, { color: c.ink2 }]}>{t.backup.lead}</Text>
         {phase === 'idle' || phase === 'error' ? (
-          <Button label="バックアップを作成" onPress={() => void run()} />
+          <Button label={t.backup.run} onPress={() => void run()} />
         ) : null}
         {phase === 'running' ? (
           <View>
             <Text style={{ color: c.ink, marginBottom: 8 }}>
-              {progress?.phase === 'zip' ? '書き込み中' : '準備中'}… {pct}%
+              {progress?.phase === 'zip' ? t.backup.phaseWriting : t.backup.phasePreparing}… {pct}%
             </Text>
             <View style={[st.track, { backgroundColor: c.panel2 }]}>
               <View style={[st.fill, { width: `${pct}%`, backgroundColor: c.accent }]} />
@@ -111,14 +105,14 @@ export default function BackupScreen() {
         {phase === 'done' && result ? (
           <View>
             <Text style={{ color: c.ink, fontWeight: '700', marginBottom: 4 }}>
-              作成しました（{mb} MB）
+              {t.backup.done(mb ?? '0')}
             </Text>
             <Text style={{ color: c.ink3, fontSize: 11, marginBottom: 12 }} numberOfLines={2}>
               {result.path.split('/').pop()}
             </Text>
-            <Button label="共有・保存する" onPress={() => void share()} />
+            <Button label={t.backup.shareSave} onPress={() => void share()} />
             <Button
-              label="もう一度作成"
+              label={t.backup.again}
               kind="ghost"
               onPress={() => void run()}
               style={{ marginTop: 8 }}
@@ -127,10 +121,7 @@ export default function BackupScreen() {
         ) : null}
         {error ? <Text style={{ color: c.rec, marginTop: 12 }}>{error}</Text> : null}
       </Card>
-      <Text style={{ color: c.ink3, fontSize: 12, lineHeight: 18 }}>
-        ファイルは一時領域に作られ、共有先へ保存した後は次回起動時に整理されます。iCloud Drive /
-        Google Drive などに保存すれば端末外へのバックアップになります。
-      </Text>
+      <Text style={{ color: c.ink3, fontSize: 12, lineHeight: 18 }}>{t.backup.footer}</Text>
     </Screen>
   );
 }

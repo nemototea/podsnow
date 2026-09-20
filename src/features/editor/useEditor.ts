@@ -13,6 +13,7 @@ import {
   resolveTimeline,
   totalDuration,
 } from '@/domain/timeline/voice';
+import { useT } from '@/i18n';
 import type { AssetRow } from '@/infra/db/repositories/assetsRepo';
 import { getEpisode, type EpisodeRow } from '@/infra/db/repositories/episodesRepo';
 import { listSegments, listTakes, type TakeRow } from '@/infra/db/repositories/takesRepo';
@@ -63,6 +64,7 @@ export interface EditorState {
  */
 export function useEditor(episodeId: string) {
   const services = useServices();
+  const t = useT();
   const { db, root, recording, playback, engine, settings } = services;
   const editingRef = useRef<EditingService | null>(null);
   const [state, setState] = useState<EditorState>({
@@ -212,7 +214,7 @@ export function useEditor(episodeId: string) {
       const after = e.current;
       const fixed = after.overlays.map((o) => suggestReanchor(before.voice, after.voice, o) ?? o);
       if (fixed.some((o, i) => o !== after.overlays[i])) {
-        await e.apply(`${label}（素材を追従）`, (d) => ({ ...d, overlays: fixed }), {
+        await e.apply(t.undo.reanchored(label), (d) => ({ ...d, overlays: fixed }), {
           groupKey: `reanchor:${op.id}`,
         });
       }
@@ -220,7 +222,7 @@ export function useEditor(episodeId: string) {
       await playback.reload(episodeId).catch(() => {});
       void services.episodes.refreshStatus(episodeId);
     },
-    [episodeId, playback, services.episodes, syncFromEditing],
+    [episodeId, playback, services.episodes, syncFromEditing, t],
   );
 
   const undo = useCallback(async () => {
@@ -264,7 +266,7 @@ export function useEditor(episodeId: string) {
       void perm;
       if (opts.punchIn) {
         // 範囲を除去してから、その位置に録る
-        await apply('録り直しの準備', (d) => ({
+        await apply(t.undo.punchInPrepare, (d) => ({
           ...d,
           voice: deleteRange(d.voice, opts.punchIn!.start, opts.punchIn!.end),
         }));
@@ -273,7 +275,7 @@ export function useEditor(episodeId: string) {
       }
       return recording.start(episodeId, { insertAtSmp: null });
     },
-    [apply, episodeId, patch, playback, recording, services.recorder],
+    [apply, episodeId, patch, playback, recording, services.recorder, t],
   );
   const stopRecording = useCallback(() => recording.stop(), [recording]);
   const pauseRecording = useCallback(() => recording.pause(), [recording]);
@@ -302,7 +304,7 @@ export function useEditor(episodeId: string) {
       }
       const src = resolveSource(state.doc.voice, state.playhead);
       if (!src) return;
-      await apply(kind === 'mistake' ? '言い間違いマーカーを追加' : 'マーカーを追加', (d) => ({
+      await apply(kind === 'mistake' ? t.undo.addMistakeMarker : t.undo.addMarker, (d) => ({
         ...d,
         markers: [
           ...d.markers,
@@ -317,7 +319,16 @@ export function useEditor(episodeId: string) {
         ],
       }));
     },
-    [apply, recording, services, state.doc.voice, state.playhead, state.recording, syncFromEditing],
+    [
+      apply,
+      recording,
+      services,
+      state.doc.voice,
+      state.playhead,
+      state.recording,
+      syncFromEditing,
+      t,
+    ],
   );
 
   const markersOnTimeline = useMemo(
@@ -339,16 +350,16 @@ export function useEditor(episodeId: string) {
 
   const resolveMarker = useCallback(
     (id: string) =>
-      apply('マーカーを対応済みに', (d) => ({
+      apply(t.undo.resolveMarker, (d) => ({
         ...d,
         markers: d.markers.map((m) => (m.id === id ? { ...m, resolved: true } : m)),
       })),
-    [apply],
+    [apply, t],
   );
   const removeMarker = useCallback(
     (id: string) =>
-      apply('マーカーを削除', (d) => ({ ...d, markers: d.markers.filter((m) => m.id !== id) })),
-    [apply],
+      apply(t.undo.removeMarker, (d) => ({ ...d, markers: d.markers.filter((m) => m.id !== id) })),
+    [apply, t],
   );
 
   // ---- 選択・削除 ----
@@ -382,10 +393,13 @@ export function useEditor(episodeId: string) {
   const deleteSelection = useCallback(async () => {
     const sel = state.selection;
     if (!sel) return;
-    await apply('範囲を削除', (d) => ({ ...d, voice: deleteRange(d.voice, sel.start, sel.end) }));
+    await apply(t.undo.deleteRange, (d) => ({
+      ...d,
+      voice: deleteRange(d.voice, sel.start, sel.end),
+    }));
     patch({ selection: null });
     await seek(sel.start);
-  }, [apply, patch, seek, state.selection]);
+  }, [apply, patch, seek, state.selection, t]);
 
   // ---- 無音 ----
   const planSilence = useCallback(
@@ -394,33 +408,36 @@ export function useEditor(episodeId: string) {
   );
   const applySilencePlan = useCallback(
     async (ranges: Range[]) => {
-      await apply('無音を削除', (d) => ({ ...d, voice: deleteRanges(d.voice, ranges) }));
+      await apply(t.undo.deleteSilence, (d) => ({ ...d, voice: deleteRanges(d.voice, ranges) }));
     },
-    [apply],
+    [apply, t],
   );
 
   // ---- テイク ----
   const moveTake = useCallback(
     (fromIndex: number, toIndex: number) =>
-      apply('テイクを並び替え', (d) => ({ ...d, voice: moveSegment(d.voice, fromIndex, toIndex) })),
-    [apply],
+      apply(t.undo.reorderTakes, (d) => ({
+        ...d,
+        voice: moveSegment(d.voice, fromIndex, toIndex),
+      })),
+    [apply, t],
   );
   const removeVoiceSegment = useCallback(
     (index: number) =>
-      apply('タイムラインから削除', (d) => {
+      apply(t.undo.removeFromTimeline, (d) => {
         const p = placeVoice(d.voice)[index];
         return p ? { ...d, voice: deleteRange(d.voice, p.start, p.end) } : d;
       }),
-    [apply],
+    [apply, t],
   );
   const setVoiceGain = useCallback(
     (index: number, gainDb: number) =>
       apply(
-        '音量を変更',
+        t.undo.changeGain,
         (d) => ({ ...d, voice: d.voice.map((v, i) => (i === index ? { ...v, gainDb } : v)) }),
         `gain:v:${index}`,
       ),
-    [apply],
+    [apply, t],
   );
 
   // ---- オーバーレイ ----
@@ -457,10 +474,13 @@ export function useEditor(episodeId: string) {
         await e.writeWithoutHistory((d) => ({ ...d, overlays: [...d.overlays, clip] }));
         syncFromEditing(e);
       } else {
-        await apply(`${asset.name} を挿入`, (d) => ({ ...d, overlays: [...d.overlays, clip] }));
+        await apply(t.undo.insertAsset(asset.name), (d) => ({
+          ...d,
+          overlays: [...d.overlays, clip],
+        }));
       }
     },
-    [apply, recording, services, state.doc.voice, state.playhead, syncFromEditing],
+    [apply, recording, services, state.doc.voice, state.playhead, syncFromEditing, t],
   );
 
   const updateOverlay = useCallback(
@@ -474,14 +494,17 @@ export function useEditor(episodeId: string) {
   );
   const removeOverlay = useCallback(
     async (id: string) => {
-      await apply('素材を削除', (d) => ({ ...d, overlays: d.overlays.filter((o) => o.id !== id) }));
+      await apply(t.undo.removeAsset, (d) => ({
+        ...d,
+        overlays: d.overlays.filter((o) => o.id !== id),
+      }));
       patch({ selectedOverlay: null });
     },
-    [apply, patch],
+    [apply, patch, t],
   );
   const moveOverlayTo = useCallback(
     (id: string, tl: Smp) =>
-      updateOverlay(id, '素材を移動', (o) => {
+      updateOverlay(id, t.undo.moveAsset, (o) => {
         const src = resolveSource(state.doc.voice, tl);
         return {
           ...o,
@@ -490,7 +513,7 @@ export function useEditor(episodeId: string) {
             : { type: 'timeline_abs', smp: tl },
         };
       }),
-    [state.doc.voice, updateOverlay],
+    [state.doc.voice, updateOverlay, t],
   );
 
   // ---- トークテーマ ----

@@ -77,6 +77,8 @@ export const en: Messages = {
     backup_unsupported_version: (version: string) =>
       `Unsupported backup format (version ${version})`,
     recording_resume_failed: 'Could not resume recording',
+    disk_space_insufficient: (requiredMb: string, availableMb: string) =>
+      `Not enough free space (${requiredMb} MB needed, ${availableMb} MB free)`,
     export_app_terminated: 'Interrupted because the app was terminated',
     export_not_in_backup: 'Backups do not include the audio file',
     export_cancelled_on_restore: 'Marked as interrupted when the backup was restored',
@@ -85,6 +87,7 @@ export const en: Messages = {
   seed: {
     showName: 'My Podcast',
     episodeTitle: (n: number) => `Episode ${n}`,
+    takeName: (n: number) => `Recording ${n}`,
     descriptionTemplate: `{{topics}}
 
 ――――――
@@ -106,6 +109,8 @@ Tag #PodsNow to share your thoughts`,
     changeGain: 'Change volume',
     removeAsset: 'Remove asset',
     moveAsset: 'Move asset',
+    insertAsset: (name: string) => `Insert ${name}`,
+    reanchored: (label: string) => `${label} (assets re-anchored)`,
     changeDucking: 'Change ducking',
     changeFade: 'Change fade',
     removeTakeFromTimeline: (take: string) => `Remove ${take} from the timeline`,

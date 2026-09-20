@@ -3,22 +3,29 @@
  *
  * メッセージ自体は表示する側（UI 層の `src/i18n/`）で組み立てる。
  * domain / services / infra は文言を持たず、コードだけを返す。
+ *
+ * コードは DB（`exports.error` など）にも入るので、**値は変えない**。
  */
-export type AppErrorCode =
+export const APP_ERROR_CODES = [
   /** 声トラックが空のまま書き出そうとした */
-  | 'voice_timeline_empty'
+  'voice_timeline_empty',
   /** .podsnow でないファイルを復元しようとした */
-  | 'backup_manifest_missing'
-  /** バックアップの formatVersion が新しすぎる */
-  | 'backup_unsupported_version'
+  'backup_manifest_missing',
+  /** バックアップの formatVersion が新しすぎる（params: version） */
+  'backup_unsupported_version',
   /** 割り込みからの録音再開に失敗した */
-  | 'recording_resume_failed'
+  'recording_resume_failed',
+  /** 想定収録時間に対して空き容量が足りない（params: requiredMb, availableMb） */
+  'disk_space_insufficient',
   /** 書き出し中にアプリが終了したため中断扱いにした */
-  | 'export_app_terminated'
+  'export_app_terminated',
   /** バックアップに音声ファイルを含めていない（復元した書き出し履歴の注記） */
-  | 'export_not_in_backup'
+  'export_not_in_backup',
   /** バックアップ復元時に中断扱いにした書き出し */
-  | 'export_cancelled_on_restore';
+  'export_cancelled_on_restore',
+] as const;
+
+export type AppErrorCode = (typeof APP_ERROR_CODES)[number];
 
 /** `code` を持つエラー。UI はコードを localized message に変換する。 */
 export class AppError extends Error {
@@ -44,17 +51,12 @@ export function isAppError(e: unknown): e is AppError {
   return e instanceof AppError;
 }
 
-/** DB に保存された値が AppErrorCode かどうか（古い行は日本語の文言が入っている）。 */
-const CODES = new Set<string>([
-  'voice_timeline_empty',
-  'backup_manifest_missing',
-  'backup_unsupported_version',
-  'recording_resume_failed',
-  'export_app_terminated',
-  'export_not_in_backup',
-  'export_cancelled_on_restore',
-]);
+const CODES: ReadonlySet<string> = new Set(APP_ERROR_CODES);
 
+/**
+ * DB に保存された値が `AppErrorCode` かどうか。
+ * 古い行には日本語の文言がそのまま入っているので、その場合は `null` を返す。
+ */
 export function asAppErrorCode(value: string | null | undefined): AppErrorCode | null {
   return value && CODES.has(value) ? (value as AppErrorCode) : null;
 }

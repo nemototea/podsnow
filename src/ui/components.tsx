@@ -13,6 +13,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { useT } from '@/i18n';
+
 import { useAppTheme } from './ThemeContext';
 
 export function Screen({
@@ -60,6 +62,7 @@ export function Header({
   right?: ReactNode;
 }) {
   const c = useAppTheme();
+  const t = useT();
   return (
     <View style={s.header}>
       {onBack ? (
@@ -67,7 +70,7 @@ export function Header({
           onPress={onBack}
           hitSlop={12}
           accessibilityRole="button"
-          accessibilityLabel="戻る"
+          accessibilityLabel={t.a11y.back}
           style={s.back}
         >
           <Text style={[s.backGlyph, { color: c.ink }]}>‹</Text>
@@ -225,9 +228,10 @@ export function Sheet({
   children: ReactNode;
 }) {
   const c = useAppTheme();
+  const t = useT();
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable style={s.backdrop} onPress={onClose} accessibilityLabel="閉じる" />
+      <Pressable style={s.backdrop} onPress={onClose} accessibilityLabel={t.a11y.close} />
       <View style={[s.sheet, { backgroundColor: c.panel, borderColor: c.line }]}>
         <View style={[s.grip, { backgroundColor: c.ink3 }]} />
         {title ? <Text style={[s.sheetTitle, { color: c.ink }]}>{title}</Text> : null}

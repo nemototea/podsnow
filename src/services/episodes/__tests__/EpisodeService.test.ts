@@ -2,6 +2,7 @@ import { createNodeSqliteExecutor } from '@/infra/db/__tests__/nodeSqliteExecuto
 import { migrate } from '@/infra/db/migrate';
 import { loadDoc } from '@/infra/db/repositories/editableDocRepo';
 import { ensureDefaultShow, updateLayout } from '@/infra/db/repositories/showsRepo';
+import { TEST_LABELS, TEST_SHOW_SEED } from '@/services/app/__tests__/labels';
 
 import { EpisodeService } from '../EpisodeService';
 
@@ -10,7 +11,7 @@ async function setup() {
   await migrate(db);
   let id = 0;
   const newId = () => `id${++id}`;
-  const show = await ensureDefaultShow(db, newId, 1000);
+  const show = await ensureDefaultShow(db, newId, 1000, TEST_SHOW_SEED);
   await db.run(
     'INSERT INTO assets (id, show_id, kind, name, path, duration_smp, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)',
     ['op', show.id, 'opening', 'Op', 'x', 480000, 1, 1],
@@ -23,7 +24,7 @@ async function setup() {
     openingAssetId: 'op',
     bgmAssetId: 'bg',
   });
-  const svc = new EpisodeService({ db, newId, now: () => 5000 });
+  const svc = new EpisodeService({ db, newId, now: () => 5000, labels: () => TEST_LABELS });
   return { db, show, svc };
 }
 
@@ -32,8 +33,9 @@ describe('EpisodeService', () => {
     const { db, show, svc } = await setup();
     const ep = await svc.create(show.id);
     expect(ep.episode_number).toBe(1);
-    expect(ep.title).toBe('第1回');
-    expect(ep.description).toContain('Podcast: マイポッドキャスト');
+    // 既定タイトル・テンプレートは呼び出し側（UI 層の i18n）が渡す（Issue #80）。
+    expect(ep.title).toBe(TEST_LABELS.episodeTitle(1));
+    expect(ep.description).toContain(`Podcast: ${TEST_LABELS.showName}`);
     const doc = await loadDoc(db, ep.id);
     expect(doc.overlays.map((o) => [o.kind, o.anchor.type, o.duck, o.loop])).toEqual([
       ['opening', 'timeline_start', false, false],

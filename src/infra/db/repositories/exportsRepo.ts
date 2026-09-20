@@ -81,7 +81,8 @@ export async function listExports(db: SqlExecutor, episodeId: string): Promise<E
 /** 起動時: 進行中のまま残った書き出しを failed に倒す。 */
 export async function failStaleExports(db: SqlExecutor, now: number): Promise<number> {
   const r = await db.run(
-    "UPDATE exports SET status = 'failed', error = 'アプリが終了したため中断されました', finished_at = ? WHERE status IN ('queued','rendering','encoding')",
+    // error 列には AppErrorCode を入れる。表示文言は UI 層が i18n から引く（Issue #80）。
+    "UPDATE exports SET status = 'failed', error = 'export_app_terminated', finished_at = ? WHERE status IN ('queued','rendering','encoding')",
     [now],
   );
   return r.changes;

@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { useServices } from '@/features/app/ServicesProvider';
+import { errorText, useT } from '@/i18n';
 import { expoFsPort } from '@/infra/files/expoFsPort';
 import {
   importEpisodeBackup,
@@ -23,6 +24,7 @@ function stripScheme(uri: string): string {
 export default function RestoreScreen() {
   const router = useRouter();
   const c = useAppTheme();
+  const t = useT();
   const services = useServices();
   const [phase, setPhase] = useState<Phase>('idle');
   const [progress, setProgress] = useState<BackupProgress | null>(null);
@@ -42,7 +44,7 @@ export default function RestoreScreen() {
       !asset.name.toLowerCase().endsWith('.podsnow') &&
       !asset.name.toLowerCase().endsWith('.zip')
     ) {
-      setError('.podsnow ファイルを選んでください');
+      setError(t.restore.wrongExtension);
       return;
     }
     setPhase('running');
@@ -62,7 +64,7 @@ export default function RestoreScreen() {
       setResult(r);
       setPhase('done');
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(errorText(t, e));
       setPhase('error');
     }
   };
@@ -70,24 +72,18 @@ export default function RestoreScreen() {
   const pct = progress ? Math.round(progress.progress * 100) : 0;
   const phaseLabel =
     progress?.phase === 'db'
-      ? 'データベースへ書き込み中'
+      ? t.restore.phaseDb
       : progress?.detail === 'audio'
-        ? '音声を展開中'
-        : '読み込み中';
+        ? t.restore.phaseAudio
+        : t.restore.phaseReading;
 
   return (
     <Screen>
-      <Header
-        title="バックアップから復元"
-        subtitle=".podsnow ファイルを新しいエピソードとして取り込みます"
-        onBack={() => router.back()}
-      />
+      <Header title={t.restore.title} subtitle={t.restore.subtitle} onBack={() => router.back()} />
       <Card>
-        <Text style={[st.body, { color: c.ink2 }]}>
-          復元したエピソードは現在の番組に新しい話数として追加されます。番組に同じ素材があればそれを使い、無ければ素材も取り込みます。
-        </Text>
+        <Text style={[st.body, { color: c.ink2 }]}>{t.restore.lead}</Text>
         {phase === 'idle' || phase === 'error' ? (
-          <Button label="ファイルを選ぶ" onPress={() => void pick()} />
+          <Button label={t.restore.pick} onPress={() => void pick()} />
         ) : null}
         {phase === 'running' ? (
           <View>
@@ -102,14 +98,13 @@ export default function RestoreScreen() {
         {phase === 'done' && result ? (
           <View>
             <Text style={{ color: c.ink, fontWeight: '700', marginBottom: 4 }}>
-              第{result.episodeNumber}回として復元しました
+              {t.restore.done(result.episodeNumber)}
             </Text>
             <Text style={{ color: c.ink2, fontSize: 12, marginBottom: 12 }}>
-              テイク {result.takes} 件 · 素材 再利用 {result.reusedAssets} / 取り込み{' '}
-              {result.importedAssets}
+              {t.restore.summary(result.takes, result.reusedAssets, result.importedAssets)}
             </Text>
             <Button
-              label="エピソードを開く"
+              label={t.restore.openEpisode}
               onPress={() => router.replace(`/episode/${result.episodeId}`)}
             />
           </View>

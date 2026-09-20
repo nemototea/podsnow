@@ -6,6 +6,7 @@ import { APP_VERSION } from '@/domain/version';
 import { useServices } from '@/features/app/ServicesProvider';
 import { formatBytes, summarizeStorage, type StorageSummary } from '@/features/settings/storage';
 import { useAsyncData } from '@/features/show/useAsyncData';
+import { useT, type Messages } from '@/i18n';
 import { availableDiskBytes } from '@/infra/files/fileSystem';
 import type { AppSettings } from '@/infra/db/repositories/settingsRepo';
 import { Card, Chip, Eyebrow, Header, Row, Screen, Sheet, Toast, Toggle } from '@/ui/components';
@@ -20,40 +21,30 @@ interface Loaded {
   inputs: AudioInput[];
 }
 
-const THEME_OPTS: { v: AppSettings['theme']; label: string }[] = [
-  { v: 'dark', label: 'Dark' },
-  { v: 'light', label: 'Light' },
-  { v: 'system', label: 'System' },
-];
+/** 選択肢は「値の並び」だけ持ち、ラベルは i18n から引く（Issue #80）。 */
+const LANGUAGES: readonly AppSettings['language'][] = ['system', 'ja', 'en'];
+const THEMES: readonly AppSettings['theme'][] = ['dark', 'light', 'system'];
 const MINUTES = [30, 60, 90, 120];
 const SILENCE_LEN = [1000, 1500, 2000, 3000];
 const SILENCE_DB = [-40, -45, -50, -55];
 const SILENCE_PAD = [100, 250, 400];
-const SOURCES: { v: AppSettings['recording']['androidAudioSource']; label: string; sub: string }[] =
-  [
-    { v: 'voice_recognition', label: '標準（推奨）', sub: 'AGC なし・軽いノイズ抑制' },
-    { v: 'mic', label: 'マイク', sub: '端末の自動処理あり' },
-    { v: 'unprocessed', label: '未処理', sub: '対応端末のみ。素の音' },
-    { v: 'camcorder', label: 'カムコーダー', sub: '広い集音' },
-  ];
-const PRESETS: { v: AppSettings['export']['defaultPreset']; label: string; sub: string }[] = [
-  { v: 'podcast', label: 'Podcast', sub: 'M4A 128 kbps モノラル' },
-  { v: 'high', label: 'High Quality', sub: 'M4A 256 kbps ステレオ' },
-  { v: 'wav', label: 'WAV', sub: '非圧縮 48 kHz' },
+const SOURCES: readonly AppSettings['recording']['androidAudioSource'][] = [
+  'voice_recognition',
+  'mic',
+  'unprocessed',
+  'camcorder',
 ];
-const MONITOR: { v: AppSettings['monitor']['jinglePlayback']; label: string; sub: string }[] = [
-  {
-    v: 'headphonesOnly',
-    label: 'イヤホン接続時のみ',
-    sub: 'スピーカーだと録音に回り込むため（推奨）',
-  },
-  { v: 'always', label: '常に再生', sub: 'スピーカー時は回り込みます' },
-  { v: 'never', label: '再生しない', sub: '挿入イベントだけ記録' },
+const PRESETS: readonly AppSettings['export']['defaultPreset'][] = ['podcast', 'high', 'wav'];
+const MONITOR: readonly AppSettings['monitor']['jinglePlayback'][] = [
+  'headphonesOnly',
+  'always',
+  'never',
 ];
 
 /** アプリ全般設定（REQUIREMENTS.md §2.9、DATA_MODEL.md §4.16）。 */
 export default function SettingsScreen() {
   const c = useAppTheme();
+  const t: Messages = useT();
   const router = useRouter();
   const services = useServices();
   const { db, recorder, updateSettings } = services;
@@ -92,33 +83,46 @@ export default function SettingsScreen() {
 
   const currentInput = data.inputs.find((i) => i.uid === settings.recording.preferredInputUid);
   const inputLabel = settings.recording.preferredInputUid
-    ? (currentInput?.name ?? '前回のデバイス（未接続）')
-    : 'OS の既定';
+    ? (currentInput?.name ?? t.settings.inputLastUsed)
+    : t.settings.inputOsDefault;
 
   return (
     <Screen overlay={<Toast toast={toast} onAction={act} />}>
-      <Header title="設定" onBack={() => router.back()} />
+      <Header title={t.settings.title} onBack={() => router.back()} />
 
-      <Eyebrow>APPEARANCE</Eyebrow>
+      <Eyebrow>{t.settings.languageEyebrow}</Eyebrow>
       <View style={st.chips}>
-        {THEME_OPTS.map((o) => (
+        {LANGUAGES.map((v) => (
           <Chip
-            key={o.v}
-            label={o.label}
-            active={settings.theme === o.v}
-            onPress={() => set('theme', o.v)}
+            key={v}
+            label={t.settings.language[v]}
+            active={settings.language === v}
+            onPress={() => set('language', v)}
+          />
+        ))}
+      </View>
+      <Text style={[st.note, { color: c.ink3 }]}>{t.settings.languageNote}</Text>
+
+      <Eyebrow>{t.settings.appearanceEyebrow}</Eyebrow>
+      <View style={st.chips}>
+        {THEMES.map((v) => (
+          <Chip
+            key={v}
+            label={t.settings.theme[v]}
+            active={settings.theme === v}
+            onPress={() => set('theme', v)}
           />
         ))}
       </View>
       {settings.theme !== services.settings.theme ? (
-        <Text style={[st.note, { color: c.ink3 }]}>テーマはすぐに反映されます。</Text>
+        <Text style={[st.note, { color: c.ink3 }]}>{t.settings.themeNote}</Text>
       ) : null}
 
-      <Eyebrow>RECORDING</Eyebrow>
+      <Eyebrow>{t.settings.recordingEyebrow}</Eyebrow>
       <Card style={{ paddingVertical: 4 }}>
         <Row
-          label="録音品質"
-          sub="16 bit 非圧縮 WAV で保存します"
+          label={t.settings.quality}
+          sub={t.settings.qualitySub}
           right={
             <View style={st.chipsInline}>
               {[44100, 48000].map((sr) => (
@@ -133,33 +137,30 @@ export default function SettingsScreen() {
           }
         />
         <Row
-          label="チャンネル"
-          sub="一人語りはモノラルでファイルが軽くなります"
+          label={t.settings.channels}
+          sub={t.settings.channelsSub}
           right={
             <View style={st.chipsInline}>
               <Chip
-                label="モノラル"
+                label={t.settings.mono}
                 active={settings.recording.channels === 1}
                 onPress={() => setRec({ channels: 1 })}
               />
               <Chip
-                label="ステレオ"
+                label={t.settings.stereo}
                 active={settings.recording.channels === 2}
                 onPress={() => setRec({ channels: 2 })}
               />
             </View>
           }
         />
-        <Row label="入力ソースの既定" sub={inputLabel} onPress={() => setSheet('input')} />
+        <Row label={t.settings.inputDefault} sub={inputLabel} onPress={() => setSheet('input')} />
         {currentInput?.lowQuality ? (
-          <Text style={[st.warn, { color: c.mistake }]}>
-            Bluetooth
-            マイクは通話用の帯域になり音質が大きく落ちます。可能なら内蔵・有線マイクをおすすめします。
-          </Text>
+          <Text style={[st.warn, { color: c.mistake }]}>{t.settings.bluetoothWarning}</Text>
         ) : null}
         <Row
-          label="割り込み後に自動で再開"
-          sub="着信などで止まったあと、OS が再開を推奨していれば新しい区間として続ける"
+          label={t.settings.autoResume}
+          sub={t.settings.autoResumeSub}
           right={
             <Toggle
               value={settings.recording.autoResumeAfterInterruption}
@@ -168,14 +169,14 @@ export default function SettingsScreen() {
           }
         />
         <Row
-          label="想定する収録時間"
-          sub="録音開始前の空き容量チェックに使います"
+          label={t.settings.expectedLength}
+          sub={t.settings.expectedLengthSub}
           right={
             <View style={st.chipsInline}>
               {MINUTES.map((m) => (
                 <Chip
                   key={m}
-                  label={`${m}分`}
+                  label={t.settings.minutes(m)}
                   active={settings.recording.expectedMinutes === m}
                   onPress={() => setRec({ expectedMinutes: m })}
                 />
@@ -185,24 +186,24 @@ export default function SettingsScreen() {
         />
         {Platform.OS === 'android' ? (
           <Row
-            label="Android の録音ソース"
-            sub={SOURCES.find((s) => s.v === settings.recording.androidAudioSource)?.label ?? ''}
+            label={t.settings.androidSource}
+            sub={t.settings.sources[settings.recording.androidAudioSource].label}
             onPress={() => setSheet('source')}
           />
         ) : null}
       </Card>
 
-      <Eyebrow>EDITING</Eyebrow>
+      <Eyebrow>{t.settings.editingEyebrow}</Eyebrow>
       <Card style={{ paddingVertical: 4 }}>
         <Row
-          label="無音として扱う長さ"
-          sub="これより長い静かな区間を「無音」とみなします"
+          label={t.settings.silenceLength}
+          sub={t.settings.silenceLengthSub}
           right={
             <View style={st.chipsInline}>
               {SILENCE_LEN.map((ms) => (
                 <Chip
                   key={ms}
-                  label={`${(ms / 1000).toFixed(1)}秒`}
+                  label={t.settings.seconds((ms / 1000).toFixed(1))}
                   active={settings.silence.minDurationMs === ms}
                   onPress={() => setSilence({ minDurationMs: ms })}
                 />
@@ -211,8 +212,8 @@ export default function SettingsScreen() {
           }
         />
         <Row
-          label="無音とみなす音量"
-          sub="小さいほど厳しく（-55 dB は本当の静寂のみ）"
+          label={t.settings.silenceThreshold}
+          sub={t.settings.silenceThresholdSub}
           right={
             <View style={st.chipsInline}>
               {SILENCE_DB.map((dbv) => (
@@ -227,8 +228,8 @@ export default function SettingsScreen() {
           }
         />
         <Row
-          label="残す余白"
-          sub="無音の前後に残す間"
+          label={t.settings.silencePad}
+          sub={t.settings.silencePadSub}
           right={
             <View style={st.chipsInline}>
               {SILENCE_PAD.map((ms) => (
@@ -243,8 +244,8 @@ export default function SettingsScreen() {
           }
         />
         <Row
-          label="無音を自動で詰める"
-          sub="オフなら削除前に件数と合計を確認します"
+          label={t.settings.silenceAuto}
+          sub={t.settings.silenceAutoSub}
           right={
             <Toggle
               value={settings.silence.autoApply}
@@ -253,74 +254,76 @@ export default function SettingsScreen() {
           }
         />
         <Row
-          label="ハプティクス"
-          sub="録音開始・分割・スナップ時の振動"
+          label={t.settings.haptics}
+          sub={t.settings.hapticsSub}
           right={<Toggle value={settings.haptics} onChange={(v) => set('haptics', v)} />}
         />
         <Row
-          label="ジングルのモニター再生"
-          sub={MONITOR.find((m) => m.v === settings.monitor.jinglePlayback)?.label ?? ''}
+          label={t.settings.monitorRow}
+          sub={t.settings.monitor[settings.monitor.jinglePlayback].label}
           onPress={() => setSheet('monitor')}
         />
       </Card>
 
-      <Eyebrow>EXPORT</Eyebrow>
+      <Eyebrow>{t.settings.exportEyebrow}</Eyebrow>
       <Card style={{ paddingVertical: 4 }}>
         <Row
-          label="既定のプリセット"
-          sub={PRESETS.find((p) => p.v === settings.export.defaultPreset)?.sub ?? ''}
+          label={t.settings.defaultPreset}
+          sub={t.settings.presets[settings.export.defaultPreset].sub}
           onPress={() => setSheet('preset')}
         />
       </Card>
 
-      <Eyebrow>SHOW</Eyebrow>
+      <Eyebrow>{t.settings.showEyebrow}</Eyebrow>
       <Card style={{ paddingVertical: 4 }}>
         <Row
-          label="番組の設定"
-          sub="番組名・既定構成・概要欄テンプレート"
+          label={t.settings.showSettings}
+          sub={t.settings.showSettingsSub}
           onPress={() => router.push('/show/settings')}
         />
         <Row
-          label="Show Assets"
-          sub="Opening / Ending / Jingle / BGM"
+          label={t.settings.showAssets}
+          sub={t.settings.showAssetsSub}
           onPress={() => router.push('/show/assets')}
         />
       </Card>
 
-      <Eyebrow>STORAGE</Eyebrow>
+      <Eyebrow>{t.settings.storageEyebrow}</Eyebrow>
       <Card style={{ paddingVertical: 4 }}>
         <Row
-          label="録音データ"
-          sub="非圧縮の元データ（概算）"
+          label={t.settings.recordingsSize}
+          sub={t.settings.recordingsSizeSub}
           right={<Text style={{ color: c.ink }}>{formatBytes(data.storage.recordingsBytes)}</Text>}
         />
         <Row
-          label="書き出しファイル"
+          label={t.settings.exportsSize}
           right={<Text style={{ color: c.ink }}>{formatBytes(data.storage.exportsBytes)}</Text>}
         />
         <Row
-          label="端末の空き容量"
+          label={t.settings.freeSpace}
           right={<Text style={{ color: c.ink }}>{formatBytes(data.freeBytes)}</Text>}
         />
         <Row
-          label="書き出し済みエピソードの元データを整理"
-          sub={`${formatBytes(data.storage.exportedEpisodesRecordingsBytes)} が対象です。自動では削除しません（このバージョンでは案内のみ）`}
-          onPress={() =>
-            showToast({
-              text: '整理機能は次のバージョンで追加予定です。エピソード単位の削除は Home のメニューから行えます。',
-            })
-          }
+          label={t.settings.cleanup}
+          sub={t.settings.cleanupSub(formatBytes(data.storage.exportedEpisodesRecordingsBytes))}
+          onPress={() => showToast({ text: t.settings.cleanupToast })}
         />
       </Card>
 
       <Text style={[st.version, { color: c.ink3 }]}>
-        podsnow {APP_VERSION} (MVP){'\n'}すべての編集は非破壊で、録音の元データは削除されません。
+        {t.app.versionLine(APP_VERSION)}
+        {'\n'}
+        {t.app.nonDestructiveNote}
       </Text>
 
-      <Sheet visible={sheet === 'input'} onClose={() => setSheet(null)} title="入力ソースの既定">
+      <Sheet
+        visible={sheet === 'input'}
+        onClose={() => setSheet(null)}
+        title={t.settings.inputDefault}
+      >
         <Row
-          label="OS の既定"
-          sub="接続状況に応じて自動"
+          label={t.settings.inputOsDefault}
+          sub={t.settings.inputOsDefaultSub}
           onPress={() => {
             setSheet(null);
             void setRec({ preferredInputUid: null });
@@ -330,7 +333,7 @@ export default function SettingsScreen() {
           <Row
             key={i.uid}
             label={i.name}
-            sub={`${i.type}${i.lowQuality ? ' · 音質が落ちます（通話用 Bluetooth）' : ''}`}
+            sub={`${i.type}${i.lowQuality ? t.settings.lowQualitySuffix : ''}`}
             onPress={() => {
               setSheet(null);
               void setRec({ preferredInputUid: i.uid });
@@ -338,25 +341,23 @@ export default function SettingsScreen() {
           />
         ))}
         {data.inputs.length === 0 ? (
-          <Text style={{ color: c.ink3, paddingVertical: 12 }}>
-            入力デバイスを取得できませんでした（マイク権限が必要です）
-          </Text>
+          <Text style={{ color: c.ink3, paddingVertical: 12 }}>{t.settings.noInputs}</Text>
         ) : null}
       </Sheet>
 
       <Sheet
         visible={sheet === 'source'}
         onClose={() => setSheet(null)}
-        title="Android の録音ソース"
+        title={t.settings.androidSource}
       >
-        {SOURCES.map((s) => (
+        {SOURCES.map((v) => (
           <Row
-            key={s.v}
-            label={s.label}
-            sub={s.sub}
+            key={v}
+            label={t.settings.sources[v].label}
+            sub={t.settings.sources[v].sub}
             onPress={() => {
               setSheet(null);
-              void setRec({ androidAudioSource: s.v });
+              void setRec({ androidAudioSource: v });
             }}
           />
         ))}
@@ -365,16 +366,16 @@ export default function SettingsScreen() {
       <Sheet
         visible={sheet === 'preset'}
         onClose={() => setSheet(null)}
-        title="既定の書き出しプリセット"
+        title={t.settings.defaultPresetSheet}
       >
-        {PRESETS.map((p) => (
+        {PRESETS.map((v) => (
           <Row
-            key={p.v}
-            label={p.label}
-            sub={p.sub}
+            key={v}
+            label={t.settings.presets[v].label}
+            sub={t.settings.presets[v].sub}
             onPress={() => {
               setSheet(null);
-              void set('export', { defaultPreset: p.v });
+              void set('export', { defaultPreset: v });
             }}
           />
         ))}
@@ -383,16 +384,16 @@ export default function SettingsScreen() {
       <Sheet
         visible={sheet === 'monitor'}
         onClose={() => setSheet(null)}
-        title="ジングルのモニター再生"
+        title={t.settings.monitorRow}
       >
-        {MONITOR.map((m) => (
+        {MONITOR.map((v) => (
           <Row
-            key={m.v}
-            label={m.label}
-            sub={m.sub}
+            key={v}
+            label={t.settings.monitor[v].label}
+            sub={t.settings.monitor[v].sub}
             onPress={() => {
               setSheet(null);
-              void set('monitor', { jinglePlayback: m.v });
+              void set('monitor', { jinglePlayback: v });
             }}
           />
         ))}

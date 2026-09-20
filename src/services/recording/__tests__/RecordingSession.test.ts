@@ -9,6 +9,7 @@ import {
   DEFAULT_RECORDING_SETTINGS,
   type RecordingSettings,
 } from '../RecordingSession';
+import { TEST_LABELS } from '@/services/app/__tests__/labels';
 import { recoverUnfinishedTakes } from '../RecoveryService';
 import { FakeRecorder } from './FakeRecorder';
 
@@ -30,6 +31,7 @@ async function setup(over: Partial<RecordingSettings> = {}) {
   const settings: RecordingSettings = { ...DEFAULT_RECORDING_SETTINGS, ...over };
   const timers: (() => void)[] = [];
   const session = new RecordingSession({
+    labels: () => TEST_LABELS,
     db,
     recorder,
     root: '/root',
@@ -81,7 +83,11 @@ describe('RecordingSession', () => {
       reason_closed: 'stop',
     });
     const take = await getTake(db, takeId);
-    expect(take).toMatchObject({ status: 'ready', duration_smp: 480000, name: '録音 1' });
+    expect(take).toMatchObject({
+      status: 'ready',
+      duration_smp: 480000,
+      name: TEST_LABELS.takeName(1),
+    });
     const doc = await loadDoc(db, 'e');
     expect(doc.voice).toHaveLength(1);
     expect(doc.voice[0]).toMatchObject({ takeId, srcStart: 0, srcEnd: 480000 });
@@ -90,7 +96,10 @@ describe('RecordingSession', () => {
   it('refuses to start when disk space is insufficient', async () => {
     const { recorder, session } = await setup();
     recorder.availableBytes = 1000;
-    await expect(session.start('e')).rejects.toThrow(/空き容量/);
+    // 文言ではなく AppErrorCode で判定する（表示文言は UI 層の i18n、Issue #80）。
+    await expect(session.start('e')).rejects.toMatchObject({
+      code: 'disk_space_insufficient',
+    });
     expect(session.current).toBe('idle');
     expect(recorder.calls).toEqual([]);
   });

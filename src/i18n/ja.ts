@@ -80,6 +80,8 @@ export const ja = {
     backup_unsupported_version: (version: string) =>
       `対応していないバックアップ形式です（version ${version}）`,
     recording_resume_failed: '録音の再開に失敗しました',
+    disk_space_insufficient: (requiredMb: string, availableMb: string) =>
+      `空き容量が不足しています（必要 ${requiredMb} MB / 空き ${availableMb} MB）`,
     export_app_terminated: 'アプリが終了したため中断されました',
     export_not_in_backup: 'バックアップにはファイルを含みません',
     export_cancelled_on_restore: 'バックアップ復元時に中断扱い',
@@ -89,6 +91,7 @@ export const ja = {
   seed: {
     showName: 'マイポッドキャスト',
     episodeTitle: (n: number) => `第${n}回`,
+    takeName: (n: number) => `録音 ${n}`,
     descriptionTemplate: `{{topics}}
 
 ――――――
@@ -111,6 +114,8 @@ Podcast: {{show_name}}
     changeGain: '音量を変更',
     removeAsset: '素材を削除',
     moveAsset: '素材を移動',
+    insertAsset: (name: string) => `${name} を挿入`,
+    reanchored: (label: string) => `${label}（素材を追従）`,
     changeDucking: 'ダッキングを変更',
     changeFade: 'フェードを変更',
     removeTakeFromTimeline: (take: string) => `${take} をタイムラインから削除`,
