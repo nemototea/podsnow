@@ -49,3 +49,7 @@ coverage/
 modules/*/android/build/
 modules/*/android/.cxx/
 modules/*/ios/build/
+
+# Python（scripts/ の生成ツール）
+__pycache__/
+*.pyc

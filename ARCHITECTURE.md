@@ -85,6 +85,10 @@ podsnow/
 ├── modules/
 │   ├── podsnow-recorder/       # Expo Module (Swift / Kotlin)
 │   └── podsnow-audio-engine/   # Expo Module (Swift / Kotlin [+ C++ 共通コア: 仮説])
+├── assets/
+│   ├── brand/                  # ブランドマークの SVG（scripts/brand/generate.py が生成）
+│   └── images/                 # アプリアイコン・スプラッシュ・favicon（同上）
+├── scripts/brand/              # アイコン生成（図形定義 + 最小 PNG ラスタライザ、標準ライブラリのみ）
 ├── locales/                    # OS の権限ダイアログ等の文言（app.json の expo.locales）
 ├── docs/                       # 追加の設計メモ・ADR
 ├── PRODUCT.md / REQUIREMENTS.md / ARCHITECTURE.md / DATA_MODEL.md / AUDIO_DESIGN.md / DEVELOPMENT.md

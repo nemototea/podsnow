@@ -1,4 +1,4 @@
-# ストア掲載素材（0.1.0 MVP、Issue #53 / #80）
+# ストア掲載素材（0.1.0 MVP、Issue #53 / #80 / #82）
 
 アプリは日本語・英語に対応している（FR-I18N-1）。ストアの掲載情報も両言語で登録する。
 
@@ -83,6 +83,11 @@ podcast, recorder, voice recorder, audio editor, recording, podcasting
 - 用途: ユーザーが開始したポッドキャスト収録を、画面ロック中・他アプリ使用中も継続するため
 - 動画デモ: docs/device-checklist.md B-1 / B-2 を録画
 
+## アイコン
+
+`assets/images/icon.png`（1024x1024、アルファ無し）。マイク + レベルメーター。
+意味と再生成の手順は `assets/brand/README.md`。
+
 ## スクリーンショット（撮影予定）
 
 日本語・英語の 2 セットを撮る（端末の言語設定を切り替えて同じ画面を撮影）。
@@ -95,8 +100,8 @@ podcast, recorder, voice recorder, audio editor, recording, podcasting
 
 ## リリース手順（DEVELOPMENT.md §2 に従う）
 
-1. `release/0.1.0` の Issue がすべて閉じていることを確認（#1〜#53、#80）
-2. 実機チェックリスト（docs/device-checklist.md）の B / C / D / E を両 OS で合格
+1. `release/0.1.0` の Issue がすべて閉じていることを確認（#1〜#53、#80、#82）
+2. 実機チェックリスト（docs/device-checklist.md）の B / C / D / E / J / K を両 OS で合格
 3. `app.json` の `version` / `ios.buildNumber` / `android.versionCode` を確認
 4. `release/0.1.0` → `main` の PR を作成しマージ
 5. iOS: Xcode 26 で Archive → TestFlight。Android: `./gradlew :app:bundleRelease`（署名鍵は別途）→ 内部テスト
