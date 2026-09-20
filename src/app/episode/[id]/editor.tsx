@@ -9,6 +9,8 @@ import { useServices } from '@/features/app/ServicesProvider';
 import { playMonitor } from '@/features/editor/monitor';
 import { useEditor } from '@/features/editor/useEditor';
 import { Waveform } from '@/features/editor/Waveform';
+import { kindLabel } from '@/features/show/assetKinds';
+import { errorCodeText, errorText, useT } from '@/i18n';
 import type { AssetRow } from '@/infra/db/repositories/assetsRepo';
 import { Button, Chip, Header, Loading, Row, Screen, Sheet, Toast, Toggle } from '@/ui/components';
 import { useAppTheme } from '@/ui/ThemeContext';
@@ -20,6 +22,7 @@ export default function EditorScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const c = useAppTheme();
+  const t = useT();
   const services = useServices();
   const ed = useEditor(id);
   const { state } = ed;
@@ -39,27 +42,28 @@ export default function EditorScreen() {
 
   useEffect(() => {
     const subs = [
-      services.recording.on('error', (e) => setError(e.message)),
-      services.recording.on('diskLow', () =>
-        showToast({ text: '空き容量が少ないため録音を停止しました' }),
+      services.recording.on('error', (e) =>
+        setError(e.code ? errorCodeText(t, e.code) : e.message),
       ),
+      services.recording.on('diskLow', () => showToast({ text: t.editor.diskLow })),
       services.recording.on('interruption', (e) => {
-        if (e.type === 'began')
-          showToast({ text: '割り込みで録音が止まりました。ここまでは保存済みです' });
+        if (e.type === 'began') showToast({ text: t.editor.interrupted });
       }),
       services.recording.on('routeChange', (e) => {
         if (e.reason === 'old_device_unavailable')
-          showToast({ text: `入力が ${e.currentInput?.name ?? '内蔵マイク'} に切り替わりました` });
+          showToast({
+            text: t.editor.routeChanged(e.currentInput?.name ?? t.editor.builtInMic),
+          });
       }),
     ];
     return () => subs.forEach((s) => s.remove());
-  }, [services.recording, showToast]);
+  }, [services.recording, showToast, t]);
 
   const toggleRec = useCallback(async () => {
     try {
       if (isRec) {
         const r = await ed.stopRecording();
-        if (r) showToast({ text: `録音を追加しました（${formatSmp(r.durationSmp)}）` });
+        if (r) showToast({ text: t.editor.takeAdded(formatSmp(r.durationSmp)) });
         return;
       }
       if (interrupted) {
@@ -67,47 +71,47 @@ export default function EditorScreen() {
         return;
       }
       await ed.startRecording();
-      showToast({ text: '録音を開始しました（自動保存中）' });
+      showToast({ text: t.editor.recordingStarted });
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(errorText(t, e));
     }
-  }, [ed, interrupted, isRec, showToast]);
+  }, [ed, interrupted, isRec, showToast, t]);
 
   const punchIn = useCallback(async () => {
     if (!state.selection) return;
     try {
       await ed.startRecording({ punchIn: state.selection });
-      showToast({ text: '範囲を空けて録音しています' });
+      showToast({ text: t.editor.punchInStarted });
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(errorText(t, e));
     }
-  }, [ed, showToast, state.selection]);
+  }, [ed, showToast, state.selection, t]);
 
   const doDelete = useCallback(async () => {
     const sel = state.selection;
     if (!sel) return;
     await ed.deleteSelection();
     showToast({
-      text: `${formatSmp(smp(sel.end - sel.start), { tenths: true })} を削除しました`,
-      action: '取り消す',
+      text: t.editor.rangeDeleted(formatSmp(smp(sel.end - sel.start), { tenths: true })),
+      action: t.common.undo,
       onAction: () => void ed.undo(),
     });
-  }, [ed, showToast, state.selection]);
+  }, [ed, showToast, state.selection, t]);
 
   const doUndo = useCallback(async () => {
     const op = await ed.undo();
     if (op)
       showToast({
-        text: `「${op.label}」を取り消しました`,
-        action: 'やり直す',
+        text: t.undo.undid(op.label),
+        action: t.common.redo,
         onAction: () => void ed.redo(),
       });
-  }, [ed, showToast]);
+  }, [ed, showToast, t]);
 
   const doRedo = useCallback(async () => {
     const op = await ed.redo();
-    if (op) showToast({ text: `「${op.label}」をやり直しました` });
-  }, [ed, showToast]);
+    if (op) showToast({ text: t.undo.redid(op.label) });
+  }, [ed, showToast, t]);
 
   const openSilence = useCallback(async () => {
     setSheet('silence');
@@ -115,10 +119,10 @@ export default function EditorScreen() {
     try {
       setSilencePlan(await ed.planSilence());
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(errorText(t, e));
       setSheet(null);
     }
-  }, [ed]);
+  }, [ed, t]);
 
   const insert = useCallback(
     async (a: AssetRow) => {
@@ -133,17 +137,17 @@ export default function EditorScreen() {
           } catch {
             /* モニター再生の失敗は挿入結果に影響しない */
           }
-          showToast({ text: `${a.name} を挿入しました` });
+          showToast({ text: t.editor.inserted(a.name) });
         } else {
-          showToast({ text: `${a.name} を挿入しました（スピーカー出力中のためモニター再生なし）` });
+          showToast({ text: t.editor.insertedNoMonitor(a.name) });
           if (!speakerWarned) setSpeakerWarned(true);
         }
         return;
       }
       await ed.insertAsset(a, 'playhead');
       showToast({
-        text: `${a.name} を ${formatSmp(state.playhead)} に挿入しました`,
-        action: '取り消す',
+        text: t.editor.insertedAt(a.name, formatSmp(state.playhead)),
+        action: t.common.undo,
         onAction: () => void ed.undo(),
       });
     },
@@ -156,6 +160,7 @@ export default function EditorScreen() {
       showToast,
       speakerWarned,
       state.playhead,
+      t,
     ],
   );
 
@@ -170,7 +175,7 @@ export default function EditorScreen() {
     (m) => !m.marker.resolved && m.marker.kind !== 'topic',
   ).length;
 
-  if (!state.ready) return <Loading label="読み込んでいます" />;
+  if (!state.ready) return <Loading label={t.common.loading} />;
 
   const clock = isRec
     ? formatSmp(smp(state.total + state.recFrames), { tenths: true })
@@ -182,20 +187,26 @@ export default function EditorScreen() {
       <View style={{ paddingHorizontal: 16 }}>
         <Header
           title={
-            state.episode ? `#${state.episode.episode_number} ${state.episode.title}` : 'Editor'
+            state.episode
+              ? `#${state.episode.episode_number} ${state.episode.title}`
+              : t.editor.fallbackTitle
           }
           subtitle={
             isRec
-              ? '録音中 — 自動保存しています'
+              ? t.editor.subtitleRecording
               : interrupted
-                ? '割り込みで停止中 — 録音ボタンで再開'
-                : '自動保存済み'
+                ? t.editor.subtitleInterrupted
+                : t.editor.subtitleSaved
           }
           onBack={() =>
-            isRec ? showToast({ text: '録音中は戻れません。停止してください' }) : router.back()
+            isRec ? showToast({ text: t.editor.cannotLeaveWhileRecording }) : router.back()
           }
           right={
-            <Pressable onPress={() => setSheet('more')} hitSlop={10} accessibilityLabel="メニュー">
+            <Pressable
+              onPress={() => setSheet('more')}
+              hitSlop={10}
+              accessibilityLabel={t.a11y.menu}
+            >
               <Text style={{ color: c.ink2, fontSize: 22 }}>⋮</Text>
             </Pressable>
           }
@@ -218,14 +229,14 @@ export default function EditorScreen() {
         <Pressable
           onPress={() => setPps((p) => Math.max(4, p / 1.6))}
           hitSlop={8}
-          accessibilityLabel="縮小"
+          accessibilityLabel={t.a11y.zoomOut}
         >
           <Text style={{ color: c.ink2, fontSize: 18 }}>－</Text>
         </Pressable>
         <Pressable
           onPress={() => setPps((p) => Math.min(200, p * 1.6))}
           hitSlop={8}
-          accessibilityLabel="拡大"
+          accessibilityLabel={t.a11y.zoomIn}
           style={{ marginLeft: 12 }}
         >
           <Text style={{ color: c.ink2, fontSize: 18 }}>＋</Text>
@@ -280,13 +291,11 @@ export default function EditorScreen() {
           <Text style={{ color: c.mistake }}>⚑</Text>
           <View style={{ flex: 1 }}>
             <Text style={{ color: c.ink, fontSize: 13, fontWeight: '600' }}>
-              マーカー {unresolved} 件
+              {t.editor.markerBannerTitle(unresolved)}
             </Text>
-            <Text style={{ color: c.ink2, fontSize: 11 }}>
-              順番に確認して、その場で削除・取り消し
-            </Text>
+            <Text style={{ color: c.ink2, fontSize: 11 }}>{t.editor.markerBannerSub}</Text>
           </View>
-          <Text style={{ color: c.accent, fontSize: 12 }}>次へ ›</Text>
+          <Text style={{ color: c.accent, fontSize: 12 }}>{t.common.next}</Text>
         </Pressable>
       ) : null}
 
@@ -318,7 +327,7 @@ export default function EditorScreen() {
           ))}
           <Pressable onPress={() => setSheet('topics')}>
             <Text style={{ color: c.accent, fontSize: 12, marginTop: 4 }}>
-              トークテーマを編集 ›
+              {t.editor.editTopics}
             </Text>
           </Pressable>
         </View>
@@ -327,9 +336,7 @@ export default function EditorScreen() {
           onPress={() => setSheet('topics')}
           style={{ paddingHorizontal: 16, paddingVertical: 8 }}
         >
-          <Text style={{ color: c.ink3, fontSize: 12 }}>
-            ＋ トークテーマを追加（収録中に表示されます）
-          </Text>
+          <Text style={{ color: c.ink3, fontSize: 12 }}>{t.editor.addTopics}</Text>
         </Pressable>
       )}
 
@@ -339,9 +346,9 @@ export default function EditorScreen() {
       <View style={st.toolbar}>
         {isRec ? (
           <>
-            <Chip label="● マーカー" onPress={() => void ed.addMarker('edit_point')} />
+            <Chip label={t.editor.toolbar.marker} onPress={() => void ed.addMarker('edit_point')} />
             <Chip
-              label="噛んだ"
+              label={t.editor.toolbar.mistake}
               color={c.mistake}
               active
               onPress={() => void ed.addMarker('mistake')}
@@ -349,14 +356,16 @@ export default function EditorScreen() {
             {favorites.slice(0, 2).map((a) => (
               <Chip
                 key={a.id}
-                label={`♪ ${a.name}`}
+                label={t.editor.toolbar.quickInsert(a.name)}
                 color={c.insert}
                 onPress={() => void insert(a)}
               />
             ))}
-            <Chip label="♪ 挿入" onPress={() => setSheet('insert')} />
+            <Chip label={t.editor.toolbar.insert} onPress={() => setSheet('insert')} />
             <Chip
-              label={state.recording === 'paused' ? '▶ 再開' : '‖ 一時停止'}
+              label={
+                state.recording === 'paused' ? t.editor.toolbar.resume : t.editor.toolbar.pause
+              }
               active
               onPress={() =>
                 void (state.recording === 'paused' ? ed.resumeRecording() : ed.pauseRecording())
@@ -365,28 +374,36 @@ export default function EditorScreen() {
           </>
         ) : state.selection ? (
           <>
-            <Chip label="削除" color={c.rec} active onPress={() => void doDelete()} />
-            <Chip label="録り直す" onPress={() => void punchIn()} />
-            <Chip label="始点=ここ" onPress={ed.setSelectionStart} />
-            <Chip label="終点=ここ" onPress={ed.setSelectionEnd} />
-            <Chip label="解除" onPress={ed.clearSelection} />
+            <Chip
+              label={t.editor.toolbar.delete}
+              color={c.rec}
+              active
+              onPress={() => void doDelete()}
+            />
+            <Chip label={t.editor.toolbar.punchIn} onPress={() => void punchIn()} />
+            <Chip label={t.editor.toolbar.selectionStart} onPress={ed.setSelectionStart} />
+            <Chip label={t.editor.toolbar.selectionEnd} onPress={ed.setSelectionEnd} />
+            <Chip label={t.editor.toolbar.clearSelection} onPress={ed.clearSelection} />
           </>
         ) : (
           <>
-            <Chip label="＋ 挿入" onPress={() => setSheet('insert')} />
-            <Chip label="● マーカー" onPress={() => void ed.addMarker('edit_point')} />
-            <Chip label="範囲を選ぶ" onPress={ed.setSelectionStart} />
-            <Chip label="無音を削除" onPress={() => void openSilence()} />
-            <Chip label="テイク" onPress={() => setSheet('takes')} />
+            <Chip label={t.editor.toolbar.insertPlus} onPress={() => setSheet('insert')} />
+            <Chip label={t.editor.toolbar.marker} onPress={() => void ed.addMarker('edit_point')} />
+            <Chip label={t.editor.toolbar.selectRange} onPress={ed.setSelectionStart} />
+            <Chip label={t.editor.toolbar.removeSilence} onPress={() => void openSilence()} />
+            <Chip label={t.editor.toolbar.takes} onPress={() => setSheet('takes')} />
           </>
         )}
       </View>
       <Text style={[st.hint, { color: c.ink3 }]}>
         {isRec
-          ? '録音中は編集操作を止めています。マーカーは後でジャンプできます'
+          ? t.editor.hintRecording
           : state.selection
-            ? `${formatSmp(state.selection.start)} 〜 ${formatSmp(state.selection.end)} を選択中。再生位置を動かして始点/終点を打ち直せます`
-            : 'タイムラインをタップで再生位置。素材をタップで音量・位置'}
+            ? t.editor.hintSelection(
+                formatSmp(state.selection.start),
+                formatSmp(state.selection.end),
+              )
+            : t.editor.hintIdle}
       </Text>
 
       {/* トランスポート */}
@@ -395,14 +412,14 @@ export default function EditorScreen() {
           onPress={() => void doUndo()}
           disabled={!state.canUndo || isRec}
           style={[st.side, { opacity: state.canUndo && !isRec ? 1 : 0.35 }]}
-          accessibilityLabel="取り消す"
+          accessibilityLabel={t.common.undo}
         >
           <Text style={{ color: c.ink, fontSize: 20 }}>↶</Text>
-          <Text style={{ color: c.ink2, fontSize: 10 }}>取り消す</Text>
+          <Text style={{ color: c.ink2, fontSize: 10 }}>{t.common.undo}</Text>
         </Pressable>
         <Pressable
           onPress={() => void toggleRec()}
-          accessibilityLabel={isRec ? '録音を停止' : '録音を開始'}
+          accessibilityLabel={isRec ? t.a11y.stopRecording : t.a11y.startRecording}
           style={[st.recBtn, { backgroundColor: isRec ? c.panel : c.rec, borderColor: c.rec }]}
         >
           <View style={isRec ? [st.recStop, { backgroundColor: c.rec }] : st.recDotBig} />
@@ -414,7 +431,7 @@ export default function EditorScreen() {
             st.playBtn,
             { borderColor: c.line, opacity: isRec || state.total === 0 ? 0.35 : 1 },
           ]}
-          accessibilityLabel={state.playing ? '一時停止' : '再生'}
+          accessibilityLabel={state.playing ? t.a11y.pause : t.a11y.play}
         >
           <Text style={{ color: c.ink, fontSize: 18 }}>{state.playing ? '❚❚' : '▶'}</Text>
         </Pressable>
@@ -422,10 +439,10 @@ export default function EditorScreen() {
           onPress={() => void doRedo()}
           disabled={!state.canRedo || isRec}
           style={[st.side, { opacity: state.canRedo && !isRec ? 1 : 0.35 }]}
-          accessibilityLabel="やり直す"
+          accessibilityLabel={t.common.redo}
         >
           <Text style={{ color: c.ink, fontSize: 20 }}>↷</Text>
-          <Text style={{ color: c.ink2, fontSize: 10 }}>やり直す</Text>
+          <Text style={{ color: c.ink2, fontSize: 10 }}>{t.common.redo}</Text>
         </Pressable>
       </View>
 
@@ -433,21 +450,21 @@ export default function EditorScreen() {
       <Sheet
         visible={sheet === 'insert'}
         onClose={() => setSheet(null)}
-        title="挿入"
+        title={t.editor.insertSheet.title}
         subtitle={
-          isRec ? '今の発言位置に挿入します' : `再生位置 ${formatSmp(state.playhead)} に追加します`
+          isRec
+            ? t.editor.insertSheet.subtitleRecording
+            : t.editor.insertSheet.subtitlePlayhead(formatSmp(state.playhead))
         }
       >
         {state.assets.length === 0 ? (
-          <Text style={{ color: c.ink2 }}>
-            Show Assets に素材がありません。Home →「Show Assets」から追加してください。
-          </Text>
+          <Text style={{ color: c.ink2 }}>{t.editor.insertSheet.empty}</Text>
         ) : null}
         {state.assets.map((a) => (
           <Row
             key={a.id}
             label={`${a.is_favorite ? '★ ' : ''}${a.name}`}
-            sub={`${a.kind} · ${formatSmp(smp(a.duration_smp))}`}
+            sub={`${kindLabel(t, a.kind)} · ${formatSmp(smp(a.duration_smp))}`}
             onPress={() => void insert(a)}
           />
         ))}
@@ -459,21 +476,23 @@ export default function EditorScreen() {
           setSheet(null);
           ed.selectOverlay(null);
         }}
-        title={selectedAsset?.name ?? '素材'}
+        title={selectedAsset?.name ?? t.editor.overlay.fallbackTitle}
         subtitle={
-          selectedOverlay ? `${selectedOverlay.kind} · ${selectedOverlay.gainDb.toFixed(1)} dB` : ''
+          selectedOverlay
+            ? `${kindLabel(t, selectedOverlay.kind)} · ${selectedOverlay.gainDb.toFixed(1)} dB`
+            : ''
         }
       >
         {selectedOverlay ? (
           <>
             <View style={st.gainRow}>
-              <Text style={{ color: c.ink }}>音量</Text>
+              <Text style={{ color: c.ink }}>{t.editor.overlay.gain}</Text>
               <View style={{ flex: 1 }} />
               <Pressable
                 onPress={() =>
                   void ed.updateOverlay(
                     selectedOverlay.id,
-                    '音量を変更',
+                    t.undo.changeGain,
                     (o) => ({ ...o, gainDb: Math.max(-40, o.gainDb - 1) }),
                     `gain:${selectedOverlay.id}`,
                   )
@@ -490,7 +509,7 @@ export default function EditorScreen() {
                 onPress={() =>
                   void ed.updateOverlay(
                     selectedOverlay.id,
-                    '音量を変更',
+                    t.undo.changeGain,
                     (o) => ({ ...o, gainDb: Math.min(12, o.gainDb + 1) }),
                     `gain:${selectedOverlay.id}`,
                   )
@@ -503,13 +522,13 @@ export default function EditorScreen() {
             </View>
             {selectedOverlay.kind === 'bgm' ? (
               <Row
-                label="しゃべり中は音量を下げる"
-                sub="Ducking"
+                label={t.editor.overlay.duck}
+                sub={t.editor.overlay.duckSub}
                 right={
                   <Toggle
                     value={selectedOverlay.duck}
                     onChange={(v) =>
-                      void ed.updateOverlay(selectedOverlay.id, 'ダッキングを変更', (o) => ({
+                      void ed.updateOverlay(selectedOverlay.id, t.undo.changeDucking, (o) => ({
                         ...o,
                         duck: v,
                       }))
@@ -519,12 +538,12 @@ export default function EditorScreen() {
               />
             ) : null}
             <Row
-              label="フェードイン 2 秒"
+              label={t.editor.overlay.fadeIn}
               right={
                 <Toggle
                   value={selectedOverlay.fadeIn > 0}
                   onChange={(v) =>
-                    void ed.updateOverlay(selectedOverlay.id, 'フェードを変更', (o) => ({
+                    void ed.updateOverlay(selectedOverlay.id, t.undo.changeFade, (o) => ({
                       ...o,
                       fadeIn: smp(v ? 96000 : 0),
                     }))
@@ -533,12 +552,12 @@ export default function EditorScreen() {
               }
             />
             <Row
-              label="フェードアウト 2 秒"
+              label={t.editor.overlay.fadeOut}
               right={
                 <Toggle
                   value={selectedOverlay.fadeOut > 0}
                   onChange={(v) =>
-                    void ed.updateOverlay(selectedOverlay.id, 'フェードを変更', (o) => ({
+                    void ed.updateOverlay(selectedOverlay.id, t.undo.changeFade, (o) => ({
                       ...o,
                       fadeOut: smp(v ? 96000 : 0),
                     }))
@@ -548,8 +567,8 @@ export default function EditorScreen() {
             />
             {selectedOverlay.kind !== 'opening' && selectedOverlay.kind !== 'ending' ? (
               <Row
-                label="再生位置へ移動"
-                sub={`${formatSmp(state.playhead)} に置き直す（発言に追従）`}
+                label={t.editor.overlay.moveToPlayhead}
+                sub={t.editor.overlay.moveToPlayheadSub(formatSmp(state.playhead))}
                 onPress={() => {
                   void ed.moveOverlayTo(selectedOverlay.id, state.playhead);
                   setSheet(null);
@@ -557,14 +576,14 @@ export default function EditorScreen() {
               />
             ) : null}
             <Row
-              label="タイムラインから削除"
+              label={t.editor.overlay.remove}
               danger
               onPress={() => {
                 void ed.removeOverlay(selectedOverlay.id);
                 setSheet(null);
                 showToast({
-                  text: '素材を削除しました',
-                  action: '取り消す',
+                  text: t.editor.overlay.removed,
+                  action: t.common.undo,
                   onAction: () => void ed.undo(),
                 });
               }}
@@ -577,41 +596,41 @@ export default function EditorScreen() {
         visible={sheet === 'more'}
         onClose={() => setSheet(null)}
         title={state.episode?.title ?? ''}
-        subtitle="工程"
+        subtitle={t.editor.more.subtitle}
       >
         <Row
-          label="エピソードのトップ"
-          sub="制作状況・テイク一覧"
+          label={t.editor.more.episodeTop}
+          sub={t.editor.more.episodeTopSub}
           onPress={() => {
             setSheet(null);
             router.push(`/episode/${id}`);
           }}
         />
         <Row
-          label="エピソードの詳細"
-          sub="タイトル・概要"
+          label={t.editor.more.details}
+          sub={t.editor.more.detailsSub}
           onPress={() => {
             setSheet(null);
             router.push(`/episode/${id}/details`);
           }}
         />
         <Row
-          label="音の仕上げ"
-          sub="ラウドネス・ダッキング"
+          label={t.editor.more.sound}
+          sub={t.editor.more.soundSub}
           onPress={() => {
             setSheet(null);
             router.push(`/episode/${id}/sound`);
           }}
         />
         <Row
-          label="書き出し"
+          label={t.editor.more.export}
           onPress={() => {
             setSheet(null);
             router.push(`/episode/${id}/export`);
           }}
         />
         <Row
-          label="Show Assets"
+          label={t.editor.more.showAssets}
           onPress={() => {
             setSheet(null);
             router.push('/show/assets');
@@ -622,27 +641,32 @@ export default function EditorScreen() {
       <Sheet
         visible={sheet === 'silence'}
         onClose={() => setSheet(null)}
-        title="無音を削除"
-        subtitle={`${services.settings.silence.minDurationMs / 1000} 秒以上・${services.settings.silence.thresholdDb} dB 未満の区間を詰めます`}
+        title={t.editor.silence.title}
+        subtitle={t.editor.silence.subtitle(
+          String(services.settings.silence.minDurationMs / 1000),
+          services.settings.silence.thresholdDb,
+        )}
       >
         {!silencePlan ? (
-          <Text style={{ color: c.ink2 }}>解析しています…</Text>
+          <Text style={{ color: c.ink2 }}>{t.editor.silence.analyzing}</Text>
         ) : silencePlan.ranges.length === 0 ? (
-          <Text style={{ color: c.ink2 }}>該当する無音はありませんでした</Text>
+          <Text style={{ color: c.ink2 }}>{t.editor.silence.none}</Text>
         ) : (
           <>
             <Text style={{ color: c.ink, marginBottom: 12 }}>
-              {silencePlan.ranges.length} 箇所、合計{' '}
-              {formatSmp(silencePlan.totalRemoved, { tenths: true })} を削除します。
+              {t.editor.silence.plan(
+                silencePlan.ranges.length,
+                formatSmp(silencePlan.totalRemoved, { tenths: true }),
+              )}
             </Text>
             <Button
-              label="適用する"
+              label={t.editor.silence.apply}
               onPress={async () => {
                 setSheet(null);
                 await ed.applySilencePlan(silencePlan.ranges);
                 showToast({
-                  text: `${silencePlan.ranges.length} 箇所の無音を詰めました`,
-                  action: '取り消す',
+                  text: t.editor.silence.applied(silencePlan.ranges.length),
+                  action: t.common.undo,
                   onAction: () => void ed.undo(),
                 });
               }}
@@ -656,17 +680,17 @@ export default function EditorScreen() {
         onClose={() => setSheet(null)}
         title={
           activeMarker?.kind === 'mistake'
-            ? '言い間違い'
+            ? t.editor.marker.mistake
             : activeMarker?.kind === 'interruption'
-              ? '割り込み'
-              : 'マーカー'
+              ? t.editor.marker.interruption
+              : t.editor.marker.generic
         }
         subtitle={activeMarker?.label || ''}
       >
         {activeMarker ? (
           <>
             <Row
-              label="ここへ移動"
+              label={t.editor.marker.seek}
               onPress={() => {
                 const at = ed.markersOnTimeline.find((m) => m.marker.id === activeMarker.id)?.at;
                 if (at !== undefined) void ed.seek(at);
@@ -674,8 +698,8 @@ export default function EditorScreen() {
               }}
             />
             <Row
-              label="ここから範囲を選ぶ"
-              sub="始点をマーカーに置く"
+              label={t.editor.marker.selectFromHere}
+              sub={t.editor.marker.selectFromHereSub}
               onPress={() => {
                 const at = ed.markersOnTimeline.find((m) => m.marker.id === activeMarker.id)?.at;
                 if (at !== undefined) void ed.seek(at).then(() => ed.setSelectionStart());
@@ -683,14 +707,14 @@ export default function EditorScreen() {
               }}
             />
             <Row
-              label="対応済みにする"
+              label={t.editor.marker.resolve}
               onPress={() => {
                 void ed.resolveMarker(activeMarker.id);
                 setSheet(null);
               }}
             />
             <Row
-              label="マーカーを削除"
+              label={t.editor.marker.remove}
               danger
               onPress={() => {
                 void ed.removeMarker(activeMarker.id);
@@ -704,8 +728,8 @@ export default function EditorScreen() {
       <Sheet
         visible={sheet === 'takes'}
         onClose={() => setSheet(null)}
-        title="テイク"
-        subtitle="声トラックの並び"
+        title={t.editor.takes.title}
+        subtitle={t.editor.takes.subtitle}
       >
         {state.doc.voice.map((v, i) => {
           const take = state.takes.find((t) => t.id === v.takeId);
@@ -748,8 +772,8 @@ export default function EditorScreen() {
                     onPress={() => {
                       void ed.removeVoiceSegment(i);
                       showToast({
-                        text: 'タイムラインから削除しました（元データは残ります）',
-                        action: '取り消す',
+                        text: t.editor.takes.removed,
+                        action: t.common.undo,
                         onAction: () => void ed.undo(),
                       });
                     }}
@@ -763,15 +787,15 @@ export default function EditorScreen() {
           );
         })}
         {state.doc.voice.length === 0 ? (
-          <Text style={{ color: c.ink2 }}>まだ録音がありません</Text>
+          <Text style={{ color: c.ink2 }}>{t.editor.takes.empty}</Text>
         ) : null}
       </Sheet>
 
       <Sheet
         visible={sheet === 'topics'}
         onClose={() => setSheet(null)}
-        title="トークテーマ"
-        subtitle="収録中に画面で見ながらチェックできます。音声入力はキーボードのマイクから"
+        title={t.editor.topics.title}
+        subtitle={t.editor.topics.subtitle}
       >
         {state.topics.map((t, i) => (
           <Row
@@ -805,10 +829,10 @@ export default function EditorScreen() {
           <TextInput
             value={topicDraft}
             onChangeText={setTopicDraft}
-            placeholder="話すテーマを追加"
+            placeholder={t.editor.topics.placeholder}
             placeholderTextColor={c.ink3}
             style={[st.input, { color: c.ink, borderColor: c.line, backgroundColor: c.panel2 }]}
-            accessibilityLabel="トークテーマ"
+            accessibilityLabel={t.editor.topics.title}
             onSubmitEditing={() => {
               if (topicDraft.trim()) {
                 void ed.saveTopics([
@@ -825,7 +849,7 @@ export default function EditorScreen() {
             }}
           />
           <Button
-            label="追加"
+            label={t.common.add}
             kind="secondary"
             onPress={() => {
               if (topicDraft.trim()) {
@@ -845,10 +869,10 @@ export default function EditorScreen() {
         </View>
       </Sheet>
 
-      <Sheet visible={!!error} onClose={() => setError(null)} title="エラー">
+      <Sheet visible={!!error} onClose={() => setError(null)} title={t.common.error}>
         <Text style={{ color: c.ink, lineHeight: 20 }}>{error}</Text>
         <Button
-          label="閉じる"
+          label={t.common.close}
           kind="secondary"
           onPress={() => setError(null)}
           style={{ marginTop: 12 }}

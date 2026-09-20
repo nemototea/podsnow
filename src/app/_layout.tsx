@@ -3,7 +3,8 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
-import { ServicesProvider, useServices } from '@/features/app/ServicesProvider';
+import { ServiceLabelsSync, ServicesProvider, useServices } from '@/features/app/ServicesProvider';
+import { LocaleProvider, useT } from '@/i18n';
 import { Loading } from '@/ui/components';
 import { ThemeProvider, useAppTheme } from '@/ui/ThemeContext';
 
@@ -32,27 +33,47 @@ function Navigation() {
 
 function Themed() {
   const services = useServices();
-  const [pref, setPref] = useState(services.settings.theme);
-  useEffect(() => services.onSettingsChange((s) => setPref(s.theme)).remove, [services]);
-  return (
-    <ThemeProvider pref={pref}>
-      <Navigation />
-    </ThemeProvider>
+  const [theme, setTheme] = useState(services.settings.theme);
+  const [language, setLanguage] = useState(services.settings.language);
+  useEffect(
+    () =>
+      services.onSettingsChange((s) => {
+        setTheme(s.theme);
+        setLanguage(s.language);
+      }).remove,
+    [services],
   );
+  return (
+    <LocaleProvider pref={language}>
+      {/* 設定で選んだ言語を、DB に書き込む既定文言にも反映する（FR-I18N-6）。 */}
+      <ServiceLabelsSync />
+      <ThemeProvider pref={theme}>
+        <Navigation />
+      </ThemeProvider>
+    </LocaleProvider>
+  );
+}
+
+/** 設定がまだ読めていない起動直後。言語は端末ロケールに従う。 */
+function Booting() {
+  const t = useT();
+  return <Loading label={t.common.preparing} />;
 }
 
 export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <ServicesProvider
-        fallback={
-          <ThemeProvider pref="system">
-            <Loading label="準備しています" />
-          </ThemeProvider>
-        }
-      >
-        <Themed />
-      </ServicesProvider>
+      <LocaleProvider>
+        <ServicesProvider
+          fallback={
+            <ThemeProvider pref="system">
+              <Booting />
+            </ThemeProvider>
+          }
+        >
+          <Themed />
+        </ServicesProvider>
+      </LocaleProvider>
     </GestureHandlerRootView>
   );
 }

@@ -6,6 +6,7 @@ import { createNodeSqliteExecutor } from '@/infra/db/__tests__/nodeSqliteExecuto
 import { migrate } from '@/infra/db/migrate';
 import { loadDoc, saveDoc } from '@/infra/db/repositories/editableDocRepo';
 import { ensureDefaultShow } from '@/infra/db/repositories/showsRepo';
+import { TEST_SHOW_SEED } from '@/services/app/__tests__/labels';
 import { listSegments, listTakes } from '@/infra/db/repositories/takesRepo';
 import { smp } from '@/domain/time';
 
@@ -42,7 +43,7 @@ async function setup() {
   await migrate(db);
   let n = 0;
   const newId = () => `id${++n}`;
-  const show = await ensureDefaultShow(db, newId, 1000);
+  const show = await ensureDefaultShow(db, newId, 1000, TEST_SHOW_SEED);
   const t = 1000;
   await db.run(
     'INSERT INTO episodes (id, show_id, title, description, episode_number, season, status, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?)',

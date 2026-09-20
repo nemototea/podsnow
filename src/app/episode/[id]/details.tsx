@@ -6,6 +6,7 @@ import { insertTopics, renderTemplate } from '@/domain/metadata/template';
 import { useServices } from '@/features/app/ServicesProvider';
 import { useCopy } from '@/features/episode/useCopy';
 import { useEpisode } from '@/features/episode/useEpisode';
+import { useT } from '@/i18n';
 import { getDefaultTemplate } from '@/infra/db/repositories/showsRepo';
 import { Button, Card, Eyebrow, Header, Loading, Screen, Toast } from '@/ui/components';
 import { useAppTheme } from '@/ui/ThemeContext';
@@ -29,15 +30,16 @@ function fromDateInput(s: string): number | null | undefined {
 
 function CopyBtn({ active, onPress }: { active: boolean; onPress: () => void }) {
   const c = useAppTheme();
+  const t = useT();
   return (
     <Pressable
       onPress={onPress}
       hitSlop={8}
       accessibilityRole="button"
-      accessibilityLabel={active ? 'コピーしました' : 'コピー'}
+      accessibilityLabel={active ? t.a11y.copied : t.a11y.copy}
     >
       <Text style={{ color: active ? c.voice : c.accent, fontSize: 13, fontWeight: '600' }}>
-        {active ? '✓ コピーしました' : '⧉ コピー'}
+        {active ? t.common.copied : t.common.copy}
       </Text>
     </Pressable>
   );
@@ -48,6 +50,7 @@ export default function EpisodeDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const episodeId = id ?? '';
   const c = useAppTheme();
+  const t = useT();
   const router = useRouter();
   const { db, show, episodes } = useServices();
   const { episode, reload } = useEpisode(episodeId);
@@ -91,7 +94,7 @@ export default function EpisodeDetailsScreen() {
     const sea = Number.parseInt(season, 10);
     const rec = fromDateInput(recordedAt);
     if (rec === undefined) {
-      showToast({ text: '収録日は YYYY-MM-DD で入力してください' });
+      showToast({ text: t.details.badDate });
       return false;
     }
     await episodes.update(episodeId, {
@@ -113,6 +116,7 @@ export default function EpisodeDetailsScreen() {
     reload,
     season,
     showToast,
+    t,
     title,
   ]);
 
@@ -122,7 +126,7 @@ export default function EpisodeDetailsScreen() {
       [episodeId],
     );
     if (!rows.length) {
-      showToast({ text: 'トークテーマがありません（Editor で追加できます）' });
+      showToast({ text: t.details.noTopics });
       return;
     }
     setDescription((d) =>
@@ -137,7 +141,7 @@ export default function EpisodeDetailsScreen() {
   const reapplyTemplate = async () => {
     const tpl = await getDefaultTemplate(db, show.id);
     if (!tpl) {
-      showToast({ text: '概要欄テンプレートがありません' });
+      showToast({ text: t.details.noTemplate });
       return;
     }
     const rows = await db.all<{ text: string }>(
@@ -156,8 +160,8 @@ export default function EpisodeDetailsScreen() {
     );
     setDirty(true);
     showToast({
-      text: 'テンプレートを適用しました',
-      action: '元に戻す',
+      text: t.details.templateApplied,
+      action: t.details.revert,
       onAction: () => setDescription(prev),
     });
   };
@@ -174,15 +178,15 @@ export default function EpisodeDetailsScreen() {
     await reload();
   };
 
-  if (!episode || !hydrated) return <Loading label="読み込んでいます" />;
+  if (!episode || !hydrated) return <Loading label={t.common.loading} />;
 
   const inputStyle = [st.input, { color: c.ink, backgroundColor: c.panel2, borderColor: c.line }];
 
   return (
     <Screen overlay={<Toast toast={toast} onAction={act} />}>
       <Header
-        title="エピソードの詳細"
-        subtitle={`Episode #${episode.episode_number}`}
+        title={t.details.title}
+        subtitle={t.episode.headerTitle(episode.episode_number)}
         onBack={() => {
           if (dirty) void save().then((ok) => ok && router.back());
           else router.back();
@@ -192,7 +196,7 @@ export default function EpisodeDetailsScreen() {
             onPress={() => void copy('all', `${title}\n\n${description}`)}
             hitSlop={8}
             accessibilityRole="button"
-            accessibilityLabel="すべてコピー"
+            accessibilityLabel={t.a11y.copyAll}
           >
             <Text
               style={{
@@ -201,7 +205,7 @@ export default function EpisodeDetailsScreen() {
                 fontWeight: '600',
               }}
             >
-              {copied === 'all' ? '✓ コピーしました' : 'すべてコピー'}
+              {copied === 'all' ? t.common.copied : t.common.copyAll}
             </Text>
           </Pressable>
         }
@@ -209,12 +213,16 @@ export default function EpisodeDetailsScreen() {
 
       {episode.description_suggestion ? (
         <Card style={{ borderColor: c.accent }}>
-          <Eyebrow>AI の下書き候補</Eyebrow>
+          <Eyebrow>{t.details.suggestionEyebrow}</Eyebrow>
           <Text style={{ color: c.ink, lineHeight: 20 }}>{episode.description_suggestion}</Text>
           <View style={st.suggestRow}>
-            <Button label="採用する" onPress={() => void adoptSuggestion()} style={{ flex: 1 }} />
             <Button
-              label="破棄"
+              label={t.details.adopt}
+              onPress={() => void adoptSuggestion()}
+              style={{ flex: 1 }}
+            />
+            <Button
+              label={t.details.discard}
               kind="ghost"
               onPress={() => void discardSuggestion()}
               style={{ flex: 1 }}
@@ -225,41 +233,41 @@ export default function EpisodeDetailsScreen() {
 
       <Card>
         <View style={st.labelRow}>
-          <Eyebrow>TITLE</Eyebrow>
+          <Eyebrow>{t.details.titleEyebrow}</Eyebrow>
           <CopyBtn active={copied === 'title'} onPress={() => void copy('title', title)} />
         </View>
         <TextInput
           value={title}
           onChangeText={mark(setTitle)}
-          placeholder="タイトル"
+          placeholder={t.details.titlePlaceholder}
           placeholderTextColor={c.ink3}
           style={inputStyle}
-          accessibilityLabel="タイトル"
+          accessibilityLabel={t.details.titlePlaceholder}
         />
 
         <View style={st.labelRow}>
-          <Eyebrow>DESCRIPTION</Eyebrow>
+          <Eyebrow>{t.details.descriptionEyebrow}</Eyebrow>
           <CopyBtn active={copied === 'desc'} onPress={() => void copy('desc', description)} />
         </View>
         <TextInput
           value={description}
           onChangeText={mark(setDescription)}
-          placeholder="概要"
+          placeholder={t.details.descriptionPlaceholder}
           placeholderTextColor={c.ink3}
           multiline
           textAlignVertical="top"
           style={[inputStyle, { minHeight: 180 }]}
-          accessibilityLabel="概要"
+          accessibilityLabel={t.details.descriptionPlaceholder}
         />
         <View style={st.actionRow}>
           <Button
-            label="トークテーマを差し込む"
+            label={t.details.insertTopics}
             kind="secondary"
             onPress={() => void insertTopicsIntoDescription()}
             style={{ flex: 1 }}
           />
           <Button
-            label="テンプレートを再適用"
+            label={t.details.reapplyTemplate}
             kind="ghost"
             onPress={() => void reapplyTemplate()}
             style={{ flex: 1 }}
@@ -268,42 +276,46 @@ export default function EpisodeDetailsScreen() {
 
         <View style={st.triple}>
           <View style={{ flex: 1 }}>
-            <Eyebrow>EPISODE</Eyebrow>
+            <Eyebrow>{t.details.episodeEyebrow}</Eyebrow>
             <TextInput
               value={episodeNumber}
               onChangeText={mark(setEpisodeNumber)}
               keyboardType="number-pad"
               style={inputStyle}
-              accessibilityLabel="話数"
+              accessibilityLabel={t.metadata.episode}
             />
           </View>
           <View style={{ flex: 1 }}>
-            <Eyebrow>SEASON</Eyebrow>
+            <Eyebrow>{t.details.seasonEyebrow}</Eyebrow>
             <TextInput
               value={season}
               onChangeText={mark(setSeason)}
               keyboardType="number-pad"
               style={inputStyle}
-              accessibilityLabel="シーズン"
+              accessibilityLabel={t.metadata.season}
             />
           </View>
           <View style={{ flex: 1.6 }}>
-            <Eyebrow>RECORDED</Eyebrow>
+            <Eyebrow>{t.details.recordedEyebrow}</Eyebrow>
             <TextInput
               value={recordedAt}
               onChangeText={mark(setRecordedAt)}
               placeholder="YYYY-MM-DD"
               placeholderTextColor={c.ink3}
               style={inputStyle}
-              accessibilityLabel="収録日"
+              accessibilityLabel={t.metadata.recordedAt}
             />
           </View>
         </View>
       </Card>
 
-      <Button label={dirty ? '保存' : '保存済み'} onPress={() => void save()} disabled={!dirty} />
       <Button
-        label="次へ：音の仕上げ"
+        label={dirty ? t.common.save : t.common.saved}
+        onPress={() => void save()}
+        disabled={!dirty}
+      />
+      <Button
+        label={t.details.nextSound}
         kind="secondary"
         style={{ marginTop: 10 }}
         onPress={() => {

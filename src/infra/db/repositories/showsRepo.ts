@@ -29,11 +29,21 @@ export interface TemplateRow extends SqlRow {
   is_default: number;
 }
 
-/** MVP は 1 Show 固定。無ければ作って返す（FR-SHOW-1）。 */
+/** 初回起動時にだけ使う既定値。文言は UI 層が i18n から渡す（Issue #80）。 */
+export interface ShowSeed {
+  name: string;
+  descriptionTemplate: string;
+}
+
+/**
+ * MVP は 1 Show 固定。無ければ `seed` で作って返す（FR-SHOW-1）。
+ * 既にあれば `seed` は使わない（既存の行はユーザーのデータ）。
+ */
 export async function ensureDefaultShow(
   db: SqlExecutor,
   newId: () => string,
   now: number,
+  seed: ShowSeed,
 ): Promise<ShowRow> {
   const existing = await db.get<ShowRow>(
     'SELECT * FROM shows WHERE deleted_at IS NULL ORDER BY created_at LIMIT 1',
@@ -43,24 +53,18 @@ export async function ensureDefaultShow(
   await db.transaction(async () => {
     await db.run('INSERT INTO shows (id, name, created_at, updated_at) VALUES (?,?,?,?)', [
       id,
-      'マイポッドキャスト',
+      seed.name,
       now,
       now,
     ]);
     await db.run('INSERT INTO show_layout (show_id) VALUES (?)', [id]);
     await db.run(
       'INSERT INTO description_templates (id, show_id, body, is_default, created_at, updated_at) VALUES (?,?,?,?,?,?)',
-      [newId(), id, DEFAULT_TEMPLATE, 1, now, now],
+      [newId(), id, seed.descriptionTemplate, 1, now, now],
     );
   });
   return (await db.get<ShowRow>('SELECT * FROM shows WHERE id = ?', [id]))!;
 }
-
-export const DEFAULT_TEMPLATE = `{{topics}}
-
-――――――
-Podcast: {{show_name}}
-感想は #podsnow まで`;
 
 export async function getShow(db: SqlExecutor, id: string): Promise<ShowRow | null> {
   return db.get<ShowRow>('SELECT * FROM shows WHERE id = ?', [id]);

@@ -6,6 +6,7 @@ import { formatSmp, smp } from '@/domain/time';
 import { useServices } from '@/features/app/ServicesProvider';
 import { kindLabel } from '@/features/show/assetKinds';
 import { useAsyncData } from '@/features/show/useAsyncData';
+import { useT, type Messages } from '@/i18n';
 import type { AssetKind, AssetRow } from '@/infra/db/repositories/assetsRepo';
 import {
   getDefaultTemplate,
@@ -42,17 +43,19 @@ const SLOT_GAIN: Record<LayoutSlot, keyof ShowLayoutRow> = {
   bgm: 'bgm_gain_db',
 };
 
-const PLACEHOLDERS: readonly [string, string][] = [
-  ['{{title}}', 'エピソードのタイトル'],
-  ['{{episode_number}}', '話数'],
-  ['{{season}}', 'シーズン'],
-  ['{{topics}}', 'トークテーマの箇条書き'],
-  ['{{show_name}}', '番組名'],
-];
+/** 概要欄テンプレートに挿入できる変数（DATA_MODEL.md §4.3）。説明は i18n から。 */
+const PLACEHOLDER_KEYS = [
+  'title',
+  'episode_number',
+  'season',
+  'topics',
+  'show_name',
+] as const satisfies readonly (keyof Messages['showSettings']['placeholders'])[];
 
 /** Show の設定・既定構成・概要欄テンプレート（FR-SHOW-3, FR-META-2, DATA_MODEL.md §4.1〜4.3）。 */
 export default function ShowSettingsScreen() {
   const c = useAppTheme();
+  const t = useT();
   const router = useRouter();
   const services = useServices();
   const { db, now, assets } = services;
@@ -100,7 +103,7 @@ export default function ShowSettingsScreen() {
       db,
       showId,
       {
-        name: d.name.trim() || 'マイポッドキャスト',
+        name: d.name.trim() || t.seed.showName,
         description: d.description,
         author: d.author,
         defaultSeason: season,
@@ -111,7 +114,7 @@ export default function ShowSettingsScreen() {
     await services.reloadShow();
     setDraft(null);
     await reload();
-    showToast({ text: '番組の設定を保存しました' });
+    showToast({ text: t.showSettings.saved });
   };
 
   const setSlot = async (slot: LayoutSlot, assetId: string | null) => {
@@ -139,33 +142,38 @@ export default function ShowSettingsScreen() {
     await reload();
   };
 
-  const assetName = (id: string | null) => data.assets.find((a) => a.id === id)?.name ?? 'なし';
+  const assetName = (id: string | null) =>
+    data.assets.find((a) => a.id === id)?.name ?? t.common.none;
   const pickList = picking ? data.assets.filter((a) => a.kind === (picking as AssetKind)) : [];
 
   return (
     <Screen overlay={<Toast toast={toast} onAction={act} />}>
-      <Header title="番組の設定" onBack={() => router.back()} />
+      <Header title={t.showSettings.title} onBack={() => router.back()} />
 
-      <Eyebrow>SHOW</Eyebrow>
+      <Eyebrow>{t.showSettings.showEyebrow}</Eyebrow>
       <Card>
-        <Field label="番組名" value={d.name} onChange={(v) => setField('name', v)} />
+        <Field label={t.showSettings.name} value={d.name} onChange={(v) => setField('name', v)} />
         <Field
-          label="概要"
+          label={t.showSettings.description}
           value={d.description}
           onChange={(v) => setField('description', v)}
           multiline
         />
-        <Field label="著者" value={d.author} onChange={(v) => setField('author', v)} />
         <Field
-          label="既定のシーズン"
+          label={t.showSettings.author}
+          value={d.author}
+          onChange={(v) => setField('author', v)}
+        />
+        <Field
+          label={t.showSettings.defaultSeason}
           value={d.season}
           onChange={(v) => setField('season', v.replace(/[^0-9]/g, ''))}
           keyboardType="number-pad"
         />
-        <Row label="Cover Art" sub="未対応（後続バージョンで追加予定）" />
+        <Row label={t.showSettings.coverArt} sub={t.showSettings.coverArtSub} />
       </Card>
 
-      <Eyebrow>既定構成（新規エピソードに自動配置）</Eyebrow>
+      <Eyebrow>{t.showSettings.layoutEyebrow}</Eyebrow>
       <Card style={{ paddingVertical: 4 }}>
         {(['opening', 'ending', 'bgm'] as LayoutSlot[]).map((slot) => {
           const gain = Number(data.layout?.[SLOT_GAIN[slot]] ?? 0);
@@ -176,7 +184,7 @@ export default function ShowSettingsScreen() {
                 <Pressable
                   onPress={() => setPicking(slot)}
                   accessibilityRole="button"
-                  accessibilityLabel={`${SLOT_LABEL[slot]} の素材を選ぶ`}
+                  accessibilityLabel={t.showSettings.a11yPickAsset(SLOT_LABEL[slot])}
                 >
                   <Text style={{ color: c.accent, fontSize: 13, marginTop: 3 }}>
                     {assetName((data.layout?.[SLOT_COL[slot]] as string | null) ?? null)} ›
@@ -187,42 +195,42 @@ export default function ShowSettingsScreen() {
                 label={`${gain > 0 ? '+' : ''}${gain} dB`}
                 onMinus={() => bumpGain(slot, -1)}
                 onPlus={() => bumpGain(slot, 1)}
-                a11y={`${SLOT_LABEL[slot]} の音量`}
+                a11y={t.showSettings.a11ySlotGain(SLOT_LABEL[slot])}
               />
             </View>
           );
         })}
         <View style={[st.slot, { borderBottomWidth: 0 }]}>
           <View style={{ flex: 1 }}>
-            <Text style={[st.slotLabel, { color: c.ink }]}>BGM ダッキング</Text>
+            <Text style={[st.slotLabel, { color: c.ink }]}>{t.showSettings.duckingLabel}</Text>
             <Text style={{ color: c.ink2, fontSize: 12, marginTop: 3 }}>
-              しゃべり中に BGM をこれだけ下げる
+              {t.showSettings.duckingSub}
             </Text>
           </View>
           <Stepper
             label={`${data.layout?.bgm_duck_db ?? -10} dB`}
             onMinus={() => bumpDuck(-1)}
             onPlus={() => bumpDuck(1)}
-            a11y="ダッキング量"
+            a11y={t.showSettings.a11yDuckAmount}
           />
         </View>
       </Card>
       <Pressable onPress={() => router.push('/show/assets')} accessibilityRole="button">
         <Text style={{ color: c.accent, fontSize: 13, marginBottom: 8 }}>
-          素材の追加・整理は Show Assets ›
+          {t.showSettings.assetsLink}
         </Text>
       </Pressable>
 
-      <Eyebrow>概要欄テンプレート</Eyebrow>
+      <Eyebrow>{t.showSettings.templateEyebrow}</Eyebrow>
       <Card>
         <Text style={{ color: c.ink2, fontSize: 12, lineHeight: 18, marginBottom: 8 }}>
-          新しいエピソードの概要欄に毎回適用されます。あとから各エピソードで自由に編集できます。
+          {t.showSettings.templateNote}
         </Text>
         <TextInput
           value={d.template}
           onChangeText={(v) => setField('template', v)}
           multiline
-          accessibilityLabel="概要欄テンプレート"
+          accessibilityLabel={t.showSettings.a11yTemplate}
           style={[
             st.input,
             st.multiline,
@@ -230,30 +238,34 @@ export default function ShowSettingsScreen() {
           ]}
         />
         <View style={st.helpWrap}>
-          {PLACEHOLDERS.map(([k, v]) => (
-            <Pressable
-              key={k}
-              onPress={() => setField('template', `${d.template}${k}`)}
-              accessibilityRole="button"
-              accessibilityLabel={`${v} を挿入`}
-            >
-              <Text style={[st.help, { color: c.ink2, borderColor: c.line }]}>
-                <Text style={{ color: c.accent }}>{k}</Text> {v}
-              </Text>
-            </Pressable>
-          ))}
+          {PLACEHOLDER_KEYS.map((key) => {
+            const token = `{{${key}}}`;
+            const desc = t.showSettings.placeholders[key];
+            return (
+              <Pressable
+                key={key}
+                onPress={() => setField('template', `${d.template}${token}`)}
+                accessibilityRole="button"
+                accessibilityLabel={t.showSettings.a11yInsertPlaceholder(desc)}
+              >
+                <Text style={[st.help, { color: c.ink2, borderColor: c.line }]}>
+                  <Text style={{ color: c.accent }}>{token}</Text> {desc}
+                </Text>
+              </Pressable>
+            );
+          })}
         </View>
       </Card>
 
-      <Button label="保存" onPress={save} disabled={!draft} />
+      <Button label={t.common.save} onPress={save} disabled={!draft} />
 
       <Sheet
         visible={!!picking}
         onClose={() => setPicking(null)}
-        title={picking ? `${SLOT_LABEL[picking]} の素材` : ''}
-        subtitle={picking ? kindLabel(picking) : ''}
+        title={picking ? t.showSettings.slotAssets(SLOT_LABEL[picking]) : ''}
+        subtitle={picking ? kindLabel(t, picking) : ''}
       >
-        <Row label="なし" onPress={() => picking && setSlot(picking, null)} />
+        <Row label={t.common.none} onPress={() => picking && setSlot(picking, null)} />
         {pickList.map((a) => (
           <Row
             key={a.id}
@@ -264,7 +276,7 @@ export default function ShowSettingsScreen() {
         ))}
         {picking && pickList.length === 0 ? (
           <Text style={{ color: c.ink3, paddingVertical: 12 }}>
-            この用途の素材はまだありません。Show Assets から追加してください。
+            {t.showSettings.noAssetsForSlot}
           </Text>
         ) : null}
       </Sheet>
@@ -319,13 +331,14 @@ function Stepper({
   a11y: string;
 }) {
   const c = useAppTheme();
+  const t = useT();
   return (
     <View style={st.stepper}>
       <Pressable
         onPress={onMinus}
         hitSlop={8}
         accessibilityRole="button"
-        accessibilityLabel={`${a11y}を下げる`}
+        accessibilityLabel={t.a11y.decrease(a11y)}
         style={[st.stepBtn, { borderColor: c.line }]}
       >
         <Text style={{ color: c.ink }}>−</Text>
@@ -335,7 +348,7 @@ function Stepper({
         onPress={onPlus}
         hitSlop={8}
         accessibilityRole="button"
-        accessibilityLabel={`${a11y}を上げる`}
+        accessibilityLabel={t.a11y.increase(a11y)}
         style={[st.stepBtn, { borderColor: c.line }]}
       >
         <Text style={{ color: c.ink }}>＋</Text>

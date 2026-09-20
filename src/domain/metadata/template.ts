@@ -39,7 +39,20 @@ export function insertTopics(description: string, topics: readonly string[]): st
   return [...lines.slice(0, first), block, ...lines.slice(last + 1)].join('\n');
 }
 
-/** Distribution Pack 用の「全メタデータ」テキスト。 */
+/** 「全メタデータ」テキストの見出し。表示言語は UI 層が決める（Issue #80）。 */
+export interface MetadataLabels {
+  title: string;
+  episode: string;
+  season: string;
+  recordedAt: string;
+  duration: string;
+  file: string;
+}
+
+/**
+ * Distribution Pack 用の「全メタデータ」テキスト。
+ * domain は文言を持たないので、見出しは `labels` で受け取る（ARCHITECTURE.md §2）。
+ */
 export function formatAllMetadata(m: {
   title: string;
   episodeNumber: number;
@@ -48,17 +61,20 @@ export function formatAllMetadata(m: {
   durationLabel: string;
   fileName: string;
   description: string;
+  labels: MetadataLabels;
 }): string {
   const date = m.recordedAt ? m.recordedAt.toISOString().slice(0, 10) : '';
+  const lab = m.labels;
   return [
-    `タイトル: ${m.title}`,
-    `話数: #${m.episodeNumber}（シーズン ${m.season}）`,
-    date ? `収録日: ${date}` : null,
-    `長さ: ${m.durationLabel}`,
-    `ファイル: ${m.fileName}`,
+    `${lab.title}: ${m.title}`,
+    `${lab.episode}: #${m.episodeNumber}`,
+    `${lab.season}: ${m.season}`,
+    date ? `${lab.recordedAt}: ${date}` : null,
+    `${lab.duration}: ${m.durationLabel}`,
+    `${lab.file}: ${m.fileName}`,
     '',
     m.description,
   ]
-    .filter((l) => l !== null)
+    .filter((line) => line !== null)
     .join('\n');
 }

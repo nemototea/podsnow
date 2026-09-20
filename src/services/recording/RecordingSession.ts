@@ -1,4 +1,5 @@
 import type { Marker } from '@/domain/editing/doc';
+import { AppError, type AppErrorCode } from '@/domain/errors';
 import { smp, type Smp } from '@/domain/time';
 import { appendTake, insertAt } from '@/domain/timeline/voice';
 import type { SqlExecutor } from '@/infra/db/executor';
@@ -15,6 +16,8 @@ import {
   type SegmentCloseReason,
 } from '@/infra/db/repositories/takesRepo';
 import { joinRoot, relPaths } from '@/infra/files/layout';
+
+import type { ServiceLabels } from '../app/labels';
 
 import type {
   InterruptionEvent,
@@ -58,6 +61,8 @@ export interface RecordingSessionDeps {
   newId: () => string;
   now: () => number;
   settings: () => RecordingSettings;
+  /** DB に書き込む文言（割り込みマーカー）。UI 層が i18n から渡す（Issue #80）。 */
+  labels: () => ServiceLabels;
   /** 1 秒ごとのハートビート用タイマー。テストで差し替える。 */
   setInterval?: (fn: () => void, ms: number) => unknown;
   clearInterval?: (h: unknown) => void;
@@ -70,7 +75,8 @@ export interface SessionEvents {
   takeFinalized: (e: { takeId: string; episodeId: string; durationSmp: Smp }) => void;
   interruption: (e: InterruptionEvent) => void;
   routeChange: (e: RouteChangeEvent) => void;
-  error: (e: { message: string }) => void;
+  /** `code` があれば UI は i18n から文言を引く。無ければ `message` をそのまま出す。 */
+  error: (e: { message: string; code?: AppErrorCode }) => void;
   diskLow: (e: { availableBytes: number }) => void;
 }
 
@@ -167,15 +173,18 @@ export class RecordingSession {
       const s = this.deps.settings();
       const disk = await this.checkDiskSpace();
       if (!disk.ok) {
-        throw new Error(
-          `空き容量が不足しています（必要 ${Math.round(disk.requiredBytes / 1048576)} MB / 空き ${Math.round(disk.availableBytes / 1048576)} MB）`,
-        );
+        throw new AppError('disk_space_insufficient', {
+          requiredMb: Math.round(disk.requiredBytes / 1048576),
+          availableMb: Math.round(disk.availableBytes / 1048576),
+        });
       }
       await this.deps.recorder.prepare({
         sampleRate: s.sampleRate,
         channels: s.channels,
         inputUid: s.inputUid,
         diskLowThresholdBytes: s.diskLowThresholdBytes,
+        // 通知の文言は表示言語を知っている UI 層から来る（Issue #80）。
+        androidNotification: this.deps.labels().androidNotification,
         ...(s.androidAudioSource ? { androidAudioSource: s.androidAudioSource } : {}),
       });
       const input = await this.deps.recorder.getCurrentInput();
@@ -185,7 +194,7 @@ export class RecordingSession {
       await insertTake(this.deps.db, {
         id: takeId,
         episodeId,
-        name: opts.name ?? `録音 ${n}`,
+        name: opts.name ?? this.deps.labels().takeName(n),
         sampleRate: s.sampleRate,
         channels: s.channels,
         inputLabel: input?.name ?? null,
@@ -267,7 +276,7 @@ export class RecordingSession {
   async resumeAfterInterruption(): Promise<void> {
     if (this.state !== 'interrupted' || !this.active) return;
     await this.openSegment();
-    await this.addMarker('interruption', '割り込みで録音が途切れました');
+    await this.addMarker('interruption', this.deps.labels().interruptionMarker);
     this.setState('recording');
   }
 
@@ -327,7 +336,10 @@ export class RecordingSession {
       try {
         await this.resumeAfterInterruption();
       } catch (err) {
-        this.dispatch('error', { message: `再開に失敗しました: ${(err as Error).message}` });
+        this.dispatch('error', {
+          code: 'recording_resume_failed',
+          message: `recording_resume_failed: ${(err as Error).message}`,
+        });
       }
     }
   }

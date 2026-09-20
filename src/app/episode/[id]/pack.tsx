@@ -8,6 +8,7 @@ import { formatSmp, smp } from '@/domain/time';
 import { useServices } from '@/features/app/ServicesProvider';
 import { useCopy } from '@/features/episode/useCopy';
 import { useEpisode } from '@/features/episode/useEpisode';
+import { useT } from '@/i18n';
 import { listExports, type ExportRow } from '@/infra/db/repositories/exportsRepo';
 import { joinRoot } from '@/infra/files/layout';
 import { Button, Card, Eyebrow, Header, Loading, Screen, Toast } from '@/ui/components';
@@ -31,6 +32,7 @@ function CopyRow({
   onCopy: () => void;
 }) {
   const c = useAppTheme();
+  const t = useT();
   return (
     <Card>
       <View style={st.labelRow}>
@@ -39,15 +41,15 @@ function CopyRow({
           onPress={onCopy}
           hitSlop={8}
           accessibilityRole="button"
-          accessibilityLabel={active ? `${label} をコピーしました` : `${label} をコピー`}
+          accessibilityLabel={active ? t.pack.a11yCopied(label) : t.pack.a11yCopy(label)}
         >
           <Text style={{ color: active ? c.voice : c.accent, fontSize: 13, fontWeight: '600' }}>
-            {active ? '✓ コピーしました' : '⧉ コピー'}
+            {active ? t.common.copied : t.common.copy}
           </Text>
         </Pressable>
       </View>
       <Text style={{ color: c.ink, lineHeight: 20 }} selectable>
-        {value || '（未入力）'}
+        {value || t.common.empty}
       </Text>
     </Card>
   );
@@ -61,6 +63,7 @@ export default function DistributionPackScreen() {
   const { id, exportId } = useLocalSearchParams<{ id: string; exportId?: string }>();
   const episodeId = id ?? '';
   const c = useAppTheme();
+  const t = useT();
   const router = useRouter();
   const { db, root } = useServices();
   const { episode } = useEpisode(episodeId);
@@ -84,7 +87,7 @@ export default function DistributionPackScreen() {
     };
   }, [load]);
 
-  if (!episode || row === undefined) return <Loading label="読み込んでいます" />;
+  if (!episode || row === undefined) return <Loading label={t.common.loading} />;
 
   const fileName = `episode-${String(episode.episode_number).padStart(3, '0')}.${row?.format ?? 'm4a'}`;
   const durationLabel = formatSmp(smp(row?.duration_smp ?? 0));
@@ -96,12 +99,13 @@ export default function DistributionPackScreen() {
     durationLabel,
     fileName,
     description: episode.description,
+    labels: t.metadata,
   });
 
   const share = async () => {
     if (!row?.path) return;
     if (!(await Sharing.isAvailableAsync())) {
-      showToast({ text: 'この端末では共有できません' });
+      showToast({ text: t.common.shareUnavailable });
       return;
     }
     await Sharing.shareAsync(`file://${joinRoot(root, row.path)}`, {
@@ -114,7 +118,7 @@ export default function DistributionPackScreen() {
   return (
     <Screen overlay={<Toast toast={toast} onAction={act} />}>
       <Header
-        title="配信の準備ができました"
+        title={t.pack.title}
         subtitle={`#${episode.episode_number} ${episode.title}`}
         onBack={() => router.back()}
       />
@@ -131,20 +135,16 @@ export default function DistributionPackScreen() {
               </Text>
             </View>
           </View>
-          <Button
-            label="共有・ファイルに保存"
-            onPress={() => void share()}
-            style={{ marginTop: 12 }}
-          />
+          <Button label={t.pack.shareFile} onPress={() => void share()} style={{ marginTop: 12 }} />
           <Text style={{ color: c.ink3, fontSize: 11, marginTop: 8, lineHeight: 16 }}>
-            共有シートから「ファイルに保存」や AirDrop、配信アプリへの送信ができます。
+            {t.pack.shareNote}
           </Text>
         </Card>
       ) : (
         <Card>
-          <Text style={{ color: c.ink }}>書き出し済みの音声ファイルがありません。</Text>
+          <Text style={{ color: c.ink }}>{t.pack.noExport}</Text>
           <Button
-            label="書き出しへ"
+            label={t.pack.toExport}
             kind="secondary"
             style={{ marginTop: 12 }}
             onPress={() => router.push(`/episode/${episodeId}/export` as never)}
@@ -153,31 +153,31 @@ export default function DistributionPackScreen() {
       )}
 
       <CopyRow
-        label="TITLE"
+        label={t.pack.titleEyebrow}
         value={episode.title}
         active={copied === 'title'}
         onCopy={() => void copy('title', episode.title)}
       />
       <CopyRow
-        label="DESCRIPTION"
+        label={t.pack.descriptionEyebrow}
         value={episode.description}
         active={copied === 'desc'}
         onCopy={() => void copy('desc', episode.description)}
       />
       <CopyRow
-        label="ALL METADATA"
+        label={t.pack.allMetadataEyebrow}
         value={allMeta}
         active={copied === 'meta'}
         onCopy={() => void copy('meta', allMeta)}
       />
 
       <Button
-        label={copied === 'all' ? '✓ コピーしました' : '⧉ すべてのメタデータをコピー'}
+        label={copied === 'all' ? t.common.copied : t.pack.copyAllMetadata}
         kind="secondary"
         onPress={() => void copy('all', allMeta)}
       />
       <Button
-        label="Home へ戻る"
+        label={t.pack.backHome}
         kind="ghost"
         style={{ marginTop: 10 }}
         onPress={() => router.dismissTo('/' as never)}

@@ -19,10 +19,14 @@ import {
 import { getDefaultTemplate, getLayout, getShow } from '@/infra/db/repositories/showsRepo';
 import { listTakes } from '@/infra/db/repositories/takesRepo';
 
+import type { ServiceLabels } from '../app/labels';
+
 export interface EpisodeDeps {
   db: SqlExecutor;
   newId: () => string;
   now: () => number;
+  /** 既定タイトルなど、DB に書き込む文言。UI 層が i18n から渡す（Issue #80）。 */
+  labels: () => ServiceLabels;
 }
 
 /** Episode の作成（Show の既定構成とテンプレート適用）・一覧・状態判定（FR-EP-2〜4）。 */
@@ -51,7 +55,7 @@ export class EpisodeService {
     const id = newId();
     const t = now();
     const episodeNumber = show.next_episode_number;
-    const title = `第${episodeNumber}回`;
+    const title = this.deps.labels().episodeTitle(episodeNumber);
     const description = template
       ? renderTemplate(template.body, {
           title,

@@ -6,8 +6,9 @@ import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { formatSmp, smp } from '@/domain/time';
 import { useServices } from '@/features/app/ServicesProvider';
-import { ASSET_KINDS, kindLabel } from '@/features/show/assetKinds';
+import { assetKinds, kindLabel } from '@/features/show/assetKinds';
 import { useAsyncData } from '@/features/show/useAsyncData';
+import { useT } from '@/i18n';
 import type { AssetKind, AssetRow } from '@/infra/db/repositories/assetsRepo';
 import { joinRoot } from '@/infra/files/layout';
 import { Button, Card, Eyebrow, Header, Row, Screen, Sheet, Toast } from '@/ui/components';
@@ -21,6 +22,7 @@ function stripScheme(uri: string): string {
 /** Show Assets（FR-AST-1〜3）: 用途別の素材一覧、取り込み、試聴、お気に入り、並び替え、名前変更、削除。 */
 export default function ShowAssetsScreen() {
   const c = useAppTheme();
+  const t = useT();
   const router = useRouter();
   const { assets, show, root, engine, db, now } = useServices();
   const { toast, show: showToast, act } = useToast();
@@ -66,9 +68,11 @@ export default function ShowAssetsScreen() {
     try {
       await assets.import(show.id, kind, stripScheme(file.uri), name, file.name ?? null);
       await reload();
-      showToast({ text: `${kindLabel(kind)} に「${name}」を追加しました` });
+      showToast({ text: t.showAssets.imported(kindLabel(t, kind), name) });
     } catch (e) {
-      showToast({ text: `取り込みに失敗しました: ${e instanceof Error ? e.message : String(e)}` });
+      showToast({
+        text: t.showAssets.importFailed(e instanceof Error ? e.message : String(e)),
+      });
     } finally {
       setImporting(null);
     }
@@ -100,8 +104,8 @@ export default function ShowAssetsScreen() {
     await assets.remove(a.id);
     await reload();
     showToast({
-      text: `「${a.name}」を削除しました`,
-      action: '取り消す',
+      text: t.showAssets.removed(a.name),
+      action: t.common.undo,
       onAction: async () => {
         await db.run('UPDATE assets SET deleted_at = NULL, updated_at = ? WHERE id = ?', [
           now(),
@@ -128,12 +132,10 @@ export default function ShowAssetsScreen() {
 
   return (
     <Screen overlay={<Toast toast={toast} onAction={act} />}>
-      <Header title="Show Assets" subtitle={show.name} onBack={() => router.back()} />
-      <Text style={[st.lead, { color: c.ink2 }]}>
-        ファイル名ではなく「番組のどこで使う音か」で並んでいます。すべてのエピソードから挿入できます。
-      </Text>
+      <Header title={t.showAssets.title} subtitle={show.name} onBack={() => router.back()} />
+      <Text style={[st.lead, { color: c.ink2 }]}>{t.showAssets.lead}</Text>
 
-      {ASSET_KINDS.map((k) => {
+      {assetKinds(t).map((k) => {
         const items = list.filter((a) => a.kind === k.kind);
         const busy = importing?.kind === k.kind;
         return (
@@ -147,18 +149,20 @@ export default function ShowAssetsScreen() {
                 onPress={() => pick(k.kind)}
                 disabled={!!importing}
                 accessibilityRole="button"
-                accessibilityLabel={`${k.label} に音源を追加`}
+                accessibilityLabel={t.showAssets.a11yAdd(k.label)}
                 hitSlop={8}
                 style={{ marginTop: 18, opacity: importing ? 0.4 : 1 }}
               >
-                <Text style={{ color: c.accent, fontSize: 13, fontWeight: '700' }}>＋ 追加</Text>
+                <Text style={{ color: c.accent, fontSize: 13, fontWeight: '700' }}>
+                  {t.showAssets.add}
+                </Text>
               </Pressable>
             </View>
             <Card style={{ paddingVertical: 4 }}>
               {busy ? (
                 <View style={st.progressWrap}>
                   <Text style={{ color: c.ink2, fontSize: 12 }}>
-                    取り込み中… {Math.round((importing?.progress ?? 0) * 100)}%
+                    {t.showAssets.importing(Math.round((importing?.progress ?? 0) * 100))}
                   </Text>
                   <View style={[st.progressTrack, { backgroundColor: c.panel2 }]}>
                     <View
@@ -175,7 +179,7 @@ export default function ShowAssetsScreen() {
               ) : null}
               {items.length === 0 && !busy ? (
                 <Text style={{ color: c.ink3, paddingVertical: 12, fontSize: 13 }}>
-                  まだ登録されていません
+                  {t.showAssets.empty}
                 </Text>
               ) : null}
               {items.map((a) => (
@@ -189,7 +193,9 @@ export default function ShowAssetsScreen() {
                         onPress={() => preview(a)}
                         hitSlop={8}
                         accessibilityRole="button"
-                        accessibilityLabel={playingId === a.id ? '停止' : '試聴'}
+                        accessibilityLabel={
+                          playingId === a.id ? t.showAssets.stop : t.showAssets.preview
+                        }
                         style={[
                           st.playBtn,
                           {
@@ -208,7 +214,9 @@ export default function ShowAssetsScreen() {
                         onPress={() => toggleFavorite(a)}
                         hitSlop={8}
                         accessibilityRole="button"
-                        accessibilityLabel={a.is_favorite ? 'お気に入りを解除' : 'お気に入りにする'}
+                        accessibilityLabel={
+                          a.is_favorite ? t.showAssets.unfavorite : t.showAssets.favorite
+                        }
                       >
                         <Text style={{ color: a.is_favorite ? c.accent : c.ink3, fontSize: 18 }}>
                           {a.is_favorite ? '★' : '☆'}
@@ -217,7 +225,7 @@ export default function ShowAssetsScreen() {
                       <Pressable
                         onPress={() => setMenu(a)}
                         hitSlop={10}
-                        accessibilityLabel="メニュー"
+                        accessibilityLabel={t.a11y.menu}
                       >
                         <Text style={{ color: c.ink2, fontSize: 18 }}>⋮</Text>
                       </Pressable>
@@ -234,23 +242,23 @@ export default function ShowAssetsScreen() {
         visible={!!menu}
         onClose={() => setMenu(null)}
         title={menu?.name ?? ''}
-        subtitle={menu ? kindLabel(menu.kind) : ''}
+        subtitle={menu ? kindLabel(t, menu.kind) : ''}
       >
         {menu ? (
           <>
-            <Row label="名前を変更" onPress={() => startRename(menu)} />
-            <Row label="上へ移動" onPress={() => move(menu, -1)} />
-            <Row label="下へ移動" onPress={() => move(menu, 1)} />
+            <Row label={t.common.rename} onPress={() => startRename(menu)} />
+            <Row label={t.common.moveUp} onPress={() => move(menu, -1)} />
+            <Row label={t.common.moveDown} onPress={() => move(menu, 1)} />
             <Row
-              label={menu.is_favorite ? 'お気に入りを解除' : 'お気に入りにする'}
+              label={menu.is_favorite ? t.showAssets.unfavorite : t.showAssets.favorite}
               onPress={() => {
                 setMenu(null);
                 void toggleFavorite(menu);
               }}
             />
             <Row
-              label="削除"
-              sub="既存エピソードでの配置は残ります・取り消し可"
+              label={t.common.delete}
+              sub={t.showAssets.removeSub}
               danger
               onPress={() => remove(menu)}
             />
@@ -258,17 +266,17 @@ export default function ShowAssetsScreen() {
         ) : null}
       </Sheet>
 
-      <Sheet visible={!!renaming} onClose={() => setRenaming(null)} title="名前を変更">
+      <Sheet visible={!!renaming} onClose={() => setRenaming(null)} title={t.common.rename}>
         <TextInput
           value={renameText}
           onChangeText={setRenameText}
           autoFocus
-          accessibilityLabel="素材の名前"
+          accessibilityLabel={t.showAssets.a11yAssetName}
           style={[st.input, { color: c.ink, borderColor: c.line, backgroundColor: c.panel2 }]}
           onSubmitEditing={commitRename}
           returnKeyType="done"
         />
-        <Button label="保存" onPress={commitRename} style={{ marginTop: 12 }} />
+        <Button label={t.common.save} onPress={commitRename} style={{ marginTop: 12 }} />
       </Sheet>
     </Screen>
   );

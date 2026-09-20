@@ -6,6 +6,7 @@ AUDIO_DESIGN.md §11 の S-1〜S-10 に対応。
 ## 前提
 
 - Development Build（`npm run ios` / `npm run android`）。iOS は Xcode 26 以上が必要（Expo SDK 57）。
+- `expo-localization` の追加とその config plugin（`CFBundleLocalizations` / `locales_config.xml`）を反映するため、**J. の確認前に `npx expo prebuild --clean` をやり直す**（Issue #80）。
 - マイク権限・通知権限（Android 13+）を許可済み。
 - 空き容量 1 GB 以上。
 
@@ -23,7 +24,7 @@ AUDIO_DESIGN.md §11 の S-1〜S-10 に対応。
 | # | 手順 | 期待 |
 |---|---|---|
 | B-1 | 録音開始 → 画面ロック → **30 分**放置 → 解除 → 停止 | 30 分分の Take。途中で途切れていない（波形が連続、Segment 1 つ） |
-| B-2 | 録音開始 → ホームへ戻り他アプリ（メモ / ブラウザ）を 10 分使う → 戻って停止 | 同上。Android は通知「podsnow — 収録中」が出ている |
+| B-2 | 録音開始 → ホームへ戻り他アプリ（メモ / ブラウザ）を 10 分使う → 戻って停止 | 同上。Android は通知「PodsNow — 収録中」（英語端末では「PodsNow — Recording」）が出ている |
 | B-3 | Android: 録音中に通知をタップ | アプリが前面に戻る |
 
 ## C. 割り込み（S-1 / S-2）
@@ -82,6 +83,25 @@ AUDIO_DESIGN.md §11 の S-1〜S-10 に対応。
 | # | 手順 | 期待 |
 |---|---|---|
 | I-1 | MP3 / M4A / WAV（44.1 kHz ステレオ）をそれぞれ取り込み | 48 kHz モノラル WAV に変換され、試聴できる。ピッチが変わっていない |
+
+## J. ローカライゼーション（Issue #80）
+
+言語の切り替えは実機でしか確かめられない項目がある。各項目を **iOS / Android の両方**で。
+
+| # | 手順 | 期待 |
+|---|---|---|
+| J-1 | 端末の言語を日本語にしてアプリを起動 | UI が全面日本語。セクション見出し（設定の「言語」「表示」「収録」など）も日本語 |
+| J-2 | 端末の言語を英語にして起動 | UI が全面英語。ステータスは Draft / Ready / Exported |
+| J-3 | 端末の言語を未対応の言語（例: フランス語）にして起動 | 英語になる（FR-I18N-1 のフォールバック） |
+| J-4 | 設定 → 言語 → 「日本語」/「English」を選ぶ | **再起動なしで**その場で全画面が切り替わる。アプリを再起動しても選択が残る |
+| J-5 | 設定 → 言語 → 「システムに合わせる」に戻す | 端末の言語に従う |
+| J-6 | アプリを消して、端末を英語にして初回インストール → 起動 | マイク権限ダイアログが英語。Show 名が "My Podcast"、最初のエピソードが "Episode 1"、Take が "Recording 1"（FR-I18N-6 / FR-I18N-7） |
+| J-7 | J-6 の状態で日本語に切り替える | UI は日本語になるが、**すでに作られた Show 名・エピソードタイトルは英語のまま**（ユーザーのデータなので書き換えない。FR-I18N-6） |
+| J-8 | Android: 英語端末で録音開始 → 通知シェードを見る | 通知が "PodsNow — Recording" / "Tap to return"。日本語端末では「PodsNow — 収録中」 |
+| J-9 | Android 13+: 設定 → アプリ → PodsNow → 言語 | 「日本語」「English」が選べる（`locales_config.xml`、FR-I18N-8）。選ぶと UI が切り替わる |
+| J-10 | 英語端末でランチャーとアプリ情報を見る | アプリ名が "PodsNow" |
+| J-11 | 英語端末で書き出し → Distribution Pack の「ALL METADATA」をコピー | 見出しが Title / Episode / Season / Recorded / Duration / File |
+| J-12 | 日本語で作ったバックアップ（.podsnow）を英語端末で復元 | 復元できる。進捗とエラーの文言が英語 |
 
 ## 結果
 

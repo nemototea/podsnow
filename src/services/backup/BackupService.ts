@@ -1,3 +1,4 @@
+import { AppError } from '@/domain/errors';
 import type { SqlExecutor, SqlRow } from '@/infra/db/executor';
 import type { FsPort } from '@/infra/files/fsPort';
 import { joinRoot, relPaths } from '@/infra/files/layout';
@@ -193,11 +194,10 @@ export async function importEpisodeBackup(
     name === 'manifest.json' ? manifestSink : name === 'episode.json' ? payloadSink : null,
   );
   const manifestBytes = manifestSink.result();
-  if (!manifestBytes.length)
-    throw new Error('manifest.json がありません（podsnow のバックアップではありません）');
+  if (!manifestBytes.length) throw new AppError('backup_manifest_missing');
   const manifest = JSON.parse(utf8Decode(manifestBytes)) as BackupManifest;
   if (manifest.app !== 'podsnow' || manifest.formatVersion > BACKUP_FORMAT_VERSION) {
-    throw new Error(`対応していないバックアップ形式です（version ${manifest.formatVersion}）`);
+    throw new AppError('backup_unsupported_version', { version: manifest.formatVersion });
   }
   const payload = JSON.parse(utf8Decode(payloadSink.result())) as BackupPayload;
 
@@ -448,9 +448,8 @@ export async function importEpisodeBackup(
           (ex.duration_smp as number) ?? 0,
           (ex.measured_lufs as number | null) ?? null,
           (ex.measured_true_peak as number | null) ?? null,
-          (ex.status as string) === 'done'
-            ? 'バックアップにはファイルを含みません'
-            : 'バックアップ復元時に中断扱い',
+          // error 列には AppErrorCode を入れる（表示文言は UI 層が i18n から引く）。
+          (ex.status as string) === 'done' ? 'export_not_in_backup' : 'export_cancelled_on_restore',
           (ex.created_at as number) ?? t,
           (ex.finished_at as number | null) ?? null,
         ],

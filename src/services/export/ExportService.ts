@@ -1,3 +1,4 @@
+import { AppError } from '@/domain/errors';
 import type { SqlExecutor } from '@/infra/db/executor';
 import {
   failExport,
@@ -97,7 +98,7 @@ export class ExportService {
       channels: preset.channels,
       sampleRate: preset.sampleRate,
     });
-    if (doc.totalFrames <= 0) throw new Error('声トラックが空です');
+    if (doc.totalFrames <= 0) throw new AppError('voice_timeline_empty');
     const exportId = this.deps.newId();
     const relPath = relPaths.exportFile(episodeId, exportId, preset.format);
     const abs = joinRoot(this.deps.root, relPath);

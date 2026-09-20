@@ -1,4 +1,8 @@
-# AGENTS.md — podsnow で作業する開発 Agent へ
+# AGENTS.md — PodsNow で作業する開発 Agent へ
+
+サービス名の表記は **PodsNow（ポッズナウ）**。「PodSnow」「ポッドスノウ」ではない。
+識別子（リポジトリ名 / `slug` / `scheme` / bundle id / package / モジュール名 /
+バックアップ拡張子 `.podsnow`）は小文字の `podsnow` のままで、変更しない。
 
 Claude Code と Codex の両方がこのファイルを読む（`CLAUDE.md` はここを参照している）。
 
@@ -26,6 +30,9 @@ Claude Code と Codex の両方がこのファイルを読む（`CLAUDE.md` は�
 - 画面（`src/app/`, `src/features/`）からネイティブモジュールや DB を直接呼ばない。`src/services/` を経由する。
 - 録音データに触るコード（WAV writer、復旧、削除、`voice_segments` の編集）は必ずテストと一緒に変更する。ラベル `data-safety` の Issue は特に。
 - `DATA_MODEL.md` §4.8 の不変条件（同一 Take の同一ソース範囲は声トラック上に高々 1 回）を壊さない。
+- **ユーザーに見える文言は `src/i18n/ja.ts` と `en.ts` の両方に置く**（`ja.ts` がキーの正）。画面・`features/`・`ui/` に文言を直接書かない。`accessibilityLabel` も対象。
+  - `domain/` / `services/` / `infra/` は文言を持たない。エラーは `src/domain/errors.ts` の `AppErrorCode` で返し、表示は UI 層の `errorText()` に任せる。
+  - DB に書き込む既定文言は `ServiceLabels`（`src/services/app/labels.ts`）経由で UI 層から渡す。
 - 時間はサンプル数（`Smp`、48 kHz）で持ち、UI 表示時だけ ms に変換する。
 - 記述には【事実】/【確認済み】/【仮説】を付ける。【確認済み】には出典 URL。
 
