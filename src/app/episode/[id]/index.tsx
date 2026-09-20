@@ -256,6 +256,13 @@ export default function EpisodeTopScreen() {
         />
         <Row label="複製して新しい回にする" onPress={duplicate} />
         <Row
+          label="バックアップ（.podsnow）"
+          onPress={() => {
+            setMenu(false);
+            router.push(`/episode/${id}/backup`);
+          }}
+        />
+        <Row
           label="エピソードを削除"
           sub="元の録音は残ります・Home で取り消せます"
           danger

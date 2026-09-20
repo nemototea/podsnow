@@ -137,6 +137,10 @@ export default function HomeScreen() {
 
       <View style={st.sectionHead}>
         <Eyebrow>EPISODES</Eyebrow>
+        <View style={{ flex: 1 }} />
+        <Pressable onPress={() => router.push('/restore')} hitSlop={8} style={{ marginRight: 14 }}>
+          <Text style={{ color: c.ink2, fontSize: 12, marginTop: 18 }}>復元</Text>
+        </Pressable>
         <Pressable onPress={() => router.push('/show/assets')} hitSlop={8}>
           <Text style={{ color: c.accent, fontSize: 12, marginTop: 18 }}>Show Assets ›</Text>
         </Pressable>
@@ -211,6 +215,14 @@ export default function HomeScreen() {
               }}
             />
             <Row label="複製して新しい回にする" onPress={() => duplicate(menu)} />
+            <Row
+              label="バックアップ（.podsnow）"
+              sub="録音と編集データをまとめて書き出す"
+              onPress={() => {
+                setMenu(null);
+                router.push(`/episode/${menu.id}/backup`);
+              }}
+            />
             <Row
               label="エピソードを削除"
               sub="元の録音は残ります・取り消し可"
