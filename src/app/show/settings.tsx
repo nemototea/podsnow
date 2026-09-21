@@ -19,6 +19,7 @@ import {
   type ShowRow,
   type TemplateRow,
 } from '@/infra/db/repositories/showsRepo';
+import { glyphSlop, hit, radius, space, tabularNums, typography } from '@/ui/tokens';
 import { Button, Card, Eyebrow, Header, Row, Screen, Sheet, Toast } from '@/ui/components';
 import { useAppTheme } from '@/ui/ThemeContext';
 import { useToast } from '@/ui/useToast';
@@ -174,19 +175,19 @@ export default function ShowSettingsScreen() {
       </Card>
 
       <Eyebrow>{t.showSettings.layoutEyebrow}</Eyebrow>
-      <Card style={{ paddingVertical: 4 }}>
+      <Card style={{ paddingVertical: space.xs }}>
         {(['opening', 'ending', 'bgm'] as LayoutSlot[]).map((slot) => {
           const gain = Number(data.layout?.[SLOT_GAIN[slot]] ?? 0);
           return (
-            <View key={slot} style={[st.slot, { borderBottomColor: c.line }]}>
+            <View key={slot} style={[st.slot, { borderBottomColor: c.border }]}>
               <View style={{ flex: 1 }}>
-                <Text style={[st.slotLabel, { color: c.ink }]}>{SLOT_LABEL[slot]}</Text>
+                <Text style={[st.slotLabel, { color: c.textPrimary }]}>{SLOT_LABEL[slot]}</Text>
                 <Pressable
                   onPress={() => setPicking(slot)}
                   accessibilityRole="button"
                   accessibilityLabel={t.showSettings.a11yPickAsset(SLOT_LABEL[slot])}
                 >
-                  <Text style={{ color: c.accent, fontSize: 13, marginTop: 3 }}>
+                  <Text style={[typography.label, { color: c.accentText, marginTop: space.xs }]}>
                     {assetName((data.layout?.[SLOT_COL[slot]] as string | null) ?? null)} ›
                   </Text>
                 </Pressable>
@@ -202,8 +203,10 @@ export default function ShowSettingsScreen() {
         })}
         <View style={[st.slot, { borderBottomWidth: 0 }]}>
           <View style={{ flex: 1 }}>
-            <Text style={[st.slotLabel, { color: c.ink }]}>{t.showSettings.duckingLabel}</Text>
-            <Text style={{ color: c.ink2, fontSize: 12, marginTop: 3 }}>
+            <Text style={[st.slotLabel, { color: c.textPrimary }]}>
+              {t.showSettings.duckingLabel}
+            </Text>
+            <Text style={[typography.caption, { color: c.textSecondary, marginTop: space.xs }]}>
               {t.showSettings.duckingSub}
             </Text>
           </View>
@@ -216,14 +219,14 @@ export default function ShowSettingsScreen() {
         </View>
       </Card>
       <Pressable onPress={() => router.push('/show/assets')} accessibilityRole="button">
-        <Text style={{ color: c.accent, fontSize: 13, marginBottom: 8 }}>
+        <Text style={[typography.label, { color: c.accentText, marginBottom: space.sm }]}>
           {t.showSettings.assetsLink}
         </Text>
       </Pressable>
 
       <Eyebrow>{t.showSettings.templateEyebrow}</Eyebrow>
       <Card>
-        <Text style={{ color: c.ink2, fontSize: 12, lineHeight: 18, marginBottom: 8 }}>
+        <Text style={[typography.caption, { color: c.textSecondary, marginBottom: space.sm }]}>
           {t.showSettings.templateNote}
         </Text>
         <TextInput
@@ -234,7 +237,7 @@ export default function ShowSettingsScreen() {
           style={[
             st.input,
             st.multiline,
-            { color: c.ink, borderColor: c.line, backgroundColor: c.panel2 },
+            { color: c.textPrimary, borderColor: c.border, backgroundColor: c.surfaceRaised },
           ]}
         />
         <View style={st.helpWrap}>
@@ -248,8 +251,8 @@ export default function ShowSettingsScreen() {
                 accessibilityRole="button"
                 accessibilityLabel={t.showSettings.a11yInsertPlaceholder(desc)}
               >
-                <Text style={[st.help, { color: c.ink2, borderColor: c.line }]}>
-                  <Text style={{ color: c.accent }}>{token}</Text> {desc}
+                <Text style={[st.help, { color: c.textSecondary, borderColor: c.border }]}>
+                  <Text style={{ color: c.accentText }}>{token}</Text> {desc}
                 </Text>
               </Pressable>
             );
@@ -275,7 +278,7 @@ export default function ShowSettingsScreen() {
           />
         ))}
         {picking && pickList.length === 0 ? (
-          <Text style={{ color: c.ink3, paddingVertical: 12 }}>
+          <Text style={{ color: c.textTertiary, paddingVertical: space.md }}>
             {t.showSettings.noAssetsForSlot}
           </Text>
         ) : null}
@@ -299,8 +302,8 @@ function Field({
 }) {
   const c = useAppTheme();
   return (
-    <View style={{ marginBottom: 12 }}>
-      <Text style={{ color: c.ink2, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>
+    <View style={{ marginBottom: space.md }}>
+      <Text style={[typography.overline, { color: c.textSecondary, marginBottom: space.sm }]}>
         {label}
       </Text>
       <TextInput
@@ -312,7 +315,7 @@ function Field({
         style={[
           st.input,
           multiline ? st.multiline : null,
-          { color: c.ink, borderColor: c.line, backgroundColor: c.panel2 },
+          { color: c.textPrimary, borderColor: c.border, backgroundColor: c.surfaceRaised },
         ]}
       />
     </View>
@@ -336,22 +339,22 @@ function Stepper({
     <View style={st.stepper}>
       <Pressable
         onPress={onMinus}
-        hitSlop={8}
+        hitSlop={glyphSlop}
         accessibilityRole="button"
         accessibilityLabel={t.a11y.decrease(a11y)}
-        style={[st.stepBtn, { borderColor: c.line }]}
+        style={[st.stepBtn, { borderColor: c.border }]}
       >
-        <Text style={{ color: c.ink }}>−</Text>
+        <Text style={{ color: c.textPrimary }}>−</Text>
       </Pressable>
-      <Text style={[st.stepValue, { color: c.ink }]}>{label}</Text>
+      <Text style={[st.stepValue, { color: c.textPrimary }]}>{label}</Text>
       <Pressable
         onPress={onPlus}
-        hitSlop={8}
+        hitSlop={glyphSlop}
         accessibilityRole="button"
         accessibilityLabel={t.a11y.increase(a11y)}
-        style={[st.stepBtn, { borderColor: c.line }]}
+        style={[st.stepBtn, { borderColor: c.border }]}
       >
-        <Text style={{ color: c.ink }}>＋</Text>
+        <Text style={{ color: c.textPrimary }}>＋</Text>
       </Pressable>
     </View>
   );
@@ -359,38 +362,40 @@ function Stepper({
 
 const st = StyleSheet.create({
   input: {
+    ...typography.body,
+    minHeight: hit.min,
     borderWidth: 1,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 15,
+    borderRadius: radius.md,
+    paddingHorizontal: space.md,
+    paddingVertical: space.md,
   },
   multiline: { minHeight: 96, textAlignVertical: 'top' },
   slot: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 12,
+    minHeight: hit.min,
+    paddingVertical: space.md,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    gap: 12,
+    gap: space.md,
   },
-  slotLabel: { fontSize: 15, fontWeight: '600' },
-  stepper: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  slotLabel: typography.bodyStrong,
+  stepper: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   stepBtn: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
+    width: hit.compact,
+    height: hit.compact,
+    borderRadius: radius.pill,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  stepValue: { minWidth: 56, textAlign: 'center', fontVariant: ['tabular-nums'], fontSize: 13 },
-  helpWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 10 },
+  stepValue: { ...typography.label, ...tabularNums, minWidth: 56, textAlign: 'center' },
+  helpWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm, marginTop: space.md },
   help: {
-    fontSize: 11,
+    ...typography.caption,
     borderWidth: 1,
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+    borderRadius: radius.pill,
+    paddingHorizontal: space.md,
+    paddingVertical: space.xs,
     overflow: 'hidden',
   },
 });

@@ -10,6 +10,7 @@ import { useT } from '@/i18n';
 import { listExports } from '@/infra/db/repositories/exportsRepo';
 import type { TakeRow } from '@/infra/db/repositories/takesRepo';
 import { parseSoundSettings } from '@/services/audio/renderDocumentFromDb';
+import { glyphSlop, icon, radius, space, typography } from '@/ui/tokens';
 import { Button, Card, Eyebrow, Header, Loading, Row, Screen, Sheet, Toast } from '@/ui/components';
 import { useAppTheme } from '@/ui/ThemeContext';
 import { useToast } from '@/ui/useToast';
@@ -66,7 +67,11 @@ export default function EpisodeTopScreen() {
 
   const go = (path: string) => router.push(path as never);
   const statusTone =
-    episode.status === 'draft' ? c.accent : episode.status === 'ready' ? c.voice : c.ink2;
+    episode.status === 'draft'
+      ? c.accentText
+      : episode.status === 'ready'
+        ? c.successText
+        : c.textSecondary;
   const hasVoice = summary.durationSmp > 0;
 
   const steps = [
@@ -167,25 +172,31 @@ export default function EpisodeTopScreen() {
         right={
           <Pressable
             onPress={() => setMenu(true)}
-            hitSlop={10}
+            hitSlop={glyphSlop}
             accessibilityLabel={t.a11y.menu}
             accessibilityRole="button"
           >
-            <Text style={{ color: c.ink2, fontSize: 22 }}>⋮</Text>
+            <Text style={{ color: c.textSecondary, fontSize: icon.md }}>⋮</Text>
           </Pressable>
         }
       />
-      <Text style={[st.title, { color: c.ink }]}>{episode.title || t.episode.untitled}</Text>
+      <Text style={[st.title, { color: c.textPrimary }]}>
+        {episode.title || t.episode.untitled}
+      </Text>
       <View style={st.metaRow}>
         <Text style={[st.badge, { color: statusTone, borderColor: statusTone }]}>
           {t.status[episode.status]}
         </Text>
-        <Text style={[st.meta, { color: c.ink2 }]}>{formatSmp(smp(summary.durationSmp))}</Text>
-        <Text style={[st.meta, { color: c.ink2 }]}>{t.episode.seasonLabel(episode.season)}</Text>
+        <Text style={[st.meta, { color: c.textSecondary }]}>
+          {formatSmp(smp(summary.durationSmp))}
+        </Text>
+        <Text style={[st.meta, { color: c.textSecondary }]}>
+          {t.episode.seasonLabel(episode.season)}
+        </Text>
       </View>
 
       <Eyebrow>{t.episode.progress}</Eyebrow>
-      <Card style={{ paddingVertical: 4 }}>
+      <Card style={{ paddingVertical: space.xs }}>
         {steps.map((s) => (
           <Row
             key={s.label}
@@ -198,13 +209,15 @@ export default function EpisodeTopScreen() {
 
       <View style={st.sectionHead}>
         <Eyebrow>{t.episode.sectionRecordings}</Eyebrow>
-        <Text style={{ color: c.ink2, fontSize: 12, marginTop: 18 }}>
+        <Text style={[typography.caption, { color: c.textSecondary, marginTop: space.lg }]}>
           {t.common.countItems(summary.takes.length)}
         </Text>
       </View>
-      <Card style={{ paddingVertical: 4 }}>
+      <Card style={{ paddingVertical: space.xs }}>
         {summary.takes.length === 0 ? (
-          <Text style={{ color: c.ink3, paddingVertical: 12 }}>{t.episode.noRecordings}</Text>
+          <Text style={{ color: c.textTertiary, paddingVertical: space.md }}>
+            {t.episode.noRecordings}
+          </Text>
         ) : null}
         {summary.takes.map((take) => (
           <Row
@@ -215,11 +228,11 @@ export default function EpisodeTopScreen() {
             right={
               <Pressable
                 onPress={() => setTakeMenu(take)}
-                hitSlop={10}
+                hitSlop={glyphSlop}
                 accessibilityLabel={t.a11y.menuFor(take.name)}
                 accessibilityRole="button"
               >
-                <Text style={{ color: c.ink2, fontSize: 18 }}>⋮</Text>
+                <Text style={{ color: c.textSecondary, fontSize: icon.sm }}>⋮</Text>
               </Pressable>
             }
           />
@@ -229,7 +242,7 @@ export default function EpisodeTopScreen() {
       <Button
         label={summary.takes.length ? t.episode.continueEditing : t.episode.startRecording}
         onPress={() => go(`/episode/${episodeId}/editor`)}
-        style={{ marginTop: 8 }}
+        style={{ marginTop: space.sm }}
       />
 
       <Sheet
@@ -323,17 +336,16 @@ export default function EpisodeTopScreen() {
 }
 
 const st = StyleSheet.create({
-  title: { fontSize: 22, fontWeight: '700', marginTop: 4 },
-  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 8 },
+  title: { ...typography.title, marginTop: space.xs },
+  metaRow: { flexDirection: 'row', alignItems: 'center', gap: space.md, marginTop: space.sm },
   badge: {
-    fontSize: 10,
+    ...typography.overline,
     borderWidth: 1,
-    borderRadius: 999,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
+    borderRadius: radius.pill,
+    paddingHorizontal: space.sm,
+    paddingVertical: space.hair,
     overflow: 'hidden',
-    letterSpacing: 1,
   },
-  meta: { fontSize: 12, letterSpacing: 1 },
+  meta: typography.caption,
   sectionHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
 });

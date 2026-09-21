@@ -9,6 +9,7 @@ import { useAsyncData } from '@/features/show/useAsyncData';
 import { useT, type Messages } from '@/i18n';
 import { availableDiskBytes } from '@/infra/files/fileSystem';
 import type { AppSettings } from '@/infra/db/repositories/settingsRepo';
+import { space, typography } from '@/ui/tokens';
 import { Card, Chip, Eyebrow, Header, Row, Screen, Sheet, Toast, Toggle } from '@/ui/components';
 import { useAppTheme } from '@/ui/ThemeContext';
 import { useToast } from '@/ui/useToast';
@@ -101,7 +102,7 @@ export default function SettingsScreen() {
           />
         ))}
       </View>
-      <Text style={[st.note, { color: c.ink3 }]}>{t.settings.languageNote}</Text>
+      <Text style={[st.note, { color: c.textTertiary }]}>{t.settings.languageNote}</Text>
 
       <Eyebrow>{t.settings.appearanceEyebrow}</Eyebrow>
       <View style={st.chips}>
@@ -115,11 +116,11 @@ export default function SettingsScreen() {
         ))}
       </View>
       {settings.theme !== services.settings.theme ? (
-        <Text style={[st.note, { color: c.ink3 }]}>{t.settings.themeNote}</Text>
+        <Text style={[st.note, { color: c.textTertiary }]}>{t.settings.themeNote}</Text>
       ) : null}
 
       <Eyebrow>{t.settings.recordingEyebrow}</Eyebrow>
-      <Card style={{ paddingVertical: 4 }}>
+      <Card style={{ paddingVertical: space.xs }}>
         <Row
           label={t.settings.quality}
           sub={t.settings.qualitySub}
@@ -156,7 +157,7 @@ export default function SettingsScreen() {
         />
         <Row label={t.settings.inputDefault} sub={inputLabel} onPress={() => setSheet('input')} />
         {currentInput?.lowQuality ? (
-          <Text style={[st.warn, { color: c.mistake }]}>{t.settings.bluetoothWarning}</Text>
+          <Text style={[st.warn, { color: c.mistakeText }]}>{t.settings.bluetoothWarning}</Text>
         ) : null}
         <Row
           label={t.settings.autoResume}
@@ -194,7 +195,7 @@ export default function SettingsScreen() {
       </Card>
 
       <Eyebrow>{t.settings.editingEyebrow}</Eyebrow>
-      <Card style={{ paddingVertical: 4 }}>
+      <Card style={{ paddingVertical: space.xs }}>
         <Row
           label={t.settings.silenceLength}
           sub={t.settings.silenceLengthSub}
@@ -266,7 +267,7 @@ export default function SettingsScreen() {
       </Card>
 
       <Eyebrow>{t.settings.exportEyebrow}</Eyebrow>
-      <Card style={{ paddingVertical: 4 }}>
+      <Card style={{ paddingVertical: space.xs }}>
         <Row
           label={t.settings.defaultPreset}
           sub={t.settings.presets[settings.export.defaultPreset].sub}
@@ -275,7 +276,7 @@ export default function SettingsScreen() {
       </Card>
 
       <Eyebrow>{t.settings.showEyebrow}</Eyebrow>
-      <Card style={{ paddingVertical: 4 }}>
+      <Card style={{ paddingVertical: space.xs }}>
         <Row
           label={t.settings.showSettings}
           sub={t.settings.showSettingsSub}
@@ -289,19 +290,25 @@ export default function SettingsScreen() {
       </Card>
 
       <Eyebrow>{t.settings.storageEyebrow}</Eyebrow>
-      <Card style={{ paddingVertical: 4 }}>
+      <Card style={{ paddingVertical: space.xs }}>
         <Row
           label={t.settings.recordingsSize}
           sub={t.settings.recordingsSizeSub}
-          right={<Text style={{ color: c.ink }}>{formatBytes(data.storage.recordingsBytes)}</Text>}
+          right={
+            <Text style={{ color: c.textPrimary }}>
+              {formatBytes(data.storage.recordingsBytes)}
+            </Text>
+          }
         />
         <Row
           label={t.settings.exportsSize}
-          right={<Text style={{ color: c.ink }}>{formatBytes(data.storage.exportsBytes)}</Text>}
+          right={
+            <Text style={{ color: c.textPrimary }}>{formatBytes(data.storage.exportsBytes)}</Text>
+          }
         />
         <Row
           label={t.settings.freeSpace}
-          right={<Text style={{ color: c.ink }}>{formatBytes(data.freeBytes)}</Text>}
+          right={<Text style={{ color: c.textPrimary }}>{formatBytes(data.freeBytes)}</Text>}
         />
         <Row
           label={t.settings.cleanup}
@@ -310,7 +317,7 @@ export default function SettingsScreen() {
         />
       </Card>
 
-      <Text style={[st.version, { color: c.ink3 }]}>
+      <Text style={[st.version, { color: c.textTertiary }]}>
         {t.app.versionLine(APP_VERSION)}
         {'\n'}
         {t.app.nonDestructiveNote}
@@ -341,7 +348,9 @@ export default function SettingsScreen() {
           />
         ))}
         {data.inputs.length === 0 ? (
-          <Text style={{ color: c.ink3, paddingVertical: 12 }}>{t.settings.noInputs}</Text>
+          <Text style={{ color: c.textTertiary, paddingVertical: space.md }}>
+            {t.settings.noInputs}
+          </Text>
         ) : null}
       </Sheet>
 
@@ -403,15 +412,15 @@ export default function SettingsScreen() {
 }
 
 const st = StyleSheet.create({
-  chips: { flexDirection: 'row', gap: 8, marginBottom: 4 },
+  chips: { flexDirection: 'row', gap: space.sm, marginBottom: space.xs },
   chipsInline: {
     flexDirection: 'row',
-    gap: 6,
+    gap: space.sm,
     flexWrap: 'wrap',
     justifyContent: 'flex-end',
     maxWidth: 190,
   },
-  note: { fontSize: 11, marginTop: 6 },
-  warn: { fontSize: 12, lineHeight: 18, paddingVertical: 8 },
-  version: { fontSize: 11, lineHeight: 18, textAlign: 'center', marginTop: 24 },
+  note: { ...typography.caption, marginTop: space.xs },
+  warn: { ...typography.caption, paddingVertical: space.sm },
+  version: { ...typography.caption, textAlign: 'center', marginTop: space.xl },
 });

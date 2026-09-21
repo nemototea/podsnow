@@ -20,16 +20,25 @@ PodsNow のブランドマークの幾何定義（Issue #82）。
 
 ## 座標系
 
-1024 x 1024、左上原点・y 下向き。色は `src/ui/theme.ts` のトークンと同じ値。
+1024 x 1024、左上原点・y 下向き。色はデザイントークンの dark をそのまま読む。
 """
+
+import os
+import sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'design'))
+
+import ramps  # noqa: E402
 
 CANVAS = 1024
 
-# src/ui/theme.ts の dark トークンと一致させる
-INK = '#F4F2EE'  # dark.ink       モノクロアイコン用
-BG = '#0B0C0F'  # dark.bg        背景
-GOLD = '#E2B979'  # dark.accent    マイク本体
-MINT = '#8FD4C1'  # dark.voice     レベルメーター（声トラックの色）
+# マークのために別の色を作らない（assets/brand/README.md）。
+# トークンの生成元をそのまま読むので、色を変えたらマークも必ず追従する。
+_DARK = ramps.build('dark')
+INK = _DARK['textPrimary']  # モノクロアイコン用
+BG = _DARK['bg']  # 背景
+GOLD = _DARK['accentSolid']  # マイク本体
+MINT = _DARK['voiceSolid']  # レベルメーター（声トラックの色）
 
 # --- マイク本体 -------------------------------------------------------------
 # カプセル（振動板）

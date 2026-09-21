@@ -7,6 +7,7 @@ import { useServices } from '@/features/app/ServicesProvider';
 import { useHome } from '@/features/home/useHome';
 import { useT } from '@/i18n';
 import type { EpisodeListItem } from '@/infra/db/repositories/episodesRepo';
+import { glyphSlop, hit, icon, radius, space, typography } from '@/ui/tokens';
 import { Button, Card, Eyebrow, Fab, Row, Screen, Sheet, Toast } from '@/ui/components';
 import { useAppTheme } from '@/ui/ThemeContext';
 import { useToast } from '@/ui/useToast';
@@ -95,37 +96,37 @@ export default function HomeScreen() {
     >
       <View style={st.top}>
         <View style={{ flex: 1 }}>
-          <Text style={[st.hello, { color: c.ink2 }]}>{t.home.greeting}</Text>
-          <Text style={[st.showName, { color: c.ink }]} numberOfLines={1}>
+          <Text style={[st.hello, { color: c.textSecondary }]}>{t.home.greeting}</Text>
+          <Text style={[st.showName, { color: c.textPrimary }]} numberOfLines={1}>
             {show.name}
           </Text>
-          <Text style={[st.meta, { color: c.ink2 }]}>
+          <Text style={[st.meta, { color: c.textSecondary }]}>
             {t.home.showMeta(show.default_season, list.length)}
           </Text>
         </View>
         <Pressable
           onPress={() => router.push('/settings')}
-          hitSlop={10}
+          hitSlop={glyphSlop}
           accessibilityLabel={t.a11y.settings}
           style={st.gear}
         >
-          <Text style={{ color: c.ink2, fontSize: 22 }}>⚙</Text>
+          <Text style={{ color: c.textSecondary, fontSize: icon.md }}>⚙</Text>
         </Pressable>
       </View>
 
       {cont ? (
-        <Card style={{ borderColor: c.accent }}>
-          <Text style={[st.eyebrowInline, { color: c.accent }]}>
+        <Card style={{ borderColor: c.accentBorder }}>
+          <Text style={[st.eyebrowInline, { color: c.accentText }]}>
             ●{' '}
             {cont.status === 'draft' && cont.take_count === 0
               ? t.home.badgeNew
               : t.home.badgeEditing}
           </Text>
-          <Text style={[st.contNum, { color: c.ink2 }]}>#{cont.episode_number}</Text>
-          <Text style={[st.contTitle, { color: c.ink }]} numberOfLines={2}>
+          <Text style={[st.contNum, { color: c.textSecondary }]}>#{cont.episode_number}</Text>
+          <Text style={[st.contTitle, { color: c.textPrimary }]} numberOfLines={2}>
             {cont.title || t.home.untitled}
           </Text>
-          <Text style={[st.meta, { color: c.ink2, marginBottom: 12 }]}>
+          <Text style={[st.meta, { color: c.textSecondary, marginBottom: space.md }]}>
             {formatSmp(smp(cont.duration_smp))} · {t.home.takes(cont.take_count)}
           </Text>
           <Button
@@ -135,10 +136,17 @@ export default function HomeScreen() {
         </Card>
       ) : (
         <Card>
-          <Text style={{ color: c.ink, fontSize: 16, fontWeight: '700' }}>
+          <Text style={[typography.heading, { color: c.textPrimary }]}>
             {list.length === 0 ? t.home.firstEpisode : t.home.nextEpisode}
           </Text>
-          <Text style={{ color: c.ink2, marginTop: 6, marginBottom: 12, lineHeight: 20 }}>
+          <Text
+            style={{
+              color: c.textSecondary,
+              marginTop: space.sm,
+              marginBottom: space.md,
+              lineHeight: 20,
+            }}
+          >
             {t.home.emptyLead}
           </Text>
           <Button label={t.home.newEpisode} onPress={create} />
@@ -148,18 +156,26 @@ export default function HomeScreen() {
       <View style={st.sectionHead}>
         <Eyebrow>{t.home.sectionEpisodes}</Eyebrow>
         <View style={{ flex: 1 }} />
-        <Pressable onPress={() => router.push('/restore')} hitSlop={8} style={{ marginRight: 14 }}>
-          <Text style={{ color: c.ink2, fontSize: 12, marginTop: 18 }}>{t.home.restore}</Text>
+        <Pressable
+          onPress={() => router.push('/restore')}
+          hitSlop={glyphSlop}
+          style={{ marginRight: space.lg }}
+        >
+          <Text style={[typography.caption, { color: c.textSecondary, marginTop: space.lg }]}>
+            {t.home.restore}
+          </Text>
         </Pressable>
-        <Pressable onPress={() => router.push('/show/assets')} hitSlop={8}>
-          <Text style={{ color: c.accent, fontSize: 12, marginTop: 18 }}>
+        <Pressable onPress={() => router.push('/show/assets')} hitSlop={glyphSlop}>
+          <Text style={[typography.caption, { color: c.accentText, marginTop: space.lg }]}>
             {t.home.showAssetsLink}
           </Text>
         </Pressable>
       </View>
-      <Card style={{ paddingVertical: 4 }}>
+      <Card style={{ paddingVertical: space.xs }}>
         {list.length === 0 ? (
-          <Text style={{ color: c.ink3, paddingVertical: 12 }}>{t.home.noEpisodes}</Text>
+          <Text style={{ color: c.textTertiary, paddingVertical: space.md }}>
+            {t.home.noEpisodes}
+          </Text>
         ) : null}
         {list.map((e) => (
           <Row
@@ -172,22 +188,34 @@ export default function HomeScreen() {
             }
             onPress={() => router.push(`/episode/${e.id}`)}
             right={
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.md }}>
                 <Text
                   style={[
                     st.badge,
                     {
                       color:
-                        e.status === 'draft' ? c.accent : e.status === 'ready' ? c.voice : c.ink2,
+                        e.status === 'draft'
+                          ? c.accentText
+                          : e.status === 'ready'
+                            ? c.successText
+                            : c.textSecondary,
                       borderColor:
-                        e.status === 'draft' ? c.accent : e.status === 'ready' ? c.voice : c.ink3,
+                        e.status === 'draft'
+                          ? c.accentBorder
+                          : e.status === 'ready'
+                            ? c.voiceBorder
+                            : c.border,
                     },
                   ]}
                 >
                   {t.status[e.status]}
                 </Text>
-                <Pressable onPress={() => setMenu(e)} hitSlop={10} accessibilityLabel={t.a11y.menu}>
-                  <Text style={{ color: c.ink2, fontSize: 18 }}>⋮</Text>
+                <Pressable
+                  onPress={() => setMenu(e)}
+                  hitSlop={glyphSlop}
+                  accessibilityLabel={t.a11y.menu}
+                >
+                  <Text style={{ color: c.textSecondary, fontSize: icon.sm }}>⋮</Text>
                 </Pressable>
               </View>
             }
@@ -264,21 +292,32 @@ export default function HomeScreen() {
 }
 
 const st = StyleSheet.create({
-  top: { flexDirection: 'row', alignItems: 'flex-start', paddingTop: 8, marginBottom: 16 },
-  hello: { fontSize: 12 },
-  showName: { fontSize: 24, fontWeight: '700', marginTop: 2 },
-  meta: { fontSize: 11, letterSpacing: 1, marginTop: 4 },
-  gear: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
-  eyebrowInline: { fontSize: 10, letterSpacing: 1.6, marginBottom: 8 },
-  contNum: { fontSize: 12 },
-  contTitle: { fontSize: 20, fontWeight: '700', marginTop: 2 },
+  top: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    paddingTop: space.sm,
+    marginBottom: space.lg,
+  },
+  hello: typography.caption,
+  showName: { ...typography.display, marginTop: space.hair },
+  meta: { ...typography.overline, marginTop: space.xs },
+  gear: {
+    width: hit.min,
+    height: hit.min,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: -space.md,
+  },
+  eyebrowInline: { ...typography.overline, marginBottom: space.sm },
+  contNum: typography.caption,
+  contTitle: { ...typography.title, marginTop: space.hair },
   sectionHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   badge: {
-    fontSize: 10,
+    ...typography.overline,
     borderWidth: 1,
-    borderRadius: 999,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
+    borderRadius: radius.pill,
+    paddingHorizontal: space.sm,
+    paddingVertical: space.hair,
     overflow: 'hidden',
   },
 });

@@ -219,7 +219,10 @@ interface AudioEngineModule {
 - JS 側で握りつぶさない。ユーザーに見える通知（トースト）+ `logs` テーブルへの記録（MVP は端末内のみ）。
 
 ### 7.6 テーマ / UI
-- Dark / Light / System。トークンは `src/ui/theme.ts` に集約。バンドルのダーク配色（背景 `#0B0C0F`、アクセント `#E2B979`、声 `#8FD4C1`）を出発点にする【仮説】。
+- Dark / Light / System。トークンは `src/ui/tokens/` に集約（決めごとと理由は DESIGN_SYSTEM.md）。
+- 色は `scripts/design/ramps.py` から生成する【事実】。面の明度は決め打ち、文字と境界は目標コントラスト比から逆算する。`python3 scripts/design/generate.py` が書き出し前に全組み合わせを測り、落ちたら何も書かない。
+- 画面と `src/ui/` に生の値（hex、`fontSize`、余白、角丸）を書かない。ESLint で落ちる。
+- ブランドマークの色は `scripts/brand/geometry.py` がトークンの生成元を直接読む。マークのために別の色を作らない。
 
 ## 8. 主要な状態機械
 

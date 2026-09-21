@@ -10,6 +10,7 @@ import { errorText, storedErrorText, useT } from '@/i18n';
 import { listExports, type ExportRow } from '@/infra/db/repositories/exportsRepo';
 import { joinRoot } from '@/infra/files/layout';
 import { estimateExportBytes, EXPORT_PRESETS } from '@/services/export/ExportService';
+import { glyphSlop, radius, space, typography } from '@/ui/tokens';
 import { Button, Card, Chip, Eyebrow, Header, Loading, Row, Screen, Toast } from '@/ui/components';
 import { useAppTheme } from '@/ui/ThemeContext';
 import { useToast } from '@/ui/useToast';
@@ -119,7 +120,7 @@ export default function ExportScreen() {
       />
 
       <Eyebrow>{t.export.formatEyebrow}</Eyebrow>
-      <Card style={{ paddingVertical: 4 }}>
+      <Card style={{ paddingVertical: space.xs }}>
         {PRESET_KEYS.map((k) => (
           <Row
             key={k}
@@ -139,32 +140,34 @@ export default function ExportScreen() {
 
       <Card>
         <View style={st.kv}>
-          <Text style={{ color: c.ink2 }}>{t.export.estimatedSize}</Text>
-          <Text style={{ color: c.ink, fontWeight: '700' }}>
+          <Text style={{ color: c.textSecondary }}>{t.export.estimatedSize}</Text>
+          <Text style={[typography.bodyStrong, { color: c.textPrimary }]}>
             {formatBytes(estimateExportBytes(p, durationSmp))}
           </Text>
         </View>
         <View style={st.kv}>
-          <Text style={{ color: c.ink2 }}>{t.export.duration}</Text>
-          <Text style={{ color: c.ink, fontWeight: '700' }}>{formatSmp(smp(durationSmp))}</Text>
+          <Text style={{ color: c.textSecondary }}>{t.export.duration}</Text>
+          <Text style={[typography.bodyStrong, { color: c.textPrimary }]}>
+            {formatSmp(smp(durationSmp))}
+          </Text>
         </View>
       </Card>
 
       {job ? (
-        <Card style={{ borderColor: c.accent }}>
+        <Card style={{ borderColor: c.accentBorder }}>
           <View style={st.kv}>
-            <Text style={{ color: c.ink }}>{phaseLabel}</Text>
-            <Text style={{ color: c.ink2 }}>{Math.round(job.progress * 100)}%</Text>
+            <Text style={{ color: c.textPrimary }}>{phaseLabel}</Text>
+            <Text style={{ color: c.textSecondary }}>{Math.round(job.progress * 100)}%</Text>
           </View>
           <View
-            style={[st.bar, { backgroundColor: c.panel2 }]}
+            style={[st.bar, { backgroundColor: c.surfaceRaised }]}
             accessibilityRole="progressbar"
             accessibilityValue={{ min: 0, max: 100, now: Math.round(job.progress * 100) }}
           >
             <View
               style={[
                 st.barFill,
-                { width: `${Math.round(job.progress * 100)}%`, backgroundColor: c.accent },
+                { width: `${Math.round(job.progress * 100)}%`, backgroundColor: c.accentSolid },
               ]}
             />
           </View>
@@ -172,20 +175,24 @@ export default function ExportScreen() {
             label={t.common.cancelRun}
             kind="ghost"
             onPress={() => exporter.cancel(job.exportId)}
-            style={{ marginTop: 12 }}
+            style={{ marginTop: space.md }}
           />
         </Card>
       ) : (
         <Button label={t.export.run} onPress={() => void start()} disabled={durationSmp <= 0} />
       )}
       {durationSmp <= 0 ? (
-        <Text style={{ color: c.ink3, fontSize: 12, marginTop: 8 }}>{t.export.emptyVoice}</Text>
+        <Text style={[typography.caption, { color: c.textTertiary, marginTop: space.sm }]}>
+          {t.export.emptyVoice}
+        </Text>
       ) : null}
 
       <Eyebrow>{t.export.historyEyebrow}</Eyebrow>
-      <Card style={{ paddingVertical: 4 }}>
+      <Card style={{ paddingVertical: space.xs }}>
         {history.length === 0 ? (
-          <Text style={{ color: c.ink3, paddingVertical: 12 }}>{t.export.noHistory}</Text>
+          <Text style={{ color: c.textTertiary, paddingVertical: space.md }}>
+            {t.export.noHistory}
+          </Text>
         ) : null}
         {history.map((h) => (
           <Row
@@ -207,11 +214,13 @@ export default function ExportScreen() {
                   right: (
                     <Pressable
                       onPress={() => void share(h)}
-                      hitSlop={8}
+                      hitSlop={glyphSlop}
                       accessibilityRole="button"
                       accessibilityLabel={t.common.share}
                     >
-                      <Text style={{ color: c.accent, fontWeight: '600' }}>{t.common.share}</Text>
+                      <Text style={[typography.label, { color: c.accentText }]}>
+                        {t.common.share}
+                      </Text>
                     </Pressable>
                   ),
                 }
@@ -224,7 +233,7 @@ export default function ExportScreen() {
 }
 
 const st = StyleSheet.create({
-  kv: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6 },
-  bar: { height: 8, borderRadius: 4, overflow: 'hidden', marginTop: 8 },
-  barFill: { height: 8, borderRadius: 4 },
+  kv: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: space.xs },
+  bar: { height: space.sm, borderRadius: radius.xs, overflow: 'hidden', marginTop: space.sm },
+  barFill: { height: space.sm, borderRadius: radius.xs },
 });

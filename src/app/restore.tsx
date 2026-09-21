@@ -11,6 +11,7 @@ import {
   type BackupProgress,
   type RestoreResult,
 } from '@/services/backup/BackupService';
+import { radius, space, typography } from '@/ui/tokens';
 import { Button, Card, Header, Screen } from '@/ui/components';
 import { useAppTheme } from '@/ui/ThemeContext';
 
@@ -81,28 +82,28 @@ export default function RestoreScreen() {
     <Screen>
       <Header title={t.restore.title} subtitle={t.restore.subtitle} onBack={() => router.back()} />
       <Card>
-        <Text style={[st.body, { color: c.ink2 }]}>{t.restore.lead}</Text>
+        <Text style={[st.body, { color: c.textSecondary }]}>{t.restore.lead}</Text>
         {phase === 'idle' || phase === 'error' ? (
           <Button label={t.restore.pick} onPress={() => void pick()} />
         ) : null}
         {phase === 'running' ? (
           <View>
-            <Text style={{ color: c.ink, marginBottom: 8 }}>
+            <Text style={{ color: c.textPrimary, marginBottom: space.sm }}>
               {phaseLabel}… {pct}%
             </Text>
-            <View style={[st.track, { backgroundColor: c.panel2 }]}>
-              <View style={[st.fill, { width: `${pct}%`, backgroundColor: c.accent }]} />
+            <View style={[st.track, { backgroundColor: c.surfaceRaised }]}>
+              <View style={[st.fill, { width: `${pct}%`, backgroundColor: c.accentSolid }]} />
             </View>
           </View>
         ) : null}
         {phase === 'done' && result ? (
           <View>
-            <Text style={{ color: c.ink, fontWeight: '700', marginBottom: 4 }}>
+            <Text style={[typography.bodyStrong, { color: c.textPrimary, marginBottom: space.xs }]}>
               {result.renumbered
                 ? t.restore.doneRenumbered(result.episodeNumber)
                 : t.restore.done(result.episodeNumber)}
             </Text>
-            <Text style={{ color: c.ink2, fontSize: 12, marginBottom: 12 }}>
+            <Text style={[typography.caption, { color: c.textSecondary, marginBottom: space.md }]}>
               {t.restore.summary(result.takes, result.reusedAssets, result.importedAssets)}
             </Text>
             <Button
@@ -111,14 +112,18 @@ export default function RestoreScreen() {
             />
           </View>
         ) : null}
-        {error ? <Text style={{ color: c.rec, marginTop: 12 }}>{error}</Text> : null}
+        {error ? (
+          <Text style={[typography.body, { color: c.dangerText, marginTop: space.md }]}>
+            {error}
+          </Text>
+        ) : null}
       </Card>
     </Screen>
   );
 }
 
 const st = StyleSheet.create({
-  body: { lineHeight: 20, marginBottom: 14 },
-  track: { height: 6, borderRadius: 3, overflow: 'hidden' },
-  fill: { height: 6 },
+  body: { ...typography.body, marginBottom: space.lg },
+  track: { height: space.sm, borderRadius: radius.xs, overflow: 'hidden' },
+  fill: { height: space.sm },
 });

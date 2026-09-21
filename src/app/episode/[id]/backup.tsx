@@ -12,6 +12,7 @@ import {
   exportEpisodeBackup,
   type BackupProgress,
 } from '@/services/backup/BackupService';
+import { radius, space, typography } from '@/ui/tokens';
 import { Button, Card, Header, Screen, Toast } from '@/ui/components';
 import { useAppTheme } from '@/ui/ThemeContext';
 import { useToast } from '@/ui/useToast';
@@ -83,20 +84,23 @@ export default function BackupScreen() {
     <Screen overlay={<Toast toast={toast} onAction={act} onDismiss={dismiss} />}>
       <Header title={t.backup.title} subtitle={t.backup.subtitle} onBack={() => router.back()} />
       <Card>
-        <Text style={[st.body, { color: c.ink2 }]}>{t.backup.lead}</Text>
+        <Text style={[st.body, { color: c.textSecondary }]}>{t.backup.lead}</Text>
         {phase === 'idle' || phase === 'error' ? (
           <Button label={t.backup.run} onPress={() => void run()} />
         ) : null}
         {phase === 'running' ? (
           <View>
-            <Text style={{ color: c.ink, marginBottom: 8 }}>
+            <Text style={{ color: c.textPrimary, marginBottom: space.sm }}>
               {progress?.phase === 'zip' ? t.backup.phaseWriting : t.backup.phasePreparing}… {pct}%
             </Text>
-            <View style={[st.track, { backgroundColor: c.panel2 }]}>
-              <View style={[st.fill, { width: `${pct}%`, backgroundColor: c.accent }]} />
+            <View style={[st.track, { backgroundColor: c.surfaceRaised }]}>
+              <View style={[st.fill, { width: `${pct}%`, backgroundColor: c.accentSolid }]} />
             </View>
             {progress?.detail ? (
-              <Text style={{ color: c.ink3, fontSize: 11, marginTop: 6 }} numberOfLines={1}>
+              <Text
+                style={[typography.caption, { color: c.textTertiary, marginTop: space.xs }]}
+                numberOfLines={1}
+              >
                 {progress.detail}
               </Text>
             ) : null}
@@ -104,10 +108,13 @@ export default function BackupScreen() {
         ) : null}
         {phase === 'done' && result ? (
           <View>
-            <Text style={{ color: c.ink, fontWeight: '700', marginBottom: 4 }}>
+            <Text style={[typography.bodyStrong, { color: c.textPrimary, marginBottom: space.xs }]}>
               {t.backup.done(mb ?? '0')}
             </Text>
-            <Text style={{ color: c.ink3, fontSize: 11, marginBottom: 12 }} numberOfLines={2}>
+            <Text
+              style={[typography.caption, { color: c.textTertiary, marginBottom: space.md }]}
+              numberOfLines={2}
+            >
               {result.path.split('/').pop()}
             </Text>
             <Button label={t.backup.shareSave} onPress={() => void share()} />
@@ -115,19 +122,23 @@ export default function BackupScreen() {
               label={t.backup.again}
               kind="ghost"
               onPress={() => void run()}
-              style={{ marginTop: 8 }}
+              style={{ marginTop: space.sm }}
             />
           </View>
         ) : null}
-        {error ? <Text style={{ color: c.rec, marginTop: 12 }}>{error}</Text> : null}
+        {error ? (
+          <Text style={[typography.body, { color: c.dangerText, marginTop: space.md }]}>
+            {error}
+          </Text>
+        ) : null}
       </Card>
-      <Text style={{ color: c.ink3, fontSize: 12, lineHeight: 18 }}>{t.backup.footer}</Text>
+      <Text style={[typography.caption, { color: c.textTertiary }]}>{t.backup.footer}</Text>
     </Screen>
   );
 }
 
 const st = StyleSheet.create({
-  body: { lineHeight: 20, marginBottom: 14 },
-  track: { height: 6, borderRadius: 3, overflow: 'hidden' },
-  fill: { height: 6 },
+  body: { ...typography.body, marginBottom: space.lg },
+  track: { height: space.sm, borderRadius: radius.xs, overflow: 'hidden' },
+  fill: { height: space.sm },
 });

@@ -1,11 +1,11 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
   <!-- scripts/brand/generate.py が生成。直接編集せず geometry.py を直すこと。 -->
-  <rect width="1024" height="1024" fill="#0B0C0F"/>
-  <rect x="289.3" y="227.2" width="268.8" height="384.0" rx="134.4" fill="#E2B979"/>
-  <path d="M 212.5 483.2 A 211.2 211.2 0 0 0 634.9 483.2" fill="none" stroke="#E2B979" stroke-width="43.5" stroke-linecap="butt"/>
-  <rect x="403.2" y="707.2" width="41.0" height="65.3" fill="#E2B979"/>
-  <rect x="321.3" y="754.6" width="204.8" height="42.2" rx="20.5" fill="#E2B979"/>
-  <rect x="633.6" y="319.4" width="41.0" height="122.9" rx="20.5" fill="#8FD4C1"/>
-  <rect x="713.0" y="265.6" width="41.0" height="230.4" rx="20.5" fill="#8FD4C1"/>
-  <rect x="792.3" y="304.0" width="41.0" height="153.6" rx="20.5" fill="#8FD4C1"/>
+  <rect width="1024" height="1024" fill="#0E0C08"/>
+  <rect x="289.3" y="227.2" width="268.8" height="384.0" rx="134.4" fill="#E2B97A"/>
+  <path d="M 212.5 483.2 A 211.2 211.2 0 0 0 634.9 483.2" fill="none" stroke="#E2B97A" stroke-width="43.5" stroke-linecap="butt"/>
+  <rect x="403.2" y="707.2" width="41.0" height="65.3" fill="#E2B97A"/>
+  <rect x="321.3" y="754.6" width="204.8" height="42.2" rx="20.5" fill="#E2B97A"/>
+  <rect x="633.6" y="319.4" width="41.0" height="122.9" rx="20.5" fill="#88D6C1"/>
+  <rect x="713.0" y="265.6" width="41.0" height="230.4" rx="20.5" fill="#88D6C1"/>
+  <rect x="792.3" y="304.0" width="41.0" height="153.6" rx="20.5" fill="#88D6C1"/>
 </svg>
