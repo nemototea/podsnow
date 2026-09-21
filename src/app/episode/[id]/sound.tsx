@@ -6,6 +6,7 @@ import { useServices } from '@/features/app/ServicesProvider';
 import { useEpisode } from '@/features/episode/useEpisode';
 import { useT } from '@/i18n';
 import { parseSoundSettings, type SoundSettings } from '@/services/audio/renderDocumentFromDb';
+import { hit, icon, radius, space, tabularNums, typography } from '@/ui/tokens';
 import { Button, Card, Chip, Eyebrow, Header, Loading, Row, Screen, Toggle } from '@/ui/components';
 import { useAppTheme } from '@/ui/ThemeContext';
 
@@ -29,26 +30,26 @@ function Stepper({
   const c = useAppTheme();
   const t = useT();
   return (
-    <View style={[st.stepper, { borderBottomColor: c.line }]}>
-      <Text style={{ color: c.ink, flex: 1, fontSize: 15 }}>{label}</Text>
+    <View style={[st.stepper, { borderBottomColor: c.border }]}>
+      <Text style={[typography.body, { color: c.textPrimary, flex: 1 }]}>{label}</Text>
       <Pressable
         onPress={() => onChange(Math.max(min, +(value - step).toFixed(2)))}
-        style={[st.stepBtn, { borderColor: c.line }]}
+        style={[st.stepBtn, { borderColor: c.border }]}
         accessibilityRole="button"
         accessibilityLabel={t.a11y.decrease(label)}
       >
-        <Text style={{ color: c.ink, fontSize: 18 }}>−</Text>
+        <Text style={{ color: c.textPrimary, fontSize: icon.sm }}>−</Text>
       </Pressable>
-      <Text style={[st.stepVal, { color: c.ink }]}>
+      <Text style={[st.stepVal, { color: c.textPrimary }]}>
         {value} {unit}
       </Text>
       <Pressable
         onPress={() => onChange(Math.min(max, +(value + step).toFixed(2)))}
-        style={[st.stepBtn, { borderColor: c.line }]}
+        style={[st.stepBtn, { borderColor: c.border }]}
         accessibilityRole="button"
         accessibilityLabel={t.a11y.increase(label)}
       >
-        <Text style={{ color: c.ink, fontSize: 18 }}>＋</Text>
+        <Text style={{ color: c.textPrimary, fontSize: icon.sm }}>＋</Text>
       </Pressable>
     </View>
   );
@@ -148,8 +149,8 @@ export default function SoundScreen() {
           accessibilityRole="button"
           accessibilityLabel={t.sound.a11yAdvanced}
         >
-          <Text style={{ color: c.ink2, fontSize: 13 }}>{t.sound.advanced}</Text>
-          <Text style={{ color: c.ink2 }}>{adv ? '▲' : '▼'}</Text>
+          <Text style={[typography.label, { color: c.textSecondary }]}>{t.sound.advanced}</Text>
+          <Text style={{ color: c.textSecondary }}>{adv ? '▲' : '▼'}</Text>
         </Pressable>
         {adv ? (
           <>
@@ -193,7 +194,7 @@ export default function SoundScreen() {
         ) : null}
       </Card>
 
-      <Text style={{ color: c.ink3, fontSize: 12, lineHeight: 18, marginBottom: 16 }}>
+      <Text style={[typography.caption, { color: c.textTertiary, marginBottom: space.lg }]}>
         {t.sound.note}
       </Text>
       <Button
@@ -205,22 +206,29 @@ export default function SoundScreen() {
 }
 
 const st = StyleSheet.create({
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 6 },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm, marginBottom: space.sm },
   stepper: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    paddingVertical: 10,
+    gap: space.md,
+    minHeight: hit.min,
+    paddingVertical: space.sm,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   stepBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    width: hit.compact,
+    height: hit.compact,
+    borderRadius: radius.pill,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  stepVal: { minWidth: 84, textAlign: 'center', fontVariant: ['tabular-nums'] },
-  advToggle: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 12 },
+  stepVal: { ...typography.body, ...tabularNums, minWidth: 84, textAlign: 'center' },
+  advToggle: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    minHeight: hit.min,
+    paddingVertical: space.md,
+  },
 });

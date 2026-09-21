@@ -1,5 +1,7 @@
 import { createContext, useContext, useMemo, useState, type ReactNode } from 'react';
 
+import { space } from './tokens';
+
 /**
  * 画面下部に何があるかを、その画面自身が実測して配る（Issue #89）。
  *
@@ -41,4 +43,4 @@ export function useBottomInset(): BottomInsetValue {
 }
 
 /** トーストと下部要素のあいだの余白（M3 の Snackbar と FAB の間隔に相当）。 */
-export const BOTTOM_GAP = 12;
+export const BOTTOM_GAP = space.md;

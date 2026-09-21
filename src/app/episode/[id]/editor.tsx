@@ -12,6 +12,17 @@ import { Waveform } from '@/features/editor/Waveform';
 import { kindLabel } from '@/features/show/assetKinds';
 import { errorCodeText, errorText, useT } from '@/i18n';
 import type { AssetRow } from '@/infra/db/repositories/assetsRepo';
+import {
+  glyphSlop,
+  gutter,
+  hit,
+  icon,
+  radius,
+  space,
+  tabularNums,
+  tone,
+  typography,
+} from '@/ui/tokens';
 import { Button, Chip, Header, Loading, Row, Screen, Sheet, Toast, Toggle } from '@/ui/components';
 import { useAppTheme } from '@/ui/ThemeContext';
 import { useToast } from '@/ui/useToast';
@@ -188,33 +199,44 @@ export default function EditorScreen() {
       padded={false}
       overlay={<Toast toast={toast} onAction={act} onDismiss={dismiss} />}
       bottomBar={
-        <View style={[st.transport, { borderTopColor: c.line }]}>
+        <View style={[st.transport, { borderTopColor: c.border }]}>
           <Pressable
             onPress={() => void doUndo()}
             disabled={!state.canUndo || isRec}
             style={[st.side, { opacity: state.canUndo && !isRec ? 1 : 0.35 }]}
             accessibilityLabel={t.common.undo}
           >
-            <Text style={{ color: c.ink, fontSize: 20 }}>↶</Text>
-            <Text style={{ color: c.ink2, fontSize: 10 }}>{t.common.undo}</Text>
+            <Text style={{ color: c.textPrimary, fontSize: icon.md }}>↶</Text>
+            <Text style={[typography.overline, { color: c.textSecondary }]}>{t.common.undo}</Text>
           </Pressable>
           <Pressable
             onPress={() => void toggleRec()}
             accessibilityLabel={isRec ? t.a11y.stopRecording : t.a11y.startRecording}
-            style={[st.recBtn, { backgroundColor: isRec ? c.panel : c.rec, borderColor: c.rec }]}
+            style={[
+              st.recBtn,
+              { backgroundColor: isRec ? c.surface : c.recSolid, borderColor: c.recSolid },
+            ]}
           >
-            <View style={isRec ? [st.recStop, { backgroundColor: c.rec }] : st.recDotBig} />
+            <View
+              style={
+                isRec
+                  ? [st.recStop, { backgroundColor: c.recSolid }]
+                  : [st.recDotBig, { backgroundColor: c.dangerOnSolid }]
+              }
+            />
           </Pressable>
           <Pressable
             onPress={() => void ed.togglePlay()}
             disabled={isRec || state.total === 0}
             style={[
               st.playBtn,
-              { borderColor: c.line, opacity: isRec || state.total === 0 ? 0.35 : 1 },
+              { borderColor: c.border, opacity: isRec || state.total === 0 ? 0.35 : 1 },
             ]}
             accessibilityLabel={state.playing ? t.a11y.pause : t.a11y.play}
           >
-            <Text style={{ color: c.ink, fontSize: 18 }}>{state.playing ? '❚❚' : '▶'}</Text>
+            <Text style={{ color: c.textPrimary, fontSize: icon.sm }}>
+              {state.playing ? '❚❚' : '▶'}
+            </Text>
           </Pressable>
           <Pressable
             onPress={() => void doRedo()}
@@ -222,13 +244,13 @@ export default function EditorScreen() {
             style={[st.side, { opacity: state.canRedo && !isRec ? 1 : 0.35 }]}
             accessibilityLabel={t.common.redo}
           >
-            <Text style={{ color: c.ink, fontSize: 20 }}>↷</Text>
-            <Text style={{ color: c.ink2, fontSize: 10 }}>{t.common.redo}</Text>
+            <Text style={{ color: c.textPrimary, fontSize: icon.md }}>↷</Text>
+            <Text style={[typography.overline, { color: c.textSecondary }]}>{t.common.redo}</Text>
           </Pressable>
         </View>
       }
     >
-      <View style={{ paddingHorizontal: 16 }}>
+      <View style={{ paddingHorizontal: gutter }}>
         <Header
           title={
             state.episode
@@ -248,10 +270,10 @@ export default function EditorScreen() {
           right={
             <Pressable
               onPress={() => setSheet('more')}
-              hitSlop={10}
+              hitSlop={glyphSlop}
               accessibilityLabel={t.a11y.menu}
             >
-              <Text style={{ color: c.ink2, fontSize: 22 }}>⋮</Text>
+              <Text style={{ color: c.textSecondary, fontSize: icon.md }}>⋮</Text>
             </Pressable>
           }
         />
@@ -260,40 +282,42 @@ export default function EditorScreen() {
       {/* 時計・レベル */}
       <View style={st.clockRow}>
         {isRec ? (
-          <View style={[st.recPill, { borderColor: c.rec }]}>
-            <View style={[st.recDot, { backgroundColor: c.rec }]} />
-            <Text style={{ color: c.rec, fontSize: 11, fontWeight: '700' }}>
+          <View style={[st.recPill, { borderColor: c.recSolid }]}>
+            <View style={[st.recDot, { backgroundColor: c.recSolid }]} />
+            <Text style={[typography.overline, { color: c.dangerText }]}>
               REC {formatSmp(smp(state.recFrames))}
             </Text>
           </View>
         ) : null}
-        <Text style={[st.clock, { color: c.ink }]}>{clock}</Text>
-        <Text style={{ color: c.ink2, fontSize: 12 }}>/ {formatSmp(state.total)}</Text>
+        <Text style={[st.clock, { color: c.textPrimary }]}>{clock}</Text>
+        <Text style={[typography.caption, { color: c.textSecondary }]}>
+          / {formatSmp(state.total)}
+        </Text>
         <View style={{ flex: 1 }} />
         <Pressable
           onPress={() => setPps((p) => Math.max(4, p / 1.6))}
-          hitSlop={8}
+          hitSlop={glyphSlop}
           accessibilityLabel={t.a11y.zoomOut}
         >
-          <Text style={{ color: c.ink2, fontSize: 18 }}>－</Text>
+          <Text style={{ color: c.textSecondary, fontSize: icon.sm }}>－</Text>
         </Pressable>
         <Pressable
           onPress={() => setPps((p) => Math.min(200, p * 1.6))}
-          hitSlop={8}
+          hitSlop={glyphSlop}
           accessibilityLabel={t.a11y.zoomIn}
-          style={{ marginLeft: 12 }}
+          style={{ marginLeft: space.md }}
         >
-          <Text style={{ color: c.ink2, fontSize: 18 }}>＋</Text>
+          <Text style={{ color: c.textSecondary, fontSize: icon.sm }}>＋</Text>
         </Pressable>
       </View>
       {isRec ? (
-        <View style={[st.meterTrack, { backgroundColor: c.panel }]}>
+        <View style={[st.meterTrack, { backgroundColor: c.surface }]}>
           <View
             style={[
               st.meterFill,
               {
                 width: `${levelPct * 100}%`,
-                backgroundColor: state.level?.clipped ? c.rec : c.voice,
+                backgroundColor: state.level?.clipped ? c.recSolid : c.voiceSolid,
               },
             ]}
           />
@@ -330,22 +354,24 @@ export default function EditorScreen() {
       {!isRec && unresolved > 0 ? (
         <Pressable
           onPress={() => void ed.nextMarker()}
-          style={[st.banner, { backgroundColor: c.panel, borderColor: c.line }]}
+          style={[st.banner, { backgroundColor: c.surface, borderColor: c.border }]}
         >
-          <Text style={{ color: c.mistake }}>⚑</Text>
+          <Text style={{ color: c.mistakeText }}>⚑</Text>
           <View style={{ flex: 1 }}>
-            <Text style={{ color: c.ink, fontSize: 13, fontWeight: '600' }}>
+            <Text style={[typography.label, { color: c.textPrimary }]}>
               {t.editor.markerBannerTitle(unresolved)}
             </Text>
-            <Text style={{ color: c.ink2, fontSize: 11 }}>{t.editor.markerBannerSub}</Text>
+            <Text style={[typography.caption, { color: c.textSecondary }]}>
+              {t.editor.markerBannerSub}
+            </Text>
           </View>
-          <Text style={{ color: c.accent, fontSize: 12 }}>{t.common.next}</Text>
+          <Text style={[typography.caption, { color: c.accentText }]}>{t.common.next}</Text>
         </Pressable>
       ) : null}
 
       {/* トークテーマ（録音中に見る） */}
       {state.topics.length > 0 ? (
-        <View style={[st.topics, { backgroundColor: c.panel, borderColor: c.line }]}>
+        <View style={[st.topics, { backgroundColor: c.surface, borderColor: c.border }]}>
           {state.topics.slice(0, 6).map((t) => (
             <Pressable
               key={t.id}
@@ -354,12 +380,12 @@ export default function EditorScreen() {
               accessibilityRole="checkbox"
               accessibilityState={{ checked: !!t.checkedAt }}
             >
-              <Text style={{ color: t.checkedAt ? c.voice : c.ink3 }}>
+              <Text style={{ color: t.checkedAt ? c.successText : c.textTertiary }}>
                 {t.checkedAt ? '☑' : '☐'}
               </Text>
               <Text
                 style={{
-                  color: t.checkedAt ? c.ink3 : c.ink,
+                  color: t.checkedAt ? c.textTertiary : c.textPrimary,
                   textDecorationLine: t.checkedAt ? 'line-through' : 'none',
                   flex: 1,
                 }}
@@ -370,7 +396,7 @@ export default function EditorScreen() {
             </Pressable>
           ))}
           <Pressable onPress={() => setSheet('topics')}>
-            <Text style={{ color: c.accent, fontSize: 12, marginTop: 4 }}>
+            <Text style={[typography.caption, { color: c.accentText, marginTop: space.xs }]}>
               {t.editor.editTopics}
             </Text>
           </Pressable>
@@ -378,9 +404,9 @@ export default function EditorScreen() {
       ) : (
         <Pressable
           onPress={() => setSheet('topics')}
-          style={{ paddingHorizontal: 16, paddingVertical: 8 }}
+          style={{ paddingHorizontal: gutter, paddingVertical: space.sm }}
         >
-          <Text style={{ color: c.ink3, fontSize: 12 }}>{t.editor.addTopics}</Text>
+          <Text style={[typography.caption, { color: c.textTertiary }]}>{t.editor.addTopics}</Text>
         </Pressable>
       )}
 
@@ -393,7 +419,7 @@ export default function EditorScreen() {
             <Chip label={t.editor.toolbar.marker} onPress={() => void ed.addMarker('edit_point')} />
             <Chip
               label={t.editor.toolbar.mistake}
-              color={c.mistake}
+              tone={tone(c, 'mistake')}
               active
               onPress={() => void ed.addMarker('mistake')}
             />
@@ -401,7 +427,7 @@ export default function EditorScreen() {
               <Chip
                 key={a.id}
                 label={t.editor.toolbar.quickInsert(a.name)}
-                color={c.insert}
+                tone={tone(c, 'insert')}
                 onPress={() => void insert(a)}
               />
             ))}
@@ -420,7 +446,7 @@ export default function EditorScreen() {
           <>
             <Chip
               label={t.editor.toolbar.delete}
-              color={c.rec}
+              tone={tone(c, 'danger')}
               active
               onPress={() => void doDelete()}
             />
@@ -439,7 +465,7 @@ export default function EditorScreen() {
           </>
         )}
       </View>
-      <Text style={[st.hint, { color: c.ink3 }]}>
+      <Text style={[st.hint, { color: c.textTertiary }]}>
         {isRec
           ? t.editor.hintRecording
           : state.selection
@@ -462,7 +488,7 @@ export default function EditorScreen() {
         }
       >
         {state.assets.length === 0 ? (
-          <Text style={{ color: c.ink2 }}>{t.editor.insertSheet.empty}</Text>
+          <Text style={{ color: c.textSecondary }}>{t.editor.insertSheet.empty}</Text>
         ) : null}
         {state.assets.map((a) => (
           <Row
@@ -490,7 +516,7 @@ export default function EditorScreen() {
         {selectedOverlay ? (
           <>
             <View style={st.gainRow}>
-              <Text style={{ color: c.ink }}>{t.editor.overlay.gain}</Text>
+              <Text style={{ color: c.textPrimary }}>{t.editor.overlay.gain}</Text>
               <View style={{ flex: 1 }} />
               <Pressable
                 onPress={() =>
@@ -501,12 +527,12 @@ export default function EditorScreen() {
                     `gain:${selectedOverlay.id}`,
                   )
                 }
-                hitSlop={8}
+                hitSlop={glyphSlop}
                 style={st.pm}
               >
-                <Text style={{ color: c.ink, fontSize: 18 }}>－</Text>
+                <Text style={{ color: c.textPrimary, fontSize: icon.sm }}>－</Text>
               </Pressable>
-              <Text style={{ color: c.ink, width: 72, textAlign: 'center' }}>
+              <Text style={{ color: c.textPrimary, width: 72, textAlign: 'center' }}>
                 {selectedOverlay.gainDb.toFixed(1)} dB
               </Text>
               <Pressable
@@ -518,10 +544,10 @@ export default function EditorScreen() {
                     `gain:${selectedOverlay.id}`,
                   )
                 }
-                hitSlop={8}
+                hitSlop={glyphSlop}
                 style={st.pm}
               >
-                <Text style={{ color: c.ink, fontSize: 18 }}>＋</Text>
+                <Text style={{ color: c.textPrimary, fontSize: icon.sm }}>＋</Text>
               </Pressable>
             </View>
             {selectedOverlay.kind === 'bgm' ? (
@@ -652,12 +678,12 @@ export default function EditorScreen() {
         )}
       >
         {!silencePlan ? (
-          <Text style={{ color: c.ink2 }}>{t.editor.silence.analyzing}</Text>
+          <Text style={{ color: c.textSecondary }}>{t.editor.silence.analyzing}</Text>
         ) : silencePlan.ranges.length === 0 ? (
-          <Text style={{ color: c.ink2 }}>{t.editor.silence.none}</Text>
+          <Text style={{ color: c.textSecondary }}>{t.editor.silence.none}</Text>
         ) : (
           <>
-            <Text style={{ color: c.ink, marginBottom: 12 }}>
+            <Text style={{ color: c.textPrimary, marginBottom: space.md }}>
               {t.editor.silence.plan(
                 silencePlan.ranges.length,
                 formatSmp(silencePlan.totalRemoved, { tenths: true }),
@@ -743,34 +769,38 @@ export default function EditorScreen() {
               label={`${i + 1}. ${take?.name ?? v.takeId.slice(0, 6)}`}
               sub={`${formatSmp(smp(v.srcEnd - v.srcStart))} · ${v.gainDb.toFixed(1)} dB`}
               right={
-                <View style={{ flexDirection: 'row', gap: 14 }}>
+                <View style={{ flexDirection: 'row', gap: space.lg }}>
                   <Pressable
                     onPress={() => void ed.moveTake(i, i - 1)}
                     disabled={i === 0}
-                    hitSlop={6}
+                    hitSlop={glyphSlop}
                   >
-                    <Text style={{ color: i === 0 ? c.ink3 : c.ink }}>↑</Text>
+                    <Text style={{ color: i === 0 ? c.textTertiary : c.textPrimary }}>↑</Text>
                   </Pressable>
                   <Pressable
                     onPress={() => void ed.moveTake(i, i + 1)}
                     disabled={i === state.doc.voice.length - 1}
-                    hitSlop={6}
+                    hitSlop={glyphSlop}
                   >
-                    <Text style={{ color: i === state.doc.voice.length - 1 ? c.ink3 : c.ink }}>
+                    <Text
+                      style={{
+                        color: i === state.doc.voice.length - 1 ? c.textTertiary : c.textPrimary,
+                      }}
+                    >
                       ↓
                     </Text>
                   </Pressable>
                   <Pressable
                     onPress={() => void ed.setVoiceGain(i, Math.max(-20, v.gainDb - 1))}
-                    hitSlop={6}
+                    hitSlop={glyphSlop}
                   >
-                    <Text style={{ color: c.ink }}>－</Text>
+                    <Text style={{ color: c.textPrimary }}>－</Text>
                   </Pressable>
                   <Pressable
                     onPress={() => void ed.setVoiceGain(i, Math.min(12, v.gainDb + 1))}
-                    hitSlop={6}
+                    hitSlop={glyphSlop}
                   >
-                    <Text style={{ color: c.ink }}>＋</Text>
+                    <Text style={{ color: c.textPrimary }}>＋</Text>
                   </Pressable>
                   <Pressable
                     onPress={() => {
@@ -781,9 +811,9 @@ export default function EditorScreen() {
                         onAction: () => void ed.undo(),
                       });
                     }}
-                    hitSlop={6}
+                    hitSlop={glyphSlop}
                   >
-                    <Text style={{ color: c.rec }}>✕</Text>
+                    <Text style={{ color: c.dangerText }}>✕</Text>
                   </Pressable>
                 </View>
               }
@@ -791,7 +821,7 @@ export default function EditorScreen() {
           );
         })}
         {state.doc.voice.length === 0 ? (
-          <Text style={{ color: c.ink2 }}>{t.editor.takes.empty}</Text>
+          <Text style={{ color: c.textSecondary }}>{t.editor.takes.empty}</Text>
         ) : null}
       </Sheet>
 
@@ -806,7 +836,7 @@ export default function EditorScreen() {
             key={t.id}
             label={t.text}
             right={
-              <View style={{ flexDirection: 'row', gap: 14 }}>
+              <View style={{ flexDirection: 'row', gap: space.lg }}>
                 <Pressable
                   onPress={() => {
                     const a = [...state.topics];
@@ -815,27 +845,30 @@ export default function EditorScreen() {
                       void ed.saveTopics(a);
                     }
                   }}
-                  hitSlop={6}
+                  hitSlop={glyphSlop}
                 >
-                  <Text style={{ color: c.ink }}>↑</Text>
+                  <Text style={{ color: c.textPrimary }}>↑</Text>
                 </Pressable>
                 <Pressable
                   onPress={() => void ed.saveTopics(state.topics.filter((x) => x.id !== t.id))}
-                  hitSlop={6}
+                  hitSlop={glyphSlop}
                 >
-                  <Text style={{ color: c.rec }}>✕</Text>
+                  <Text style={{ color: c.dangerText }}>✕</Text>
                 </Pressable>
               </View>
             }
           />
         ))}
-        <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
+        <View style={{ flexDirection: 'row', gap: space.sm, marginTop: space.md }}>
           <TextInput
             value={topicDraft}
             onChangeText={setTopicDraft}
             placeholder={t.editor.topics.placeholder}
-            placeholderTextColor={c.ink3}
-            style={[st.input, { color: c.ink, borderColor: c.line, backgroundColor: c.panel2 }]}
+            placeholderTextColor={c.textTertiary}
+            style={[
+              st.input,
+              { color: c.textPrimary, borderColor: c.border, backgroundColor: c.surfaceRaised },
+            ]}
             accessibilityLabel={t.editor.topics.title}
             onSubmitEditing={() => {
               if (topicDraft.trim()) {
@@ -874,12 +907,12 @@ export default function EditorScreen() {
       </Sheet>
 
       <Sheet visible={!!error} onClose={() => setError(null)} title={t.common.error}>
-        <Text style={{ color: c.ink, lineHeight: 20 }}>{error}</Text>
+        <Text style={{ color: c.textPrimary, lineHeight: 20 }}>{error}</Text>
         <Button
           label={t.common.close}
           kind="secondary"
           onPress={() => setError(null)}
-          style={{ marginTop: 12 }}
+          style={{ marginTop: space.md }}
         />
       </Sheet>
     </Screen>
@@ -890,91 +923,109 @@ const st = StyleSheet.create({
   clockRow: {
     flexDirection: 'row',
     alignItems: 'baseline',
-    gap: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 4,
+    gap: space.sm,
+    paddingHorizontal: gutter,
+    paddingVertical: space.xs,
   },
-  clock: { fontSize: 28, fontWeight: '700', fontVariant: ['tabular-nums'] },
+  clock: { ...typography.display, ...tabularNums },
   recPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: space.xs,
     borderWidth: 1,
-    borderRadius: 999,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
+    borderRadius: radius.pill,
+    paddingHorizontal: space.sm,
+    paddingVertical: space.hair,
   },
-  recDot: { width: 8, height: 8, borderRadius: 4 },
+  recDot: { width: space.sm, height: space.sm, borderRadius: radius.pill },
   meterTrack: {
-    height: 4,
-    marginHorizontal: 16,
-    borderRadius: 2,
+    height: space.xs,
+    marginHorizontal: gutter,
+    borderRadius: radius.xs,
     overflow: 'hidden',
-    marginBottom: 6,
+    marginBottom: space.sm,
   },
-  meterFill: { height: 4 },
+  meterFill: { height: space.xs },
   banner: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    marginHorizontal: 16,
-    marginTop: 8,
-    padding: 10,
-    borderRadius: 10,
+    gap: space.md,
+    marginHorizontal: gutter,
+    marginTop: space.sm,
+    padding: space.md,
+    borderRadius: radius.md,
     borderWidth: 1,
   },
   topics: {
-    marginHorizontal: 16,
-    marginTop: 8,
-    padding: 10,
-    borderRadius: 10,
+    marginHorizontal: gutter,
+    marginTop: space.sm,
+    padding: space.md,
+    borderRadius: radius.md,
     borderWidth: 1,
-    gap: 4,
+    gap: space.xs,
   },
-  topicRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 3 },
+  topicRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.sm,
+    minHeight: hit.compact,
+    paddingVertical: space.xs,
+  },
   toolbar: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 6,
+    gap: space.sm,
+    paddingHorizontal: gutter,
+    paddingVertical: space.sm,
   },
-  hint: { fontSize: 11, paddingHorizontal: 16, paddingBottom: 6 },
+  hint: { ...typography.caption, paddingHorizontal: gutter, paddingBottom: space.sm },
   // 下端の safe area は Screen の bottomBar が足すので、ここでは持たない（Issue #89）。
   transport: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-evenly',
-    paddingVertical: 12,
+    paddingVertical: space.md,
     borderTopWidth: StyleSheet.hairlineWidth,
   },
-  side: { alignItems: 'center', width: 64 },
+  side: { alignItems: 'center', width: 64, minHeight: hit.min, justifyContent: 'center' },
   recBtn: {
     width: 72,
     height: 72,
-    borderRadius: 36,
+    borderRadius: radius.pill,
     borderWidth: 3,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  recDotBig: { width: 26, height: 26, borderRadius: 13, backgroundColor: '#fff' },
-  recStop: { width: 24, height: 24, borderRadius: 5 },
+  recDotBig: { width: 26, height: 26, borderRadius: radius.pill },
+  recStop: { width: 24, height: 24, borderRadius: radius.xs },
   playBtn: {
     width: 56,
     height: 56,
-    borderRadius: 28,
+    borderRadius: radius.pill,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  gainRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, gap: 8 },
-  pm: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
+  gainRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    minHeight: hit.min,
+    paddingVertical: space.sm,
+    gap: space.sm,
+  },
+  pm: {
+    width: hit.compact,
+    height: hit.compact,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   input: {
+    ...typography.body,
     flex: 1,
+    minHeight: hit.min,
     borderWidth: 1,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 15,
+    borderRadius: radius.md,
+    paddingHorizontal: space.md,
+    paddingVertical: space.md,
   },
 });

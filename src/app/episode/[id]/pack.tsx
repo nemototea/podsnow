@@ -11,6 +11,7 @@ import { useEpisode } from '@/features/episode/useEpisode';
 import { useT } from '@/i18n';
 import { listExports, type ExportRow } from '@/infra/db/repositories/exportsRepo';
 import { joinRoot } from '@/infra/files/layout';
+import { glyphSlop, icon, space, typography } from '@/ui/tokens';
 import { Button, Card, Eyebrow, Header, Loading, Screen, Toast } from '@/ui/components';
 import { useAppTheme } from '@/ui/ThemeContext';
 import { useToast } from '@/ui/useToast';
@@ -39,16 +40,16 @@ function CopyRow({
         <Eyebrow>{label}</Eyebrow>
         <Pressable
           onPress={onCopy}
-          hitSlop={8}
+          hitSlop={glyphSlop}
           accessibilityRole="button"
           accessibilityLabel={active ? t.pack.a11yCopied(label) : t.pack.a11yCopy(label)}
         >
-          <Text style={{ color: active ? c.voice : c.accent, fontSize: 13, fontWeight: '600' }}>
+          <Text style={[typography.label, { color: active ? c.successText : c.accentText }]}>
             {active ? t.common.copied : t.common.copy}
           </Text>
         </Pressable>
       </View>
-      <Text style={{ color: c.ink, lineHeight: 20 }} selectable>
+      <Text style={{ color: c.textPrimary, lineHeight: 20 }} selectable>
         {value || t.common.empty}
       </Text>
     </Card>
@@ -124,29 +125,33 @@ export default function DistributionPackScreen() {
       />
 
       {row ? (
-        <Card style={{ borderColor: c.accent }}>
+        <Card style={{ borderColor: c.accentBorder }}>
           <View style={st.fileRow}>
-            <Text style={{ color: c.accent, fontSize: 22 }}>♪</Text>
+            <Text style={{ color: c.accentText, fontSize: icon.md }}>♪</Text>
             <View style={{ flex: 1 }}>
-              <Text style={{ color: c.ink, fontWeight: '700' }}>{fileName}</Text>
-              <Text style={{ color: c.ink2, fontSize: 12, marginTop: 2 }}>
+              <Text style={[typography.bodyStrong, { color: c.textPrimary }]}>{fileName}</Text>
+              <Text style={[typography.caption, { color: c.textSecondary, marginTop: space.hair }]}>
                 {formatBytes(row.bytes ?? 0)} · {durationLabel}
                 {row.measured_lufs != null ? ` · ${row.measured_lufs.toFixed(1)} LUFS` : ''}
               </Text>
             </View>
           </View>
-          <Button label={t.pack.shareFile} onPress={() => void share()} style={{ marginTop: 12 }} />
-          <Text style={{ color: c.ink3, fontSize: 11, marginTop: 8, lineHeight: 16 }}>
+          <Button
+            label={t.pack.shareFile}
+            onPress={() => void share()}
+            style={{ marginTop: space.md }}
+          />
+          <Text style={[typography.caption, { color: c.textTertiary, marginTop: space.sm }]}>
             {t.pack.shareNote}
           </Text>
         </Card>
       ) : (
         <Card>
-          <Text style={{ color: c.ink }}>{t.pack.noExport}</Text>
+          <Text style={{ color: c.textPrimary }}>{t.pack.noExport}</Text>
           <Button
             label={t.pack.toExport}
             kind="secondary"
-            style={{ marginTop: 12 }}
+            style={{ marginTop: space.md }}
             onPress={() => router.push(`/episode/${episodeId}/export` as never)}
           />
         </Card>
@@ -179,7 +184,7 @@ export default function DistributionPackScreen() {
       <Button
         label={t.pack.backHome}
         kind="ghost"
-        style={{ marginTop: 10 }}
+        style={{ marginTop: space.md }}
         onPress={() => router.dismissTo('/' as never)}
       />
     </Screen>
@@ -191,7 +196,7 @@ const st = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-end',
     justifyContent: 'space-between',
-    marginBottom: 4,
+    marginBottom: space.xs,
   },
-  fileRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  fileRow: { flexDirection: 'row', alignItems: 'center', gap: space.md },
 });

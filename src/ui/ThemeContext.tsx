@@ -1,9 +1,9 @@
 import { createContext, useContext, type ReactNode } from 'react';
 
-import { palette, type Theme } from './theme';
+import { colors, type Colors } from './tokens';
 import { useTheme } from './useTheme';
 
-const Ctx = createContext<Theme & { isDark: boolean }>({ ...palette.dark, isDark: true });
+const Ctx = createContext<Colors & { isDark: boolean }>({ ...colors.dark, isDark: true });
 
 export function ThemeProvider({
   pref,

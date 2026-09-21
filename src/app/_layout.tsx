@@ -18,10 +18,10 @@ function Navigation() {
         colors: {
           ...nav.colors,
           background: c.bg,
-          card: c.panel,
-          text: c.ink,
-          border: c.line,
-          primary: c.accent,
+          card: c.surface,
+          text: c.textPrimary,
+          border: c.border,
+          primary: c.accentSolid,
         },
       }}
     >

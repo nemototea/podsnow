@@ -28,14 +28,21 @@ bundle id / package / モジュール名 / バックアップ拡張子 `.podsnow
 
 ## 色
 
-`src/ui/theme.ts` の dark トークンと同じ値を使う。マークのために別の色を作らない。
+dark トークンと同じ値を使う。マークのために別の色を作らない。
 
-| 用途 | トークン | 値 |
-|---|---|---|
-| マイク本体 | `accent` | `#E2B979` |
-| レベルメーター | `voice` | `#8FD4C1` |
-| 背景 | `bg` | `#0B0C0F` |
-| モノクロ版 | `ink` | `#F4F2EE` |
+この決めごとは文章ではなくコードで守っている。`scripts/brand/geometry.py` が
+トークンの生成元（`scripts/design/ramps.py`）を直接読むので、トークンを変えれば
+マークも必ず追従する。値の一覧は `python3 scripts/design/generate.py` の出力を見る。
+
+| 用途 | トークン |
+|---|---|
+| マイク本体 | `accentSolid` |
+| レベルメーター | `voiceSolid` |
+| 背景 | `bg` |
+| モノクロ版 | `textPrimary` |
+
+背景を変えたら `app.json` の `backgroundColor`（スプラッシュとアダプティブアイコン）も
+合わせる。
 
 ## ファイル
 

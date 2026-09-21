@@ -13,7 +13,8 @@ Claude Code と Codex の両方がこのファイルを読む（`CLAUDE.md` は�
 3. `ARCHITECTURE.md` — レイヤー、JS / ネイティブの境界
 4. `DATA_MODEL.md` — SQLite スキーマ、タイムラインの不変条件
 5. `AUDIO_DESIGN.md` — 録音・割り込み・レンダリング
-6. `DEVELOPMENT.md` — ブランチ戦略、規約、テスト、フェーズ計画
+6. `DESIGN_SYSTEM.md` — デザイントークン、色の作り方、コントラストの基準
+7. `DEVELOPMENT.md` — ブランチ戦略、規約、テスト、フェーズ計画
 
 文書と実装が矛盾したら、**コードではなく文書を先に直す提案**をする。
 
@@ -34,6 +35,9 @@ Claude Code と Codex の両方がこのファイルを読む（`CLAUDE.md` は�
   - `domain/` / `services/` / `infra/` は文言を持たない。エラーは `src/domain/errors.ts` の `AppErrorCode` で返し、表示は UI 層の `errorText()` に任せる。
   - DB に書き込む既定文言は `ServiceLabels`（`src/services/app/labels.ts`）経由で UI 層から渡す。
 - 時間はサンプル数（`Smp`、48 kHz）で持ち、UI 表示時だけ ms に変換する。
+- **画面と `src/ui/` に生の値を書かない**（色の hex、`fontSize`、余白、角丸）。`src/ui/tokens/` の役割トークンを使う（DESIGN_SYSTEM.md §1）。ESLint で落ちる。
+  - 色を変えるときは `src/ui/tokens/colors.ts` ではなく `scripts/design/ramps.py` を直して `python3 scripts/design/generate.py`。生成時と `npm test` の両方でコントラストを測る。
+  - 透過を重ねて色を作らない（`` `${c.voice}55` ``）。背面が分からないと測れない。不透明なトークンを足す。
 - アイコン・スプラッシュの PNG / SVG を直接編集しない。`scripts/brand/geometry.py` を直して `python3 scripts/brand/generate.py`（理由と使わないモチーフは `assets/brand/README.md`）。
 - 記述には【事実】/【確認済み】/【仮説】を付ける。【確認済み】には出典 URL。
 
@@ -51,5 +55,6 @@ npm run lint / npm run typecheck / npm test / npm run format
 npm run ios / npm run android          # Development Build
 npx expo prebuild --clean              # ネイティブ再生成（ios/ android/ は Git 管理外）
 npx create-expo-module@latest --local  # 新しいローカルモジュール → modules/<name>/
+python3 scripts/design/generate.py    # カラートークンの再生成（コントラスト検証つき）
 python3 scripts/brand/generate.py     # アイコン・スプラッシュ・ブランド SVG の再生成
 ```

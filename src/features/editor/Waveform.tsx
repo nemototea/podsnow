@@ -15,6 +15,7 @@ import { formatSmp, smp, type Smp } from '@/domain/time';
 import type { PlacedOverlay } from '@/domain/timeline/overlays';
 import type { Range, VoiceSegment } from '@/domain/timeline/types';
 import { placeVoice } from '@/domain/timeline/voice';
+import { concentric, glyphSlop, radius, space, tabularNums, typography } from '@/ui/tokens';
 import { useAppTheme } from '@/ui/ThemeContext';
 
 import { sampleVoiceColumns, type TakePeaks } from './peaks';
@@ -93,12 +94,12 @@ export const Waveform = memo(function Waveform(p: WaveformProps) {
         >
           {/* 目盛り */}
           {Array.from({ length: Math.ceil(totalSec / 15) + 2 }).map((_, i) => (
-            <Text key={i} style={[styles.tick, { left: i * 15 * p.pps, color: c.ink3 }]}>
+            <Text key={i} style={[styles.tick, { left: i * 15 * p.pps, color: c.textTertiary }]}>
               {formatSmp(smp(i * 15 * SAMPLE_RATE))}
             </Text>
           ))}
           {/* 声 */}
-          <View style={[styles.voiceTrack, { backgroundColor: c.panel, top: 16 }]}>
+          <View style={[styles.voiceTrack, { backgroundColor: c.surface, top: 16 }]}>
             {placed.map((seg, i) => (
               <Pressable
                 key={seg.segment.id}
@@ -108,7 +109,7 @@ export const Waveform = memo(function Waveform(p: WaveformProps) {
                   {
                     left: xOf(seg.start),
                     width: Math.max(2, xOf(seg.end) - xOf(seg.start)),
-                    borderColor: i % 2 ? `${c.voice}55` : `${c.voice}33`,
+                    borderColor: i % 2 ? c.voiceFillAlt : c.voiceFill,
                   },
                 ]}
               />
@@ -128,7 +129,7 @@ export const Waveform = memo(function Waveform(p: WaveformProps) {
                         top,
                         width: COL_W - 1,
                         height: h,
-                        backgroundColor: c.voice,
+                        backgroundColor: c.voiceSolid,
                         borderRadius: 1,
                       }}
                     />
@@ -142,8 +143,8 @@ export const Waveform = memo(function Waveform(p: WaveformProps) {
                   {
                     left: xOf(p.total),
                     width: Math.max(4, xOf(p.recFrames)),
-                    backgroundColor: `${c.rec}33`,
-                    borderColor: c.rec,
+                    backgroundColor: c.recordingOverlay,
+                    borderColor: c.recSolid,
                   },
                 ]}
               />
@@ -155,15 +156,15 @@ export const Waveform = memo(function Waveform(p: WaveformProps) {
                   {
                     left: xOf(p.selection.start),
                     width: Math.max(2, xOf(p.selection.end) - xOf(p.selection.start)),
-                    backgroundColor: `${c.accent}33`,
-                    borderColor: c.accent,
+                    backgroundColor: c.selectionOverlay,
+                    borderColor: c.accentBorder,
                   },
                 ]}
               />
             ) : null}
           </View>
           {/* 素材レイヤー */}
-          <View style={[styles.overlayTrack, { top: 16 + HEIGHT + 4, backgroundColor: c.panel }]}>
+          <View style={[styles.overlayTrack, { top: 16 + HEIGHT + 4, backgroundColor: c.surface }]}>
             {p.overlays.map((o) =>
               o.status === 'placed' ? (
                 <Pressable
@@ -178,13 +179,13 @@ export const Waveform = memo(function Waveform(p: WaveformProps) {
                         o.clip.kind === 'bgm' ||
                         o.clip.kind === 'opening' ||
                         o.clip.kind === 'ending'
-                          ? `${c.music}55`
-                          : `${c.insert}66`,
-                      borderColor: p.selectedOverlay === o.clip.id ? c.accent : 'transparent',
+                          ? c.musicFill
+                          : c.insertFill,
+                      borderColor: p.selectedOverlay === o.clip.id ? c.accentSolid : 'transparent',
                     },
                   ]}
                 >
-                  <Text numberOfLines={1} style={[styles.overlayLabel, { color: c.ink }]}>
+                  <Text numberOfLines={1} style={[styles.overlayLabel, { color: c.textPrimary }]}>
                     {o.clip.kind}
                   </Text>
                 </Pressable>
@@ -196,19 +197,19 @@ export const Waveform = memo(function Waveform(p: WaveformProps) {
             <Pressable
               key={marker.id}
               onPress={() => p.onMarkerPress(marker)}
-              hitSlop={8}
+              hitSlop={glyphSlop}
               style={[styles.marker, { left: xOf(at) - 8 }]}
             >
               <Text
                 style={{
                   color: marker.resolved
-                    ? c.ink3
+                    ? c.textTertiary
                     : marker.kind === 'mistake'
-                      ? c.mistake
+                      ? c.mistakeText
                       : marker.kind === 'interruption' || marker.kind === 'route_change'
-                        ? c.rec
-                        : c.accent,
-                  fontSize: 12,
+                        ? c.dangerText
+                        : c.accentText,
+                  fontSize: typography.caption.fontSize,
                 }}
               >
                 {marker.kind === 'mistake'
@@ -228,7 +229,7 @@ export const Waveform = memo(function Waveform(p: WaveformProps) {
               styles.playhead,
               {
                 left: xOf(p.recording ? p.total + p.recFrames : p.playhead),
-                backgroundColor: p.recording ? c.rec : c.accent,
+                backgroundColor: p.recording ? c.recSolid : c.accentSolid,
               },
             ]}
           />
@@ -240,34 +241,41 @@ export const Waveform = memo(function Waveform(p: WaveformProps) {
 
 const styles = StyleSheet.create({
   root: { width: '100%' },
-  tick: { position: 'absolute', top: 0, fontSize: 9, fontVariant: ['tabular-nums'] },
+  tick: { position: 'absolute', top: 0, ...typography.caption, ...tabularNums },
   voiceTrack: {
     position: 'absolute',
     left: 0,
     right: 0,
     height: HEIGHT,
-    borderRadius: 8,
+    borderRadius: radius.sm,
     overflow: 'hidden',
   },
   voiceSeg: { position: 'absolute', top: 0, bottom: 0, borderLeftWidth: 1 },
   recLive: { position: 'absolute', top: 0, bottom: 0, borderLeftWidth: 1 },
   selection: { position: 'absolute', top: 0, bottom: 0, borderLeftWidth: 2, borderRightWidth: 2 },
-  overlayTrack: { position: 'absolute', left: 0, right: 0, height: OVERLAY_H * 2, borderRadius: 8 },
+  overlayTrack: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    height: OVERLAY_H * 2,
+    borderRadius: radius.sm,
+  },
   overlayClip: {
     position: 'absolute',
-    top: 2,
-    height: OVERLAY_H * 2 - 4,
-    borderRadius: 6,
+    top: space.hair,
+    height: OVERLAY_H * 2 - space.xs,
+    // 外側 radius.sm の内側に space.hair で入るので、同心になる角丸はこれ。
+    borderRadius: concentric(radius.sm, space.hair),
     borderWidth: 1.5,
     justifyContent: 'center',
-    paddingHorizontal: 6,
+    paddingHorizontal: space.sm,
   },
-  overlayLabel: { fontSize: 10, fontWeight: '600' },
+  overlayLabel: typography.overline,
   marker: {
     position: 'absolute',
     top: 16 + HEIGHT + 4 + OVERLAY_H * 2 + 4,
     width: 16,
     alignItems: 'center',
   },
-  playhead: { position: 'absolute', top: 12, bottom: 0, width: 2, borderRadius: 1 },
+  playhead: { position: 'absolute', top: space.md, bottom: 0, width: space.hair, borderRadius: 1 },
 });

@@ -8,6 +8,7 @@ import { useCopy } from '@/features/episode/useCopy';
 import { useEpisode } from '@/features/episode/useEpisode';
 import { useT } from '@/i18n';
 import { getDefaultTemplate } from '@/infra/db/repositories/showsRepo';
+import { glyphSlop, hit, radius, space, typography } from '@/ui/tokens';
 import { Button, Card, Eyebrow, Header, Loading, Screen, Toast } from '@/ui/components';
 import { useAppTheme } from '@/ui/ThemeContext';
 import { useToast } from '@/ui/useToast';
@@ -34,11 +35,11 @@ function CopyBtn({ active, onPress }: { active: boolean; onPress: () => void }) 
   return (
     <Pressable
       onPress={onPress}
-      hitSlop={8}
+      hitSlop={glyphSlop}
       accessibilityRole="button"
       accessibilityLabel={active ? t.a11y.copied : t.a11y.copy}
     >
-      <Text style={{ color: active ? c.voice : c.accent, fontSize: 13, fontWeight: '600' }}>
+      <Text style={[typography.label, { color: active ? c.successText : c.accentText }]}>
         {active ? t.common.copied : t.common.copy}
       </Text>
     </Pressable>
@@ -180,7 +181,10 @@ export default function EpisodeDetailsScreen() {
 
   if (!episode || !hydrated) return <Loading label={t.common.loading} />;
 
-  const inputStyle = [st.input, { color: c.ink, backgroundColor: c.panel2, borderColor: c.line }];
+  const inputStyle = [
+    st.input,
+    { color: c.textPrimary, backgroundColor: c.surfaceRaised, borderColor: c.border },
+  ];
 
   return (
     <Screen overlay={<Toast toast={toast} onAction={act} onDismiss={dismiss} />}>
@@ -194,16 +198,12 @@ export default function EpisodeDetailsScreen() {
         right={
           <Pressable
             onPress={() => void copy('all', `${title}\n\n${description}`)}
-            hitSlop={8}
+            hitSlop={glyphSlop}
             accessibilityRole="button"
             accessibilityLabel={t.a11y.copyAll}
           >
             <Text
-              style={{
-                color: copied === 'all' ? c.voice : c.accent,
-                fontSize: 13,
-                fontWeight: '600',
-              }}
+              style={[typography.label, { color: copied === 'all' ? c.successText : c.accentText }]}
             >
               {copied === 'all' ? t.common.copied : t.common.copyAll}
             </Text>
@@ -212,9 +212,11 @@ export default function EpisodeDetailsScreen() {
       />
 
       {episode.description_suggestion ? (
-        <Card style={{ borderColor: c.accent }}>
+        <Card style={{ borderColor: c.accentBorder }}>
           <Eyebrow>{t.details.suggestionEyebrow}</Eyebrow>
-          <Text style={{ color: c.ink, lineHeight: 20 }}>{episode.description_suggestion}</Text>
+          <Text style={{ color: c.textPrimary, lineHeight: 20 }}>
+            {episode.description_suggestion}
+          </Text>
           <View style={st.suggestRow}>
             <Button
               label={t.details.adopt}
@@ -240,7 +242,7 @@ export default function EpisodeDetailsScreen() {
           value={title}
           onChangeText={mark(setTitle)}
           placeholder={t.details.titlePlaceholder}
-          placeholderTextColor={c.ink3}
+          placeholderTextColor={c.textTertiary}
           style={inputStyle}
           accessibilityLabel={t.details.titlePlaceholder}
         />
@@ -253,7 +255,7 @@ export default function EpisodeDetailsScreen() {
           value={description}
           onChangeText={mark(setDescription)}
           placeholder={t.details.descriptionPlaceholder}
-          placeholderTextColor={c.ink3}
+          placeholderTextColor={c.textTertiary}
           multiline
           textAlignVertical="top"
           style={[inputStyle, { minHeight: 180 }]}
@@ -301,7 +303,7 @@ export default function EpisodeDetailsScreen() {
               value={recordedAt}
               onChangeText={mark(setRecordedAt)}
               placeholder="YYYY-MM-DD"
-              placeholderTextColor={c.ink3}
+              placeholderTextColor={c.textTertiary}
               style={inputStyle}
               accessibilityLabel={t.metadata.recordedAt}
             />
@@ -317,7 +319,7 @@ export default function EpisodeDetailsScreen() {
       <Button
         label={t.details.nextSound}
         kind="secondary"
-        style={{ marginTop: 10 }}
+        style={{ marginTop: space.md }}
         onPress={() => {
           const next = () => router.push(`/episode/${episodeId}/sound` as never);
           if (dirty) void save().then((ok) => ok && next());
@@ -330,14 +332,15 @@ export default function EpisodeDetailsScreen() {
 
 const st = StyleSheet.create({
   input: {
+    ...typography.body,
+    minHeight: hit.min,
     borderWidth: 1,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 15,
+    borderRadius: radius.md,
+    paddingHorizontal: space.md,
+    paddingVertical: space.md,
   },
   labelRow: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' },
-  actionRow: { flexDirection: 'row', gap: 8, marginTop: 10 },
-  suggestRow: { flexDirection: 'row', gap: 8, marginTop: 12 },
-  triple: { flexDirection: 'row', gap: 8 },
+  actionRow: { flexDirection: 'row', gap: space.sm, marginTop: space.md },
+  suggestRow: { flexDirection: 'row', gap: space.sm, marginTop: space.md },
+  triple: { flexDirection: 'row', gap: space.sm },
 });
