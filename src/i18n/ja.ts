@@ -43,7 +43,6 @@ export const ja = {
     selected: '選択中',
     cancelRun: '中止',
     shareUnavailable: 'この端末では共有できません',
-    countItems: (n: number) => `${n} 件`,
   },
 
   a11y: {
@@ -63,7 +62,6 @@ export const ja = {
     pause: '一時停止',
     decrease: (label: string) => `${label} を下げる`,
     increase: (label: string) => `${label} を上げる`,
-    menuFor: (name: string) => `${name} のメニュー`,
   },
 
   /** エピソードの状態（FR-EP-3）。 */
@@ -75,7 +73,7 @@ export const ja = {
 
   /** `AppErrorCode` → 表示文言。 */
   errors: {
-    voice_timeline_empty: '声トラックが空です',
+    voice_timeline_empty: 'まだ録音がありません',
     backup_manifest_missing: 'PodsNow のバックアップファイルではありません',
     backup_unsupported_version: (version: string) =>
       `対応していないバックアップ形式です（version ${version}）`,
@@ -110,14 +108,10 @@ Podcast: {{show_name}}
   /** Undo 履歴のラベル（トーストに「〜を取り消しました」として出る）。 */
   undo: {
     punchInPrepare: '録り直しの準備',
-    addMistakeMarker: '言い間違いマーカーを追加',
-    addMarker: 'マーカーを追加',
-    resolveMarker: 'マーカーを対応済みに',
-    removeMarker: 'マーカーを削除',
     deleteRange: '範囲を削除',
     deleteSilence: '無音を削除',
-    reorderTakes: 'テイクを並び替え',
-    removeFromTimeline: 'タイムラインから削除',
+    reorderTakes: '録音を並び替え',
+    removeFromTimeline: 'この回から外す',
     changeGain: '音量を変更',
     removeAsset: '素材を削除',
     moveAsset: '素材を移動',
@@ -125,12 +119,11 @@ Podcast: {{show_name}}
     reanchored: (label: string) => `${label}（素材を追従）`,
     changeDucking: 'ダッキングを変更',
     changeFade: 'フェードを変更',
-    removeTakeFromTimeline: (take: string) => `${take} をタイムラインから削除`,
     undid: (label: string) => `「${label}」を取り消しました`,
     redid: (label: string) => `「${label}」をやり直しました`,
   },
 
-  /** Show Assets の用途（FR-AST-1）。 */
+  /** 素材の用途（FR-AST-1）。 */
   assetKinds: {
     opening: { label: 'オープニング', sub: '番組冒頭の固定音声' },
     ending: { label: 'エンディング', sub: '番組終了時の固定音声' },
@@ -166,7 +159,6 @@ Podcast: {{show_name}}
     badgeNoAudio: '音声なし',
     untitled: '（タイトル未設定）',
     menu: {
-      openEpisode: 'エピソードを開く',
       details: 'エピソードの詳細',
       export: '書き出し',
       duplicate: '複製して新しい回にする',
@@ -174,7 +166,6 @@ Podcast: {{show_name}}
       backupSub: '録音と編集データをまとめて書き出す',
       purgeAudio: '音声を削除',
       purgeAudioSub: '録音だけ消して容量を空ける。話数・タイトル・概要・書き出し履歴は残る',
-      purgeAudioConfirm: '録音を削除します。取り消せません。話数と詳細は残ります',
       remove: 'エピソードを削除',
       removeSub: '元の録音は残ります・取り消し可',
       removeExportedNote: (n: number) =>
@@ -249,8 +240,6 @@ Podcast: {{show_name}}
     insertBefore: '素材を入れる',
     insert: '＋ 素材',
     clearSelection: '選択を解除',
-    selectRange: 'ここから',
-    selectionEnd: 'ここまで',
     removeSilence: '無音を詰める',
     deleted: (duration: string) => `${duration} を削除しました`,
     hintSelection: (from: string, to: string) => `${from} 〜 ${to} を選択中`,
@@ -280,8 +269,6 @@ Podcast: {{show_name}}
   },
 
   episode: {
-    headerTitle: (n: number) => `エピソード #${n}`,
-    seasonLabel: (n: number) => `シーズン ${n}`,
     untitled: '（タイトル未設定）',
     tabs: {
       record: '録音',
@@ -319,8 +306,6 @@ Podcast: {{show_name}}
     noTopics: 'トークテーマがありません（Editor で追加できます）',
     noTemplate: '概要欄テンプレートがありません',
     templateApplied: 'テンプレートを適用しました',
-    revert: '元に戻す',
-    nextSound: '次へ：音の仕上げ',
   },
 
   sound: {
@@ -339,7 +324,6 @@ Podcast: {{show_name}}
     release: 'リリース',
     threshold: '声のしきい値',
     note: '設定は書き出し時に適用されます。元の録音は変更されません。',
-    nextExport: '次へ：書き出し',
   },
 
   export: {
@@ -361,7 +345,7 @@ Podcast: {{show_name}}
     phaseMeasuring: '音量を測定中…',
     phaseRendering: '書き出し中…',
     run: '書き出す',
-    emptyVoice: '声トラックが空です。先に録音してください。',
+    emptyVoice: 'まだ録音がありません。先に録音してください。',
     historyEyebrow: '書き出し履歴',
     noHistory: 'まだ書き出しはありません',
     cancelled: '書き出しを中止しました',
@@ -386,7 +370,7 @@ Podcast: {{show_name}}
     a11yCopied: (label: string) => `${label} をコピーしました`,
   },
 
-  /** Distribution Pack の「すべてのメタデータ」テキストの見出し。 */
+  /** 共有画面の「まとめてコピー」テキストの見出し。 */
   metadata: {
     title: 'タイトル',
     episode: '話数',
@@ -399,7 +383,7 @@ Podcast: {{show_name}}
   backup: {
     title: 'バックアップ',
     subtitle: '録音素材と編集データを 1 ファイルにまとめます',
-    lead: '録音（WAV）・素材・タイムライン・マーカー・トークテーマを .podsnow ファイルに書き出します。別の端末で「バックアップから復元」すると同じエピソードを再現できます。',
+    lead: '録音（WAV）・素材・編集内容・トークテーマを .podsnow ファイルに書き出します。別の端末で「バックアップから復元」すると同じエピソードを再現できます。',
     run: 'バックアップを作成',
     again: 'もう一度作成',
     phaseWriting: '書き込み中',
@@ -426,7 +410,7 @@ Podcast: {{show_name}}
     doneRenumbered: (episodeNumber: number) =>
       `第${episodeNumber}回として復元しました（元の話数は使用中でした）`,
     summary: (takes: number, reused: number, imported: number) =>
-      `テイク ${takes} 件 · 素材 再利用 ${reused} / 取り込み ${imported}`,
+      `録音 ${takes} 件 · 素材 再利用 ${reused} / 取り込み ${imported}`,
     openEpisode: 'エピソードを開く',
   },
 
@@ -501,7 +485,7 @@ Podcast: {{show_name}}
     showEyebrow: '番組',
     showSettings: '番組の設定',
     showSettingsSub: '番組名・既定構成・概要欄テンプレート',
-    showAssets: 'Show Assets',
+    showAssets: '素材',
     showAssetsSub: 'Opening / Ending / Jingle / BGM',
     storageEyebrow: 'ストレージ',
     recordingsSize: '録音データ',
@@ -512,7 +496,7 @@ Podcast: {{show_name}}
     cleanupSub: (size: string) =>
       `${size} が対象です。自動では削除しません（このバージョンでは案内のみ）`,
     cleanupToast:
-      '整理機能は次のバージョンで追加予定です。エピソード単位の削除は Home のメニューから行えます。',
+      '整理機能は次のバージョンで追加予定です。エピソード単位の削除はホームのメニューから行えます。',
   },
 
   showSettings: {
@@ -534,7 +518,6 @@ Podcast: {{show_name}}
     a11yDuckAmount: 'ダッキング量',
     a11yPickAsset: (slot: string) => `${slot} の素材を選ぶ`,
     a11ySlotGain: (slot: string) => `${slot} の音量`,
-    assetsLink: '素材の追加・整理は Show Assets ›',
     templateEyebrow: '概要欄テンプレート',
     templateNote:
       '新しいエピソードの概要欄に毎回適用されます。あとから各エピソードで自由に編集できます。',
@@ -549,11 +532,11 @@ Podcast: {{show_name}}
     a11yInsertPlaceholder: (name: string) => `${name} を挿入`,
     saved: '番組の設定を保存しました',
     slotAssets: (slot: string) => `${slot} の素材`,
-    noAssetsForSlot: 'この用途の素材はまだありません。Show Assets から追加してください。',
+    noAssetsForSlot: 'この用途の素材はまだありません。下の「素材」から追加してください。',
   },
 
   showAssets: {
-    title: 'Show Assets',
+    title: '素材',
     lead: 'ファイル名ではなく「番組のどこで使う音か」で並んでいます。すべてのエピソードから挿入できます。',
     add: '＋ 追加',
     a11yAdd: (kind: string) => `${kind} に音源を追加`,

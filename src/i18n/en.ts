@@ -42,7 +42,6 @@ export const en: Messages = {
     selected: 'Selected',
     cancelRun: 'Cancel',
     shareUnavailable: 'Sharing is not available on this device',
-    countItems: (n: number) => (n === 1 ? '1 item' : `${n} items`),
   },
 
   a11y: {
@@ -62,7 +61,6 @@ export const en: Messages = {
     pause: 'Pause',
     decrease: (label: string) => `Decrease ${label}`,
     increase: (label: string) => `Increase ${label}`,
-    menuFor: (name: string) => `Menu for ${name}`,
   },
 
   status: {
@@ -72,7 +70,7 @@ export const en: Messages = {
   },
 
   errors: {
-    voice_timeline_empty: 'The voice track is empty',
+    voice_timeline_empty: 'Nothing recorded yet',
     backup_manifest_missing: 'This is not a PodsNow backup file',
     backup_unsupported_version: (version: string) =>
       `Unsupported backup format (version ${version})`,
@@ -104,14 +102,10 @@ Tag #PodsNow to share your thoughts`,
 
   undo: {
     punchInPrepare: 'Prepare re-record',
-    addMistakeMarker: 'Add flub marker',
-    addMarker: 'Add marker',
-    resolveMarker: 'Mark marker as done',
-    removeMarker: 'Delete marker',
     deleteRange: 'Delete range',
     deleteSilence: 'Remove silence',
-    reorderTakes: 'Reorder takes',
-    removeFromTimeline: 'Remove from timeline',
+    reorderTakes: 'Reorder recordings',
+    removeFromTimeline: 'Remove from this episode',
     changeGain: 'Change volume',
     removeAsset: 'Remove asset',
     moveAsset: 'Move asset',
@@ -119,7 +113,6 @@ Tag #PodsNow to share your thoughts`,
     reanchored: (label: string) => `${label} (assets re-anchored)`,
     changeDucking: 'Change ducking',
     changeFade: 'Change fade',
-    removeTakeFromTimeline: (take: string) => `Remove ${take} from the timeline`,
     undid: (label: string) => `Undid “${label}”`,
     redid: (label: string) => `Redid “${label}”`,
   },
@@ -163,7 +156,6 @@ Tag #PodsNow to share your thoughts`,
     badgeNoAudio: 'No audio',
     untitled: '(Untitled)',
     menu: {
-      openEpisode: 'Open episode',
       details: 'Episode details',
       export: 'Export',
       duplicate: 'Duplicate as a new episode',
@@ -172,8 +164,6 @@ Tag #PodsNow to share your thoughts`,
       purgeAudio: 'Delete audio',
       purgeAudioSub:
         'Free up space by deleting only the recordings. The number, title, description and export history are kept',
-      purgeAudioConfirm:
-        'The recordings will be deleted. This cannot be undone. The number and details are kept.',
       remove: 'Delete episode',
       removeSub: 'The original recording is kept · can be undone',
       removeExportedNote: (n: number) =>
@@ -247,8 +237,6 @@ Tag #PodsNow to share your thoughts`,
     insertBefore: 'Add a sound',
     insert: '+ Sound',
     clearSelection: 'Clear selection',
-    selectRange: 'Start here',
-    selectionEnd: 'End here',
     removeSilence: 'Trim silence',
     deleted: (duration: string) => `Deleted ${duration}`,
     hintSelection: (from: string, to: string) => `${from} – ${to} selected`,
@@ -278,8 +266,6 @@ Tag #PodsNow to share your thoughts`,
   },
 
   episode: {
-    headerTitle: (n: number) => `Episode #${n}`,
-    seasonLabel: (n: number) => `Season ${n}`,
     untitled: '(Untitled)',
     tabs: {
       record: 'Record',
@@ -318,8 +304,6 @@ Tag #PodsNow to share your thoughts`,
     noTopics: 'No talking points yet (add them in the editor)',
     noTemplate: 'No description template yet',
     templateApplied: 'Applied the template',
-    revert: 'Revert',
-    nextSound: 'Next: sound polish',
   },
 
   sound: {
@@ -338,7 +322,6 @@ Tag #PodsNow to share your thoughts`,
     release: 'Release',
     threshold: 'Voice threshold',
     note: 'These settings are applied on export. The original recording is unchanged.',
-    nextExport: 'Next: export',
   },
 
   export: {
@@ -406,7 +389,7 @@ Tag #PodsNow to share your thoughts`,
   backup: {
     title: 'Backup',
     subtitle: 'Bundles the recordings and edit data into a single file',
-    lead: 'Writes the recordings (WAV), assets, timeline, markers and talking points into a .podsnow file. Use “Restore from backup” on another device to reproduce the same episode.',
+    lead: 'Writes the recordings (WAV), sounds, edits and talking points into a .podsnow file. Use “Restore from backup” on another device to reproduce the same episode.',
     run: 'Create backup',
     again: 'Create again',
     phaseWriting: 'Writing',
@@ -433,7 +416,7 @@ Tag #PodsNow to share your thoughts`,
     doneRenumbered: (episodeNumber: number) =>
       `Restored as episode ${episodeNumber} (the original number was in use)`,
     summary: (takes: number, reused: number, imported: number) =>
-      `${takes} ${takes === 1 ? 'take' : 'takes'} · assets reused ${reused} / imported ${imported}`,
+      `${takes} ${takes === 1 ? 'recording' : 'recordings'} · sounds reused ${reused} / imported ${imported}`,
     openEpisode: 'Open episode',
   },
 
@@ -512,7 +495,7 @@ Tag #PodsNow to share your thoughts`,
     showEyebrow: 'SHOW',
     showSettings: 'Show settings',
     showSettingsSub: 'Show name, default layout, description template',
-    showAssets: 'Show Assets',
+    showAssets: 'Sounds',
     showAssetsSub: 'Opening / Ending / Jingle / BGM',
     storageEyebrow: 'STORAGE',
     recordingsSize: 'Recordings',
@@ -545,7 +528,6 @@ Tag #PodsNow to share your thoughts`,
     a11yDuckAmount: 'ducking amount',
     a11yPickAsset: (slot: string) => `Choose the asset for ${slot}`,
     a11ySlotGain: (slot: string) => `${slot} volume`,
-    assetsLink: 'Add and organize assets in Show Assets ›',
     templateEyebrow: 'DESCRIPTION TEMPLATE',
     templateNote:
       'Applied to the description of every new episode. You can still edit each episode freely afterwards.',
@@ -560,11 +542,11 @@ Tag #PodsNow to share your thoughts`,
     a11yInsertPlaceholder: (name: string) => `Insert ${name}`,
     saved: 'Saved the show settings',
     slotAssets: (slot: string) => `${slot} assets`,
-    noAssetsForSlot: 'No assets for this slot yet. Add some from Show Assets.',
+    noAssetsForSlot: 'Nothing for this slot yet. Add some under Sounds below.',
   },
 
   showAssets: {
-    title: 'Show Assets',
+    title: 'Sounds',
     lead: 'Sorted by where the sound is used in the show, not by file name. Every episode can insert them.',
     add: '＋ Add',
     a11yAdd: (kind: string) => `Add audio to ${kind}`,

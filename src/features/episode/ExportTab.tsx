@@ -12,7 +12,7 @@ import { getDefaultTemplate } from '@/infra/db/repositories/showsRepo';
 import { joinRoot } from '@/infra/files/layout';
 import { parseSoundSettings, type SoundSettings } from '@/services/audio/renderDocumentFromDb';
 import { estimateExportBytes, EXPORT_PRESETS } from '@/services/export/ExportService';
-import { glyphSlop, hit, radius, space, typography } from '@/ui/tokens';
+import { glyphSlop, hit, icon, radius, space, tabularNums, typography } from '@/ui/tokens';
 import { Button, Card, Chip, Eyebrow, Row, Toggle } from '@/ui/components';
 import { useAppTheme } from '@/ui/ThemeContext';
 
@@ -48,6 +48,52 @@ function fromDateInput(s: string): number | null | undefined {
   return Number.isNaN(d.getTime()) ? undefined : d.getTime();
 }
 
+/** 音の細かい調整（FR-SND-2 の Advanced）。既定のままなら触らなくてよい。 */
+function Stepper({
+  label,
+  value,
+  unit,
+  step,
+  min,
+  max,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  unit: string;
+  step: number;
+  min: number;
+  max: number;
+  onChange: (v: number) => void;
+}) {
+  const c = useAppTheme();
+  const t = useT();
+  return (
+    <View style={[st.stepper, { borderBottomColor: c.border }]}>
+      <Text style={[typography.body, { color: c.textPrimary, flex: 1 }]}>{label}</Text>
+      <Pressable
+        onPress={() => onChange(Math.max(min, +(value - step).toFixed(2)))}
+        style={[st.stepBtn, { borderColor: c.border }]}
+        accessibilityRole="button"
+        accessibilityLabel={t.a11y.decrease(label)}
+      >
+        <Text style={{ color: c.textPrimary, fontSize: icon.sm }}>−</Text>
+      </Pressable>
+      <Text style={[st.stepVal, { color: c.textPrimary }]}>
+        {value} {unit}
+      </Text>
+      <Pressable
+        onPress={() => onChange(Math.min(max, +(value + step).toFixed(2)))}
+        style={[st.stepBtn, { borderColor: c.border }]}
+        accessibilityRole="button"
+        accessibilityLabel={t.a11y.increase(label)}
+      >
+        <Text style={{ color: c.textPrimary, fontSize: icon.sm }}>＋</Text>
+      </Pressable>
+    </View>
+  );
+}
+
 export interface ExportTabProps {
   ws: Workspace;
   onShowToast: (text: string, undo?: () => void) => void;
@@ -74,6 +120,7 @@ export function ExportTab({ ws, onShowToast, onDone }: ExportTabProps) {
   const [dirty, setDirty] = useState(false);
   const [sound, setSound] = useState<SoundSettings | null>(null);
   const [soundOpen, setSoundOpen] = useState(false);
+  const [soundAdvanced, setSoundAdvanced] = useState(false);
   const [preset, setPreset] = useState<PresetKey>(settings.export.defaultPreset);
   const [history, setHistory] = useState<ExportRow[]>([]);
   const [job, setJob] = useState<{ exportId: string; progress: number; phase: string } | null>(
@@ -259,18 +306,32 @@ export function ExportTab({ ws, onShowToast, onDone }: ExportTabProps) {
               }
             />
             {sound.loudness.enabled ? (
-              <View style={st.chips}>
-                {[-14, -16, -18].map((v) => (
-                  <Chip
-                    key={v}
-                    label={`${v} LUFS${v === -16 ? t.sound.recommended : ''}`}
-                    active={sound.loudness.targetLufs === v}
-                    onPress={() =>
-                      updateSound({ ...sound, loudness: { ...sound.loudness, targetLufs: v } })
-                    }
-                  />
-                ))}
-              </View>
+              <>
+                <Eyebrow>{t.sound.targetLoudness}</Eyebrow>
+                <View style={st.chips}>
+                  {[-14, -16, -18].map((v) => (
+                    <Chip
+                      key={v}
+                      label={`${v} LUFS${v === -16 ? t.sound.recommended : ''}`}
+                      active={sound.loudness.targetLufs === v}
+                      onPress={() =>
+                        updateSound({ ...sound, loudness: { ...sound.loudness, targetLufs: v } })
+                      }
+                    />
+                  ))}
+                </View>
+                <Stepper
+                  label={t.sound.truePeak}
+                  value={sound.loudness.truePeakDbtp}
+                  unit="dBTP"
+                  step={0.5}
+                  min={-3}
+                  max={0}
+                  onChange={(v) =>
+                    updateSound({ ...sound, loudness: { ...sound.loudness, truePeakDbtp: v } })
+                  }
+                />
+              </>
             ) : null}
             <Row
               label={t.sound.ducking}
@@ -284,12 +345,105 @@ export function ExportTab({ ws, onShowToast, onDone }: ExportTabProps) {
                 />
               }
             />
+            <Pressable
+              onPress={() => setSoundAdvanced((v) => !v)}
+              style={st.soundHead}
+              accessibilityRole="button"
+              accessibilityLabel={t.sound.a11yAdvanced}
+            >
+              <Text style={[typography.label, { color: c.textSecondary, flex: 1 }]}>
+                {t.sound.advanced}
+              </Text>
+              <Text style={{ color: c.textSecondary }}>{soundAdvanced ? '▲' : '▼'}</Text>
+            </Pressable>
+            {soundAdvanced ? (
+              <>
+                <Stepper
+                  label={t.sound.depth}
+                  value={sound.ducking.depthDb}
+                  unit="dB"
+                  step={1}
+                  min={-30}
+                  max={0}
+                  onChange={(v) =>
+                    updateSound({ ...sound, ducking: { ...sound.ducking, depthDb: v } })
+                  }
+                />
+                <Stepper
+                  label={t.sound.attack}
+                  value={sound.ducking.attackMs}
+                  unit="ms"
+                  step={10}
+                  min={0}
+                  max={500}
+                  onChange={(v) =>
+                    updateSound({ ...sound, ducking: { ...sound.ducking, attackMs: v } })
+                  }
+                />
+                <Stepper
+                  label={t.sound.release}
+                  value={sound.ducking.releaseMs}
+                  unit="ms"
+                  step={50}
+                  min={0}
+                  max={3000}
+                  onChange={(v) =>
+                    updateSound({ ...sound, ducking: { ...sound.ducking, releaseMs: v } })
+                  }
+                />
+                <Stepper
+                  label={t.sound.threshold}
+                  value={sound.ducking.thresholdDb}
+                  unit="dBFS"
+                  step={2}
+                  min={-70}
+                  max={-10}
+                  onChange={(v) =>
+                    updateSound({ ...sound, ducking: { ...sound.ducking, thresholdDb: v } })
+                  }
+                />
+              </>
+            ) : null}
+            <Text style={[typography.caption, { color: c.textTertiary, marginTop: space.sm }]}>
+              {t.sound.note}
+            </Text>
           </>
         ) : null}
       </Card>
 
       {/* タイトルと概要 */}
       <Eyebrow>{t.export.infoEyebrow}</Eyebrow>
+      {episode.description_suggestion ? (
+        <Card style={{ borderColor: c.accentBorder }}>
+          <Eyebrow>{t.details.suggestionEyebrow}</Eyebrow>
+          <Text style={{ color: c.textPrimary, lineHeight: 20 }}>
+            {episode.description_suggestion}
+          </Text>
+          <View style={st.actionRow}>
+            <Button
+              label={t.details.adopt}
+              style={{ flex: 1 }}
+              onPress={() => {
+                setDescription(episode.description_suggestion ?? '');
+                setDirty(true);
+                void episodes
+                  .update(episode.id, { descriptionSuggestion: null })
+                  .then(() => ws.reloadAll());
+              }}
+            />
+            <Button
+              label={t.details.discard}
+              kind="ghost"
+              style={{ flex: 1 }}
+              onPress={() => {
+                void episodes
+                  .update(episode.id, { descriptionSuggestion: null })
+                  .then(() => ws.reloadAll());
+              }}
+            />
+          </View>
+        </Card>
+      ) : null}
       <Card>
         <Eyebrow>{t.details.titleEyebrow}</Eyebrow>
         <TextInput
@@ -509,6 +663,23 @@ const st = StyleSheet.create({
     paddingVertical: space.sm,
   },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm, marginBottom: space.sm },
+  stepper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.md,
+    minHeight: hit.min,
+    paddingVertical: space.sm,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  stepBtn: {
+    width: hit.compact,
+    height: hit.compact,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stepVal: { ...typography.body, ...tabularNums, minWidth: 84, textAlign: 'center' },
   input: {
     ...typography.body,
     minHeight: hit.min,
