@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { EditableDoc } from '@/domain/editing/doc';
 import { currentIndex, nextIndex, type OutlineItem } from '@/domain/outline';
 import { smp, ZERO_SMP, type Smp } from '@/domain/time';
+import { detectBlocks } from '@/domain/timeline/blocks';
 import { placeOverlays, suggestReanchor, type PlacedOverlay } from '@/domain/timeline/overlays';
 import type { OverlayClip, Range } from '@/domain/timeline/types';
 import {
@@ -30,7 +31,7 @@ import { fileExists } from '@/infra/files/fileSystem';
 
 import type { LevelEvent } from '../../../modules/podsnow-recorder/src/PodsnowRecorder.types';
 import { useServices } from '../app/ServicesProvider';
-import { readPeaksFile, type TakePeaks } from './peaks';
+import { LEVEL_STEP_SMP, readPeaksFile, timelineLevels, type TakePeaks } from './peaks';
 
 /** 「言い直す」の既定の範囲（10 秒）。 */
 const RETAKE_WINDOW = 10 * 48000;
@@ -311,6 +312,24 @@ export function useWorkspace(episodeId: string) {
 
   const undoRetake = useCallback(() => recording.undoRetake(), [recording]);
 
+  /**
+   * 無音で区切られた声の塊（FR-EDIT-2）。編集の選択単位。
+   * しきい値は無音カットと同じ設定を使うので、見え方と挙動が一致する。
+   */
+  const blocks = useMemo(
+    () =>
+      detectBlocks(
+        timelineLevels(state.doc.voice, state.peaksByTake, state.total),
+        LEVEL_STEP_SMP,
+        state.total,
+        {
+          thresholdDb: settings.silence.thresholdDb,
+          minSilenceSmp: smp((settings.silence.minDurationMs * 48000) / 1000),
+        },
+      ),
+    [state.doc.voice, state.peaksByTake, state.total, settings.silence],
+  );
+
   // ---- チャプター（トークテーマ由来）と録音中の出来事 ----
 
   /** 声トラック上のチャプター。カットされた項目は落ちる（FR-OUT-4）。 */
@@ -366,6 +385,22 @@ export function useWorkspace(episodeId: string) {
       },
     }));
   }, [patch]);
+  /** 塊をそのまま選ぶ（タップ）。無音の位置なら選択を外す。 */
+  const selectBlockAt = useCallback(
+    (at: Smp) => {
+      const b = blocks.find((x) => at >= x.start && at < x.end) ?? null;
+      patch({ selection: b, selectedOverlay: null });
+      return b;
+    },
+    [blocks, patch],
+  );
+
+  /** ハンドルのドラッグ後に確定する。隣の塊の境界へ吸い付かせる。 */
+  const setSelection = useCallback(
+    (sel: Range | null) => patch({ selection: sel, selectedOverlay: null }),
+    [patch],
+  );
+
   const clearSelection = useCallback(
     () => patch({ selection: null, selectedOverlay: null }),
     [patch],
@@ -527,6 +562,7 @@ export function useWorkspace(episodeId: string) {
 
   return {
     state,
+    blocks,
     chaptersOnTimeline,
     eventsOnTimeline,
     apply,
@@ -543,6 +579,8 @@ export function useWorkspace(episodeId: string) {
     undoRetake,
     setSelectionStart,
     setSelectionEnd,
+    selectBlockAt,
+    setSelection,
     clearSelection,
     deleteSelection,
     planSilence,

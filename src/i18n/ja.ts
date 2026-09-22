@@ -255,6 +255,7 @@ Podcast: {{show_name}}
     deleted: (duration: string) => `${duration} を削除しました`,
     hintSelection: (from: string, to: string) => `${from} 〜 ${to} を選択中`,
     hintIdle: '波形をタップで再生位置。素材をタップで音量と位置',
+    hintBlocks: '声の塊をタップで選択。両端をドラッグで広げられます',
 
     silenceTitle: '無音を詰める',
     silenceSubtitle: '設定のしきい値より静かで長い区間を詰めます',

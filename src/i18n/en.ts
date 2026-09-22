@@ -253,6 +253,7 @@ Tag #PodsNow to share your thoughts`,
     deleted: (duration: string) => `Deleted ${duration}`,
     hintSelection: (from: string, to: string) => `${from} – ${to} selected`,
     hintIdle: 'Tap the waveform to move the playhead. Tap a sound for volume and position.',
+    hintBlocks: 'Tap a chunk of speech to select it. Drag either edge to widen.',
 
     silenceTitle: 'Trim silence',
     silenceSubtitle: 'Trims stretches quieter and longer than your settings.',

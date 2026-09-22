@@ -93,3 +93,28 @@ export function sampleVoiceColumns(
   }
   return out;
 }
+
+/** 塊の検出に使う分解能（0.1 秒）。ピークの解像度（10 ms）より粗くてよい。 */
+export const LEVEL_STEP_SMP = 4800;
+
+/**
+ * 声トラック全体の振幅（0..1）を `LEVEL_STEP_SMP` ごとに並べる。
+ * `domain/timeline/blocks.ts` の入力。波形の描画と同じピークから作るので、
+ * 見えているものと選べる塊がずれない。
+ */
+export function timelineLevels(
+  voice: readonly VoiceSegment[],
+  peaksByTake: ReadonlyMap<string, TakePeaks>,
+  total: number,
+): number[] {
+  const n = Math.ceil(total / LEVEL_STEP_SMP);
+  if (n <= 0) return [];
+  const cols = sampleVoiceColumns(voice, peaksByTake, 0, n * LEVEL_STEP_SMP, n);
+  const out = new Array<number>(n);
+  for (let i = 0; i < n; i++) {
+    const lo = Math.abs(cols[i * 2] ?? 0);
+    const hi = Math.abs(cols[i * 2 + 1] ?? 0);
+    out[i] = Math.max(lo, hi) / 127;
+  }
+  return out;
+}

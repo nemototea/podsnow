@@ -106,6 +106,12 @@ export function EditTab({ ws, onInsertAsset, onOpenAssets, onShowToast, onError 
         pps={pps}
         recording={false}
         recFrames={0}
+        blocks={ws.blocks}
+        onSelectBlock={(at) => {
+          const b = ws.selectBlockAt(at);
+          void ws.seek(b ? b.start : at);
+        }}
+        onSelectionChange={(range) => ws.setSelection(range)}
         onSeek={(to) => void ws.seek(to)}
         onSelectOverlay={(oid) => {
           ws.selectOverlay(oid);
@@ -142,8 +148,6 @@ export function EditTab({ ws, onInsertAsset, onOpenAssets, onShowToast, onError 
           </>
         ) : (
           <>
-            <Chip label={t.edit.selectRange} onPress={ws.setSelectionStart} />
-            <Chip label={t.edit.selectionEnd} onPress={ws.setSelectionEnd} />
             <Chip label={t.edit.removeSilence} onPress={() => void openSilence()} />
             <Chip label={t.edit.insert} onPress={() => setSheet('insert')} />
           </>
@@ -151,8 +155,13 @@ export function EditTab({ ws, onInsertAsset, onOpenAssets, onShowToast, onError 
       </View>
       <Text style={[typography.caption, { color: c.textTertiary, paddingBottom: space.sm }]}>
         {state.selection
-          ? t.edit.hintSelection(formatSmp(state.selection.start), formatSmp(state.selection.end))
-          : t.edit.hintIdle}
+          ? t.edit.hintSelection(
+              formatSmp(state.selection.start),
+              formatSmp(state.selection.end, { tenths: true }),
+            )
+          : ws.blocks.length
+            ? t.edit.hintBlocks
+            : t.edit.hintIdle}
       </Text>
 
       <Sheet
