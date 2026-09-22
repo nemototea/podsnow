@@ -2,7 +2,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { formatSmp, smp } from '@/domain/time';
+import { formatSmp, smp, type Smp } from '@/domain/time';
 import { useServices } from '@/features/app/ServicesProvider';
 import { EditTab } from '@/features/episode/EditTab';
 import { ExportTab } from '@/features/episode/ExportTab';
@@ -99,7 +99,7 @@ export default function EpisodeScreen() {
   );
 
   const insertAsset = useCallback(
-    async (a: AssetRow) => {
+    async (a: AssetRow, at?: Smp) => {
       if (isRec) {
         await ws.insertAsset(a, 'recording');
         const mode = services.settings.monitor.jinglePlayback;
@@ -116,8 +116,9 @@ export default function EpisodeScreen() {
         }
         return;
       }
-      await ws.insertAsset(a, 'playhead');
-      toast1(t.record.insertedAt(a.name, formatSmp(state.playhead)), () => void ws.undo());
+      const where = at ?? state.playhead;
+      await ws.insertAsset(a, where);
+      toast1(t.record.insertedAt(a.name, formatSmp(where)), () => void ws.undo());
     },
     [isRec, services, showToast, state.playhead, t, toast1, ws],
   );
@@ -255,7 +256,7 @@ export default function EpisodeScreen() {
       ) : tab === 'edit' ? (
         <EditTab
           ws={ws}
-          onInsertAsset={(a) => void insertAsset(a)}
+          onInsertAsset={(a, at) => void insertAsset(a, at)}
           onOpenAssets={() => router.push('/show')}
           onShowToast={toast1}
           onError={setError}

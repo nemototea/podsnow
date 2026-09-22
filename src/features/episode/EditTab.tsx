@@ -14,7 +14,8 @@ import type { Workspace } from './useWorkspace';
 
 export interface EditTabProps {
   ws: Workspace;
-  onInsertAsset: (a: AssetRow) => void;
+  /** `at` を省くと再生位置。選択があるときは、その前後を明示して渡す。 */
+  onInsertAsset: (a: AssetRow, at?: Smp) => void;
   onOpenAssets: () => void;
   onShowToast: (text: string, undo?: () => void) => void;
   onError: (message: string) => void;
@@ -27,10 +28,18 @@ export function EditTab({ ws, onInsertAsset, onOpenAssets, onShowToast, onError 
   const { state } = ws;
   const [pps, setPps] = useState(24);
   const [sheet, setSheet] = useState<null | 'overlay' | 'silence' | 'insert'>(null);
+  /** 選択があるとき、素材をその前に入れるか後ろに入れるか。 */
+  const [insertSide, setInsertSide] = useState<'before' | 'after'>('after');
   const [silencePlan, setSilencePlan] = useState<{ ranges: Range[]; totalRemoved: Smp } | null>(
     null,
   );
 
+  /** 素材が入る位置。選択があればその前か後ろ、なければ再生位置。 */
+  const insertPosition = state.selection
+    ? insertSide === 'before'
+      ? state.selection.start
+      : state.selection.end
+    : state.playhead;
   const selectedOverlay = state.doc.overlays.find((o) => o.id === state.selectedOverlay) ?? null;
   const selectedAsset = selectedOverlay
     ? state.assets.find((a) => a.id === selectedOverlay.assetId)
@@ -121,6 +130,10 @@ export function EditTab({ ws, onInsertAsset, onOpenAssets, onShowToast, onError 
           const at = ws.chaptersOnTimeline.find((ch) => ch.item.id === item.id)?.at;
           if (at !== undefined) void ws.seek(at);
         }}
+        onChapterLongPress={(item) => {
+          const range = ws.chapterRange(item.id);
+          if (range) ws.setSelection(range);
+        }}
       />
 
       <View style={st.toolbar}>
@@ -143,7 +156,20 @@ export function EditTab({ ws, onInsertAsset, onOpenAssets, onShowToast, onError 
                   .catch((e: unknown) => onError(String(e)));
               }}
             />
-            <Chip label={t.edit.insertBefore} onPress={() => setSheet('insert')} />
+            <Chip
+              label={t.edit.insertBefore}
+              onPress={() => {
+                setInsertSide('before');
+                setSheet('insert');
+              }}
+            />
+            <Chip
+              label={t.edit.insertAfter}
+              onPress={() => {
+                setInsertSide('after');
+                setSheet('insert');
+              }}
+            />
             <Chip label={t.edit.clearSelection} onPress={ws.clearSelection} />
           </>
         ) : (
@@ -202,7 +228,7 @@ export function EditTab({ ws, onInsertAsset, onOpenAssets, onShowToast, onError 
         visible={sheet === 'insert'}
         onClose={() => setSheet(null)}
         title={t.edit.insertTitle}
-        subtitle={t.edit.insertSubtitle(formatSmp(state.playhead))}
+        subtitle={t.edit.insertSubtitle(formatSmp(insertPosition))}
       >
         {state.assets.length === 0 ? (
           <Row label={t.record.registerAssets} onPress={onOpenAssets} />
@@ -214,7 +240,7 @@ export function EditTab({ ws, onInsertAsset, onOpenAssets, onShowToast, onError 
             sub={formatSmp(smp(a.duration_smp))}
             onPress={() => {
               setSheet(null);
-              onInsertAsset(a);
+              onInsertAsset(a, insertPosition);
             }}
           />
         ))}

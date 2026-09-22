@@ -349,6 +349,21 @@ export function useWorkspace(episodeId: string) {
     [state.doc.voice, state.outline],
   );
 
+  /**
+   * チャプター 1 つ分の範囲（次のチャプターの手前まで。最後なら末尾まで）。
+   * 長押しで丸ごと選ぶのに使う（docs/ux-restructure.md §6.3）。
+   */
+  const chapterRange = useCallback(
+    (itemId: string): Range | null => {
+      const i = chaptersOnTimeline.findIndex((ch) => ch.item.id === itemId);
+      if (i < 0) return null;
+      const start = chaptersOnTimeline[i]!.at;
+      const end = chaptersOnTimeline[i + 1]?.at ?? state.total;
+      return end > start ? { start, end } : null;
+    },
+    [chaptersOnTimeline, state.total],
+  );
+
   /** 割り込みなど、アプリが自動で記録した位置。ユーザーは打てない。 */
   const eventsOnTimeline = useMemo(
     () =>
@@ -457,18 +472,23 @@ export function useWorkspace(episodeId: string) {
   );
 
   // ---- オーバーレイ ----
+  /**
+   * 素材を入れる。位置は録音中なら発言位置、そうでなければ再生位置か、
+   * 呼び出し側が指定した時刻（選択の前 / 後 に入れるときに使う）。
+   */
   const insertAsset = useCallback(
-    async (asset: AssetRow, at: 'playhead' | 'recording') => {
+    async (asset: AssetRow, at: 'playhead' | 'recording' | Smp) => {
       let anchor: OverlayClip['anchor'];
       if (at === 'recording') {
         const pos = recording.currentSourcePosition();
         if (!pos) return;
         anchor = { type: 'source', takeId: pos.takeId, srcSmp: pos.srcSmp };
       } else {
-        const src = resolveSource(state.doc.voice, state.playhead);
+        const tl = at === 'playhead' ? state.playhead : at;
+        const src = resolveSource(state.doc.voice, tl);
         anchor = src
           ? { type: 'source', takeId: src.takeId, srcSmp: src.srcSmp }
-          : { type: 'timeline_abs', smp: state.playhead };
+          : { type: 'timeline_abs', smp: tl };
       }
       const clip: OverlayClip = {
         id: services.newId(),
@@ -564,6 +584,7 @@ export function useWorkspace(episodeId: string) {
     state,
     blocks,
     chaptersOnTimeline,
+    chapterRange,
     eventsOnTimeline,
     apply,
     undo,

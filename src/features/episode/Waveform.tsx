@@ -46,6 +46,8 @@ export interface WaveformProps {
   onSeek: (to: Smp) => void;
   onSelectOverlay: (id: string | null) => void;
   onChapterPress: (item: OutlineItem) => void;
+  /** チャプターを長押ししたとき。そのチャプターを丸ごと選ぶ。 */
+  onChapterLongPress?: (item: OutlineItem) => void;
   onVoiceSegmentPress?: (index: number) => void;
   /** 録音タブ用の低い表示。収録中は波形より読む内容に高さを使う（§5.1）。 */
   compact?: boolean;
@@ -311,6 +313,7 @@ export const Waveform = memo(function Waveform(p: WaveformProps) {
             <Pressable
               key={item.id}
               onPress={() => p.onChapterPress(item)}
+              onLongPress={() => p.onChapterLongPress?.(item)}
               hitSlop={glyphSlop}
               style={[styles.chapter, { left: xOf(at), top: laneTop }]}
             >
