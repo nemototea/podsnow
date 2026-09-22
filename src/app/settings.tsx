@@ -280,12 +280,12 @@ export default function SettingsScreen() {
         <Row
           label={t.settings.showSettings}
           sub={t.settings.showSettingsSub}
-          onPress={() => router.push('/show/settings')}
+          onPress={() => router.push('/show')}
         />
         <Row
           label={t.settings.showAssets}
           sub={t.settings.showAssetsSub}
-          onPress={() => router.push('/show/assets')}
+          onPress={() => router.push('/show')}
         />
       </Card>
 

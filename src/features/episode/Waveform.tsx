@@ -44,9 +44,12 @@ export interface WaveformProps {
   onSelectOverlay: (id: string | null) => void;
   onChapterPress: (item: OutlineItem) => void;
   onVoiceSegmentPress?: (index: number) => void;
+  /** 録音タブ用の低い表示。収録中は波形より読む内容に高さを使う（§5.1）。 */
+  compact?: boolean;
 }
 
-const HEIGHT = 96;
+const FULL_HEIGHT = 96;
+const COMPACT_HEIGHT = 44;
 const OVERLAY_H = 22;
 
 /**
@@ -55,6 +58,8 @@ const OVERLAY_H = 22;
  */
 export const Waveform = memo(function Waveform(p: WaveformProps) {
   const c = useAppTheme();
+  const height = p.compact ? COMPACT_HEIGHT : FULL_HEIGHT;
+  const laneTop = 16 + height + 4 + OVERLAY_H * 2 + 4;
   const [viewW, setViewW] = useState(0);
   const [scrollX, setScrollX] = useState(0);
   const scrollRef = useRef<ScrollView>(null);
@@ -93,7 +98,7 @@ export const Waveform = memo(function Waveform(p: WaveformProps) {
         contentContainerStyle={{ width: contentW }}
       >
         <Pressable
-          style={{ width: contentW, height: HEIGHT + OVERLAY_H * 2 + 28 }}
+          style={{ width: contentW, height: height + OVERLAY_H * 2 + 28 }}
           onPress={(e) => seekAt(e.nativeEvent.locationX)}
         >
           {/* 目盛り */}
@@ -103,7 +108,7 @@ export const Waveform = memo(function Waveform(p: WaveformProps) {
             </Text>
           ))}
           {/* 声 */}
-          <View style={[styles.voiceTrack, { backgroundColor: c.surface, top: 16 }]}>
+          <View style={[styles.voiceTrack, { backgroundColor: c.surface, top: 16, height }]}>
             {placed.map((seg, i) => (
               <Pressable
                 key={seg.segment.id}
@@ -122,8 +127,8 @@ export const Waveform = memo(function Waveform(p: WaveformProps) {
               ? Array.from({ length: columns.n }).map((_, i) => {
                   const lo = columns.data[i * 2]! / 127;
                   const hi = columns.data[i * 2 + 1]! / 127;
-                  const h = Math.max(1, (hi - lo) * (HEIGHT / 2));
-                  const top = HEIGHT / 2 - hi * (HEIGHT / 2);
+                  const h = Math.max(1, (hi - lo) * (height / 2));
+                  const top = height / 2 - hi * (height / 2);
                   return (
                     <View
                       key={i}
@@ -168,7 +173,7 @@ export const Waveform = memo(function Waveform(p: WaveformProps) {
             ) : null}
           </View>
           {/* 素材レイヤー */}
-          <View style={[styles.overlayTrack, { top: 16 + HEIGHT + 4, backgroundColor: c.surface }]}>
+          <View style={[styles.overlayTrack, { top: 16 + height + 4, backgroundColor: c.surface }]}>
             {p.overlays.map((o) =>
               o.status === 'placed' ? (
                 <Pressable
@@ -202,7 +207,7 @@ export const Waveform = memo(function Waveform(p: WaveformProps) {
               key={item.id}
               onPress={() => p.onChapterPress(item)}
               hitSlop={glyphSlop}
-              style={[styles.chapter, { left: xOf(at) }]}
+              style={[styles.chapter, { left: xOf(at), top: laneTop }]}
             >
               <Text numberOfLines={1} style={[typography.overline, { color: c.accentText }]}>
                 ▏{item.heading}
@@ -211,7 +216,7 @@ export const Waveform = memo(function Waveform(p: WaveformProps) {
           ))}
           {/* 録音中の出来事（アプリが記録したもの） */}
           {p.events.map(({ event, at }) => (
-            <View key={event.id} style={[styles.event, { left: xOf(at) - 8 }]}>
+            <View key={event.id} style={[styles.event, { left: xOf(at) - 8, top: laneTop }]}>
               <Text style={{ color: c.dangerText, fontSize: typography.caption.fontSize }}>
                 {event.kind === 'interruption' ? '⏸' : '!'}
               </Text>
@@ -241,7 +246,6 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 0,
     right: 0,
-    height: HEIGHT,
     borderRadius: radius.sm,
     overflow: 'hidden',
   },
@@ -266,16 +270,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: space.sm,
   },
   overlayLabel: typography.overline,
-  chapter: {
-    position: 'absolute',
-    top: 16 + HEIGHT + 4 + OVERLAY_H * 2 + 4,
-    maxWidth: 140,
-  },
-  event: {
-    position: 'absolute',
-    top: 16 + HEIGHT + 4 + OVERLAY_H * 2 + 4,
-    width: 16,
-    alignItems: 'center',
-  },
+  chapter: { position: 'absolute', maxWidth: 140 },
+  event: { position: 'absolute', width: 16, alignItems: 'center' },
   playhead: { position: 'absolute', top: space.md, bottom: 0, width: space.hair, borderRadius: 1 },
 });

@@ -32,7 +32,10 @@ import type { LevelEvent } from '../../../modules/podsnow-recorder/src/PodsnowRe
 import { useServices } from '../app/ServicesProvider';
 import { readPeaksFile, type TakePeaks } from './peaks';
 
-export interface EditorState {
+/** 「言い直す」の既定の範囲（10 秒）。 */
+const RETAKE_WINDOW = 10 * 48000;
+
+export interface WorkspaceState {
   episode: EpisodeRow | null;
   doc: EditableDoc;
   takes: TakeRow[];
@@ -58,15 +61,16 @@ export interface EditorState {
 }
 
 /**
- * Editor 画面の状態と操作。EditingService / RecordingSession / PlaybackService を結線する。
- * 画面はこのフックだけを使う（ARCHITECTURE.md §2）。
+ * エピソード画面（録音 / 編集 / 書き出しの 3 タブ）が共有する状態と操作。
+ * EditingService / RecordingSession / PlaybackService / OutlineService を結線する。
+ * 画面はこのフックだけを使う（ARCHITECTURE.md §2 / §12）。
  */
-export function useEditor(episodeId: string) {
+export function useWorkspace(episodeId: string) {
   const services = useServices();
   const t = useT();
   const { db, root, recording, playback, engine, settings } = services;
   const editingRef = useRef<EditingService | null>(null);
-  const [state, setState] = useState<EditorState>({
+  const [state, setState] = useState<WorkspaceState>({
     episode: null,
     doc: { voice: [], overlays: [] },
     takes: [],
@@ -91,7 +95,7 @@ export function useEditor(episodeId: string) {
     ready: false,
   });
   const patch = useCallback(
-    (p: Partial<EditorState> | ((s: EditorState) => Partial<EditorState>)) => {
+    (p: Partial<WorkspaceState> | ((s: WorkspaceState) => Partial<WorkspaceState>)) => {
       setState((s) => ({ ...s, ...(typeof p === 'function' ? p(s) : p) }));
     },
     [],
@@ -99,7 +103,7 @@ export function useEditor(episodeId: string) {
 
   // ---- 読み込み ----
   const syncFromEditing = useCallback(
-    (e: EditingService, extra: Partial<EditorState> = {}) => {
+    (e: EditingService, extra: Partial<WorkspaceState> = {}) => {
       const doc = e.current;
       patch((s) => {
         const durations = extra.assetDurations ?? s.assetDurations;
@@ -281,6 +285,31 @@ export function useEditor(episodeId: string) {
     () => recording.resumeAfterInterruption(),
     [recording],
   );
+
+  /**
+   * 言い直す（FR-REC-4）。録音を止めずに直近を捨てる。
+   * `chapter` はいま話している項目の頭から、`last10` は直近 10 秒。
+   * 戻り値は捨てた長さ。捨てるものが無ければ null。
+   */
+  const retake = useCallback(
+    (mode: 'chapter' | 'last10'): Smp | null => {
+      const pos = recording.currentSourcePosition();
+      if (!pos) return null;
+      let from = smp(Math.max(0, pos.srcSmp - RETAKE_WINDOW));
+      if (mode === 'chapter') {
+        const i = currentIndex(state.outline);
+        const item = i === null ? null : state.outline[i];
+        from =
+          item && item.recordedTakeId === pos.takeId && item.recordedSrcSmp !== null
+            ? item.recordedSrcSmp
+            : ZERO_SMP;
+      }
+      return recording.retake(from);
+    },
+    [recording, state.outline],
+  );
+
+  const undoRetake = useCallback(() => recording.undoRetake(), [recording]);
 
   // ---- チャプター（トークテーマ由来）と録音中の出来事 ----
 
@@ -510,6 +539,8 @@ export function useEditor(episodeId: string) {
     pauseRecording,
     resumeRecording,
     resumeAfterInterruption,
+    retake,
+    undoRetake,
     setSelectionStart,
     setSelectionEnd,
     clearSelection,
@@ -533,4 +564,4 @@ export function useEditor(episodeId: string) {
   };
 }
 
-export type Editor = ReturnType<typeof useEditor>;
+export type Workspace = ReturnType<typeof useWorkspace>;

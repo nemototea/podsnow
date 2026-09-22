@@ -152,7 +152,7 @@ export default function DistributionPackScreen() {
             label={t.pack.toExport}
             kind="secondary"
             style={{ marginTop: space.md }}
-            onPress={() => router.push(`/episode/${episodeId}/export` as never)}
+            onPress={() => router.push(`/episode/${episodeId}` as never)}
           />
         </Card>
       )}
