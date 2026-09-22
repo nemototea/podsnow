@@ -1,9 +1,13 @@
-import type { Marker } from '@/domain/editing/doc';
 import { AppError, type AppErrorCode } from '@/domain/errors';
 import { smp, type Smp } from '@/domain/time';
 import { appendTake, insertAt } from '@/domain/timeline/voice';
 import type { SqlExecutor } from '@/infra/db/executor';
 import { loadDoc, saveDoc } from '@/infra/db/repositories/editableDocRepo';
+import {
+  insertRecordingEvent,
+  type RecordingEvent,
+  type RecordingEventKind,
+} from '@/infra/db/repositories/recordingEventsRepo';
 import {
   closeJournal,
   closeSegment,
@@ -276,7 +280,7 @@ export class RecordingSession {
   async resumeAfterInterruption(): Promise<void> {
     if (this.state !== 'interrupted' || !this.active) return;
     await this.openSegment();
-    await this.addMarker('interruption', this.deps.labels().interruptionMarker);
+    await this.recordEvent('interruption', this.deps.labels().interruptionNote);
     this.setState('recording');
   }
 
@@ -387,25 +391,23 @@ export class RecordingSession {
     return { takeId: a.takeId, durationSmp };
   }
 
-  /** 現在の録音位置（Take 座標）にマーカーを打つ。 */
-  async addMarker(kind: Marker['kind'], label = ''): Promise<Marker | null> {
+  /**
+   * 現在の録音位置（Take 座標）に「録音中の出来事」を記録する（DATA_MODEL.md §4.10）。
+   * アプリが自動で記録するものだけで、ユーザーが打つマーカーは持たない（FR-REC-4 廃止）。
+   */
+  async recordEvent(kind: RecordingEventKind, label = ''): Promise<RecordingEvent | null> {
     const a = this.active;
     if (!a) return null;
-    const srcSmp = smp(a.offsetSmp + this.deps.recorder.getFrames());
-    const m: Marker = {
+    const e: RecordingEvent = {
       id: this.deps.newId(),
       takeId: a.takeId,
-      srcSmp,
+      srcSmp: smp(a.offsetSmp + this.deps.recorder.getFrames()),
       label,
       kind,
-      resolved: false,
+      createdAt: this.deps.now(),
     };
-    const now = this.deps.now();
-    await this.deps.db.transaction(async () => {
-      const doc = await loadDoc(this.deps.db, a.episodeId);
-      await saveDoc(this.deps.db, a.episodeId, { ...doc, markers: [...doc.markers, m] }, now);
-    });
-    return m;
+    await insertRecordingEvent(this.deps.db, a.episodeId, e);
+    return e;
   }
 
   /** 現在の録音位置（Take 座標）。録音中でなければ null。 */

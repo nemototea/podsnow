@@ -2,7 +2,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
-import type { Marker } from '@/domain/editing/doc';
+import { moveItem } from '@/domain/outline';
 import { formatSmp, smp, type Smp } from '@/domain/time';
 import type { Range } from '@/domain/timeline/types';
 import { useServices } from '@/features/app/ServicesProvider';
@@ -27,7 +27,7 @@ import { Button, Chip, Header, Loading, Row, Screen, Sheet, Toast, Toggle } from
 import { useAppTheme } from '@/ui/ThemeContext';
 import { useToast } from '@/ui/useToast';
 
-type SheetKind = null | 'insert' | 'more' | 'overlay' | 'topics' | 'silence' | 'marker' | 'takes';
+type SheetKind = null | 'insert' | 'more' | 'overlay' | 'topics' | 'silence' | 'takes';
 
 export default function EditorScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -43,7 +43,6 @@ export default function EditorScreen() {
   const [silencePlan, setSilencePlan] = useState<{ ranges: Range[]; totalRemoved: Smp } | null>(
     null,
   );
-  const [activeMarker, setActiveMarker] = useState<Marker | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [speakerWarned, setSpeakerWarned] = useState(false);
   const [topicDraft, setTopicDraft] = useState('');
@@ -175,6 +174,8 @@ export default function EditorScreen() {
     ],
   );
 
+  const current = ed.outlineCurrent === null ? null : (state.outline[ed.outlineCurrent] ?? null);
+  const upNext = ed.outlineNext === null ? null : (state.outline[ed.outlineNext] ?? null);
   const favorites = state.assets.filter(
     (a) => a.is_favorite && (a.kind === 'jingle' || a.kind === 'sfx'),
   );
@@ -182,9 +183,6 @@ export default function EditorScreen() {
   const selectedAsset = selectedOverlay
     ? state.assets.find((a) => a.id === selectedOverlay.assetId)
     : null;
-  const unresolved = ed.markersOnTimeline.filter(
-    (m) => !m.marker.resolved && m.marker.kind !== 'topic',
-  ).length;
 
   if (!state.ready) return <Loading label={t.common.loading} />;
 
@@ -329,7 +327,8 @@ export default function EditorScreen() {
         voice={state.doc.voice}
         peaksByTake={state.peaksByTake}
         overlays={state.placedOverlays}
-        markers={ed.markersOnTimeline}
+        chapters={ed.chaptersOnTimeline}
+        events={ed.eventsOnTimeline}
         total={state.total}
         playhead={state.playhead}
         selection={state.selection}
@@ -344,69 +343,55 @@ export default function EditorScreen() {
           ed.selectOverlay(oid);
           if (oid) setSheet('overlay');
         }}
-        onMarkerPress={(m) => {
-          setActiveMarker(m);
-          setSheet('marker');
+        onChapterPress={(item) => {
+          const at = ed.chaptersOnTimeline.find((ch) => ch.item.id === item.id)?.at;
+          if (at !== undefined) void ed.seek(at);
         }}
       />
 
-      {/* マーカーバナー */}
-      {!isRec && unresolved > 0 ? (
-        <Pressable
-          onPress={() => void ed.nextMarker()}
-          style={[st.banner, { backgroundColor: c.surface, borderColor: c.border }]}
-        >
-          <Text style={{ color: c.mistakeText }}>⚑</Text>
-          <View style={{ flex: 1 }}>
-            <Text style={[typography.label, { color: c.textPrimary }]}>
-              {t.editor.markerBannerTitle(unresolved)}
-            </Text>
-            <Text style={[typography.caption, { color: c.textSecondary }]}>
-              {t.editor.markerBannerSub}
-            </Text>
-          </View>
-          <Text style={[typography.caption, { color: c.accentText }]}>{t.common.next}</Text>
-        </Pressable>
-      ) : null}
-
-      {/* トークテーマ（録音中に見る） */}
-      {state.topics.length > 0 ? (
+      {/* トークテーマと台本（録音中に見る / いつでも書ける） */}
+      {state.outline.length > 0 ? (
         <View style={[st.topics, { backgroundColor: c.surface, borderColor: c.border }]}>
-          {state.topics.slice(0, 6).map((t) => (
-            <Pressable
-              key={t.id}
-              onPress={() => void ed.toggleTopic(t.id)}
-              style={st.topicRow}
-              accessibilityRole="checkbox"
-              accessibilityState={{ checked: !!t.checkedAt }}
-            >
-              <Text style={{ color: t.checkedAt ? c.successText : c.textTertiary }}>
-                {t.checkedAt ? '☑' : '☐'}
-              </Text>
-              <Text
-                style={{
-                  color: t.checkedAt ? c.textTertiary : c.textPrimary,
-                  textDecorationLine: t.checkedAt ? 'line-through' : 'none',
-                  flex: 1,
-                }}
-                numberOfLines={1}
-              >
-                {t.text}
-              </Text>
-            </Pressable>
-          ))}
-          <Pressable onPress={() => setSheet('topics')}>
-            <Text style={[typography.caption, { color: c.accentText, marginTop: space.xs }]}>
-              {t.editor.editTopics}
+          <Text style={[typography.overline, { color: c.textSecondary }]}>
+            {current ? t.editor.topics.current : t.editor.topics.notStarted}
+          </Text>
+          <Text style={[typography.title, { color: c.textPrimary }]} numberOfLines={2}>
+            {(current ?? state.outline[0])?.heading ?? ''}
+          </Text>
+          {current && current.body.trim() ? (
+            <Text style={{ color: c.textSecondary, lineHeight: 20 }} numberOfLines={4}>
+              {current.body}
             </Text>
-          </Pressable>
+          ) : null}
+          <View style={st.topicActions}>
+            <Text
+              style={[typography.caption, { color: c.textTertiary, flex: 1 }]}
+              numberOfLines={1}
+            >
+              {upNext ? t.editor.topics.upNext(upNext.heading) : t.editor.topics.allDone}
+            </Text>
+            {upNext ? (
+              <Chip
+                label={t.editor.topics.next}
+                active
+                onPress={() => {
+                  void ed.advanceOutline().then((item) => {
+                    if (item) showToast({ text: t.editor.topics.advanced(item.heading) });
+                  });
+                }}
+              />
+            ) : null}
+            <Chip label={t.editor.topics.openList} onPress={() => setSheet('topics')} />
+          </View>
         </View>
       ) : (
         <Pressable
           onPress={() => setSheet('topics')}
           style={{ paddingHorizontal: gutter, paddingVertical: space.sm }}
         >
-          <Text style={[typography.caption, { color: c.textTertiary }]}>{t.editor.addTopics}</Text>
+          <Text style={[typography.caption, { color: c.textTertiary }]}>
+            {t.editor.topics.write}
+          </Text>
         </Pressable>
       )}
 
@@ -416,13 +401,6 @@ export default function EditorScreen() {
       <View style={st.toolbar}>
         {isRec ? (
           <>
-            <Chip label={t.editor.toolbar.marker} onPress={() => void ed.addMarker('edit_point')} />
-            <Chip
-              label={t.editor.toolbar.mistake}
-              tone={tone(c, 'mistake')}
-              active
-              onPress={() => void ed.addMarker('mistake')}
-            />
             {favorites.slice(0, 2).map((a) => (
               <Chip
                 key={a.id}
@@ -458,7 +436,6 @@ export default function EditorScreen() {
         ) : (
           <>
             <Chip label={t.editor.toolbar.insertPlus} onPress={() => setSheet('insert')} />
-            <Chip label={t.editor.toolbar.marker} onPress={() => void ed.addMarker('edit_point')} />
             <Chip label={t.editor.toolbar.selectRange} onPress={ed.setSelectionStart} />
             <Chip label={t.editor.toolbar.removeSilence} onPress={() => void openSilence()} />
             <Chip label={t.editor.toolbar.takes} onPress={() => setSheet('takes')} />
@@ -706,56 +683,6 @@ export default function EditorScreen() {
       </Sheet>
 
       <Sheet
-        visible={sheet === 'marker' && !!activeMarker}
-        onClose={() => setSheet(null)}
-        title={
-          activeMarker?.kind === 'mistake'
-            ? t.editor.marker.mistake
-            : activeMarker?.kind === 'interruption'
-              ? t.editor.marker.interruption
-              : t.editor.marker.generic
-        }
-        subtitle={activeMarker?.label || ''}
-      >
-        {activeMarker ? (
-          <>
-            <Row
-              label={t.editor.marker.seek}
-              onPress={() => {
-                const at = ed.markersOnTimeline.find((m) => m.marker.id === activeMarker.id)?.at;
-                if (at !== undefined) void ed.seek(at);
-                setSheet(null);
-              }}
-            />
-            <Row
-              label={t.editor.marker.selectFromHere}
-              sub={t.editor.marker.selectFromHereSub}
-              onPress={() => {
-                const at = ed.markersOnTimeline.find((m) => m.marker.id === activeMarker.id)?.at;
-                if (at !== undefined) void ed.seek(at).then(() => ed.setSelectionStart());
-                setSheet(null);
-              }}
-            />
-            <Row
-              label={t.editor.marker.resolve}
-              onPress={() => {
-                void ed.resolveMarker(activeMarker.id);
-                setSheet(null);
-              }}
-            />
-            <Row
-              label={t.editor.marker.remove}
-              danger
-              onPress={() => {
-                void ed.removeMarker(activeMarker.id);
-                setSheet(null);
-              }}
-            />
-          </>
-        ) : null}
-      </Sheet>
-
-      <Sheet
         visible={sheet === 'takes'}
         onClose={() => setSheet(null)}
         title={t.editor.takes.title}
@@ -831,27 +758,44 @@ export default function EditorScreen() {
         title={t.editor.topics.title}
         subtitle={t.editor.topics.subtitle}
       >
-        {state.topics.map((t, i) => (
+        {state.outline.length === 0 ? (
+          <Text style={{ color: c.textSecondary, marginBottom: space.md }}>
+            {t.editor.topics.empty}
+          </Text>
+        ) : null}
+        {state.outline.map((item, i) => (
           <Row
-            key={t.id}
-            label={t.text}
+            key={item.id}
+            label={item.heading}
+            sub={item.body.trim()}
             right={
               <View style={{ flexDirection: 'row', gap: space.lg }}>
                 <Pressable
-                  onPress={() => {
-                    const a = [...state.topics];
-                    if (i > 0) {
-                      [a[i - 1], a[i]] = [a[i]!, a[i - 1]!];
-                      void ed.saveTopics(a);
-                    }
-                  }}
+                  onPress={() => void ed.saveOutline(moveItem(state.outline, i, i - 1))}
+                  disabled={i === 0}
                   hitSlop={glyphSlop}
+                  accessibilityLabel={t.common.moveUp}
                 >
-                  <Text style={{ color: c.textPrimary }}>↑</Text>
+                  <Text style={{ color: i === 0 ? c.textTertiary : c.textPrimary }}>↑</Text>
                 </Pressable>
                 <Pressable
-                  onPress={() => void ed.saveTopics(state.topics.filter((x) => x.id !== t.id))}
+                  onPress={() => void ed.saveOutline(moveItem(state.outline, i, i + 1))}
+                  disabled={i === state.outline.length - 1}
                   hitSlop={glyphSlop}
+                  accessibilityLabel={t.common.moveDown}
+                >
+                  <Text
+                    style={{
+                      color: i === state.outline.length - 1 ? c.textTertiary : c.textPrimary,
+                    }}
+                  >
+                    ↓
+                  </Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => void ed.saveOutline(state.outline.filter((x) => x.id !== item.id))}
+                  hitSlop={glyphSlop}
+                  accessibilityLabel={t.common.delete}
                 >
                   <Text style={{ color: c.dangerText }}>✕</Text>
                 </Pressable>
@@ -859,48 +803,26 @@ export default function EditorScreen() {
             }
           />
         ))}
-        <View style={{ flexDirection: 'row', gap: space.sm, marginTop: space.md }}>
+        <View style={{ marginTop: space.md, gap: space.sm }}>
           <TextInput
             value={topicDraft}
             onChangeText={setTopicDraft}
             placeholder={t.editor.topics.placeholder}
             placeholderTextColor={c.textTertiary}
+            multiline
             style={[
               st.input,
               { color: c.textPrimary, borderColor: c.border, backgroundColor: c.surfaceRaised },
             ]}
             accessibilityLabel={t.editor.topics.title}
-            onSubmitEditing={() => {
-              if (topicDraft.trim()) {
-                void ed.saveTopics([
-                  ...state.topics,
-                  {
-                    id: services.newId(),
-                    position: state.topics.length,
-                    text: topicDraft.trim(),
-                    checkedAt: null,
-                  },
-                ]);
-                setTopicDraft('');
-              }
-            }}
           />
           <Button
             label={t.common.add}
             kind="secondary"
             onPress={() => {
-              if (topicDraft.trim()) {
-                void ed.saveTopics([
-                  ...state.topics,
-                  {
-                    id: services.newId(),
-                    position: state.topics.length,
-                    text: topicDraft.trim(),
-                    checkedAt: null,
-                  },
-                ]);
-                setTopicDraft('');
-              }
+              const text = topicDraft;
+              setTopicDraft('');
+              void ed.addOutlineFromText(text);
             }}
           />
         </View>
@@ -964,6 +886,7 @@ const st = StyleSheet.create({
     borderWidth: 1,
     gap: space.xs,
   },
+  topicActions: { flexDirection: 'row', alignItems: 'center', gap: space.md },
   topicRow: {
     flexDirection: 'row',
     alignItems: 'center',

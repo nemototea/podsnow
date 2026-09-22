@@ -61,7 +61,6 @@ async function setup() {
           endMode: 'asset_end',
         },
       ],
-      markers: [],
     },
     now,
   );

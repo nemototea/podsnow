@@ -5,7 +5,7 @@ export const TEST_LABELS: ServiceLabels = {
   showName: 'Test Show',
   descriptionTemplate: '{{topics}}\n\nPodcast: {{show_name}}',
   takeName: (n) => `Recording ${n}`,
-  interruptionMarker: 'interrupted',
+  interruptionNote: 'interrupted',
   androidNotification: {
     title: 'Rec',
     text: 'Tap',

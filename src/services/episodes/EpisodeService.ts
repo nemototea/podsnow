@@ -1,5 +1,6 @@
 import type { EditableDoc } from '@/domain/editing/doc';
 import { renderTemplate } from '@/domain/metadata/template';
+import { newItem } from '@/domain/outline';
 import { smp, ZERO_SMP } from '@/domain/time';
 import type { OverlayClip } from '@/domain/timeline/types';
 import type { SqlExecutor } from '@/infra/db/executor';
@@ -18,6 +19,11 @@ import {
   type EpisodeListItem,
   type EpisodeRow,
 } from '@/infra/db/repositories/episodesRepo';
+import {
+  listOutline,
+  listShowTopicTemplate,
+  saveOutline,
+} from '@/infra/db/repositories/outlineRepo';
 import { getDefaultTemplate, getLayout, getShow } from '@/infra/db/repositories/showsRepo';
 import { listTakes } from '@/infra/db/repositories/takesRepo';
 import { joinRoot } from '@/infra/files/layout';
@@ -133,8 +139,15 @@ export class EpisodeService {
           endMode: 'timeline_end',
         });
       }
-      const doc: EditableDoc = { voice: [], overlays, markers: [] };
+      const doc: EditableDoc = { voice: [], overlays };
       await saveDoc(db, id, doc, t);
+      // 番組のトークテーマのひな形を写す（FR-SHOW-4）。写した後はエピソードのデータ。
+      const template = await listShowTopicTemplate(db, showId);
+      await saveOutline(
+        db,
+        id,
+        template.map((tp) => newItem(newId(), tp.heading, tp.body)),
+      );
     });
     return (await getEpisode(db, id))!;
   }
@@ -193,17 +206,19 @@ export class EpisodeService {
     const t = now();
     await db.transaction(async () => {
       const doc = await loadDoc(db, id);
-      // 声・マーカーと、Take に紐づくオーバーレイは参照先が消えるので落とす。
+      // 声と、Take に紐づくオーバーレイは参照先が消えるので落とす。
       // タイムライン上に固定されたオーバーレイ（Opening / Ending / BGM）は残す。
       await saveDoc(
         db,
         id,
-        {
-          voice: [],
-          markers: [],
-          overlays: doc.overlays.filter((o) => o.anchor.type !== 'source'),
-        },
+        { voice: [], overlays: doc.overlays.filter((o) => o.anchor.type !== 'source') },
         t,
+      );
+      // 録音中の出来事とチャプターも、指していた録音ごと消える。
+      await db.run('DELETE FROM recording_events WHERE episode_id = ?', [id]);
+      await db.run(
+        'UPDATE outline_items SET recorded_take_id = NULL, recorded_src_smp = NULL WHERE episode_id = ?',
+        [id],
       );
       // 編集履歴は消えた声を指すので、Undo で復元できないようにここで捨てる。
       await db.run('DELETE FROM edit_ops WHERE episode_id = ?', [id]);
@@ -216,7 +231,7 @@ export class EpisodeService {
     }
   }
 
-  /** 複製して新しい回にする: メタデータとオーバーレイ・トークテーマを引き継ぎ、録音は引き継がない。 */
+  /** 複製して新しい回にする: メタデータ・オーバーレイ・トークテーマを引き継ぎ、録音は引き継がない。 */
   async duplicate(id: string): Promise<EpisodeRow> {
     const src = await getEpisode(this.deps.db, id);
     if (!src) throw new Error('episode not found');
@@ -234,23 +249,19 @@ export class EpisodeService {
         created.id,
         {
           voice: [],
-          markers: [],
           overlays: doc.overlays
             .filter((o) => o.anchor.type !== 'source')
             .map((o) => ({ ...o, id: this.deps.newId() })),
         },
         this.deps.now(),
       );
-      const topics = await this.deps.db.all<{ position: number; text: string }>(
-        'SELECT position, text FROM topics WHERE episode_id = ? ORDER BY position',
-        [id],
+      // トークテーマと台本は引き継ぐが、チャプター（録音位置）は引き継がない。
+      const outline = await listOutline(this.deps.db, id);
+      await saveOutline(
+        this.deps.db,
+        created.id,
+        outline.map((i) => newItem(this.deps.newId(), i.heading, i.body)),
       );
-      for (const tp of topics) {
-        await this.deps.db.run(
-          'INSERT INTO topics (id, episode_id, position, text) VALUES (?,?,?,?)',
-          [this.deps.newId(), created.id, tp.position, tp.text],
-        );
-      }
     });
     return (await getEpisode(this.deps.db, created.id))!;
   }

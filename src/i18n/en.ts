@@ -92,7 +92,7 @@ export const en: Messages = {
 ――――――
 Podcast: {{show_name}}
 Tag #PodsNow to share your thoughts`,
-    interruptionMarker: 'Recording was cut off by an interruption',
+    interruptionNote: 'Recording was cut off by an interruption',
   },
 
   androidNotification: {
@@ -199,8 +199,6 @@ Tag #PodsNow to share your thoughts`,
     editTopics: 'Edit talking points ›',
     addTopics: '＋ Add talking points (shown while you record)',
     toolbar: {
-      marker: '● Marker',
-      mistake: 'Flub',
       quickInsert: (name: string) => `♪ ${name}`,
       insert: '♪ Insert',
       insertPlus: '＋ Insert',
@@ -215,7 +213,7 @@ Tag #PodsNow to share your thoughts`,
       removeSilence: 'Remove silence',
       takes: 'Takes',
     },
-    hintRecording: 'Editing is paused while recording. You can jump to markers afterwards.',
+    hintRecording: 'Editing is paused while recording. Fumbled a line? Tap Retake.',
     hintSelection: (from: string, to: string) =>
       `${from} – ${to} selected. Move the playhead to reset the start or end point.`,
     hintIdle: 'Tap the timeline to set the playhead. Tap an asset for volume and position.',
@@ -264,16 +262,6 @@ Tag #PodsNow to share your thoughts`,
       applied: (count: number) =>
         `Tightened ${count} ${count === 1 ? 'silent spot' : 'silent spots'}`,
     },
-    marker: {
-      mistake: 'Flub',
-      interruption: 'Interruption',
-      generic: 'Marker',
-      seek: 'Jump here',
-      selectFromHere: 'Select from here',
-      selectFromHereSub: 'Put the start point on the marker',
-      resolve: 'Mark as done',
-      remove: 'Delete marker',
-    },
     takes: {
       title: 'Takes',
       subtitle: 'Order of the voice track',
@@ -281,10 +269,19 @@ Tag #PodsNow to share your thoughts`,
       empty: 'No recordings yet',
     },
     topics: {
-      title: 'Talking points',
-      subtitle:
-        'Check them off on screen while you record. For dictation, use the mic on your keyboard.',
-      placeholder: 'Add a talking point',
+      title: 'Talking points and script',
+      subtitle: 'One per line. Paste several lines and they split into separate points.',
+      placeholder: 'One thing to talk about per line. Pasting works too.',
+      bodyPlaceholder: 'Script to read out (optional)',
+      empty: 'Nothing written yet. Leave it empty and record free-form.',
+      write: 'Write talking points (optional)',
+      openList: 'List',
+      next: 'Next',
+      current: 'Talking about now',
+      upNext: (heading: string) => `Next: ${heading}`,
+      allDone: 'All points covered',
+      notStarted: 'Not started yet',
+      advanced: (heading: string) => `Moved on to "${heading}"`,
     },
   },
 

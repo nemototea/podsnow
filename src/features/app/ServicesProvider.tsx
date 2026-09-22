@@ -12,7 +12,7 @@ function serviceLabels(t: Messages): ServiceLabels {
     showName: t.seed.showName,
     descriptionTemplate: t.seed.descriptionTemplate,
     takeName: t.seed.takeName,
-    interruptionMarker: t.seed.interruptionMarker,
+    interruptionNote: t.seed.interruptionNote,
     androidNotification: t.androidNotification,
   };
 }

@@ -20,6 +20,7 @@ import { PlaybackService } from '../audio/PlaybackService';
 import { EditingService } from '../editing/EditingService';
 import { EpisodeService } from '../episodes/EpisodeService';
 import { ExportService } from '../export/ExportService';
+import { OutlineService } from '../outline/OutlineService';
 import type { RecorderPort } from '../recording/RecorderPort';
 import { RecordingSession } from '../recording/RecordingSession';
 import { recoverUnfinishedTakes, type RecoveredTake } from '../recording/RecoveryService';
@@ -39,6 +40,7 @@ export interface AppServices {
   exporter: ExportService;
   episodes: EpisodeService;
   assets: AssetsService;
+  outline: OutlineService;
   openEditing: (episodeId: string) => Promise<EditingService>;
   updateSettings: <K extends keyof AppSettings>(key: K, value: AppSettings[K]) => Promise<void>;
   /**
@@ -108,6 +110,7 @@ export async function bootstrap(
     deleteFile: deleteIfExists,
   });
   const assets = new AssetsService({ db, engine, root, ensureDir, newId, now });
+  const outline = new OutlineService({ db, newId, now });
 
   const services: AppServices = {
     db,
@@ -121,6 +124,7 @@ export async function bootstrap(
     exporter,
     episodes,
     assets,
+    outline,
     openEditing: (episodeId) => EditingService.open({ db, newId, now }, episodeId),
     updateSettings: async (key, value) => {
       await saveSetting(db, key, value);

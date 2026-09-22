@@ -47,19 +47,9 @@ describe('EditingService', () => {
       ...d,
       voice: deleteRange(d.voice, smp(100), smp(200)),
     }));
-    await svc.apply('マーカーを追加', (d) => ({
+    await svc.apply('音量を変える', (d) => ({
       ...d,
-      markers: [
-        ...d.markers,
-        {
-          id: 'm1',
-          takeId: 'T1',
-          srcSmp: smp(500),
-          label: '',
-          kind: 'edit_point',
-          resolved: false,
-        },
-      ],
+      voice: d.voice.map((v, i) => (i === 0 ? { ...v, gainDb: -3 } : v)),
     }));
     await svc.apply('ジングルを挿入', (d) => ({
       ...d,
@@ -89,20 +79,20 @@ describe('EditingService', () => {
       [0, 100],
       [200, 1000],
     ]);
-    expect(svc.current.markers).toHaveLength(1);
+    expect(svc.current.voice[0]!.gainDb).toBe(-3);
     expect(svc.current.overlays[0]!.anchor).toEqual({ type: 'source', takeId: 'T1', srcSmp: 300 });
     expect(svc.canUndo).toBe(true);
     expect(svc.canRedo).toBe(false);
 
     // Undo ×2 → 再オープン → Redo
     expect((await svc.undo())?.label).toBe('ジングルを挿入');
-    expect((await svc.undo())?.label).toBe('マーカーを追加');
+    expect((await svc.undo())?.label).toBe('音量を変える');
     expect(svc.current.overlays).toEqual([]);
-    expect(svc.current.markers).toEqual([]);
+    expect(svc.current.voice[0]!.gainDb).toBe(0);
     svc = await EditingService.open(deps, 'e');
-    expect(svc.redoLabel).toBe('マーカーを追加');
-    expect((await svc.redo())?.label).toBe('マーカーを追加');
-    expect((await loadDoc(db, 'e')).markers).toHaveLength(1);
+    expect(svc.redoLabel).toBe('音量を変える');
+    expect((await svc.redo())?.label).toBe('音量を変える');
+    expect((await loadDoc(db, 'e')).voice[0]!.gainDb).toBe(-3);
 
     // Undo 後の新規操作で Redo 側が消える
     await svc.apply('別の削除', (d) => ({ ...d, voice: deleteRange(d.voice, smp(0), smp(50)) }));
@@ -111,7 +101,7 @@ describe('EditingService', () => {
       'SELECT seq, label FROM edit_ops WHERE episode_id = ? ORDER BY seq',
       ['e'],
     );
-    expect(rows.map((r) => r.label)).toEqual(['範囲を削除', 'マーカーを追加', '別の削除']);
+    expect(rows.map((r) => r.label)).toEqual(['範囲を削除', '音量を変える', '別の削除']);
     const cur = await db.get<{ undo_cursor: number }>(
       'SELECT undo_cursor FROM episodes WHERE id = ?',
       ['e'],

@@ -96,7 +96,7 @@ export const ja = {
 ――――――
 Podcast: {{show_name}}
 感想は #PodsNow まで`,
-    interruptionMarker: '割り込みで録音が途切れました',
+    interruptionNote: '割り込みで録音が途切れました',
   },
 
   /** Android の録音中通知（フォアグラウンドサービス）。 */
@@ -200,8 +200,6 @@ Podcast: {{show_name}}
     editTopics: 'トークテーマを編集 ›',
     addTopics: '＋ トークテーマを追加（収録中に表示されます）',
     toolbar: {
-      marker: '● マーカー',
-      mistake: '噛んだ',
       quickInsert: (name: string) => `♪ ${name}`,
       insert: '♪ 挿入',
       insertPlus: '＋ 挿入',
@@ -216,7 +214,7 @@ Podcast: {{show_name}}
       removeSilence: '無音を削除',
       takes: 'テイク',
     },
-    hintRecording: '録音中は編集操作を止めています。マーカーは後でジャンプできます',
+    hintRecording: '録音中は編集操作を止めています。噛んだら「言い直す」',
     hintSelection: (from: string, to: string) =>
       `${from} 〜 ${to} を選択中。再生位置を動かして始点/終点を打ち直せます`,
     hintIdle: 'タイムラインをタップで再生位置。素材をタップで音量・位置',
@@ -262,16 +260,6 @@ Podcast: {{show_name}}
       apply: '適用する',
       applied: (count: number) => `${count} 箇所の無音を詰めました`,
     },
-    marker: {
-      mistake: '言い間違い',
-      interruption: '割り込み',
-      generic: 'マーカー',
-      seek: 'ここへ移動',
-      selectFromHere: 'ここから範囲を選ぶ',
-      selectFromHereSub: '始点をマーカーに置く',
-      resolve: '対応済みにする',
-      remove: 'マーカーを削除',
-    },
     takes: {
       title: 'テイク',
       subtitle: '声トラックの並び',
@@ -279,9 +267,19 @@ Podcast: {{show_name}}
       empty: 'まだ録音がありません',
     },
     topics: {
-      title: 'トークテーマ',
-      subtitle: '収録中に画面で見ながらチェックできます。音声入力はキーボードのマイクから',
-      placeholder: '話すテーマを追加',
+      title: 'トークテーマと台本',
+      subtitle: '1 行に 1 つ。まとめて貼り付けると行ごとに分かれます',
+      placeholder: '話すことを 1 行ずつ。貼り付けもできます',
+      bodyPlaceholder: '読み上げる原稿（任意）',
+      empty: 'まだ何も書いていません。書かなければそのままフリートークとして録れます',
+      write: 'トークテーマを書く（任意）',
+      openList: '一覧',
+      next: '次へ',
+      current: 'いま話していること',
+      upNext: (heading: string) => `次: ${heading}`,
+      allDone: 'すべて話し終えました',
+      notStarted: 'まだ始めていません',
+      advanced: (heading: string) => `「${heading}」へ進みました`,
     },
   },
 

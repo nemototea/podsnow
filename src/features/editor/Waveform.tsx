@@ -10,11 +10,12 @@ import {
   type NativeSyntheticEvent,
 } from 'react-native';
 
-import type { Marker } from '@/domain/editing/doc';
+import type { OutlineItem } from '@/domain/outline';
 import { formatSmp, smp, type Smp } from '@/domain/time';
 import type { PlacedOverlay } from '@/domain/timeline/overlays';
 import type { Range, VoiceSegment } from '@/domain/timeline/types';
 import { placeVoice } from '@/domain/timeline/voice';
+import type { RecordingEvent } from '@/infra/db/repositories/recordingEventsRepo';
 import { concentric, glyphSlop, radius, space, tabularNums, typography } from '@/ui/tokens';
 import { useAppTheme } from '@/ui/ThemeContext';
 
@@ -27,7 +28,10 @@ export interface WaveformProps {
   voice: readonly VoiceSegment[];
   peaksByTake: ReadonlyMap<string, TakePeaks>;
   overlays: readonly PlacedOverlay[];
-  markers: readonly { marker: Marker; at: Smp }[];
+  /** トークテーマ由来のチャプター（FR-OUT-4）。ユーザーは打たない。 */
+  chapters: readonly { item: OutlineItem; at: Smp }[];
+  /** 割り込みなど、アプリが記録した位置（DATA_MODEL.md §4.10）。 */
+  events: readonly { event: RecordingEvent; at: Smp }[];
   total: Smp;
   playhead: Smp;
   selection: Range | null;
@@ -38,7 +42,7 @@ export interface WaveformProps {
   recFrames: number;
   onSeek: (to: Smp) => void;
   onSelectOverlay: (id: string | null) => void;
-  onMarkerPress: (m: Marker) => void;
+  onChapterPress: (item: OutlineItem) => void;
   onVoiceSegmentPress?: (index: number) => void;
 }
 
@@ -192,35 +196,26 @@ export const Waveform = memo(function Waveform(p: WaveformProps) {
               ) : null,
             )}
           </View>
-          {/* マーカー */}
-          {p.markers.map(({ marker, at }) => (
+          {/* チャプター（トークテーマ由来） */}
+          {p.chapters.map(({ item, at }) => (
             <Pressable
-              key={marker.id}
-              onPress={() => p.onMarkerPress(marker)}
+              key={item.id}
+              onPress={() => p.onChapterPress(item)}
               hitSlop={glyphSlop}
-              style={[styles.marker, { left: xOf(at) - 8 }]}
+              style={[styles.chapter, { left: xOf(at) }]}
             >
-              <Text
-                style={{
-                  color: marker.resolved
-                    ? c.textTertiary
-                    : marker.kind === 'mistake'
-                      ? c.mistakeText
-                      : marker.kind === 'interruption' || marker.kind === 'route_change'
-                        ? c.dangerText
-                        : c.accentText,
-                  fontSize: typography.caption.fontSize,
-                }}
-              >
-                {marker.kind === 'mistake'
-                  ? '⚑'
-                  : marker.kind === 'topic'
-                    ? '✓'
-                    : marker.kind === 'interruption'
-                      ? '⏸'
-                      : '●'}
+              <Text numberOfLines={1} style={[typography.overline, { color: c.accentText }]}>
+                ▏{item.heading}
               </Text>
             </Pressable>
+          ))}
+          {/* 録音中の出来事（アプリが記録したもの） */}
+          {p.events.map(({ event, at }) => (
+            <View key={event.id} style={[styles.event, { left: xOf(at) - 8 }]}>
+              <Text style={{ color: c.dangerText, fontSize: typography.caption.fontSize }}>
+                {event.kind === 'interruption' ? '⏸' : '!'}
+              </Text>
+            </View>
           ))}
           {/* 再生ヘッド */}
           <View
@@ -271,7 +266,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: space.sm,
   },
   overlayLabel: typography.overline,
-  marker: {
+  chapter: {
+    position: 'absolute',
+    top: 16 + HEIGHT + 4 + OVERLAY_H * 2 + 4,
+    maxWidth: 140,
+  },
+  event: {
     position: 'absolute',
     top: 16 + HEIGHT + 4 + OVERLAY_H * 2 + 4,
     width: 16,

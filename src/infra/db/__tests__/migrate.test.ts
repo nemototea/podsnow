@@ -37,8 +37,9 @@ describe('migrate', () => {
       'take_segments',
       'voice_segments',
       'overlay_clips',
-      'markers',
-      'topics',
+      'recording_events',
+      'outline_items',
+      'show_topic_template',
       'edit_ops',
       'exports',
       'transcripts',
@@ -47,6 +48,9 @@ describe('migrate', () => {
     ]) {
       expect(names).toContain(t);
     }
+    // 0003 で置き換えたテーブルは残っていない（二重の真実を作らない）。
+    expect(names).not.toContain('markers');
+    expect(names).not.toContain('topics');
   });
 
   it('0002 adds audio_purged_at to an existing v1 database without touching rows', async () => {
@@ -65,13 +69,74 @@ describe('migrate', () => {
     );
 
     const r = await migrate(db);
-    expect(r.applied).toEqual(['0002_episode_numbering']);
+    expect(r.applied).toEqual(['0002_episode_numbering', '0003_outline_and_events']);
 
     const ep = await db.get<{ episode_number: number; audio_purged_at: number | null }>(
       'SELECT episode_number, audio_purged_at FROM episodes WHERE id = ?',
       ['e1'],
     );
     expect(ep).toEqual({ episode_number: 7, audio_purged_at: null });
+  });
+
+  it('0003 moves topics into outline_items and keeps only system markers', async () => {
+    const db = createNodeSqliteExecutor();
+    await migrate(db, [MIGRATIONS[0]!, MIGRATIONS[1]!]);
+    const now = Date.now();
+    await db.run('INSERT INTO shows (id, created_at, updated_at) VALUES (?,?,?)', ['s1', now, now]);
+    await db.run(
+      'INSERT INTO episodes (id, show_id, episode_number, created_at, updated_at) VALUES (?,?,?,?,?)',
+      ['e1', 's1', 1, now, now],
+    );
+    await db.run(
+      'INSERT INTO takes (id, episode_id, status, started_at, created_at, updated_at) VALUES (?,?,?,?,?,?)',
+      ['t1', 'e1', 'ready', now, now, now],
+    );
+    await db.run(
+      'INSERT INTO topics (id, episode_id, position, text, checked_at, checked_take_id, checked_src_smp) VALUES (?,?,?,?,?,?,?)',
+      ['tp1', 'e1', 0, '近況', now, 't1', 4800],
+    );
+    await db.run('INSERT INTO topics (id, episode_id, position, text) VALUES (?,?,?,?)', [
+      'tp2',
+      'e1',
+      1,
+      'お便り',
+    ]);
+    const markers: [string, string][] = [
+      ['m1', 'mistake'],
+      ['m2', 'edit_point'],
+      ['m3', 'interruption'],
+      ['m4', 'topic'],
+      ['m5', 'route_change'],
+    ];
+    for (const [id, kind] of markers) {
+      await db.run(
+        'INSERT INTO markers (id, episode_id, take_id, src_smp, label, kind, created_at) VALUES (?,?,?,?,?,?,?)',
+        [id, 'e1', 't1', 100, id, kind, now],
+      );
+    }
+
+    expect((await migrate(db)).applied).toEqual(['0003_outline_and_events']);
+
+    // トークテーマは見出しとして残り、チェック位置はチャプターになる
+    expect(
+      await db.all(
+        'SELECT heading, body, recorded_take_id, recorded_src_smp, done_at FROM outline_items WHERE episode_id = ? ORDER BY position',
+        ['e1'],
+      ),
+    ).toEqual([
+      { heading: '近況', body: '', recorded_take_id: 't1', recorded_src_smp: 4800, done_at: now },
+      {
+        heading: 'お便り',
+        body: '',
+        recorded_take_id: null,
+        recorded_src_smp: null,
+        done_at: null,
+      },
+    ]);
+    // 残すのはアプリが記録したものだけ。ユーザーが打ったマーカーは捨てる（FR-REC-4 廃止）
+    expect(
+      await db.all('SELECT kind FROM recording_events WHERE episode_id = ? ORDER BY id', ['e1']),
+    ).toEqual([{ kind: 'interruption' }, { kind: 'route_change' }]);
   });
 
   it('rolls back a failing migration without advancing user_version', async () => {
