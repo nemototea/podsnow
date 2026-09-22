@@ -35,7 +35,7 @@
 ├─────────────────────────────────────────────────────────┤
 │ src/domain/  ─ 純粋 TypeScript。副作用なし                 │
 │   timeline (EDL 計算・時間変換) / edit-ops (操作と逆操作)   │
-│   undo / metadata-template / silence-plan                │
+│   undo / metadata-template / silence-plan / outline      │
 ├─────────────────────────────────────────────────────────┤
 │ src/services/  ─ ユースケース。domain と infra をつなぐ      │
 │   RecordingSession / EpisodeService / ExportService      │
@@ -66,19 +66,16 @@ podsnow/
 ├── src/
 │   ├── app/                    # expo-router（SDK 57 の既定は src/app）
 │   │   ├── _layout.tsx
-│   │   ├── index.tsx               # Home
-│   │   ├── episode/[id]/index.tsx  # Episode トップ
-│   │   ├── episode/[id]/editor.tsx # 収録・編集
-│   │   ├── episode/[id]/details.tsx
-│   │   ├── episode/[id]/sound.tsx
-│   │   ├── episode/[id]/export.tsx
-│   │   ├── episode/[id]/pack.tsx   # Distribution Pack
-│   │   ├── show/assets.tsx
-│   │   ├── show/settings.tsx
+│   │   ├── index.tsx                 # ホーム
+│   │   ├── episode/[id]/index.tsx    # エピソード（録音 / 編集 / 書き出しの 3 タブ）
+│   │   ├── episode/[id]/share.tsx    # 書き出し後の共有（内部名 Distribution Pack）
+│   │   ├── episode/[id]/backup.tsx
+│   │   ├── show/index.tsx            # 番組（情報・素材・ひな形を 1 画面に）
+│   │   ├── restore.tsx
 │   │   └── settings.tsx
 │   ├── domain/
 │   ├── services/
-│   ├── features/
+│   ├── features/           # episode/{record,edit,export} など、タブ単位のフック
 │   ├── infra/
 │   ├── i18n/                   # 文言カタログ（ja.ts がキーの正）・ロケール解決
 │   └── ui/                     # 共通コンポーネント・テーマ
@@ -254,3 +251,15 @@ idle ──start──▶ preparing ──ok──▶ recording ◀──resume�
 | A-2 | DSP を C++ 共通コアにするか | Phase 0 スパイク（ビルド安定性・工数） |
 | A-3 | リアルタイムミックス再生の実装（AVAudioEngine の複数 PlayerNode vs 自前ミキサー → 1 出力） | AUDIO_DESIGN.md §7 |
 | A-4 | 内部時間表現（サンプル数 vs ms） | サンプル数を第一候補。Phase 1 で確定 |
+
+## 12. 画面構成の再設計（0.1.0）【事実】
+
+`docs/ux-restructure.md` で決めた IA に従う。要点だけ再掲する。
+
+- **1 エピソード = 1 画面**。`episode/[id]/index.tsx` が **録音 / 編集 / 書き出し** の 3 タブを持つ。
+  旧 `editor.tsx` / `details.tsx` / `sound.tsx` / `export.tsx` と旧エピソードトップは、この画面のタブとセクションへ移す。
+- `features/` はタブ単位に分ける（`features/episode/record` / `edit` / `export`）。
+  `useEditor` のような「画面ぜんぶを 1 つのフックが持つ」構造をやめ、録音・編集・書き出しで状態を分ける。
+- 画面から `src/services/` 以外を呼ばない原則は変えない（§2）。
+- UI に出す言葉は一般語だけにする（REQUIREMENTS.md NFR-9）。内部名（Take / 声トラック / オーバーレイ / Outline）は
+  `src/i18n/` に入れない。ESLint で機械的に縛るのは難しいので、レビューの観点として `DEVELOPMENT.md` に置く。

@@ -43,13 +43,14 @@ shows 1──* episodes 1──* takes 1──* take_segments
   │            │            │
   │            ├──* voice_segments (EDL: take_id + src range)
   │            ├──* overlay_clips ──▶ assets
-  │            ├──* markers
-  │            ├──* topics
+  │            ├──* recording_events
+  │            ├──* outline_items
   │            ├──* edit_ops
   │            ├──* exports
   │            └──* transcripts (将来) ──▶ takes
   ├──* assets
   ├──1 description_templates
+  ├──* show_topic_template (トークテーマのひな形)
   └──1 show_layout (既定構成)
 app_settings (key-value)
 recovery_journal
@@ -92,6 +93,18 @@ MVP は起動時に 1 行自動作成。【事実】
 | opening_gain_db / ending_gain_db | REAL | |
 
 新規エピソード作成時、この行から `overlay_clips` を生成する。MVP は 1 種類のみ【事実】。将来 `episode_templates` テーブルに一般化。
+
+### 4.2.1 `show_topic_template`（トークテーマのひな形）
+| 列 | 型 | 説明 |
+|---|---|---|
+| id | TEXT PK | |
+| show_id | TEXT FK | |
+| position | INTEGER | 並び順 |
+| heading | TEXT | 見出し |
+| body | TEXT NOT NULL DEFAULT '' | 台本の下書き（空でよい） |
+
+新規エピソード作成時、この並びから `outline_items` を生成する（FR-SHOW-4）。
+生成後はエピソードのデータなので、ひな形を変えても既存エピソードは書き換えない（`ServiceLabels` と同じ考え方）。
 
 ### 4.3 `description_templates`
 | 列 | 型 | 説明 |
@@ -212,29 +225,45 @@ Take の「時間軸」は Segment を `seq` 順に連結したもの。割り�
 - Opening は `timeline_start`、Ending は `timeline_end`（オフセット付き）。声の総尺が変わっても自動追従。
 - 後から手で配置した素材は `timeline_abs`（絶対位置）だが、UI で「発言に追従」に切り替え可。
 
-### 4.10 `markers`
+### 4.10 `recording_events`（録音中の出来事）
 | 列 | 型 | 説明 |
 |---|---|---|
 | id | TEXT PK | |
 | episode_id | TEXT FK | |
-| take_id | TEXT FK | マーカーは Take の時刻に紐づく（カットに追従） |
+| take_id | TEXT FK | Take の時刻に紐づく（カットに追従） |
 | src_smp | INTEGER | |
-| label | TEXT | 任意メモ |
-| kind | TEXT | `edit_point`（既定） / `mistake` / `interruption`（自動） / `route_change`（自動） / `topic`（トークテーマのチェック時） |
-| resolved | INTEGER | 対応済みフラグ |
+| label | TEXT | 表示用の補足（デバイス名など。文言は UI 層が作る） |
+| kind | TEXT | `interruption` / `route_change` / `disk_low`。**すべてアプリが自動で記録する** |
 | created_at | INTEGER | |
 
-### 4.11 `topics`（トークテーマ）
+**ユーザーが打つマーカーは持たない【事実】。** 旧 `markers` の `edit_point` / `mistake` は廃止し、
+収録中の「言い直す」（FR-REC-4）と、編集タブの塊の選択（FR-EDIT-2）で置き換える。
+旧 `topic` は `outline_items.recorded_take_id / recorded_src_smp`（§4.11）に吸収した。
+
+理由: マーカーは押した時点では何も解決せず、あとで「戻る → 次へ → 範囲選択 → 削除」の作業が残る。
+ユーザーが本当に指したいのは「捨てる範囲」であり、「あとで見る場所」ではない（`docs/ux-restructure.md` §1.3）。
+
+### 4.11 `outline_items`（トークテーマと台本）
 | 列 | 型 | 説明 |
 |---|---|---|
 | id | TEXT PK | |
 | episode_id | TEXT FK | |
-| position | INTEGER | |
-| text | TEXT | |
-| checked_at | INTEGER nullable | 収録中にチェックした時刻 |
-| checked_take_id / checked_src_smp | TEXT / INTEGER nullable | チェック時の録音位置（マーカーと連動） |
+| position | INTEGER | 並び順 |
+| heading | TEXT | 見出し（トークテーマ）。必須 |
+| body | TEXT NOT NULL DEFAULT '' | 台本本文。**空なら見出しだけの項目**。台本かどうかを表す列は持たない |
+| recorded_take_id | TEXT FK nullable | 録音中にこの項目へ進んだ位置 = チャプターの始まり |
+| recorded_src_smp | INTEGER nullable | 同上（Take 内の時刻。カットに追従する） |
+| done_at | INTEGER nullable | 話し終えた時刻 |
 
-概要欄の `{{topics}}` に箇条書きとして差し込む。将来 AI 要約の入力にもなる。【事実】
+**「収録スタイル」を表す列は `episodes` にも置かない【事実】。**
+台本を書けば `body` が埋まり、書かなければ見出しだけになり、何も書かなければ項目が 0 件になる。
+モードを持たせると、ユーザーに「選ぶ前に選択肢の意味を理解させる」ことになる（REQUIREMENTS.md §2.2.1）。
+
+概要欄の `{{topics}}` には `heading` を箇条書きとして差し込む。将来の文字起こし（§4.14）は
+チャプター単位のテキストとしてここにぶら下がり、要約・概要の下書きの入力になる。【事実】
+
+旧 `topics` からの移行: `text → heading`、`checked_at → done_at`、
+`checked_take_id / checked_src_smp → recorded_take_id / recorded_src_smp`、`body` は空文字で追加。
 
 ### 4.12 `edit_ops`（編集履歴 / Undo）
 | 列 | 型 | 説明 |
@@ -249,7 +278,8 @@ Take の「時間軸」は Segment を `seq` 順に連結したもの。割り�
 
 `episodes.undo_cursor` に「現在位置の seq」を持つ。Undo = cursor を 1 つ戻し `inverse` を適用、Redo = `forward` を適用。新規操作で cursor より後の行を削除。**アプリ再起動後も Undo 可能**。【事実】上限は既定 200 件【仮説】。
 
-対象テーブル: `voice_segments`, `overlay_clips`, `markers`, `episodes.sound_settings`。Take 自体（録音）は Undo 対象外（削除は論理削除 + ゴミ箱）。
+対象テーブル: `voice_segments`, `overlay_clips`, `outline_items`, `episodes.sound_settings`。
+`recording_events` はアプリが記録した事実なので Undo の対象にしない。Take 自体（録音）は Undo 対象外（削除は論理削除 + ゴミ箱）。
 
 ### 4.13 `exports`
 | 列 | 型 | 説明 |
@@ -325,7 +355,7 @@ planSilenceRemoval(ranges, { padMs }): Range[]
 
 ```
 manifest.json     { formatVersion: 1, app: "podsnow", createdAt, episodeId, showId }
-episode.json      episodes / takes / take_segments / voice_segments / overlay_clips / markers / topics / exports(メタのみ) の行を JSON で
+episode.json      episodes / takes / take_segments / voice_segments / overlay_clips / recording_events / outline_items / exports(メタのみ) の行を JSON で
 takes/<takeId>/seg-0001.wav ...
 assets/<assetId>.wav  (オプション。既定は同梱)
 ```
