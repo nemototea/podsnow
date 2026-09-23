@@ -8,3 +8,5 @@ coverage
 package-lock.json
 *.md
 scripts/web-preview
+# scripts/brand/generate.py の生成物。整形すると再生成のたびに差分が出る
+src/ui/brand/wordmark.ts

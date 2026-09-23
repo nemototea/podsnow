@@ -80,4 +80,47 @@ describe('文言カタログ', () => {
     }
     expect(suspicious).toEqual([]);
   });
+
+  describe('文体（DESIGN_SYSTEM.md §2.2）', () => {
+    const rendered = (catalog: Node): [string, string][] =>
+      [...walk(catalog)].map(([path, leaf]) => {
+        const v = path.split('.').reduce<unknown>((acc, k) => (acc as Node)[k], catalog);
+        const text =
+          leaf.kind === 'function'
+            ? (v as (...a: unknown[]) => string)(...Array.from({ length: leaf.arity }, () => '1'))
+            : (v as string);
+        return [path, text];
+      });
+    const ACRONYMS = new Set(['AAC', 'AGC', 'BGM', 'LUFS', 'M4A', 'MVP', 'WAV', 'YYYY']);
+
+    it.each(LOCALES)('%s に全部大文字の語が無い（略語を除く）', (locale) => {
+      const found = rendered(messagesFor(locale) as unknown as Node).flatMap(([path, text]) =>
+        (text.match(/\b[A-Z][A-Z0-9]{2,}\b/g) ?? [])
+          .filter((w) => !ACRONYMS.has(w))
+          .map((w) => `${path}: ${w}`),
+      );
+      expect(found).toEqual([]);
+    });
+
+    it('ja に呼びかけ・キャッチコピー調の言い回しが無い', () => {
+      const found = rendered(ja as unknown as Node)
+        .filter(([, text]) => /しましょう|大丈夫|、ここから|へ。$/.test(text))
+        .map(([path, text]) => `${path}: ${text}`);
+      expect(found).toEqual([]);
+    });
+
+    it('ja の 1 文だけの文言は句点で終えない', () => {
+      const found = rendered(ja as unknown as Node)
+        .filter(([, text]) => text.endsWith('。') && text.indexOf('。') === text.length - 1)
+        .map(([path, text]) => `${path}: ${text}`);
+      expect(found).toEqual([]);
+    });
+
+    it('en に呼びかけ・感嘆が無い', () => {
+      const found = rendered(en as unknown as Node)
+        .filter(([, text]) => /Let[’']s|!/.test(text))
+        .map(([path, text]) => `${path}: ${text}`);
+      expect(found).toEqual([]);
+    });
+  });
 });

@@ -14,7 +14,7 @@ export const ja = {
   app: {
     name: 'PodsNow',
     versionLine: (version: string) => `PodsNow ${version} (MVP)`,
-    nonDestructiveNote: 'すべての編集は非破壊で、録音の元データは削除されません。',
+    nonDestructiveNote: 'すべての編集は非破壊で、録音の元データは削除されません',
   },
 
   common: {
@@ -140,19 +140,13 @@ Podcast: {{show_name}}
   },
 
   home: {
-    greeting: 'こんにちは',
     showMeta: (season: number, episodes: number) => `シーズン ${season} · ${episodes} 本`,
     sectionEpisodes: 'エピソード',
     restore: '復元',
-    showLink: '番組 ›',
     share: '共有する',
-    badgeNew: 'NEW',
+    badgeNew: '未録音',
     badgeEditing: '編集中',
     takes: (n: number) => `${n} 本の録音`,
-    firstEpisode: '最初のエピソードを作りましょう',
-    nextEpisode: '次の回を作りましょう',
-    emptyLead:
-      '「＋」で新しい回を作ると、番組に登録した素材とトークテーマが入った状態で始められます。',
     newEpisode: '新しいエピソード',
     startRecording: '録音を始める',
     continueEditing: '編集を続ける',
@@ -178,15 +172,12 @@ Podcast: {{show_name}}
       removeExportedNote: (n: number) =>
         `#${n} は書き出し済みです。削除すると、この話数は次の新規作成で再利用されます`,
     },
-    yourShow: 'あなたの番組',
-    inProgress: '制作中',
     episodeCode: (n: number) => `EP. ${String(n).padStart(3, '0')}`,
     newEpisodeCta: '新しいエピソードを録る',
-    firstTitle: '最初の1本を、ここから。',
-    firstLead: 'タイトルはあとで大丈夫。まずは声を録ってみましょう。',
+    firstTitle: 'エピソードはまだありません',
+    firstLead: 'タイトルと概要は録音のあとで入力できます',
     recoveredTitle: '途中の録音を復元しました',
-    recoveredBody: (duration: string) =>
-      `前回、保存を終える前に止まった録音（${duration}）を取り戻しました。内容を確認してください。`,
+    recoveredBody: (duration: string) => `保存が終わる前に止まった録音です（${duration}）`,
     reviewRecording: '録音を確認する',
     a11yEpisodeMenu: (n: number) => `エピソード ${n} の操作`,
     moreSection: '番組とデータ',
@@ -216,8 +207,8 @@ Podcast: {{show_name}}
     next: '次へ',
     openList: '一覧',
     advanced: (heading: string) => `「${heading}」へ進みました`,
-    writeTopics: '話すことを書いておけます（任意）',
-    writeTopicsSub: 'トークテーマだけでも、読み上げる台本でも。書かなければそのまま録れます',
+    writeTopics: '話すことを書く（任意）',
+    writeTopicsSub: 'トークテーマや台本を 1 行ずつ書けます。書かずに録音もできます',
     topicsTitle: 'トークテーマと台本',
     topicsSubtitle: '1 行に 1 つ。まとめて貼り付けると行ごとに分かれます',
     topicsPlaceholder: '話すことを 1 行ずつ。貼り付けもできます',
@@ -248,7 +239,7 @@ Podcast: {{show_name}}
     retakeLast10: '直近 10 秒',
     retakeLast10Sub: '少しだけ言い直す',
     retakeNothing: '捨てる範囲がありません',
-    retakeDone: (duration: string) => `${duration} を捨てました。そのまま言い直してください`,
+    retakeDone: (duration: string) => `直近の ${duration} を捨てました。録音は続いています`,
     pause: '一時停止',
     resume: '再開',
     finishFirst: '収録を終えてから移動してください',
@@ -270,7 +261,7 @@ Podcast: {{show_name}}
     nextTopic: (heading: string) => `次へ：${heading}`,
     firstTopic: (heading: string) => `話し始める：${heading}`,
     assetsTitle: 'ジングル・効果音',
-    registerAssetsSub: 'ジングルや効果音を番組に登録すると、収録中にワンタップで入れられます。',
+    registerAssetsSub: 'ジングルと効果音を番組に登録すると、収録中に挿入できます',
     a11yInsertNow: (name: string) => `${name} をいまの位置に入れる`,
     a11yInsertAt: (name: string) => `${name} を再生位置に入れる`,
     a11yRemoveFromEpisode: (name: string) => `${name} をこの回から外す`,
@@ -289,10 +280,10 @@ Podcast: {{show_name}}
     a11yLevelIdle: '入力レベル（録音していません）',
     clipped: '音が割れています。マイクから少し離れてください',
     permTitle: 'マイクへのアクセス',
-    permBody: '声を収録するために、マイクへのアクセスを許可してください。',
+    permBody: '声を収録するために、マイクへのアクセスを許可してください',
     permAllow: '許可する',
     permDeniedTitle: 'マイクが許可されていません',
-    permDeniedBody: '設定でマイクへのアクセスを許可すると、収録できるようになります。',
+    permDeniedBody: '設定でマイクへのアクセスを許可すると、収録できるようになります',
   },
 
   edit: {
@@ -313,9 +304,9 @@ Podcast: {{show_name}}
 
     silenceTitle: '無音を詰める',
     silenceSubtitle: '設定のしきい値より静かで長い区間を詰めます',
-    silenceAnalyzing: '調べています…',
+    silenceAnalyzing: '無音を探しています',
     silenceNone: '詰められる無音はありませんでした',
-    silencePlan: (count: number, total: string) => `${count} 箇所、合計 ${total} を詰めます。`,
+    silencePlan: (count: number, total: string) => `${count} 箇所、合計 ${total} を詰めます`,
     silenceApply: '詰める',
     silenceApplied: (count: number) => `${count} 箇所の無音を詰めました`,
 
@@ -391,7 +382,7 @@ Podcast: {{show_name}}
     noTemplate: '概要欄テンプレートがありません',
     templateApplied: 'テンプレートを適用しました',
     numberTaken: 'この話数はほかの回でも使われています（保存はできます）',
-    templateStatus: '番組の概要テンプレートを元にしています。自由に書き換えられます',
+    templateStatus: '番組の概要テンプレートから作成しました',
     undoTemplate: 'テンプレートの適用を取り消す',
     dateHelp: '例：2026-09-23',
   },
@@ -437,7 +428,7 @@ Podcast: {{show_name}}
     phaseMeasuring: '音を整えています',
     phaseRendering: 'ファイルを作成しています',
     run: '音声を書き出す',
-    emptyVoice: 'まだ録音がありません。先に録音してください。',
+    emptyVoice: 'まだ録音がありません。録音タブで録音してから書き出します',
     historyEyebrow: '書き出し履歴',
     noHistory: 'まだ書き出しはありません',
     cancelled: '書き出しを中止しました',
@@ -446,19 +437,17 @@ Podcast: {{show_name}}
     historyCancelled: '中止',
     historyRunning: (pct: number) => `進行中 ${pct}%`,
     failedTitle: '音声の書き出しに失敗しました',
-    failedBody: '収録データと編集内容は端末に残っています。',
+    failedBody: '収録データと編集内容は端末に残っています',
     cancel: '書き出しをキャンセル',
-    cancelNote: 'キャンセルしても、収録データと編集内容は消えません。',
-    notPublishNote:
-      '書き出すと端末に音声ファイルができます。配信サービスへの公開はそのあとに行います。',
+    cancelNote: 'キャンセルしても、収録データと編集内容は消えません',
+    notPublishNote: '音声ファイルは端末に保存されます。公開は配信サービスで行います',
     a11yOpenHandoff: (when: string) => `${when} の書き出しを配信の準備で開く`,
   },
 
   pack: {
     title: '配信の準備',
     shareFile: '音声ファイルを共有',
-    shareNote: '共有シートから「ファイルに保存」や AirDrop、配信アプリへの送信ができます。',
-    noExport: '書き出し済みの音声ファイルがありません。',
+    noExport: '書き出し済みの音声ファイルがありません',
     toExport: 'エピソードへ戻る',
     titleEyebrow: 'タイトル',
     descriptionEyebrow: '概要',
@@ -467,14 +456,12 @@ Podcast: {{show_name}}
     backHome: 'エピソード一覧へ',
     a11yCopy: (label: string) => `${label} をコピー`,
     a11yCopied: (label: string) => `${label} をコピーしました`,
-    done: '音声を書き出しました。',
-    lead: '音声とテキストを配信サービスへ。',
     olderExport: (when: string, format: string) =>
       `${when} に書き出した ${format} を表示しています`,
     missingFile: '音声ファイルが見つかりません',
     missingFileBody: '端末から削除された可能性があります。タイトルと概要は引き続きコピーできます。',
     exportAgain: 'もう一度書き出す',
-    notPublished: 'まだ公開されていません。配信サービスでアップロードを完了してください。',
+    notPublished: 'まだ公開されていません。公開は配信サービスでアップロードして行います',
     copyFailed: 'コピーできませんでした',
   },
 
@@ -490,8 +477,7 @@ Podcast: {{show_name}}
 
   backup: {
     title: 'バックアップ',
-    subtitle: '録音素材と編集データを 1 ファイルにまとめます',
-    lead: '録音（WAV）・素材・編集内容・トークテーマを .podsnow ファイルに書き出します。別の端末で「バックアップから復元」すると同じエピソードを再現できます。',
+    lead: '録音（WAV）、素材、編集内容、トークテーマを 1 つの .podsnow ファイルにまとめます。別の端末の「バックアップから復元」で同じエピソードに戻せます。',
     run: 'バックアップを作成',
     again: 'もう一度作成',
     phaseWriting: '書き込み中',
@@ -508,8 +494,7 @@ Podcast: {{show_name}}
 
   restore: {
     title: 'バックアップから復元',
-    subtitle: '.podsnow ファイルを新しいエピソードとして取り込みます',
-    lead: '復元したエピソードは元の話数のまま取り込みます。同じ話数が使われている場合だけ新しい話数を振ります。番組に同じ素材があればそれを使い、無ければ素材も取り込みます。',
+    lead: '.podsnow ファイルを新しいエピソードとして取り込みます。元の話数が使われているときは新しい話数を振ります。番組にない素材は一緒に取り込みます。',
     pick: 'ファイルを選ぶ',
     wrongExtension: '.podsnow ファイルを選んでください',
     phaseDb: 'データベースへ書き込み中',
@@ -532,10 +517,8 @@ Podcast: {{show_name}}
       ja: '日本語',
       en: 'English',
     },
-    languageNote: '選んだ言語はすぐに反映されます。',
     appearanceEyebrow: '表示',
     theme: { dark: 'ダーク', light: 'ライト', system: 'システム' },
-    themeNote: 'テーマはすぐに反映されます。',
     recordingEyebrow: '収録',
     quality: '録音品質',
     qualitySub: '16 bit 非圧縮 WAV で保存します',
@@ -612,7 +595,7 @@ Podcast: {{show_name}}
   showSettings: {
     topicTemplateEyebrow: 'トークテーマのひな形',
     topicTemplateNote:
-      '毎回同じ並びで話す番組のために、1 行 1 項目で書いておけます。新しい回に自動で入り、そのあとは自由に書き換えられます。',
+      '1 行に 1 項目。新しいエピソードに最初から入り、エピソードごとに書き換えられます。',
     topicTemplatePlaceholder: 'オープニング\n今日の話題\nお便り\nお知らせ\nエンディング',
     title: '番組の設定',
     showEyebrow: '番組',
@@ -629,8 +612,7 @@ Podcast: {{show_name}}
     a11yPickAsset: (slot: string) => `${slot} の素材を選ぶ`,
     a11ySlotGain: (slot: string) => `${slot} の音量`,
     templateEyebrow: '概要欄テンプレート',
-    templateNote:
-      '新しいエピソードの概要欄に毎回適用されます。あとから各エピソードで自由に編集できます。',
+    templateNote: '新しいエピソードの概要欄に入ります。エピソードごとに書き換えられます。',
     a11yTemplate: '概要欄テンプレート',
     placeholders: {
       title: 'エピソードのタイトル',
@@ -647,7 +629,6 @@ Podcast: {{show_name}}
 
   showAssets: {
     title: '素材',
-    lead: 'ファイル名ではなく「番組のどこで使う音か」で並んでいます。すべてのエピソードから挿入できます。',
     add: '追加',
     a11yAdd: (kind: string) => `${kind} に音源を追加`,
     importing: (pct: number) => `取り込み中… ${pct}%`,

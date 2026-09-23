@@ -82,7 +82,7 @@ export default function BackupScreen() {
 
   return (
     <Screen overlay={<Toast toast={toast} onAction={act} onDismiss={dismiss} />}>
-      <Header title={t.backup.title} subtitle={t.backup.subtitle} onBack={() => router.back()} />
+      <Header title={t.backup.title} onBack={() => router.back()} />
       <Card>
         <Text style={[st.body, { color: c.textSecondary }]}>{t.backup.lead}</Text>
         {phase === 'idle' || phase === 'error' ? (

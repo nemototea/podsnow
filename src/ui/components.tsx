@@ -210,21 +210,6 @@ export function Header({
   );
 }
 
-export function Eyebrow({ children, right }: { children: ReactNode; right?: ReactNode }) {
-  const c = useAppTheme();
-  return (
-    <View style={s.eyebrowRow}>
-      <Text
-        style={[typography.overline, s.flex, { color: c.textSecondary }]}
-        accessibilityRole="header"
-      >
-        {children}
-      </Text>
-      {right}
-    </View>
-  );
-}
-
 export function SectionHeader({ title, right }: { title: string; right?: ReactNode }) {
   const c = useAppTheme();
   return (
@@ -728,7 +713,7 @@ export function Segmented<T extends string>({
                   : pressed
                     ? c.surfaceRaised
                     : 'transparent',
-                borderBottomColor: active ? c.accentBorder : 'transparent',
+                borderColor: active ? c.borderStrong : 'transparent',
               },
             ]}
           >
@@ -939,13 +924,6 @@ const s = StyleSheet.create({
     paddingHorizontal: space.xs,
     gap: space.hair,
   },
-  eyebrowRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: space.xl,
-    marginBottom: space.sm,
-    gap: space.sm,
-  },
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1042,7 +1020,7 @@ const s = StyleSheet.create({
     minHeight: hit.min,
     justifyContent: 'center',
     borderRadius: concentric(radius.md, space.xs),
-    borderBottomWidth: stroke.selected,
+    borderWidth: stroke.hairline,
     paddingHorizontal: space.sm,
   },
   track: { height: space.sm, borderRadius: radius.pill, overflow: 'hidden' },

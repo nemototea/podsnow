@@ -142,7 +142,6 @@ export function AssetsSection({ onToast }: AssetsSectionProps) {
   return (
     <>
       <SectionHeader title={t.showAssets.title} />
-      <Text style={[st.lead, { color: c.textSecondary }]}>{t.showAssets.lead}</Text>
 
       {assetKinds(t).map((k) => {
         const items = list.filter((a) => a.kind === k.kind);
@@ -261,7 +260,6 @@ export function AssetsSection({ onToast }: AssetsSectionProps) {
 }
 
 const st = StyleSheet.create({
-  lead: { ...typography.body, marginBottom: space.md },
   group: { paddingBottom: space.sm },
   groupHead: { flexDirection: 'row', alignItems: 'center', gap: space.md },
   rowRight: { flexDirection: 'row', alignItems: 'center', marginRight: -space.md },

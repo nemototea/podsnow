@@ -13,8 +13,8 @@ import { useT } from '@/i18n';
 import { listExports, type ExportRow } from '@/infra/db/repositories/exportsRepo';
 import { fileExists } from '@/infra/files/fileSystem';
 import { joinRoot } from '@/infra/files/layout';
-import { radius, space, tabularNums, typography } from '@/ui/tokens';
-import { Button, Card, Header, Icon, Loading, Notice, Screen, Text, Toast } from '@/ui/components';
+import { space, tabularNums, typography } from '@/ui/tokens';
+import { Button, Card, Header, Loading, Notice, Screen, Text, Toast } from '@/ui/components';
 import { useAppTheme } from '@/ui/ThemeContext';
 import { useToast } from '@/ui/useToast';
 
@@ -134,56 +134,46 @@ export default function DistributionPackScreen() {
         onBack={() => router.back()}
       />
 
+      <View style={st.top} />
+
       {row ? (
         <>
-          <View style={st.hero}>
-            <View style={[st.done, { backgroundColor: c.successSubtle }]}>
-              <Icon name="check" color={c.successText} />
-            </View>
-            <Text style={[typography.title, { color: c.textPrimary }]} accessibilityRole="header">
-              {t.pack.done}
-            </Text>
-            <Text style={[typography.body, { color: c.textSecondary }]}>{t.pack.lead}</Text>
-          </View>
-
           {row.id !== latestId ? (
             <Notice
               title={t.pack.olderExport(formatWhen(row.created_at), row.format.toUpperCase())}
             />
           ) : null}
 
+          {exists ? null : (
+            <Notice
+              kind="error"
+              title={t.pack.missingFile}
+              body={t.pack.missingFileBody}
+              action={
+                <Button
+                  label={t.pack.exportAgain}
+                  kind="secondary"
+                  compact
+                  onPress={() => router.back()}
+                />
+              }
+            />
+          )}
+
           <Card>
             <View style={st.file}>
-              <View style={[st.badge, { backgroundColor: c.accentSolid }]}>
-                <Text style={[typography.mono, tabularNums, { color: c.accentOnSolid }]}>
-                  {String(episode.episode_number).padStart(3, '0')}.
-                </Text>
-              </View>
-              <View style={st.flex}>
-                <Text style={[typography.bodyStrong, { color: c.textPrimary }]}>{fileName}</Text>
-                <Text style={[typography.mono, tabularNums, { color: c.textSecondary }]}>
-                  {durationLabel} · {formatBytes(row.bytes ?? 0)}
-                  {row.measured_lufs != null ? ` · ${row.measured_lufs.toFixed(1)} LUFS` : ''}
-                </Text>
-              </View>
+              <Text style={[typography.bodyStrong, { color: c.textPrimary }]}>{fileName}</Text>
+              <Text style={[typography.mono, tabularNums, { color: c.textSecondary }]}>
+                {durationLabel} · {formatBytes(row.bytes ?? 0)}
+                {row.measured_lufs != null ? ` · ${row.measured_lufs.toFixed(1)} LUFS` : ''}
+              </Text>
             </View>
-            {exists ? (
-              <Button label={t.pack.shareFile} icon="share" onPress={() => void share()} />
-            ) : (
-              <Notice
-                kind="error"
-                title={t.pack.missingFile}
-                body={t.pack.missingFileBody}
-                action={
-                  <Button
-                    label={t.pack.exportAgain}
-                    kind="secondary"
-                    compact
-                    onPress={() => router.back()}
-                  />
-                }
-              />
-            )}
+            <Button
+              label={t.pack.shareFile}
+              icon="share"
+              disabled={!exists}
+              onPress={() => void share()}
+            />
             <Text style={[typography.caption, { color: c.textSecondary, marginTop: space.md }]}>
               {t.pack.notPublished}
             </Text>
@@ -235,24 +225,8 @@ export default function DistributionPackScreen() {
 }
 
 const st = StyleSheet.create({
-  flex: { flex: 1 },
-  hero: { gap: space.sm, marginTop: space.lg, marginBottom: space.xl },
-  done: {
-    width: space.section,
-    height: space.section,
-    borderRadius: radius.pill,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: space.sm,
-  },
-  file: { flexDirection: 'row', alignItems: 'center', gap: space.md, marginBottom: space.lg },
-  badge: {
-    width: space.section + space.sm,
-    height: space.section + space.sm,
-    borderRadius: radius.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  top: { height: space.lg },
+  file: { gap: space.xs, marginBottom: space.lg },
   copyBlock: {
     gap: space.sm,
     paddingVertical: space.md,

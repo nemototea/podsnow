@@ -110,7 +110,6 @@ export default function SettingsScreen() {
         onChange={(v) => void set('language', v)}
         options={LANGUAGES.map((v) => ({ value: v, label: t.settings.language[v] }))}
       />
-      <Text style={[st.note, { color: c.textSecondary }]}>{t.settings.languageNote}</Text>
 
       <SectionHeader title={t.settings.appearanceEyebrow} />
       <Segmented
@@ -118,9 +117,6 @@ export default function SettingsScreen() {
         onChange={(v) => void set('theme', v)}
         options={THEMES.map((v) => ({ value: v, label: t.settings.theme[v] }))}
       />
-      {settings.theme !== services.settings.theme ? (
-        <Text style={[st.note, { color: c.textSecondary }]}>{t.settings.themeNote}</Text>
-      ) : null}
 
       <SectionHeader title={t.settings.recordingEyebrow} />
       <Card style={{ paddingVertical: space.xs }}>
@@ -425,6 +421,5 @@ export default function SettingsScreen() {
 }
 
 const st = StyleSheet.create({
-  note: { ...typography.caption, marginTop: space.sm },
   version: { ...typography.caption, textAlign: 'center', marginTop: space.xl },
 });
