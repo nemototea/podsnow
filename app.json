@@ -20,7 +20,7 @@
     "android": {
       "package": "dev.nemotea.podsnow",
       "adaptiveIcon": {
-        "backgroundColor": "#0E0C08",
+        "backgroundColor": "#D8F36A",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
@@ -40,9 +40,9 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#0E0C08",
+          "backgroundColor": "#111416",
           "image": "./assets/images/splash-icon.png",
-          "imageWidth": 76
+          "imageWidth": 240
         }
       ],
       [
@@ -51,13 +51,86 @@
           "supportedLocales": ["ja", "en"],
           "supportsRTL": false
         }
+      ],
+      [
+        "expo-font",
+        {
+          "ios": {
+            "fonts": [
+              "./assets/fonts/Manrope-Regular.ttf",
+              "./assets/fonts/Manrope-Medium.ttf",
+              "./assets/fonts/Manrope-SemiBold.ttf",
+              "./assets/fonts/Manrope-Bold.ttf",
+              "./assets/fonts/NotoSansJP-Regular.ttf",
+              "./assets/fonts/NotoSansJP-Medium.ttf",
+              "./assets/fonts/NotoSansJP-SemiBold.ttf",
+              "./assets/fonts/NotoSansJP-Bold.ttf",
+              "./assets/fonts/IBMPlexMono-Regular.ttf"
+            ]
+          },
+          "android": {
+            "fonts": [
+              {
+                "fontFamily": "Manrope",
+                "fontDefinitions": [
+                  {
+                    "path": "./assets/fonts/Manrope-Regular.ttf",
+                    "weight": 400
+                  },
+                  {
+                    "path": "./assets/fonts/Manrope-Medium.ttf",
+                    "weight": 500
+                  },
+                  {
+                    "path": "./assets/fonts/Manrope-SemiBold.ttf",
+                    "weight": 600
+                  },
+                  {
+                    "path": "./assets/fonts/Manrope-Bold.ttf",
+                    "weight": 700
+                  }
+                ]
+              },
+              {
+                "fontFamily": "Noto Sans JP",
+                "fontDefinitions": [
+                  {
+                    "path": "./assets/fonts/NotoSansJP-Regular.ttf",
+                    "weight": 400
+                  },
+                  {
+                    "path": "./assets/fonts/NotoSansJP-Medium.ttf",
+                    "weight": 500
+                  },
+                  {
+                    "path": "./assets/fonts/NotoSansJP-SemiBold.ttf",
+                    "weight": 600
+                  },
+                  {
+                    "path": "./assets/fonts/NotoSansJP-Bold.ttf",
+                    "weight": 700
+                  }
+                ]
+              },
+              {
+                "fontFamily": "IBM Plex Mono",
+                "fontDefinitions": [
+                  {
+                    "path": "./assets/fonts/IBMPlexMono-Regular.ttf",
+                    "weight": 400
+                  }
+                ]
+              }
+            ]
+          }
+        }
       ]
     ],
     "experiments": {
       "typedRoutes": true
     },
     "splash": {
-      "backgroundColor": "#0E0C08"
+      "backgroundColor": "#111416"
     },
     "locales": {
       "ja": "./locales/ja.json",
