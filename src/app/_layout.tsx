@@ -6,6 +6,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { ServiceLabelsSync, ServicesProvider, useServices } from '@/features/app/ServicesProvider';
 import { LocaleProvider, useT } from '@/i18n';
 import { Loading } from '@/ui/components';
+import { FontProvider } from '@/ui/Text';
 import { ThemeProvider, useAppTheme } from '@/ui/ThemeContext';
 
 function Navigation() {
@@ -63,17 +64,19 @@ function Booting() {
 export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <LocaleProvider>
-        <ServicesProvider
-          fallback={
-            <ThemeProvider pref="system">
-              <Booting />
-            </ThemeProvider>
-          }
-        >
-          <Themed />
-        </ServicesProvider>
-      </LocaleProvider>
+      <FontProvider>
+        <LocaleProvider>
+          <ServicesProvider
+            fallback={
+              <ThemeProvider pref="system">
+                <Booting />
+              </ThemeProvider>
+            }
+          >
+            <Themed />
+          </ServicesProvider>
+        </LocaleProvider>
+      </FontProvider>
     </GestureHandlerRootView>
   );
 }

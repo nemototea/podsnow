@@ -44,3 +44,12 @@ export function formatSmp(s: Smp, opts: { tenths?: boolean; sampleRate?: number 
   if (opts.tenths) return `${mm}:${sec.toFixed(1).padStart(4, '0')}`;
   return `${mm}:${String(Math.floor(sec)).padStart(2, '0')}`;
 }
+
+export function formatClock(s: Smp, sampleRate: number = SAMPLE_RATE): string {
+  const total = Math.max(0, Math.floor(smpToMs(s, sampleRate) / 1000));
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const sec = total % 60;
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return h > 0 ? `${h}:${pad(m)}:${pad(sec)}` : `${pad(m)}:${pad(sec)}`;
+}

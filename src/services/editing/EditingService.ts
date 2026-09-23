@@ -60,6 +60,9 @@ export class EditingService {
   get undoLabel(): string | null {
     return this.canUndo ? this.history.ops[this.history.cursor - 1]!.label : null;
   }
+  get undoTopId(): string | null {
+    return this.canUndo ? this.history.ops[this.history.cursor - 1]!.id : null;
+  }
   get redoLabel(): string | null {
     return this.canRedo ? this.history.ops[this.history.cursor]!.label : null;
   }

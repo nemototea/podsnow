@@ -133,4 +133,29 @@ describe('EditingService', () => {
     expect(await svc.apply('nothing', (d) => d)).toBeNull();
     expect(await db.all('SELECT seq FROM edit_ops')).toEqual([]);
   });
+
+  it('undoTopId は取り消し対象の操作を指し、その後の編集・Undo で変わる（通知の取り消しが別の操作を戻さないため）', async () => {
+    const { deps } = await setup();
+    const svc = await EditingService.open(deps, 'e');
+    expect(svc.undoTopId).toBeNull();
+    await svc.writeWithoutHistory((d) => ({
+      ...d,
+      voice: appendTake(d.voice, { id: 'v1', takeId: 'T1', durationSmp: smp(1000) }),
+    }));
+    const cut = await svc.apply('範囲を削除', (d) => ({
+      ...d,
+      voice: deleteRange(d.voice, smp(100), smp(200)),
+    }));
+    expect(svc.undoTopId).toBe(cut!.id);
+    const gain = await svc.apply('音量を変更', (d) => ({
+      ...d,
+      voice: d.voice.map((v) => ({ ...v, gainDb: -2 })),
+    }));
+    expect(svc.undoTopId).toBe(gain!.id);
+    expect(svc.undoTopId).not.toBe(cut!.id);
+    await svc.undo();
+    expect(svc.undoTopId).toBe(cut!.id);
+    await svc.undo();
+    expect(svc.undoTopId).toBeNull();
+  });
 });

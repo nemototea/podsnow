@@ -94,6 +94,19 @@ describe('RecordingSession', () => {
     expect(doc.voice[0]).toMatchObject({ takeId, srcStart: 0, srcEnd: 480000 });
   });
 
+  it('stop pressed twice finalizes the take once', async () => {
+    const { db, recorder, session } = await setup();
+    const finalized: string[] = [];
+    session.on('takeFinalized', (e) => finalized.push(e.takeId));
+    const takeId = await session.start('e');
+    recorder.frames = 48000 * 3;
+    const [a, b] = await Promise.all([session.stop(), session.stop()]);
+    expect([a, b].filter(Boolean)).toEqual([{ takeId, durationSmp: 144000 }]);
+    expect(finalized).toEqual([takeId]);
+    expect(session.current).toBe('idle');
+    expect((await loadDoc(db, 'e')).voice).toHaveLength(1);
+  });
+
   it('refuses to start when disk space is insufficient', async () => {
     const { recorder, session } = await setup();
     recorder.availableBytes = 1000;

@@ -1,45 +1,68 @@
 import { useCallback, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
-import { formatSmp, smp, type Smp } from '@/domain/time';
+import { formatSmp, secToSmp, smp, type Smp } from '@/domain/time';
 import type { Range } from '@/domain/timeline/types';
 import { useT } from '@/i18n';
 import type { AssetRow } from '@/infra/db/repositories/assetsRepo';
-import { glyphSlop, icon, radius, space, tone, typography } from '@/ui/tokens';
-import { Button, Chip, Row, Sheet, Toggle } from '@/ui/components';
+import { radius, space, tabularNums, typography } from '@/ui/tokens';
+import {
+  Button,
+  Card,
+  Field,
+  IconButton,
+  Row,
+  Sheet,
+  Text,
+  Toggle,
+  useCompact,
+} from '@/ui/components';
 import { useAppTheme } from '@/ui/ThemeContext';
 
+import { parseSeconds, validateRange } from './selectionInput';
 import { Waveform } from './Waveform';
 import type { Workspace } from './useWorkspace';
 
 export interface EditTabProps {
   ws: Workspace;
-  /** `at` を省くと再生位置。選択があるときは、その前後を明示して渡す。 */
   onInsertAsset: (a: AssetRow, at?: Smp) => void;
   onOpenAssets: () => void;
   onShowToast: (text: string, undo?: () => void) => void;
   onError: (message: string) => void;
+  onGoExport: () => void;
 }
 
-/** 編集タブ（docs/ux-restructure.md §6）。 */
-export function EditTab({ ws, onInsertAsset, onOpenAssets, onShowToast, onError }: EditTabProps) {
+const toSec = (s: number) => (s / 48000).toFixed(1);
+
+export function EditTab({
+  ws,
+  onInsertAsset,
+  onOpenAssets,
+  onShowToast,
+  onError,
+  onGoExport,
+}: EditTabProps) {
   const c = useAppTheme();
   const t = useT();
+  const compact = useCompact();
   const { state } = ws;
   const [pps, setPps] = useState(24);
   const [sheet, setSheet] = useState<null | 'overlay' | 'silence' | 'insert'>(null);
-  /** 選択があるとき、素材をその前に入れるか後ろに入れるか。 */
   const [insertSide, setInsertSide] = useState<'before' | 'after'>('after');
   const [silencePlan, setSilencePlan] = useState<{ ranges: Range[]; totalRemoved: Smp } | null>(
     null,
   );
+  const [fields, setFields] = useState<{ key: string; start: string; end: string } | null>(null);
+  const [rangeError, setRangeError] = useState<string | null>(null);
 
-  /** 素材が入る位置。選択があればその前か後ろ、なければ再生位置。 */
-  const insertPosition = state.selection
-    ? insertSide === 'before'
-      ? state.selection.start
-      : state.selection.end
-    : state.playhead;
+  const sel = state.selection;
+  const selKey = sel ? `${sel.start}-${sel.end}` : '';
+  const f =
+    fields && fields.key === selKey
+      ? fields
+      : { key: selKey, start: sel ? toSec(sel.start) : '', end: sel ? toSec(sel.end) : '' };
+
+  const insertPosition = sel ? (insertSide === 'before' ? sel.start : sel.end) : state.playhead;
   const selectedOverlay = state.doc.overlays.find((o) => o.id === state.selectedOverlay) ?? null;
   const selectedAsset = selectedOverlay
     ? state.assets.find((a) => a.id === selectedOverlay.assetId)
@@ -56,139 +79,238 @@ export function EditTab({ ws, onInsertAsset, onOpenAssets, onShowToast, onError 
     }
   }, [onError, ws]);
 
-  const doDelete = useCallback(async () => {
-    const sel = state.selection;
+  const doCut = useCallback(async () => {
     if (!sel) return;
     await ws.deleteSelection();
     onShowToast(
       t.edit.deleted(formatSmp(smp(sel.end - sel.start), { tenths: true })),
       () => void ws.undo(),
     );
-  }, [onShowToast, state.selection, t, ws]);
+  }, [onShowToast, sel, t, ws]);
+
+  const commitFields = () => {
+    const start = parseSeconds(f.start);
+    const end = parseSeconds(f.end);
+    const totalSec = state.total / 48000;
+    const err = validateRange(start, end, totalSec);
+    if (err) {
+      setRangeError(t.edit.rangeError(totalSec.toFixed(1)));
+      return;
+    }
+    setRangeError(null);
+    ws.setSelection({ start: secToSmp(start!), end: secToSmp(end!) });
+  };
+
+  const playSelection = async () => {
+    if (!sel) return;
+    await ws.seek(sel.start);
+    if (!state.playing) await ws.togglePlay();
+  };
 
   if (state.total === 0) {
     return (
-      <View style={st.empty}>
-        <Text style={[typography.body, { color: c.textSecondary }]}>{t.edit.emptyTitle}</Text>
-        <Text style={[typography.caption, { color: c.textTertiary }]}>{t.edit.emptySub}</Text>
-      </View>
+      <Card>
+        <Text style={[typography.heading, { color: c.textPrimary }]}>{t.edit.emptyTitle}</Text>
+        <Text style={[typography.body, { color: c.textSecondary, marginTop: space.xs }]}>
+          {t.edit.emptySub}
+        </Text>
+      </Card>
     );
   }
 
   return (
-    <View style={{ flex: 1 }}>
+    <View>
       <View style={st.clockRow}>
-        <Text style={[typography.display, { color: c.textPrimary }]}>
-          {formatSmp(state.playhead, { tenths: true })}
-        </Text>
-        <Text style={[typography.caption, { color: c.textSecondary }]}>
-          / {formatSmp(state.total)}
-        </Text>
-        <View style={{ flex: 1 }} />
-        <Pressable
-          onPress={() => setPps((p) => Math.max(4, p / 1.6))}
-          hitSlop={glyphSlop}
-          accessibilityLabel={t.a11y.zoomOut}
-        >
-          <Text style={{ color: c.textSecondary, fontSize: icon.sm }}>－</Text>
-        </Pressable>
-        <Pressable
-          onPress={() => setPps((p) => Math.min(200, p * 1.6))}
-          hitSlop={glyphSlop}
-          accessibilityLabel={t.a11y.zoomIn}
-          style={{ marginLeft: space.md }}
-        >
-          <Text style={{ color: c.textSecondary, fontSize: icon.sm }}>＋</Text>
-        </Pressable>
+        <View style={st.clock}>
+          <Text
+            style={[
+              compact ? typography.clockCompact : typography.clock,
+              tabularNums,
+              { color: c.textPrimary },
+            ]}
+            accessibilityLabel={t.edit.a11yPlayhead(
+              formatSmp(state.playhead),
+              formatSmp(state.total),
+            )}
+          >
+            {formatSmp(state.playhead)}
+          </Text>
+          <Text style={[typography.mono, tabularNums, { color: c.textSecondary }]}>
+            / {formatSmp(state.total)}
+          </Text>
+        </View>
+        <View style={st.tools}>
+          <IconButton
+            name="undo"
+            label={state.undoLabel ? t.edit.a11yUndo(state.undoLabel) : t.common.undo}
+            disabled={!state.canUndo}
+            onPress={() => void ws.undo().then((op) => op && onShowToast(t.undo.undid(op.label)))}
+          />
+          <IconButton
+            name="redo"
+            label={state.redoLabel ? t.edit.a11yRedo(state.redoLabel) : t.common.redo}
+            disabled={!state.canRedo}
+            onPress={() => void ws.redo().then((op) => op && onShowToast(t.undo.redid(op.label)))}
+          />
+        </View>
       </View>
 
-      <Waveform
-        voice={state.doc.voice}
-        peaksByTake={state.peaksByTake}
-        overlays={state.placedOverlays}
-        chapters={ws.chaptersOnTimeline}
-        events={ws.eventsOnTimeline}
-        total={state.total}
-        playhead={state.playhead}
-        selection={state.selection}
-        selectedOverlay={state.selectedOverlay}
-        pps={pps}
-        recording={false}
-        recFrames={0}
-        blocks={ws.blocks}
-        onSelectBlock={(at) => {
-          const b = ws.selectBlockAt(at);
-          void ws.seek(b ? b.start : at);
-        }}
-        onSelectionChange={(range) => ws.setSelection(range)}
-        onSeek={(to) => void ws.seek(to)}
-        onSelectOverlay={(oid) => {
-          ws.selectOverlay(oid);
-          if (oid) setSheet('overlay');
-        }}
-        onChapterPress={(item) => {
-          const at = ws.chaptersOnTimeline.find((ch) => ch.item.id === item.id)?.at;
-          if (at !== undefined) void ws.seek(at);
-        }}
-        onChapterLongPress={(item) => {
-          const range = ws.chapterRange(item.id);
-          if (range) ws.setSelection(range);
-        }}
-      />
+      <View style={[st.panel, { backgroundColor: c.surface }]}>
+        <Waveform
+          voice={state.doc.voice}
+          peaksByTake={state.peaksByTake}
+          overlays={state.placedOverlays}
+          assetNames={state.assets}
+          chapters={ws.chaptersOnTimeline}
+          events={ws.eventsOnTimeline}
+          total={state.total}
+          playhead={state.playhead}
+          selection={sel}
+          selectedOverlay={state.selectedOverlay}
+          pps={pps}
+          recording={false}
+          recFrames={0}
+          blocks={ws.blocks}
+          onSelectBlock={(at) => {
+            const b = ws.selectBlockAt(at);
+            void ws.seek(b ? b.start : at);
+          }}
+          onSelectionChange={(range) => ws.setSelection(range)}
+          onSeek={(to) => void ws.seek(to)}
+          onSelectOverlay={(oid) => {
+            ws.selectOverlay(oid);
+            if (oid) setSheet('overlay');
+          }}
+          onChapterPress={(item) => {
+            const at = ws.chaptersOnTimeline.find((ch) => ch.item.id === item.id)?.at;
+            if (at !== undefined) void ws.seek(at);
+          }}
+          onChapterLongPress={(item) => {
+            const range = ws.chapterRange(item.id);
+            if (range) ws.setSelection(range);
+          }}
+        />
+        <View style={st.zoom}>
+          <IconButton
+            name="minus"
+            label={t.a11y.zoomOut}
+            onPress={() => setPps((p) => Math.max(4, p / 1.6))}
+          />
+          <IconButton
+            name="plus"
+            label={t.a11y.zoomIn}
+            onPress={() => setPps((p) => Math.min(200, p * 1.6))}
+          />
+        </View>
+      </View>
 
-      <View style={st.toolbar}>
-        {state.selection ? (
-          <>
-            <Chip
-              label={t.edit.delete}
-              tone={tone(c, 'danger')}
-              active
-              onPress={() => void doDelete()}
+      <Text style={[typography.caption, { color: c.textSecondary, marginTop: space.sm }]}>
+        {sel
+          ? t.edit.hintSelection(formatSmp(sel.start), formatSmp(sel.end, { tenths: true }))
+          : ws.blocks.length
+            ? t.edit.hintBlocks
+            : t.edit.hintIdle}
+      </Text>
+
+      {sel ? (
+        <>
+          <View style={st.fields}>
+            <View style={st.field}>
+              <Field
+                label={t.edit.startSec}
+                value={f.start}
+                keyboardType="decimal-pad"
+                onChangeText={(v) => setFields({ ...f, start: v })}
+                onEndEditing={commitFields}
+                style={[typography.mono, tabularNums]}
+              />
+            </View>
+            <View style={st.field}>
+              <Field
+                label={t.edit.endSec}
+                value={f.end}
+                keyboardType="decimal-pad"
+                onChangeText={(v) => setFields({ ...f, end: v })}
+                onEndEditing={commitFields}
+                error={rangeError}
+                style={[typography.mono, tabularNums]}
+              />
+            </View>
+          </View>
+          <View style={st.grid}>
+            <Button
+              label={t.edit.cutSelection}
+              kind="secondary"
+              icon="scissors"
+              style={st.cell}
+              onPress={() => void doCut()}
             />
-            <Chip
+            <Button
+              label={t.edit.playSelection}
+              kind="secondary"
+              icon="play"
+              style={st.cell}
+              onPress={() => void playSelection()}
+            />
+            <Button
               label={t.edit.punchIn}
+              kind="secondary"
+              icon="mic"
+              style={st.cell}
               onPress={() => {
-                const sel = state.selection;
-                if (!sel) return;
                 void ws
                   .startRecording({ punchIn: sel })
                   .then(() => onShowToast(t.edit.punchInStarted))
                   .catch((e: unknown) => onError(String(e)));
               }}
             />
-            <Chip
+            <Button
               label={t.edit.insertBefore}
+              kind="secondary"
+              icon="music"
+              style={st.cell}
               onPress={() => {
                 setInsertSide('before');
                 setSheet('insert');
               }}
             />
-            <Chip
+            <Button
               label={t.edit.insertAfter}
+              kind="secondary"
+              icon="music"
+              style={st.cell}
               onPress={() => {
                 setInsertSide('after');
                 setSheet('insert');
               }}
             />
-            <Chip label={t.edit.clearSelection} onPress={ws.clearSelection} />
-          </>
-        ) : (
-          <>
-            <Chip label={t.edit.removeSilence} onPress={() => void openSilence()} />
-            <Chip label={t.edit.insert} onPress={() => setSheet('insert')} />
-          </>
-        )}
-      </View>
-      <Text style={[typography.caption, { color: c.textTertiary, paddingBottom: space.sm }]}>
-        {state.selection
-          ? t.edit.hintSelection(
-              formatSmp(state.selection.start),
-              formatSmp(state.selection.end, { tenths: true }),
-            )
-          : ws.blocks.length
-            ? t.edit.hintBlocks
-            : t.edit.hintIdle}
-      </Text>
+            <Button
+              label={t.edit.clearSelection}
+              kind="ghost"
+              style={st.cell}
+              onPress={ws.clearSelection}
+            />
+          </View>
+        </>
+      ) : (
+        <View style={st.grid}>
+          <Button
+            label={t.edit.removeSilence}
+            kind="secondary"
+            style={st.cell}
+            onPress={() => void openSilence()}
+          />
+          <Button
+            label={t.edit.insert}
+            kind="secondary"
+            icon="plus"
+            style={st.cell}
+            onPress={() => setSheet('insert')}
+          />
+        </View>
+      )}
+
+      <Button label={t.edit.toExport} icon="arrow" style={st.next} onPress={onGoExport} />
 
       <Sheet
         visible={sheet === 'silence'}
@@ -197,12 +319,14 @@ export function EditTab({ ws, onInsertAsset, onOpenAssets, onShowToast, onError 
         subtitle={t.edit.silenceSubtitle}
       >
         {!silencePlan ? (
-          <Text style={{ color: c.textSecondary }}>{t.edit.silenceAnalyzing}</Text>
+          <Text style={[typography.body, { color: c.textSecondary }]}>
+            {t.edit.silenceAnalyzing}
+          </Text>
         ) : silencePlan.ranges.length === 0 ? (
-          <Text style={{ color: c.textSecondary }}>{t.edit.silenceNone}</Text>
+          <Text style={[typography.body, { color: c.textSecondary }]}>{t.edit.silenceNone}</Text>
         ) : (
           <>
-            <Text style={{ color: c.textPrimary, marginBottom: space.md }}>
+            <Text style={[typography.body, { color: c.textPrimary, marginBottom: space.lg }]}>
               {t.edit.silencePlan(
                 silencePlan.ranges.length,
                 formatSmp(silencePlan.totalRemoved, { tenths: true }),
@@ -231,13 +355,15 @@ export function EditTab({ ws, onInsertAsset, onOpenAssets, onShowToast, onError 
         subtitle={t.edit.insertSubtitle(formatSmp(insertPosition))}
       >
         {state.assets.length === 0 ? (
-          <Row label={t.record.registerAssets} onPress={onOpenAssets} />
+          <Row label={t.record.registerAssets} onPress={onOpenAssets} last />
         ) : null}
-        {state.assets.map((a) => (
+        {state.assets.map((a, i) => (
           <Row
             key={a.id}
-            label={`${a.is_favorite ? '★ ' : ''}${a.name}`}
+            icon={a.is_favorite ? 'starFilled' : 'music'}
+            label={a.name}
             sub={formatSmp(smp(a.duration_smp))}
+            last={i === state.assets.length - 1}
             onPress={() => {
               setSheet(null);
               onInsertAsset(a, insertPosition);
@@ -253,14 +379,16 @@ export function EditTab({ ws, onInsertAsset, onOpenAssets, onShowToast, onError 
           ws.selectOverlay(null);
         }}
         title={selectedAsset?.name ?? t.edit.overlayFallback}
-        subtitle={selectedOverlay ? `${selectedOverlay.gainDb.toFixed(1)} dB` : ''}
       >
         {selectedOverlay ? (
           <>
-            <View style={st.gainRow}>
-              <Text style={{ color: c.textPrimary }}>{t.edit.gain}</Text>
-              <View style={{ flex: 1 }} />
-              <Pressable
+            <View style={[st.gainRow, { borderBottomColor: c.border }]}>
+              <Text style={[typography.body, { color: c.textPrimary, flex: 1 }]}>
+                {t.edit.gain}
+              </Text>
+              <IconButton
+                name="minus"
+                label={t.a11y.decrease(t.edit.gain)}
                 onPress={() =>
                   void ws.updateOverlay(
                     selectedOverlay.id,
@@ -269,16 +397,13 @@ export function EditTab({ ws, onInsertAsset, onOpenAssets, onShowToast, onError 
                     `gain:${selectedOverlay.id}`,
                   )
                 }
-                hitSlop={glyphSlop}
-                style={st.pm}
-                accessibilityLabel={t.a11y.decrease(t.edit.gain)}
-              >
-                <Text style={{ color: c.textPrimary, fontSize: icon.sm }}>－</Text>
-              </Pressable>
-              <Text style={{ color: c.textPrimary, width: 72, textAlign: 'center' }}>
+              />
+              <Text style={[typography.mono, tabularNums, st.gainValue, { color: c.textPrimary }]}>
                 {selectedOverlay.gainDb.toFixed(1)} dB
               </Text>
-              <Pressable
+              <IconButton
+                name="plus"
+                label={t.a11y.increase(t.edit.gain)}
                 onPress={() =>
                   void ws.updateOverlay(
                     selectedOverlay.id,
@@ -287,12 +412,7 @@ export function EditTab({ ws, onInsertAsset, onOpenAssets, onShowToast, onError 
                     `gain:${selectedOverlay.id}`,
                   )
                 }
-                hitSlop={glyphSlop}
-                style={st.pm}
-                accessibilityLabel={t.a11y.increase(t.edit.gain)}
-              >
-                <Text style={{ color: c.textPrimary, fontSize: icon.sm }}>＋</Text>
-              </Pressable>
+              />
             </View>
             {selectedOverlay.kind === 'bgm' ? (
               <Row
@@ -300,6 +420,7 @@ export function EditTab({ ws, onInsertAsset, onOpenAssets, onShowToast, onError 
                 sub={t.edit.duckSub}
                 right={
                   <Toggle
+                    accessibilityLabel={t.edit.duck}
                     value={selectedOverlay.duck}
                     onChange={(v) =>
                       void ws.updateOverlay(selectedOverlay.id, t.undo.changeDucking, (o) => ({
@@ -315,6 +436,7 @@ export function EditTab({ ws, onInsertAsset, onOpenAssets, onShowToast, onError 
               label={t.edit.fadeIn}
               right={
                 <Toggle
+                  accessibilityLabel={t.edit.fadeIn}
                   value={selectedOverlay.fadeIn > 0}
                   onChange={(v) =>
                     void ws.updateOverlay(selectedOverlay.id, t.undo.changeFade, (o) => ({
@@ -329,6 +451,7 @@ export function EditTab({ ws, onInsertAsset, onOpenAssets, onShowToast, onError 
               label={t.edit.fadeOut}
               right={
                 <Toggle
+                  accessibilityLabel={t.edit.fadeOut}
                   value={selectedOverlay.fadeOut > 0}
                   onChange={(v) =>
                     void ws.updateOverlay(selectedOverlay.id, t.undo.changeFade, (o) => ({
@@ -350,8 +473,9 @@ export function EditTab({ ws, onInsertAsset, onOpenAssets, onShowToast, onError 
               />
             ) : null}
             <Row
+              icon="close"
               label={t.edit.removeOverlay}
-              danger
+              last
               onPress={() => {
                 void ws.removeOverlay(selectedOverlay.id);
                 setSheet(null);
@@ -366,15 +490,21 @@ export function EditTab({ ws, onInsertAsset, onOpenAssets, onShowToast, onError 
 }
 
 const st = StyleSheet.create({
-  empty: { paddingVertical: space.xxxl, gap: space.xs },
-  clockRow: {
+  clockRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  clock: { flexDirection: 'row', alignItems: 'baseline', gap: space.sm, flexShrink: 1 },
+  tools: { flexDirection: 'row', marginRight: -space.md },
+  panel: { borderRadius: radius.lg, paddingTop: space.md, marginTop: space.sm, overflow: 'hidden' },
+  zoom: { flexDirection: 'row', justifyContent: 'flex-end' },
+  fields: { flexDirection: 'row', gap: space.md, marginTop: space.lg },
+  field: { flex: 1 },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm, marginTop: space.md },
+  cell: { flexGrow: 1, flexBasis: '45%' },
+  next: { marginTop: space.xl },
+  gainRow: {
     flexDirection: 'row',
-    alignItems: 'baseline',
-    gap: space.sm,
-    paddingVertical: space.xs,
+    alignItems: 'center',
+    gap: space.xs,
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  toolbar: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm, paddingVertical: space.sm },
-  gainRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: space.sm, gap: space.sm },
-  pm: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
-  radius: { borderRadius: radius.md },
+  gainValue: { minWidth: 72, textAlign: 'center' },
 });

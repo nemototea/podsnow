@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { formatSmp, smp } from '@/domain/time';
 import { splitIntoHeadings } from '@/domain/outline';
@@ -21,8 +21,21 @@ import {
   type ShowRow,
   type TemplateRow,
 } from '@/infra/db/repositories/showsRepo';
-import { glyphSlop, hit, radius, space, tabularNums, typography } from '@/ui/tokens';
-import { Button, Card, Eyebrow, Header, Row, Screen, Sheet, Toast } from '@/ui/components';
+import { hit, space, tabularNums, typography } from '@/ui/tokens';
+import {
+  Button,
+  Card,
+  Chip,
+  Field,
+  Header,
+  IconButton,
+  Row,
+  Screen,
+  SectionHeader,
+  Sheet,
+  Text,
+  Toast,
+} from '@/ui/components';
 import { useAppTheme } from '@/ui/ThemeContext';
 import { useToast } from '@/ui/useToast';
 
@@ -36,7 +49,6 @@ interface Loaded {
 }
 
 type LayoutSlot = 'opening' | 'ending' | 'bgm';
-const SLOT_LABEL: Record<LayoutSlot, string> = { opening: 'Opening', ending: 'Ending', bgm: 'BGM' };
 const SLOT_COL: Record<LayoutSlot, keyof ShowLayoutRow> = {
   opening: 'opening_asset_id',
   ending: 'ending_asset_id',
@@ -67,6 +79,7 @@ export default function ShowScreen() {
   const t = useT();
   const router = useRouter();
   const services = useServices();
+  const slotLabel = (slot: LayoutSlot) => kindLabel(t, slot);
   const { db, now, assets } = services;
   const showId = services.show.id;
   const { toast, show: showToast, act, dismiss } = useToast();
@@ -177,52 +190,53 @@ export default function ShowScreen() {
         onBack={() => router.back()}
       />
 
-      <Eyebrow>{t.showSettings.showEyebrow}</Eyebrow>
+      <SectionHeader title={t.showSettings.showEyebrow} />
       <Card>
-        <Field label={t.showSettings.name} value={d.name} onChange={(v) => setField('name', v)} />
+        <Field
+          label={t.showSettings.name}
+          value={d.name}
+          onChangeText={(v) => setField('name', v)}
+        />
         <Field
           label={t.showSettings.description}
           value={d.description}
-          onChange={(v) => setField('description', v)}
+          onChangeText={(v) => setField('description', v)}
           multiline
         />
         <Field
           label={t.showSettings.author}
           value={d.author}
-          onChange={(v) => setField('author', v)}
+          onChangeText={(v) => setField('author', v)}
         />
         <Field
           label={t.showSettings.defaultSeason}
           value={d.season}
-          onChange={(v) => setField('season', v.replace(/[^0-9]/g, ''))}
+          onChangeText={(v) => setField('season', v.replace(/[^0-9]/g, ''))}
           keyboardType="number-pad"
         />
         <Row label={t.showSettings.coverArt} sub={t.showSettings.coverArtSub} />
       </Card>
 
-      <Eyebrow>{t.showSettings.layoutEyebrow}</Eyebrow>
+      <SectionHeader title={t.showSettings.layoutEyebrow} />
       <Card style={{ paddingVertical: space.xs }}>
         {(['opening', 'ending', 'bgm'] as LayoutSlot[]).map((slot) => {
           const gain = Number(data.layout?.[SLOT_GAIN[slot]] ?? 0);
           return (
             <View key={slot} style={[st.slot, { borderBottomColor: c.border }]}>
-              <View style={{ flex: 1 }}>
-                <Text style={[st.slotLabel, { color: c.textPrimary }]}>{SLOT_LABEL[slot]}</Text>
-                <Pressable
+              <View style={{ flex: 1, gap: space.xs }}>
+                <Text style={[st.slotLabel, { color: c.textPrimary }]}>{slotLabel(slot)}</Text>
+                <Chip
+                  icon="music"
+                  label={assetName((data.layout?.[SLOT_COL[slot]] as string | null) ?? null)}
+                  accessibilityLabel={t.showSettings.a11yPickAsset(slotLabel(slot))}
                   onPress={() => setPicking(slot)}
-                  accessibilityRole="button"
-                  accessibilityLabel={t.showSettings.a11yPickAsset(SLOT_LABEL[slot])}
-                >
-                  <Text style={[typography.label, { color: c.accentText, marginTop: space.xs }]}>
-                    {assetName((data.layout?.[SLOT_COL[slot]] as string | null) ?? null)} ›
-                  </Text>
-                </Pressable>
+                />
               </View>
               <Stepper
                 label={`${gain > 0 ? '+' : ''}${gain} dB`}
                 onMinus={() => bumpGain(slot, -1)}
                 onPlus={() => bumpGain(slot, 1)}
-                a11y={t.showSettings.a11ySlotGain(SLOT_LABEL[slot])}
+                a11y={t.showSettings.a11ySlotGain(slotLabel(slot))}
               />
             </View>
           );
@@ -244,57 +258,38 @@ export default function ShowScreen() {
           />
         </View>
       </Card>
-      <Eyebrow>{t.showSettings.topicTemplateEyebrow}</Eyebrow>
+      <SectionHeader title={t.showSettings.topicTemplateEyebrow} />
       <Card>
-        <Text style={[typography.caption, { color: c.textSecondary, marginBottom: space.sm }]}>
-          {t.showSettings.topicTemplateNote}
-        </Text>
-        <TextInput
+        <Field
+          label={t.showSettings.topicTemplateEyebrow}
+          help={t.showSettings.topicTemplateNote}
           value={d.topicTemplate}
           onChangeText={(v) => setField('topicTemplate', v)}
           multiline
           placeholder={t.showSettings.topicTemplatePlaceholder}
-          placeholderTextColor={c.textTertiary}
-          accessibilityLabel={t.showSettings.topicTemplateEyebrow}
-          style={[
-            st.input,
-            st.multiline,
-            { color: c.textPrimary, borderColor: c.border, backgroundColor: c.surfaceRaised },
-          ]}
         />
       </Card>
 
-      <Eyebrow>{t.showSettings.templateEyebrow}</Eyebrow>
+      <SectionHeader title={t.showSettings.templateEyebrow} />
       <Card>
-        <Text style={[typography.caption, { color: c.textSecondary, marginBottom: space.sm }]}>
-          {t.showSettings.templateNote}
-        </Text>
-        <TextInput
+        <Field
+          label={t.showSettings.a11yTemplate}
+          help={t.showSettings.templateNote}
           value={d.template}
           onChangeText={(v) => setField('template', v)}
           multiline
-          accessibilityLabel={t.showSettings.a11yTemplate}
-          style={[
-            st.input,
-            st.multiline,
-            { color: c.textPrimary, borderColor: c.border, backgroundColor: c.surfaceRaised },
-          ]}
         />
         <View style={st.helpWrap}>
           {PLACEHOLDER_KEYS.map((key) => {
             const token = `{{${key}}}`;
             const desc = t.showSettings.placeholders[key];
             return (
-              <Pressable
+              <Chip
                 key={key}
-                onPress={() => setField('template', `${d.template}${token}`)}
-                accessibilityRole="button"
+                label={`${token} ${desc}`}
                 accessibilityLabel={t.showSettings.a11yInsertPlaceholder(desc)}
-              >
-                <Text style={[st.help, { color: c.textSecondary, borderColor: c.border }]}>
-                  <Text style={{ color: c.accentText }}>{token}</Text> {desc}
-                </Text>
-              </Pressable>
+                onPress={() => setField('template', `${d.template}${token}`)}
+              />
             );
           })}
         </View>
@@ -311,7 +306,7 @@ export default function ShowScreen() {
       <Sheet
         visible={!!picking}
         onClose={() => setPicking(null)}
-        title={picking ? t.showSettings.slotAssets(SLOT_LABEL[picking]) : ''}
+        title={picking ? t.showSettings.slotAssets(slotLabel(picking)) : ''}
         subtitle={picking ? kindLabel(t, picking) : ''}
       >
         <Row label={t.common.none} onPress={() => picking && setSlot(picking, null)} />
@@ -324,47 +319,12 @@ export default function ShowScreen() {
           />
         ))}
         {picking && pickList.length === 0 ? (
-          <Text style={{ color: c.textTertiary, paddingVertical: space.md }}>
+          <Text style={[typography.body, { color: c.textSecondary, paddingVertical: space.md }]}>
             {t.showSettings.noAssetsForSlot}
           </Text>
         ) : null}
       </Sheet>
     </Screen>
-  );
-}
-
-function Field({
-  label,
-  value,
-  onChange,
-  multiline,
-  keyboardType,
-}: {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-  multiline?: boolean;
-  keyboardType?: 'default' | 'number-pad';
-}) {
-  const c = useAppTheme();
-  return (
-    <View style={{ marginBottom: space.md }}>
-      <Text style={[typography.overline, { color: c.textSecondary, marginBottom: space.sm }]}>
-        {label}
-      </Text>
-      <TextInput
-        value={value}
-        onChangeText={onChange}
-        multiline={multiline}
-        keyboardType={keyboardType ?? 'default'}
-        accessibilityLabel={label}
-        style={[
-          st.input,
-          multiline ? st.multiline : null,
-          { color: c.textPrimary, borderColor: c.border, backgroundColor: c.surfaceRaised },
-        ]}
-      />
-    </View>
   );
 }
 
@@ -383,65 +343,24 @@ function Stepper({
   const t = useT();
   return (
     <View style={st.stepper}>
-      <Pressable
-        onPress={onMinus}
-        hitSlop={glyphSlop}
-        accessibilityRole="button"
-        accessibilityLabel={t.a11y.decrease(a11y)}
-        style={[st.stepBtn, { borderColor: c.border }]}
-      >
-        <Text style={{ color: c.textPrimary }}>−</Text>
-      </Pressable>
+      <IconButton name="minus" label={t.a11y.decrease(a11y)} onPress={onMinus} />
       <Text style={[st.stepValue, { color: c.textPrimary }]}>{label}</Text>
-      <Pressable
-        onPress={onPlus}
-        hitSlop={glyphSlop}
-        accessibilityRole="button"
-        accessibilityLabel={t.a11y.increase(a11y)}
-        style={[st.stepBtn, { borderColor: c.border }]}
-      >
-        <Text style={{ color: c.textPrimary }}>＋</Text>
-      </Pressable>
+      <IconButton name="plus" label={t.a11y.increase(a11y)} onPress={onPlus} />
     </View>
   );
 }
 
 const st = StyleSheet.create({
-  input: {
-    ...typography.body,
-    minHeight: hit.min,
-    borderWidth: 1,
-    borderRadius: radius.md,
-    paddingHorizontal: space.md,
-    paddingVertical: space.md,
-  },
-  multiline: { minHeight: 96, textAlignVertical: 'top' },
   slot: {
     flexDirection: 'row',
     alignItems: 'center',
     minHeight: hit.min,
     paddingVertical: space.md,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    gap: space.md,
+    gap: space.sm,
   },
   slotLabel: typography.bodyStrong,
-  stepper: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
-  stepBtn: {
-    width: hit.compact,
-    height: hit.compact,
-    borderRadius: radius.pill,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  stepValue: { ...typography.label, ...tabularNums, minWidth: 56, textAlign: 'center' },
-  helpWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm, marginTop: space.md },
-  help: {
-    ...typography.caption,
-    borderWidth: 1,
-    borderRadius: radius.pill,
-    paddingHorizontal: space.md,
-    paddingVertical: space.xs,
-    overflow: 'hidden',
-  },
+  stepper: { flexDirection: 'row', alignItems: 'center' },
+  stepValue: { ...typography.mono, ...tabularNums, minWidth: 64, textAlign: 'center' },
+  helpWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
 });
