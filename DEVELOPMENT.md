@@ -124,13 +124,14 @@ npx expo run:android --variant release --device Pixel_9a --no-bundler
   - DB に書き込む既定文言は `ServiceLabels`（`src/services/app/labels.ts`）として UI 層から注入する。
 - 新しい言語を足すときは `src/i18n/types.ts` の `LOCALES` にコードを追加し、カタログを 1 つ書き、`app.json` の `expo.locales` と expo-localization プラグインの `supportedLocales` にも足す（ネイティブ側は `npx expo prebuild --clean` が必要）。`locales/*.json` の iOS 専用キー（`CFBundleDisplayName` など）は `ios` の下に入れる。トップレベルに置くと Android の `values-b+xx/strings.xml` にも書き出され、release ビルドの `lintVitalRelease`（ExtraTranslation）が失敗する【確認済み: 2026-09-21 Pixel 9a】。
 
-### 4.5 ブランド・アイコン（Issue #82）
+### 4.5 デザイン・ブランド・書体（Issue #82 → Issue #94）
 
-- アプリアイコン・スプラッシュ・favicon とマークの SVG は **`python3 scripts/brand/generate.py` で生成**する。PNG / SVG を直接編集しない（図形の定義は `scripts/brand/geometry.py` の 1 箇所）。
-- マークの意味と、差し替え時に避けるべきモチーフは `assets/brand/README.md` に書いてある。雪・氷（名前の誤読）と電波 / Wi-Fi 的な弧（ネットワークを使わないアプリなので矛盾する）は使わない。
-- 色はマークのために新しく作らず、`src/ui/theme.ts` のトークンを使う。
-- Android のアダプティブアイコンは前景の中央 66%（半径 338px / 1024px 中）しか見える保証がない。`generate.py` が検査して、はみ出していれば失敗する。
-- アイコンを変えたら `npx expo prebuild --clean` → 再ビルドが必要。
+- 色は `scripts/design/ramps.py` を直して `python3 scripts/design/generate.py`。`src/ui/tokens/colors.ts` を手で直さない（DESIGN_SYSTEM.md §5）。
+- ロゴ・アプリアイコン・スプラッシュ・favicon は **`python3 scripts/brand/generate.py` で生成**する（標準ライブラリのみ）。PNG / SVG / `src/ui/brand/wordmark.ts` を直接編集しない。配置の正は `scripts/brand/geometry.py`、字形は `scripts/brand/glyphs.py`（`extract_glyphs.py` の生成物）。
+- ロゴはサービス名そのもの `PodsNow.`。マイク・波形・雪・電波・頭文字だけのマークに戻さない（`assets/brand/README.md`）。
+- Android のアダプティブアイコンは前景の中央 66%（半径 338px / 1024px 中）しか見える保証がない。`generate.py` が検査して、はみ出していれば失敗する。`app.json` の背景色がトークンとずれていても失敗する。
+- 書体は `python3 scripts/fonts/generate.py`（`python3 -m pip install fonttools` が必要）で `assets/fonts/` に静的ウェイトを書く。原本（Google Fonts の可変フォント）はリポジトリに入れず、ハッシュを照合して取得する。ライセンスは `assets/fonts/README.md`。
+- アイコン・書体を変えたら `npx expo prebuild --clean` → 再ビルドが必要（ネイティブに焼き込まれる）。
 
 ### 4.6 ドキュメント
 - 仕様変更は必ず該当 `.md` を更新してからコードを書く（設計と実装の乖離を防ぐ）。
