@@ -2,6 +2,7 @@
 # 画面検証用の Web ビルド（docs/design-refresh/README.md §6）。製品には含めない。
 #
 #   npm install --no-save --legacy-peer-deps react-native-web@~0.21.0 @expo/metro-runtime@~57.0.16 sql.js@1.13.0
+#   （この install は @react-native/jest-preset を外すので、撮影後は npm ci で戻してから npm test）
 #   bash scripts/web-preview/build.sh            # → $OUT_DIR/dist を http://localhost:8765 で配信
 #   OUT=<撮影先> NODE_PATH=$(npm root -g) node scripts/web-preview/flow.cjs     # Playwright で操作・撮影
 #
@@ -22,7 +23,7 @@ cp "$HERE/sim/audioEngineAdapter.ts.txt" "$OUT_DIR/src/infra/native/audioEngineA
 sed -i 's/seekAt(e.nativeEvent.locationX)/seekAt((e.nativeEvent as any).pageX - (e.currentTarget as any).getBoundingClientRect().left)/' \
   "$OUT_DIR/src/features/episode/Waveform.tsx"
 cd "$OUT_DIR"
-PODSNOW_ROOT="$ROOT" CI=1 npx expo export -p web --output-dir dist
+PODSNOW_ROOT="$ROOT" CI=1 npx expo export -p web --output-dir dist --clear
 cp "$ROOT/node_modules/sql.js/dist/sql-wasm.wasm" dist/
 mkdir -p dist/fonts && cp "$ROOT"/assets/fonts/*.ttf dist/fonts/
 python3 - <<'PY'
