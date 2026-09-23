@@ -53,3 +53,4 @@ modules/*/ios/build/
 # Python（scripts/ の生成ツール）
 __pycache__/
 *.pyc
+scripts/fonts/.cache/
