@@ -16,13 +16,15 @@ import {
 /*
  * エピソードのバックアップ（.podsnow = zip）と復元（DATA_MODEL.md §7、FR-EXP-9）。
  *
- * manifest.json  { formatVersion: 1, app: 'podsnow', createdAt, episodeId, showId }
+ * manifest.json  { formatVersion: 2, app: 'podsnow', createdAt, episodeId, showId }
  * episode.json   各テーブルの行（SELECT * の JSON）
  * takes/<takeId>/seg-NNNN.wav   録音 Segment（無圧縮）
  * assets/<assetId>.wav          オーバーレイが参照する素材（無圧縮）
  */
 
-export const BACKUP_FORMAT_VERSION = 1;
+// 2: markers / topics を recording_events / outline_items に置き換えた（DATA_MODEL.md §4.10 / §4.11）。
+//    1 で書かれたファイルも読める（旧 topics は見出しへ、旧 markers はシステム由来のものだけ拾う）。
+export const BACKUP_FORMAT_VERSION = 2;
 export const BACKUP_EXTENSION = 'podsnow';
 
 export interface BackupManifest {
@@ -39,8 +41,11 @@ export interface BackupPayload {
   take_segments: SqlRow[];
   voice_segments: SqlRow[];
   overlay_clips: SqlRow[];
-  markers: SqlRow[];
-  topics: SqlRow[];
+  recording_events: SqlRow[];
+  outline_items: SqlRow[];
+  /** formatVersion 1 で書かれたファイルにだけ入っている。 */
+  markers?: SqlRow[];
+  topics?: SqlRow[];
   exports: SqlRow[];
   assets: SqlRow[];
 }
@@ -88,10 +93,13 @@ export async function exportEpisodeBackup(
   const overlay_clips = await db.all('SELECT * FROM overlay_clips WHERE episode_id = ?', [
     episodeId,
   ]);
-  const markers = await db.all('SELECT * FROM markers WHERE episode_id = ?', [episodeId]);
-  const topics = await db.all('SELECT * FROM topics WHERE episode_id = ? ORDER BY position', [
+  const recording_events = await db.all('SELECT * FROM recording_events WHERE episode_id = ?', [
     episodeId,
   ]);
+  const outline_items = await db.all(
+    'SELECT * FROM outline_items WHERE episode_id = ? ORDER BY position',
+    [episodeId],
+  );
   const exports = await db.all(
     'SELECT id, episode_id, format, preset, status, progress, duration_smp, measured_lufs, measured_true_peak, created_at, finished_at FROM exports WHERE episode_id = ?',
     [episodeId],
@@ -117,8 +125,8 @@ export async function exportEpisodeBackup(
     take_segments,
     voice_segments,
     overlay_clips,
-    markers,
-    topics,
+    recording_events,
+    outline_items,
     exports,
     assets,
   };
@@ -403,35 +411,54 @@ export async function importEpisodeBackup(
       );
     }
     let i = 0;
-    for (const m of payload.markers) {
-      const nt = takeMap.get(m.take_id as string);
+    // formatVersion 1 の markers からは、システムが記録したものだけを拾う。
+    // ユーザーが打った edit_point / mistake は機能ごと廃止（FR-REC-4）。topic は項目側が持つ。
+    const events = [
+      ...(payload.recording_events ?? []),
+      ...(payload.markers ?? []).filter(
+        (m) => m.kind === 'interruption' || m.kind === 'route_change',
+      ),
+    ];
+    for (const e of events) {
+      const nt = takeMap.get(e.take_id as string);
       if (!nt) continue;
       await db.run(
-        'INSERT INTO markers (id, episode_id, take_id, src_smp, label, kind, resolved, created_at) VALUES (?,?,?,?,?,?,?,?)',
+        'INSERT INTO recording_events (id, episode_id, take_id, src_smp, label, kind, created_at) VALUES (?,?,?,?,?,?,?)',
         [
           newId(),
           newEpisodeId,
           nt,
-          m.src_smp as number,
-          (m.label as string) ?? '',
-          (m.kind as string) ?? 'edit_point',
-          (m.resolved as number) ?? 0,
+          e.src_smp as number,
+          (e.label as string) ?? '',
+          e.kind as string,
           t + i++,
         ],
       );
     }
-    for (const tp of payload.topics) {
-      const ct = tp.checked_take_id ? (takeMap.get(tp.checked_take_id as string) ?? null) : null;
+    // formatVersion 1 の topics は、見出しだけの項目として読む。
+    const outline =
+      payload.outline_items ??
+      (payload.topics ?? []).map((tp) => ({
+        position: tp.position,
+        heading: tp.text,
+        body: '',
+        recorded_take_id: tp.checked_take_id,
+        recorded_src_smp: tp.checked_src_smp,
+        done_at: tp.checked_at,
+      }));
+    for (const tp of outline) {
+      const ct = tp.recorded_take_id ? (takeMap.get(tp.recorded_take_id as string) ?? null) : null;
       await db.run(
-        'INSERT INTO topics (id, episode_id, position, text, checked_at, checked_take_id, checked_src_smp) VALUES (?,?,?,?,?,?,?)',
+        'INSERT INTO outline_items (id, episode_id, position, heading, body, recorded_take_id, recorded_src_smp, done_at) VALUES (?,?,?,?,?,?,?,?)',
         [
           newId(),
           newEpisodeId,
           tp.position as number,
-          (tp.text as string) ?? '',
-          (tp.checked_at as number | null) ?? null,
+          (tp.heading as string) ?? '',
+          (tp.body as string) ?? '',
           ct,
-          ct ? ((tp.checked_src_smp as number | null) ?? null) : null,
+          ct ? ((tp.recorded_src_smp as number | null) ?? null) : null,
+          (tp.done_at as number | null) ?? null,
         ],
       );
     }

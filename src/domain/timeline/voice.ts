@@ -214,6 +214,36 @@ export function appendTake(
   ];
 }
 
+/**
+ * `[0, total)` から `ranges` を除いた残りの区間（昇順・重なりなし）。
+ * 収録中の「言い直す」で捨てた範囲を Take から除くのに使う（FR-REC-4）。
+ * `ranges` は順不同でも重なっていてもよい。
+ */
+export function keptIntervals(total: Smp, ranges: readonly Range[]): Range[] {
+  if (total <= 0) return [];
+  const sorted = ranges
+    .map((r) => ({
+      start: Math.max(0, Math.min(total, r.start)),
+      end: Math.max(0, Math.min(total, r.end)),
+    }))
+    .filter((r) => r.end > r.start)
+    .sort((a, b) => a.start - b.start);
+  const merged: { start: number; end: number }[] = [];
+  for (const r of sorted) {
+    const last = merged[merged.length - 1];
+    if (last && r.start <= last.end) last.end = Math.max(last.end, r.end);
+    else merged.push({ ...r });
+  }
+  const out: Range[] = [];
+  let cursor = 0;
+  for (const m of merged) {
+    if (m.start > cursor) out.push({ start: smp(cursor), end: smp(m.start) });
+    cursor = m.end;
+  }
+  if (cursor < total) out.push({ start: smp(cursor), end: total });
+  return out;
+}
+
 /** 隣接し、同じ Take で連続しているセグメントを結合する（表示・レンダの単純化用）。 */
 export function coalesce(voice: readonly VoiceSegment[]): VoiceSegment[] {
   const out: VoiceSegment[] = [];

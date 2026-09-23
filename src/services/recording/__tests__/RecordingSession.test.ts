@@ -2,6 +2,7 @@ import { smp } from '@/domain/time';
 import { createNodeSqliteExecutor } from '@/infra/db/__tests__/nodeSqliteExecutor';
 import { migrate } from '@/infra/db/migrate';
 import { loadDoc } from '@/infra/db/repositories/editableDocRepo';
+import { listRecordingEvents } from '@/infra/db/repositories/recordingEventsRepo';
 import { getTake, listOpenJournals, listSegments } from '@/infra/db/repositories/takesRepo';
 
 import {
@@ -127,10 +128,10 @@ describe('RecordingSession', () => {
       [2, 1000, 500, 'stop'],
     ]);
     expect((await getTake(db, takeId))?.duration_smp).toBe(1500);
-    const doc = await loadDoc(db, 'e');
-    expect(doc.markers).toEqual([
+    expect(await listRecordingEvents(db, 'e')).toEqual([
       expect.objectContaining({ kind: 'interruption', takeId, srcSmp: 1000 }),
     ]);
+    const doc = await loadDoc(db, 'e');
     expect(doc.voice[0]).toMatchObject({ srcStart: 0, srcEnd: 1500 });
   });
 
@@ -186,13 +187,56 @@ describe('RecordingSession', () => {
     ]);
   });
 
-  it('addMarker records the current take position', async () => {
+  it('retake drops the last stretch from the voice track but keeps the recording', async () => {
+    const { db, recorder, session } = await setup();
+    const takeId = await session.start('e');
+    // 0..300 を話し、300..500 で噛んで、そこを言い直す
+    recorder.frames = 500;
+    expect(session.retake(smp(300))).toBe(200);
+    recorder.frames = 900;
+    await session.stop();
+
+    // 録音ファイルの長さは変わらない（非破壊）
+    expect((await getTake(db, takeId))?.duration_smp).toBe(900);
+    // 声の並びからは捨てた範囲だけが抜ける
+    const doc = await loadDoc(db, 'e');
+    expect(doc.voice.map((v) => [v.srcStart, v.srcEnd])).toEqual([
+      [0, 300],
+      [500, 900],
+    ]);
+  });
+
+  it('retake can be undone before the take is finalized', async () => {
+    const { db, recorder, session } = await setup();
+    await session.start('e');
+    recorder.frames = 500;
+    session.retake(smp(300));
+    expect(session.undoRetake()).toBe(true);
+    expect(session.undoRetake()).toBe(false);
+    recorder.frames = 900;
+    await session.stop();
+
+    expect((await loadDoc(db, 'e')).voice.map((v) => [v.srcStart, v.srcEnd])).toEqual([[0, 900]]);
+  });
+
+  it('retake returns null when there is nothing to drop', async () => {
+    const { recorder, session } = await setup();
+    await session.start('e');
+    recorder.frames = 100;
+    // 現在位置より後ろは捨てられない
+    expect(session.retake(smp(500))).toBeNull();
+    await session.stop();
+    // 録音していなければ何もしない
+    expect(session.retake(smp(0))).toBeNull();
+  });
+
+  it('recordEvent records the current take position', async () => {
     const { db, recorder, session } = await setup();
     const takeId = await session.start('e');
     recorder.frames = 123;
-    const m = await session.addMarker('edit_point', 'ここ');
-    expect(m).toMatchObject({ takeId, srcSmp: 123, label: 'ここ' });
-    expect((await loadDoc(db, 'e')).markers).toHaveLength(1);
+    const e = await session.recordEvent('disk_low', '残り少');
+    expect(e).toMatchObject({ takeId, srcSmp: 123, label: '残り少', kind: 'disk_low' });
+    expect(await listRecordingEvents(db, 'e')).toHaveLength(1);
     expect(session.currentSourcePosition()).toEqual({ takeId, srcSmp: 123 });
   });
 

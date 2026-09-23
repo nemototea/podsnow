@@ -1,34 +1,24 @@
-import type { Smp } from '../time';
 import type { OverlayClip, VoiceSegment } from '../timeline/types';
-
-export type MarkerKind = 'edit_point' | 'mistake' | 'interruption' | 'route_change' | 'topic';
-
-export interface Marker {
-  id: string;
-  takeId: string;
-  srcSmp: Smp;
-  label: string;
-  kind: MarkerKind;
-  resolved: boolean;
-}
 
 /**
  * Undo の対象となるエピソードの編集状態（DATA_MODEL.md §4.12 の対象テーブル）。
  * Take 自体は含まない（録音は Undo 対象外）。
+ *
+ * マーカーは持たない（FR-REC-4 廃止）。ユーザーが打つ編集点は無くなり、
+ * 録音中の出来事は `recording_events`、チャプターは `outline_items` が持つ。
+ * どちらも「起きた事実」なので Undo の対象ではない。
  */
 export interface EditableDoc {
   voice: readonly VoiceSegment[];
   overlays: readonly OverlayClip[];
-  markers: readonly Marker[];
 }
 
-export const EMPTY_DOC: EditableDoc = { voice: [], overlays: [], markers: [] };
+export const EMPTY_DOC: EditableDoc = { voice: [], overlays: [] };
 
 export function cloneDoc(d: EditableDoc): EditableDoc {
   return {
     voice: d.voice.map((s) => ({ ...s })),
     overlays: d.overlays.map((o) => ({ ...o, anchor: { ...o.anchor } })),
-    markers: d.markers.map((m) => ({ ...m })),
   };
 }
 

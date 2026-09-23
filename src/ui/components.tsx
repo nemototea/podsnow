@@ -560,6 +560,50 @@ export function Chip({
   );
 }
 
+/**
+ * 画面内のタブ（録音 / 編集 / 書き出し）。
+ * 画面を分けずに工程を切り替えるための帯（docs/ux-restructure.md §3）。
+ */
+export function Segmented<T extends string>({
+  value,
+  options,
+  onChange,
+}: {
+  value: T;
+  options: readonly { value: T; label: string }[];
+  onChange: (v: T) => void;
+}) {
+  const c = useAppTheme();
+  return (
+    <View style={[s.segmented, { backgroundColor: c.surface, borderColor: c.border }]}>
+      {options.map((o) => {
+        const active = o.value === value;
+        return (
+          <Pressable
+            key={o.value}
+            onPress={() => onChange(o.value)}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: active }}
+            style={[
+              s.segment,
+              active && { backgroundColor: c.surfaceRaised, borderColor: c.accentBorder },
+            ]}
+          >
+            <Text
+              style={[
+                typography.label,
+                { color: active ? c.textPrimary : c.textSecondary, textAlign: 'center' },
+              ]}
+            >
+              {o.label}
+            </Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
 const TOGGLE_W = 48;
 const TOGGLE_H = 28;
 const TOGGLE_PAD = 3;
@@ -585,6 +629,23 @@ const s = StyleSheet.create({
   },
   backGlyph: { fontSize: icon.lg + 2, lineHeight: 34, marginTop: -4 },
   eyebrow: { marginTop: space.xl, marginBottom: space.sm },
+  segmented: {
+    flexDirection: 'row',
+    borderRadius: radius.md,
+    borderWidth: 1,
+    padding: space.hair,
+    gap: space.hair,
+    marginBottom: space.sm,
+  },
+  segment: {
+    flex: 1,
+    minHeight: hit.compact,
+    justifyContent: 'center',
+    borderRadius: concentric(radius.md, space.hair),
+    borderWidth: 1,
+    borderColor: 'transparent',
+    paddingHorizontal: space.sm,
+  },
   card: {
     borderRadius: radius.lg,
     borderWidth: 1,

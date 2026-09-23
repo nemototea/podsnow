@@ -2,6 +2,7 @@ import { smp, ZERO_SMP, type Smp } from '../../time';
 import type { VoiceSegment } from '../types';
 import {
   appendTake,
+  keptIntervals,
   assertVoiceInvariant,
   coalesce,
   deleteRange,
@@ -258,5 +259,68 @@ describe('invariant', () => {
         expect(resolveTimeline(v, s.takeId, s.srcSmp)).toBe(p);
       }
     }
+  });
+});
+
+describe('keptIntervals', () => {
+  it('捨てた範囲を除いた残りを返す', () => {
+    expect(keptIntervals(smp(1000), [{ start: smp(200), end: smp(400) }])).toEqual([
+      { start: 0, end: 200 },
+      { start: 400, end: 1000 },
+    ]);
+  });
+
+  it('捨てた範囲がなければ全体', () => {
+    expect(keptIntervals(smp(1000), [])).toEqual([{ start: 0, end: 1000 }]);
+  });
+
+  it('重なった範囲はまとめる', () => {
+    expect(
+      keptIntervals(smp(1000), [
+        { start: smp(300), end: smp(500) },
+        { start: smp(400), end: smp(700) },
+      ]),
+    ).toEqual([
+      { start: 0, end: 300 },
+      { start: 700, end: 1000 },
+    ]);
+  });
+
+  it('順不同でも並べ直す', () => {
+    expect(
+      keptIntervals(smp(1000), [
+        { start: smp(800), end: smp(900) },
+        { start: smp(100), end: smp(200) },
+      ]),
+    ).toEqual([
+      { start: 0, end: 100 },
+      { start: 200, end: 800 },
+      { start: 900, end: 1000 },
+    ]);
+  });
+
+  it('末尾まで捨てたら最後の区間は出ない', () => {
+    expect(keptIntervals(smp(1000), [{ start: smp(600), end: smp(1000) }])).toEqual([
+      { start: 0, end: 600 },
+    ]);
+  });
+
+  it('全部捨てたら空', () => {
+    expect(keptIntervals(smp(1000), [{ start: smp(0), end: smp(1000) }])).toEqual([]);
+  });
+
+  it('範囲外は総尺に丸める', () => {
+    expect(keptIntervals(smp(1000), [{ start: smp(-50), end: smp(300) }])).toEqual([
+      { start: 300, end: 1000 },
+    ]);
+    expect(keptIntervals(smp(1000), [{ start: smp(900), end: smp(5000) }])).toEqual([
+      { start: 0, end: 900 },
+    ]);
+  });
+
+  it('長さ 0 の範囲は無視する', () => {
+    expect(keptIntervals(smp(1000), [{ start: smp(500), end: smp(500) }])).toEqual([
+      { start: 0, end: 1000 },
+    ]);
   });
 });

@@ -5,12 +5,22 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { formatSmp, smp } from '@/domain/time';
 import { useServices } from '@/features/app/ServicesProvider';
 import { useHome } from '@/features/home/useHome';
-import { useT } from '@/i18n';
+import { useT, type Messages } from '@/i18n';
 import type { EpisodeListItem } from '@/infra/db/repositories/episodesRepo';
 import { glyphSlop, hit, icon, radius, space, typography } from '@/ui/tokens';
 import { Button, Card, Eyebrow, Fab, Row, Screen, Sheet, Toast } from '@/ui/components';
 import { useAppTheme } from '@/ui/ThemeContext';
 import { useToast } from '@/ui/useToast';
+
+/**
+ * 一覧の状態から「次にやること」を 1 つだけ出す（FR-EP-3、docs/ux-restructure.md §7.2）。
+ * 状態の名前ではなく動詞を出す。判断を一覧に投げ返さない。
+ */
+function nextActionLabel(t: Messages, e: EpisodeListItem): string {
+  if (e.take_count === 0) return t.home.startRecording;
+  if (e.status === 'exported') return t.home.share;
+  return t.home.continueEditing;
+}
 
 export default function HomeScreen() {
   const c = useAppTheme();
@@ -35,7 +45,7 @@ export default function HomeScreen() {
     showToast({
       text: t.home.recovered(formatSmp(r.durationSmp)),
       action: t.common.open,
-      onAction: () => router.push(`/episode/${r.episodeId}/editor`),
+      onAction: () => router.push(`/episode/${r.episodeId}`),
     });
   }
 
@@ -44,7 +54,7 @@ export default function HomeScreen() {
     setCreating(true);
     try {
       const ep = await episodes.create(show.id);
-      router.push(`/episode/${ep.id}/editor`);
+      router.push(`/episode/${ep.id}`);
     } finally {
       setCreating(false);
     }
@@ -130,8 +140,8 @@ export default function HomeScreen() {
             {formatSmp(smp(cont.duration_smp))} · {t.home.takes(cont.take_count)}
           </Text>
           <Button
-            label={cont.take_count === 0 ? t.home.startRecording : t.home.continueEditing}
-            onPress={() => router.push(`/episode/${cont.id}/editor`)}
+            label={nextActionLabel(t, cont)}
+            onPress={() => router.push(`/episode/${cont.id}`)}
           />
         </Card>
       ) : (
@@ -165,9 +175,9 @@ export default function HomeScreen() {
             {t.home.restore}
           </Text>
         </Pressable>
-        <Pressable onPress={() => router.push('/show/assets')} hitSlop={glyphSlop}>
+        <Pressable onPress={() => router.push('/show')} hitSlop={glyphSlop}>
           <Text style={[typography.caption, { color: c.accentText, marginTop: space.lg }]}>
-            {t.home.showAssetsLink}
+            {t.home.showLink}
           </Text>
         </Pressable>
       </View>
@@ -230,34 +240,6 @@ export default function HomeScreen() {
       >
         {menu ? (
           <>
-            <Row
-              label={t.home.continueEditing}
-              onPress={() => {
-                setMenu(null);
-                router.push(`/episode/${menu.id}/editor`);
-              }}
-            />
-            <Row
-              label={t.home.menu.openEpisode}
-              onPress={() => {
-                setMenu(null);
-                router.push(`/episode/${menu.id}`);
-              }}
-            />
-            <Row
-              label={t.home.menu.details}
-              onPress={() => {
-                setMenu(null);
-                router.push(`/episode/${menu.id}/details`);
-              }}
-            />
-            <Row
-              label={t.home.menu.export}
-              onPress={() => {
-                setMenu(null);
-                router.push(`/episode/${menu.id}/export`);
-              }}
-            />
             <Row label={t.home.menu.duplicate} onPress={() => duplicate(menu)} />
             <Row
               label={t.home.menu.backup}

@@ -1,4 +1,4 @@
-import type { EditableDoc, Marker, MarkerKind } from '@/domain/editing/doc';
+import type { EditableDoc } from '@/domain/editing/doc';
 import type { Smp } from '@/domain/time';
 import type {
   Anchor,
@@ -11,7 +11,7 @@ import type {
 import type { SqlExecutor, SqlRow } from '../executor';
 
 /*
- * EditableDoc（voice_segments / overlay_clips / markers）の読み書き。
+ * EditableDoc（voice_segments / overlay_clips）の読み書き。
  * saveDoc はエピソードの行をまるごと置き換える。呼び出し側がトランザクションで包む。
  */
 
@@ -42,15 +42,6 @@ interface OverlayRow extends SqlRow {
   end_mode: string;
 }
 
-interface MarkerRow extends SqlRow {
-  id: string;
-  take_id: string;
-  src_smp: number;
-  label: string;
-  kind: string;
-  resolved: number;
-}
-
 export async function loadDoc(db: SqlExecutor, episodeId: string): Promise<EditableDoc> {
   const voiceRows = await db.all<VoiceRow>(
     'SELECT id, take_id, src_start_smp, src_end_smp, gain_db, fade_in_smp, fade_out_smp FROM voice_segments WHERE episode_id = ? ORDER BY position',
@@ -60,14 +51,9 @@ export async function loadDoc(db: SqlExecutor, episodeId: string): Promise<Edita
     'SELECT id, asset_id, kind, anchor_type, anchor_take_id, anchor_smp, src_start_smp, src_end_smp, gain_db, fade_in_smp, fade_out_smp, duck, loop, end_mode FROM overlay_clips WHERE episode_id = ? ORDER BY rowid',
     [episodeId],
   );
-  const markerRows = await db.all<MarkerRow>(
-    'SELECT id, take_id, src_smp, label, kind, resolved FROM markers WHERE episode_id = ? ORDER BY created_at, rowid',
-    [episodeId],
-  );
   return {
     voice: voiceRows.map(rowToVoice),
     overlays: overlayRows.map(rowToOverlay),
-    markers: markerRows.map(rowToMarker),
   };
 }
 
@@ -79,7 +65,6 @@ export async function saveDoc(
 ): Promise<void> {
   await db.run('DELETE FROM voice_segments WHERE episode_id = ?', [episodeId]);
   await db.run('DELETE FROM overlay_clips WHERE episode_id = ?', [episodeId]);
-  await db.run('DELETE FROM markers WHERE episode_id = ?', [episodeId]);
   let position = 0;
   for (const s of doc.voice) {
     await db.run(
@@ -122,14 +107,6 @@ export async function saveDoc(
         now,
       ],
     );
-  }
-  let i = 0;
-  for (const m of doc.markers) {
-    await db.run(
-      'INSERT INTO markers (id, episode_id, take_id, src_smp, label, kind, resolved, created_at) VALUES (?,?,?,?,?,?,?,?)',
-      [m.id, episodeId, m.takeId, m.srcSmp, m.label, m.kind, m.resolved ? 1 : 0, now + i],
-    );
-    i++;
   }
 }
 
@@ -185,16 +162,5 @@ function rowToOverlay(r: OverlayRow): OverlayClip {
     duck: r.duck === 1,
     loop: r.loop === 1,
     endMode: r.end_mode as OverlayEndMode,
-  };
-}
-
-function rowToMarker(r: MarkerRow): Marker {
-  return {
-    id: r.id,
-    takeId: r.take_id,
-    srcSmp: r.src_smp as Smp,
-    label: r.label,
-    kind: r.kind as MarkerKind,
-    resolved: r.resolved === 1,
   };
 }

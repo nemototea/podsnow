@@ -3,8 +3,10 @@ import { useCallback, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { formatSmp, smp } from '@/domain/time';
+import { splitIntoHeadings } from '@/domain/outline';
 import { useServices } from '@/features/app/ServicesProvider';
 import { kindLabel } from '@/features/show/assetKinds';
+import { AssetsSection } from '@/features/show/AssetsSection';
 import { useAsyncData } from '@/features/show/useAsyncData';
 import { useT, type Messages } from '@/i18n';
 import type { AssetKind, AssetRow } from '@/infra/db/repositories/assetsRepo';
@@ -29,6 +31,8 @@ interface Loaded {
   layout: ShowLayoutRow | null;
   template: TemplateRow | null;
   assets: AssetRow[];
+  /** トークテーマのひな形（FR-SHOW-4）。1 行 1 項目で編集する。 */
+  topicTemplate: string;
 }
 
 type LayoutSlot = 'opening' | 'ending' | 'bgm';
@@ -53,8 +57,12 @@ const PLACEHOLDER_KEYS = [
   'show_name',
 ] as const satisfies readonly (keyof Messages['showSettings']['placeholders'])[];
 
-/** Show の設定・既定構成・概要欄テンプレート（FR-SHOW-3, FR-META-2, DATA_MODEL.md §4.1〜4.3）。 */
-export default function ShowSettingsScreen() {
+/**
+ * 番組の 1 画面（FR-SHOW-3, FR-SHOW-4, FR-SHOW-5, FR-META-2）。
+ * 番組情報・毎回入れる素材・トークテーマのひな形・概要のひな形・素材の登録を
+ * ここに集める。画面を分けない（docs/ux-restructure.md §8）。
+ */
+export default function ShowScreen() {
   const c = useAppTheme();
   const t = useT();
   const router = useRouter();
@@ -64,19 +72,27 @@ export default function ShowSettingsScreen() {
   const { toast, show: showToast, act, dismiss } = useToast();
 
   const loader = useCallback(async (): Promise<Loaded> => {
-    const [show, layout, template, list] = await Promise.all([
+    const [show, layout, template, list, topics] = await Promise.all([
       getShow(db, showId),
       getLayout(db, showId),
       getDefaultTemplate(db, showId),
       assets.list(showId),
+      services.outline.listTemplate(showId),
     ]);
-    return { show, layout, template, assets: list };
-  }, [assets, db, showId]);
+    return {
+      show,
+      layout,
+      template,
+      assets: list,
+      topicTemplate: topics.map((x) => x.heading).join('\n'),
+    };
+  }, [assets, db, services.outline, showId]);
   const { data, reload } = useAsyncData<Loaded>(loader, {
     show: null,
     layout: null,
     template: null,
     assets: [],
+    topicTemplate: '',
   });
 
   // 編集中テキスト（保存ボタンで確定）
@@ -86,6 +102,7 @@ export default function ShowSettingsScreen() {
     author: string;
     season: string;
     template: string;
+    topicTemplate: string;
   } | null>(null);
   const [picking, setPicking] = useState<LayoutSlot | null>(null);
 
@@ -95,6 +112,7 @@ export default function ShowSettingsScreen() {
     author: data.show?.author ?? '',
     season: String(data.show?.default_season ?? 1),
     template: data.template?.body ?? '',
+    topicTemplate: data.topicTemplate,
   };
   const setField = (k: keyof typeof d, v: string) => setDraft({ ...d, [k]: v });
 
@@ -112,6 +130,10 @@ export default function ShowSettingsScreen() {
       now(),
     );
     if (data.template) await updateTemplate(db, data.template.id, d.template, now());
+    await services.outline.saveTemplate(
+      showId,
+      splitIntoHeadings(d.topicTemplate).map((heading) => ({ heading, body: '' })),
+    );
     await services.reloadShow();
     setDraft(null);
     await reload();
@@ -149,7 +171,11 @@ export default function ShowSettingsScreen() {
 
   return (
     <Screen overlay={<Toast toast={toast} onAction={act} onDismiss={dismiss} />}>
-      <Header title={t.showSettings.title} onBack={() => router.back()} />
+      <Header
+        title={t.showSettings.title}
+        subtitle={services.show.name}
+        onBack={() => router.back()}
+      />
 
       <Eyebrow>{t.showSettings.showEyebrow}</Eyebrow>
       <Card>
@@ -218,11 +244,25 @@ export default function ShowSettingsScreen() {
           />
         </View>
       </Card>
-      <Pressable onPress={() => router.push('/show/assets')} accessibilityRole="button">
-        <Text style={[typography.label, { color: c.accentText, marginBottom: space.sm }]}>
-          {t.showSettings.assetsLink}
+      <Eyebrow>{t.showSettings.topicTemplateEyebrow}</Eyebrow>
+      <Card>
+        <Text style={[typography.caption, { color: c.textSecondary, marginBottom: space.sm }]}>
+          {t.showSettings.topicTemplateNote}
         </Text>
-      </Pressable>
+        <TextInput
+          value={d.topicTemplate}
+          onChangeText={(v) => setField('topicTemplate', v)}
+          multiline
+          placeholder={t.showSettings.topicTemplatePlaceholder}
+          placeholderTextColor={c.textTertiary}
+          accessibilityLabel={t.showSettings.topicTemplateEyebrow}
+          style={[
+            st.input,
+            st.multiline,
+            { color: c.textPrimary, borderColor: c.border, backgroundColor: c.surfaceRaised },
+          ]}
+        />
+      </Card>
 
       <Eyebrow>{t.showSettings.templateEyebrow}</Eyebrow>
       <Card>
@@ -261,6 +301,12 @@ export default function ShowSettingsScreen() {
       </Card>
 
       <Button label={t.common.save} onPress={save} disabled={!draft} />
+
+      <AssetsSection
+        onToast={(text, undo) =>
+          showToast(undo ? { text, action: t.common.undo, onAction: undo } : { text })
+        }
+      />
 
       <Sheet
         visible={!!picking}

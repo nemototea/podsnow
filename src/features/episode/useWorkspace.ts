@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import type { EditableDoc, Marker } from '@/domain/editing/doc';
+import type { EditableDoc } from '@/domain/editing/doc';
+import { currentIndex, nextIndex, type OutlineItem } from '@/domain/outline';
 import { smp, ZERO_SMP, type Smp } from '@/domain/time';
+import { detectBlocks } from '@/domain/timeline/blocks';
 import { placeOverlays, suggestReanchor, type PlacedOverlay } from '@/domain/timeline/overlays';
 import type { OverlayClip, Range } from '@/domain/timeline/types';
 import {
@@ -16,6 +18,10 @@ import {
 import { useT } from '@/i18n';
 import type { AssetRow } from '@/infra/db/repositories/assetsRepo';
 import { getEpisode, type EpisodeRow } from '@/infra/db/repositories/episodesRepo';
+import {
+  listRecordingEvents,
+  type RecordingEvent,
+} from '@/infra/db/repositories/recordingEventsRepo';
 import { listSegments, listTakes, type TakeRow } from '@/infra/db/repositories/takesRepo';
 import { ensureTakePeaks } from '@/services/audio/PeaksService';
 import { planSilenceForTimeline } from '@/services/audio/SilenceService';
@@ -25,16 +31,12 @@ import { fileExists } from '@/infra/files/fileSystem';
 
 import type { LevelEvent } from '../../../modules/podsnow-recorder/src/PodsnowRecorder.types';
 import { useServices } from '../app/ServicesProvider';
-import { readPeaksFile, type TakePeaks } from './peaks';
+import { LEVEL_STEP_SMP, readPeaksFile, timelineLevels, type TakePeaks } from './peaks';
 
-export interface Topic {
-  id: string;
-  position: number;
-  text: string;
-  checkedAt: number | null;
-}
+/** 「言い直す」の既定の範囲（10 秒）。 */
+const RETAKE_WINDOW = 10 * 48000;
 
-export interface EditorState {
+export interface WorkspaceState {
   episode: EpisodeRow | null;
   doc: EditableDoc;
   takes: TakeRow[];
@@ -54,22 +56,24 @@ export interface EditorState {
   canRedo: boolean;
   undoLabel: string | null;
   redoLabel: string | null;
-  topics: Topic[];
+  outline: OutlineItem[];
+  events: RecordingEvent[];
   ready: boolean;
 }
 
 /**
- * Editor 画面の状態と操作。EditingService / RecordingSession / PlaybackService を結線する。
- * 画面はこのフックだけを使う（ARCHITECTURE.md §2）。
+ * エピソード画面（録音 / 編集 / 書き出しの 3 タブ）が共有する状態と操作。
+ * EditingService / RecordingSession / PlaybackService / OutlineService を結線する。
+ * 画面はこのフックだけを使う（ARCHITECTURE.md §2 / §12）。
  */
-export function useEditor(episodeId: string) {
+export function useWorkspace(episodeId: string) {
   const services = useServices();
   const t = useT();
   const { db, root, recording, playback, engine, settings } = services;
   const editingRef = useRef<EditingService | null>(null);
-  const [state, setState] = useState<EditorState>({
+  const [state, setState] = useState<WorkspaceState>({
     episode: null,
-    doc: { voice: [], overlays: [], markers: [] },
+    doc: { voice: [], overlays: [] },
     takes: [],
     assets: [],
     assetDurations: new Map(),
@@ -87,11 +91,12 @@ export function useEditor(episodeId: string) {
     canRedo: false,
     undoLabel: null,
     redoLabel: null,
-    topics: [],
+    outline: [],
+    events: [],
     ready: false,
   });
   const patch = useCallback(
-    (p: Partial<EditorState> | ((s: EditorState) => Partial<EditorState>)) => {
+    (p: Partial<WorkspaceState> | ((s: WorkspaceState) => Partial<WorkspaceState>)) => {
       setState((s) => ({ ...s, ...(typeof p === 'function' ? p(s) : p) }));
     },
     [],
@@ -99,7 +104,7 @@ export function useEditor(episodeId: string) {
 
   // ---- 読み込み ----
   const syncFromEditing = useCallback(
-    (e: EditingService, extra: Partial<EditorState> = {}) => {
+    (e: EditingService, extra: Partial<WorkspaceState> = {}) => {
       const doc = e.current;
       patch((s) => {
         const durations = extra.assetDurations ?? s.assetDurations;
@@ -141,24 +146,13 @@ export function useEditor(episodeId: string) {
     [db, engine, root, episodeId, patch],
   );
 
-  const loadTopics = useCallback(async () => {
-    const rows = await db.all<{
-      id: string;
-      position: number;
-      text: string;
-      checked_at: number | null;
-    }>('SELECT id, position, text, checked_at FROM topics WHERE episode_id = ? ORDER BY position', [
-      episodeId,
+  const loadOutline = useCallback(async () => {
+    const [outline, events] = await Promise.all([
+      services.outline.list(episodeId),
+      listRecordingEvents(db, episodeId),
     ]);
-    patch({
-      topics: rows.map((r) => ({
-        id: r.id,
-        position: r.position,
-        text: r.text,
-        checkedAt: r.checked_at,
-      })),
-    });
-  }, [db, episodeId, patch]);
+    patch({ outline, events });
+  }, [db, episodeId, patch, services.outline]);
 
   const reloadAll = useCallback(async () => {
     // RecordingSession は DB に直接書くので、毎回 DB から開き直す（メモリ上の doc を信用しない）
@@ -178,9 +172,9 @@ export function useEditor(episodeId: string) {
       ready: true,
       playhead: smp(episode?.playhead_smp ?? 0),
     });
-    await Promise.all([loadPeaks(takes), loadTopics()]);
+    await Promise.all([loadPeaks(takes), loadOutline()]);
     await playback.reload(episodeId).catch(() => {});
-  }, [db, episodeId, loadPeaks, loadTopics, playback, services, syncFromEditing]);
+  }, [db, episodeId, loadPeaks, loadOutline, playback, services, syncFromEditing]);
 
   useEffect(() => {
     let alive = true;
@@ -293,81 +287,94 @@ export function useEditor(episodeId: string) {
     [recording],
   );
 
-  // ---- マーカー ----
-  const addMarker = useCallback(
-    async (kind: Marker['kind'], label = '') => {
-      if (state.recording === 'recording' || state.recording === 'paused') {
-        const m = await recording.addMarker(kind, label);
-        if (m) {
-          const e = editingRef.current;
-          if (e) {
-            await e.writeWithoutHistory((d) => ({
-              ...d,
-              markers: [...d.markers.filter((x) => x.id !== m.id), m],
-            }));
-            syncFromEditing(e);
-          }
-        }
-        return;
+  /**
+   * 言い直す（FR-REC-4）。録音を止めずに直近を捨てる。
+   * `chapter` はいま話している項目の頭から、`last10` は直近 10 秒。
+   * 戻り値は捨てた長さ。捨てるものが無ければ null。
+   */
+  const retake = useCallback(
+    (mode: 'chapter' | 'last10'): Smp | null => {
+      const pos = recording.currentSourcePosition();
+      if (!pos) return null;
+      let from = smp(Math.max(0, pos.srcSmp - RETAKE_WINDOW));
+      if (mode === 'chapter') {
+        const i = currentIndex(state.outline);
+        const item = i === null ? null : state.outline[i];
+        from =
+          item && item.recordedTakeId === pos.takeId && item.recordedSrcSmp !== null
+            ? item.recordedSrcSmp
+            : ZERO_SMP;
       }
-      const src = resolveSource(state.doc.voice, state.playhead);
-      if (!src) return;
-      await apply(kind === 'mistake' ? t.undo.addMistakeMarker : t.undo.addMarker, (d) => ({
-        ...d,
-        markers: [
-          ...d.markers,
-          {
-            id: services.newId(),
-            takeId: src.takeId,
-            srcSmp: src.srcSmp,
-            label,
-            kind,
-            resolved: false,
-          },
-        ],
-      }));
+      return recording.retake(from);
     },
-    [
-      apply,
-      recording,
-      services,
-      state.doc.voice,
-      state.playhead,
-      state.recording,
-      syncFromEditing,
-      t,
-    ],
+    [recording, state.outline],
   );
 
-  const markersOnTimeline = useMemo(
+  const undoRetake = useCallback(() => recording.undoRetake(), [recording]);
+
+  /**
+   * 無音で区切られた声の塊（FR-EDIT-2）。編集の選択単位。
+   * しきい値は無音カットと同じ設定を使うので、見え方と挙動が一致する。
+   */
+  const blocks = useMemo(
     () =>
-      state.doc.markers
-        .map((m) => ({ marker: m, at: resolveTimeline(state.doc.voice, m.takeId, m.srcSmp) }))
-        .filter((x): x is { marker: Marker; at: Smp } => x.at !== null)
+      detectBlocks(
+        timelineLevels(state.doc.voice, state.peaksByTake, state.total),
+        LEVEL_STEP_SMP,
+        state.total,
+        {
+          thresholdDb: settings.silence.thresholdDb,
+          minSilenceSmp: smp((settings.silence.minDurationMs * 48000) / 1000),
+        },
+      ),
+    [state.doc.voice, state.peaksByTake, state.total, settings.silence],
+  );
+
+  // ---- チャプター（トークテーマ由来）と録音中の出来事 ----
+
+  /** 声トラック上のチャプター。カットされた項目は落ちる（FR-OUT-4）。 */
+  const chaptersOnTimeline = useMemo(
+    () =>
+      state.outline
+        .map((item) =>
+          item.recordedTakeId !== null && item.recordedSrcSmp !== null
+            ? {
+                item,
+                at: resolveTimeline(state.doc.voice, item.recordedTakeId, item.recordedSrcSmp),
+              }
+            : { item, at: null },
+        )
+        .filter((x): x is { item: OutlineItem; at: Smp } => x.at !== null)
         .sort((a, b) => a.at - b.at),
-    [state.doc.markers, state.doc.voice],
+    [state.doc.voice, state.outline],
   );
 
-  const nextMarker = useCallback(async () => {
-    const list = markersOnTimeline.filter((m) => !m.marker.resolved);
-    if (!list.length) return null;
-    const next = list.find((m) => m.at > state.playhead + 4800) ?? list[0]!;
-    await seek(next.at);
-    return next.marker;
-  }, [markersOnTimeline, seek, state.playhead]);
-
-  const resolveMarker = useCallback(
-    (id: string) =>
-      apply(t.undo.resolveMarker, (d) => ({
-        ...d,
-        markers: d.markers.map((m) => (m.id === id ? { ...m, resolved: true } : m)),
-      })),
-    [apply, t],
+  /**
+   * チャプター 1 つ分の範囲（次のチャプターの手前まで。最後なら末尾まで）。
+   * 長押しで丸ごと選ぶのに使う（docs/ux-restructure.md §6.3）。
+   */
+  const chapterRange = useCallback(
+    (itemId: string): Range | null => {
+      const i = chaptersOnTimeline.findIndex((ch) => ch.item.id === itemId);
+      if (i < 0) return null;
+      const start = chaptersOnTimeline[i]!.at;
+      const end = chaptersOnTimeline[i + 1]?.at ?? state.total;
+      return end > start ? { start, end } : null;
+    },
+    [chaptersOnTimeline, state.total],
   );
-  const removeMarker = useCallback(
-    (id: string) =>
-      apply(t.undo.removeMarker, (d) => ({ ...d, markers: d.markers.filter((m) => m.id !== id) })),
-    [apply, t],
+
+  /** 割り込みなど、アプリが自動で記録した位置。ユーザーは打てない。 */
+  const eventsOnTimeline = useMemo(
+    () =>
+      state.events
+        .map((event) => ({
+          event,
+          at: resolveTimeline(state.doc.voice, event.takeId, event.srcSmp),
+        }))
+        .filter((x): x is { event: RecordingEvent; at: Smp } => x.at !== null)
+        .sort((a, b) => a.at - b.at),
+    [state.doc.voice, state.events],
   );
 
   // ---- 選択・削除 ----
@@ -393,6 +400,22 @@ export function useEditor(episodeId: string) {
       },
     }));
   }, [patch]);
+  /** 塊をそのまま選ぶ（タップ）。無音の位置なら選択を外す。 */
+  const selectBlockAt = useCallback(
+    (at: Smp) => {
+      const b = blocks.find((x) => at >= x.start && at < x.end) ?? null;
+      patch({ selection: b, selectedOverlay: null });
+      return b;
+    },
+    [blocks, patch],
+  );
+
+  /** ハンドルのドラッグ後に確定する。隣の塊の境界へ吸い付かせる。 */
+  const setSelection = useCallback(
+    (sel: Range | null) => patch({ selection: sel, selectedOverlay: null }),
+    [patch],
+  );
+
   const clearSelection = useCallback(
     () => patch({ selection: null, selectedOverlay: null }),
     [patch],
@@ -449,18 +472,23 @@ export function useEditor(episodeId: string) {
   );
 
   // ---- オーバーレイ ----
+  /**
+   * 素材を入れる。位置は録音中なら発言位置、そうでなければ再生位置か、
+   * 呼び出し側が指定した時刻（選択の前 / 後 に入れるときに使う）。
+   */
   const insertAsset = useCallback(
-    async (asset: AssetRow, at: 'playhead' | 'recording') => {
+    async (asset: AssetRow, at: 'playhead' | 'recording' | Smp) => {
       let anchor: OverlayClip['anchor'];
       if (at === 'recording') {
         const pos = recording.currentSourcePosition();
         if (!pos) return;
         anchor = { type: 'source', takeId: pos.takeId, srcSmp: pos.srcSmp };
       } else {
-        const src = resolveSource(state.doc.voice, state.playhead);
+        const tl = at === 'playhead' ? state.playhead : at;
+        const src = resolveSource(state.doc.voice, tl);
         anchor = src
           ? { type: 'source', takeId: src.takeId, srcSmp: src.srcSmp }
-          : { type: 'timeline_abs', smp: state.playhead };
+          : { type: 'timeline_abs', smp: tl };
       }
       const clip: OverlayClip = {
         id: services.newId(),
@@ -524,42 +552,40 @@ export function useEditor(episodeId: string) {
     [state.doc.voice, updateOverlay, t],
   );
 
-  // ---- トークテーマ ----
-  const saveTopics = useCallback(
-    async (topics: Topic[]) => {
-      await db.transaction(async () => {
-        await db.run('DELETE FROM topics WHERE episode_id = ?', [episodeId]);
-        let i = 0;
-        for (const t of topics) {
-          await db.run(
-            'INSERT INTO topics (id, episode_id, position, text, checked_at) VALUES (?,?,?,?,?)',
-            [t.id, episodeId, i++, t.text, t.checkedAt],
-          );
-        }
-      });
-      await loadTopics();
+  // ---- トークテーマと台本 ----
+
+  const saveOutline = useCallback(
+    async (items: readonly OutlineItem[]) => {
+      await services.outline.save(episodeId, items);
+      await loadOutline();
     },
-    [db, episodeId, loadTopics],
+    [episodeId, loadOutline, services.outline],
   );
-  const toggleTopic = useCallback(
-    async (id: string) => {
-      const t = state.topics.find((x) => x.id === id);
-      if (!t) return;
-      const checkedAt = t.checkedAt ? null : services.now();
-      const pos = recording.currentSourcePosition();
-      await db.run(
-        'UPDATE topics SET checked_at = ?, checked_take_id = ?, checked_src_smp = ? WHERE id = ?',
-        [checkedAt, pos?.takeId ?? null, pos?.srcSmp ?? null, id],
-      );
-      if (checkedAt && pos) await addMarker('topic', t.text);
-      await loadTopics();
+
+  const addOutlineFromText = useCallback(
+    async (text: string) => {
+      await services.outline.addFromText(episodeId, text);
+      await loadOutline();
     },
-    [addMarker, db, loadTopics, recording, services, state.topics],
+    [episodeId, loadOutline, services.outline],
   );
+
+  /** 次の項目へ進む。録音中ならその位置がチャプターになる（FR-OUT-4）。 */
+  const advanceOutline = useCallback(async () => {
+    const item = await services.outline.advance(episodeId, recording.currentSourcePosition());
+    await loadOutline();
+    return item;
+  }, [episodeId, loadOutline, recording, services.outline]);
+
+  const outlineCurrent = useMemo(() => currentIndex(state.outline), [state.outline]);
+  const outlineNext = useMemo(() => nextIndex(state.outline), [state.outline]);
 
   return {
     state,
-    markersOnTimeline,
+    blocks,
+    chaptersOnTimeline,
+    chapterRange,
+    eventsOnTimeline,
     apply,
     undo,
     redo,
@@ -570,12 +596,12 @@ export function useEditor(episodeId: string) {
     pauseRecording,
     resumeRecording,
     resumeAfterInterruption,
-    addMarker,
-    nextMarker,
-    resolveMarker,
-    removeMarker,
+    retake,
+    undoRetake,
     setSelectionStart,
     setSelectionEnd,
+    selectBlockAt,
+    setSelection,
     clearSelection,
     deleteSelection,
     planSilence,
@@ -588,10 +614,13 @@ export function useEditor(episodeId: string) {
     removeOverlay,
     moveOverlayTo,
     selectOverlay: (id: string | null) => patch({ selectedOverlay: id, selection: null }),
-    saveTopics,
-    toggleTopic,
+    saveOutline,
+    addOutlineFromText,
+    advanceOutline,
+    outlineCurrent,
+    outlineNext,
     reloadAll,
   };
 }
 
-export type Editor = ReturnType<typeof useEditor>;
+export type Workspace = ReturnType<typeof useWorkspace>;

@@ -1,4 +1,4 @@
-import { memo, useCallback, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Pressable,
   ScrollView,
@@ -9,13 +9,17 @@ import {
   type NativeScrollEvent,
   type NativeSyntheticEvent,
 } from 'react-native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import Animated, { runOnJS, useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
 
-import type { Marker } from '@/domain/editing/doc';
+import type { OutlineItem } from '@/domain/outline';
 import { formatSmp, smp, type Smp } from '@/domain/time';
 import type { PlacedOverlay } from '@/domain/timeline/overlays';
 import type { Range, VoiceSegment } from '@/domain/timeline/types';
+import { snapToBoundary } from '@/domain/timeline/blocks';
 import { placeVoice } from '@/domain/timeline/voice';
-import { concentric, glyphSlop, radius, space, tabularNums, typography } from '@/ui/tokens';
+import type { RecordingEvent } from '@/infra/db/repositories/recordingEventsRepo';
+import { concentric, glyphSlop, hit, radius, space, tabularNums, typography } from '@/ui/tokens';
 import { useAppTheme } from '@/ui/ThemeContext';
 
 import { sampleVoiceColumns, type TakePeaks } from './peaks';
@@ -27,7 +31,10 @@ export interface WaveformProps {
   voice: readonly VoiceSegment[];
   peaksByTake: ReadonlyMap<string, TakePeaks>;
   overlays: readonly PlacedOverlay[];
-  markers: readonly { marker: Marker; at: Smp }[];
+  /** トークテーマ由来のチャプター（FR-OUT-4）。ユーザーは打たない。 */
+  chapters: readonly { item: OutlineItem; at: Smp }[];
+  /** 割り込みなど、アプリが記録した位置（DATA_MODEL.md §4.10）。 */
+  events: readonly { event: RecordingEvent; at: Smp }[];
   total: Smp;
   playhead: Smp;
   selection: Range | null;
@@ -38,11 +45,24 @@ export interface WaveformProps {
   recFrames: number;
   onSeek: (to: Smp) => void;
   onSelectOverlay: (id: string | null) => void;
-  onMarkerPress: (m: Marker) => void;
+  onChapterPress: (item: OutlineItem) => void;
+  /** チャプターを長押ししたとき。そのチャプターを丸ごと選ぶ。 */
+  onChapterLongPress?: (item: OutlineItem) => void;
   onVoiceSegmentPress?: (index: number) => void;
+  /** 録音タブ用の低い表示。収録中は波形より読む内容に高さを使う（§5.1）。 */
+  compact?: boolean;
+  /** 無音で区切られた声の塊（FR-EDIT-2）。タップで選び、ハンドルで広げる。 */
+  blocks?: readonly Range[];
+  /** 塊をタップしたとき。指定すると、タップはシークではなく選択になる。 */
+  onSelectBlock?: (at: Smp) => void;
+  /** ハンドルのドラッグを確定したとき。 */
+  onSelectionChange?: (range: Range) => void;
 }
 
-const HEIGHT = 96;
+const HANDLE_W = 28;
+const EMPTY_BLOCKS: readonly Range[] = [];
+const FULL_HEIGHT = 96;
+const COMPACT_HEIGHT = 44;
 const OVERLAY_H = 22;
 
 /**
@@ -51,6 +71,8 @@ const OVERLAY_H = 22;
  */
 export const Waveform = memo(function Waveform(p: WaveformProps) {
   const c = useAppTheme();
+  const height = p.compact ? COMPACT_HEIGHT : FULL_HEIGHT;
+  const laneTop = 16 + height + 4 + OVERLAY_H * 2 + 4;
   const [viewW, setViewW] = useState(0);
   const [scrollX, setScrollX] = useState(0);
   const scrollRef = useRef<ScrollView>(null);
@@ -76,7 +98,83 @@ export const Waveform = memo(function Waveform(p: WaveformProps) {
   const xOf = (s: number) => (s / SAMPLE_RATE) * p.pps;
   const placed = useMemo(() => placeVoice(p.voice), [p.voice]);
 
-  const seekAt = (x: number) => p.onSeek(smp(Math.max(0, (x / p.pps) * SAMPLE_RATE)));
+  const seekAt = (x: number) => {
+    const at = smp(Math.max(0, (x / p.pps) * SAMPLE_RATE));
+    if (p.onSelectBlock) p.onSelectBlock(at);
+    else p.onSeek(at);
+  };
+
+  // ---- 選択のハンドル ----
+  // ドラッグ中は UI スレッドで矩形を動かし、離したときだけ React に返す。
+  const selStart = useSharedValue(p.selection?.start ?? 0);
+  const selEnd = useSharedValue(p.selection?.end ?? 0);
+  const pps = p.pps;
+  const blocks = p.blocks ?? EMPTY_BLOCKS;
+  const total = p.total;
+  useEffect(() => {
+    selStart.value = p.selection?.start ?? 0;
+    selEnd.value = p.selection?.end ?? 0;
+  }, [p.selection, selStart, selEnd]);
+
+  const commit = useCallback(
+    (a: number, b: number) => {
+      const lo = Math.min(a, b);
+      const hi = Math.max(a, b);
+      // 隣の塊の切れ目に吸い付かせる（画面 12px 相当）
+      const within = (12 / pps) * SAMPLE_RATE;
+      p.onSelectionChange?.({
+        start: snapToBoundary(blocks, smp(lo), within),
+        end: snapToBoundary(blocks, smp(hi), within),
+      });
+    },
+    [blocks, p, pps],
+  );
+
+  const startBase = useSharedValue(0);
+  const endBase = useSharedValue(0);
+  const startPan = useMemo(
+    () =>
+      Gesture.Pan()
+        .activeOffsetX([-4, 4])
+        .onBegin(() => {
+          startBase.value = selStart.value;
+        })
+        .onUpdate((e) => {
+          const delta = (e.translationX / pps) * SAMPLE_RATE;
+          selStart.value = Math.max(0, Math.min(selEnd.value, startBase.value + delta));
+        })
+        .onEnd(() => {
+          runOnJS(commit)(selStart.value, selEnd.value);
+        }),
+    [commit, pps, selEnd, selStart, startBase],
+  );
+  const endPan = useMemo(
+    () =>
+      Gesture.Pan()
+        .activeOffsetX([-4, 4])
+        .onBegin(() => {
+          endBase.value = selEnd.value;
+        })
+        .onUpdate((e) => {
+          const delta = (e.translationX / pps) * SAMPLE_RATE;
+          selEnd.value = Math.min(total, Math.max(selStart.value, endBase.value + delta));
+        })
+        .onEnd(() => {
+          runOnJS(commit)(selStart.value, selEnd.value);
+        }),
+    [commit, endBase, pps, selEnd, selStart, total],
+  );
+
+  const selectionStyle = useAnimatedStyle(() => ({
+    left: (selStart.value / SAMPLE_RATE) * pps,
+    width: Math.max(2, ((selEnd.value - selStart.value) / SAMPLE_RATE) * pps),
+  }));
+  const startStyle = useAnimatedStyle(() => ({
+    left: (selStart.value / SAMPLE_RATE) * pps - HANDLE_W / 2,
+  }));
+  const endStyle = useAnimatedStyle(() => ({
+    left: (selEnd.value / SAMPLE_RATE) * pps - HANDLE_W / 2,
+  }));
 
   return (
     <View onLayout={onLayout} style={styles.root}>
@@ -89,7 +187,7 @@ export const Waveform = memo(function Waveform(p: WaveformProps) {
         contentContainerStyle={{ width: contentW }}
       >
         <Pressable
-          style={{ width: contentW, height: HEIGHT + OVERLAY_H * 2 + 28 }}
+          style={{ width: contentW, height: height + OVERLAY_H * 2 + 28 }}
           onPress={(e) => seekAt(e.nativeEvent.locationX)}
         >
           {/* 目盛り */}
@@ -99,7 +197,7 @@ export const Waveform = memo(function Waveform(p: WaveformProps) {
             </Text>
           ))}
           {/* 声 */}
-          <View style={[styles.voiceTrack, { backgroundColor: c.surface, top: 16 }]}>
+          <View style={[styles.voiceTrack, { backgroundColor: c.surface, top: 16, height }]}>
             {placed.map((seg, i) => (
               <Pressable
                 key={seg.segment.id}
@@ -118,8 +216,8 @@ export const Waveform = memo(function Waveform(p: WaveformProps) {
               ? Array.from({ length: columns.n }).map((_, i) => {
                   const lo = columns.data[i * 2]! / 127;
                   const hi = columns.data[i * 2 + 1]! / 127;
-                  const h = Math.max(1, (hi - lo) * (HEIGHT / 2));
-                  const top = HEIGHT / 2 - hi * (HEIGHT / 2);
+                  const h = Math.max(1, (hi - lo) * (height / 2));
+                  const top = height / 2 - hi * (height / 2);
                   return (
                     <View
                       key={i}
@@ -149,22 +247,40 @@ export const Waveform = memo(function Waveform(p: WaveformProps) {
                 ]}
               />
             ) : null}
-            {p.selection ? (
+            {/* 塊の切れ目。選べる単位が目で分かるようにする */}
+            {p.blocks?.map((b) => (
               <View
+                key={`${b.start}-${b.end}`}
+                style={[styles.blockEdge, { left: xOf(b.start), borderColor: c.borderStrong }]}
+              />
+            ))}
+            {p.selection ? (
+              <Animated.View
                 style={[
                   styles.selection,
-                  {
-                    left: xOf(p.selection.start),
-                    width: Math.max(2, xOf(p.selection.end) - xOf(p.selection.start)),
-                    backgroundColor: c.selectionOverlay,
-                    borderColor: c.accentBorder,
-                  },
+                  selectionStyle,
+                  { backgroundColor: c.selectionOverlay, borderColor: c.accentBorder },
                 ]}
               />
             ) : null}
           </View>
+          {/* 選択のハンドル。掴んで伸ばす（FR-EDIT-2） */}
+          {p.selection && p.onSelectionChange ? (
+            <>
+              <GestureDetector gesture={startPan}>
+                <Animated.View style={[styles.handle, startStyle]}>
+                  <View style={[styles.grip, { backgroundColor: c.accentSolid }]} />
+                </Animated.View>
+              </GestureDetector>
+              <GestureDetector gesture={endPan}>
+                <Animated.View style={[styles.handle, endStyle]}>
+                  <View style={[styles.grip, { backgroundColor: c.accentSolid }]} />
+                </Animated.View>
+              </GestureDetector>
+            </>
+          ) : null}
           {/* 素材レイヤー */}
-          <View style={[styles.overlayTrack, { top: 16 + HEIGHT + 4, backgroundColor: c.surface }]}>
+          <View style={[styles.overlayTrack, { top: 16 + height + 4, backgroundColor: c.surface }]}>
             {p.overlays.map((o) =>
               o.status === 'placed' ? (
                 <Pressable
@@ -192,35 +308,27 @@ export const Waveform = memo(function Waveform(p: WaveformProps) {
               ) : null,
             )}
           </View>
-          {/* マーカー */}
-          {p.markers.map(({ marker, at }) => (
+          {/* チャプター（トークテーマ由来） */}
+          {p.chapters.map(({ item, at }) => (
             <Pressable
-              key={marker.id}
-              onPress={() => p.onMarkerPress(marker)}
+              key={item.id}
+              onPress={() => p.onChapterPress(item)}
+              onLongPress={() => p.onChapterLongPress?.(item)}
               hitSlop={glyphSlop}
-              style={[styles.marker, { left: xOf(at) - 8 }]}
+              style={[styles.chapter, { left: xOf(at), top: laneTop }]}
             >
-              <Text
-                style={{
-                  color: marker.resolved
-                    ? c.textTertiary
-                    : marker.kind === 'mistake'
-                      ? c.mistakeText
-                      : marker.kind === 'interruption' || marker.kind === 'route_change'
-                        ? c.dangerText
-                        : c.accentText,
-                  fontSize: typography.caption.fontSize,
-                }}
-              >
-                {marker.kind === 'mistake'
-                  ? '⚑'
-                  : marker.kind === 'topic'
-                    ? '✓'
-                    : marker.kind === 'interruption'
-                      ? '⏸'
-                      : '●'}
+              <Text numberOfLines={1} style={[typography.overline, { color: c.accentText }]}>
+                ▏{item.heading}
               </Text>
             </Pressable>
+          ))}
+          {/* 録音中の出来事（アプリが記録したもの） */}
+          {p.events.map(({ event, at }) => (
+            <View key={event.id} style={[styles.event, { left: xOf(at) - 8, top: laneTop }]}>
+              <Text style={{ color: c.dangerText, fontSize: typography.caption.fontSize }}>
+                {event.kind === 'interruption' ? '⏸' : '!'}
+              </Text>
+            </View>
           ))}
           {/* 再生ヘッド */}
           <View
@@ -246,13 +354,22 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 0,
     right: 0,
-    height: HEIGHT,
     borderRadius: radius.sm,
     overflow: 'hidden',
   },
   voiceSeg: { position: 'absolute', top: 0, bottom: 0, borderLeftWidth: 1 },
   recLive: { position: 'absolute', top: 0, bottom: 0, borderLeftWidth: 1 },
   selection: { position: 'absolute', top: 0, bottom: 0, borderLeftWidth: 2, borderRightWidth: 2 },
+  blockEdge: { position: 'absolute', top: 0, bottom: 0, width: 1, borderLeftWidth: 1 },
+  handle: {
+    position: 'absolute',
+    top: 16,
+    width: HANDLE_W,
+    height: hit.min,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  grip: { width: space.xs, height: space.xxl, borderRadius: radius.pill },
   overlayTrack: {
     position: 'absolute',
     left: 0,
@@ -271,11 +388,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: space.sm,
   },
   overlayLabel: typography.overline,
-  marker: {
-    position: 'absolute',
-    top: 16 + HEIGHT + 4 + OVERLAY_H * 2 + 4,
-    width: 16,
-    alignItems: 'center',
-  },
+  chapter: { position: 'absolute', maxWidth: 140 },
+  event: { position: 'absolute', width: 16, alignItems: 'center' },
   playhead: { position: 'absolute', top: space.md, bottom: 0, width: space.hair, borderRadius: 1 },
 });

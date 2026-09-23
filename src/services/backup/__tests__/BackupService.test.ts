@@ -112,22 +112,16 @@ async function setup() {
           endMode: 'asset_end',
         },
       ],
-      markers: [
-        {
-          id: 'm1',
-          takeId: 'T1',
-          srcSmp: smp(700),
-          label: 'ここ',
-          kind: 'mistake',
-          resolved: false,
-        },
-      ],
     },
     t,
   );
   await db.run(
-    'INSERT INTO topics (id, episode_id, position, text, checked_at, checked_take_id, checked_src_smp) VALUES (?,?,?,?,?,?,?)',
-    ['tp', 'E', 0, 'テーマ', t, 'T1', 100],
+    'INSERT INTO recording_events (id, episode_id, take_id, src_smp, label, kind, created_at) VALUES (?,?,?,?,?,?,?)',
+    ['ev1', 'E', 'T1', 700, '割り込み', 'interruption', t],
+  );
+  await db.run(
+    'INSERT INTO outline_items (id, episode_id, position, heading, body, recorded_take_id, recorded_src_smp, done_at) VALUES (?,?,?,?,?,?,?,?)',
+    ['tp', 'E', 0, 'テーマ', '台本の本文', 'T1', 100, t],
   );
   await db.run(
     'INSERT INTO exports (id, episode_id, format, preset, status, progress, path, bytes, duration_smp, created_at, finished_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
@@ -203,17 +197,17 @@ describe('BackupService', () => {
       anchor: { type: 'source', takeId: takes[0]!.id, srcSmp: 1000 },
       gainDb: -4,
     });
-    expect(doc.markers[0]).toMatchObject({
-      takeId: takes[0]!.id,
-      srcSmp: 700,
-      kind: 'mistake',
-      label: 'ここ',
-    });
     expect(
-      await db.all('SELECT text, checked_take_id FROM topics WHERE episode_id = ?', [
+      await db.all('SELECT src_smp, kind, label FROM recording_events WHERE episode_id = ?', [
         res.episodeId,
       ]),
-    ).toEqual([{ text: 'テーマ', checked_take_id: takes[0]!.id }]);
+    ).toEqual([{ src_smp: 700, kind: 'interruption', label: '割り込み' }]);
+    expect(
+      await db.all(
+        'SELECT heading, body, recorded_take_id FROM outline_items WHERE episode_id = ?',
+        [res.episodeId],
+      ),
+    ).toEqual([{ heading: 'テーマ', body: '台本の本文', recorded_take_id: takes[0]!.id }]);
     expect(
       await db.all('SELECT format, status, path FROM exports WHERE episode_id = ?', [
         res.episodeId,

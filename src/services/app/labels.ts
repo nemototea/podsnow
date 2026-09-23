@@ -12,8 +12,8 @@ export interface ServiceLabels {
   descriptionTemplate: string;
   /** Take の既定名（`録音 1` / `Recording 1`）。 */
   takeName: (takeNumber: number) => string;
-  /** 割り込みからの再開時に打つマーカーのラベル。 */
-  interruptionMarker: string;
+  /** 割り込みからの再開時に記録する「録音中の出来事」のラベル。 */
+  interruptionNote: string;
   /** Android の録音中通知（フォアグラウンドサービス）の文言。 */
   androidNotification: {
     title: string;

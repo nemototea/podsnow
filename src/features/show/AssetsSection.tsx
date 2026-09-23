@@ -1,6 +1,5 @@
 import * as DocumentPicker from 'expo-document-picker';
 import { useAudioPlayer } from 'expo-audio';
-import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
@@ -12,21 +11,26 @@ import { useT } from '@/i18n';
 import type { AssetKind, AssetRow } from '@/infra/db/repositories/assetsRepo';
 import { joinRoot } from '@/infra/files/layout';
 import { glyphSlop, hit, icon, radius, space, typography } from '@/ui/tokens';
-import { Button, Card, Eyebrow, Header, Row, Screen, Sheet, Toast } from '@/ui/components';
+import { Button, Card, Eyebrow, Row, Sheet } from '@/ui/components';
 import { useAppTheme } from '@/ui/ThemeContext';
-import { useToast } from '@/ui/useToast';
 
 function stripScheme(uri: string): string {
   return uri.startsWith('file://') ? decodeURI(uri.slice('file://'.length)) : uri;
 }
 
-/** Show Assets（FR-AST-1〜3）: 用途別の素材一覧、取り込み、試聴、お気に入り、並び替え、名前変更、削除。 */
-export default function ShowAssetsScreen() {
+export interface AssetsSectionProps {
+  /** 取り込み・削除の結果を伝える。取り消しがあるものは onAction を渡す。 */
+  onToast: (text: string, undo?: () => void | Promise<void>) => void;
+}
+
+/**
+ * 素材（FR-AST-1〜3）: 用途別の一覧、取り込み、試聴、お気に入り、並び替え、名前変更、削除。
+ * 番組画面の 1 セクションとして置く（画面を分けない。docs/ux-restructure.md §8）。
+ */
+export function AssetsSection({ onToast }: AssetsSectionProps) {
   const c = useAppTheme();
   const t = useT();
-  const router = useRouter();
   const { assets, show, root, engine, db, now } = useServices();
-  const { toast, show: showToast, act, dismiss } = useToast();
   const loader = useCallback(() => assets.list(show.id), [assets, show.id]);
   const { data: list, reload } = useAsyncData<AssetRow[]>(loader, []);
   const [menu, setMenu] = useState<AssetRow | null>(null);
@@ -69,11 +73,9 @@ export default function ShowAssetsScreen() {
     try {
       await assets.import(show.id, kind, stripScheme(file.uri), name, file.name ?? null);
       await reload();
-      showToast({ text: t.showAssets.imported(kindLabel(t, kind), name) });
+      onToast(t.showAssets.imported(kindLabel(t, kind), name));
     } catch (e) {
-      showToast({
-        text: t.showAssets.importFailed(e instanceof Error ? e.message : String(e)),
-      });
+      onToast(t.showAssets.importFailed(e instanceof Error ? e.message : String(e)));
     } finally {
       setImporting(null);
     }
@@ -104,16 +106,12 @@ export default function ShowAssetsScreen() {
     }
     await assets.remove(a.id);
     await reload();
-    showToast({
-      text: t.showAssets.removed(a.name),
-      action: t.common.undo,
-      onAction: async () => {
-        await db.run('UPDATE assets SET deleted_at = NULL, updated_at = ? WHERE id = ?', [
-          now(),
-          a.id,
-        ]);
-        await reload();
-      },
+    onToast(t.showAssets.removed(a.name), async () => {
+      await db.run('UPDATE assets SET deleted_at = NULL, updated_at = ? WHERE id = ?', [
+        now(),
+        a.id,
+      ]);
+      await reload();
     });
   };
 
@@ -132,8 +130,8 @@ export default function ShowAssetsScreen() {
   };
 
   return (
-    <Screen overlay={<Toast toast={toast} onAction={act} onDismiss={dismiss} />}>
-      <Header title={t.showAssets.title} subtitle={show.name} onBack={() => router.back()} />
+    <>
+      <Eyebrow>{t.showAssets.title}</Eyebrow>
       <Text style={[st.lead, { color: c.textSecondary }]}>{t.showAssets.lead}</Text>
 
       {assetKinds(t).map((k) => {
@@ -290,7 +288,7 @@ export default function ShowAssetsScreen() {
         />
         <Button label={t.common.save} onPress={commitRename} style={{ marginTop: space.md }} />
       </Sheet>
-    </Screen>
+    </>
   );
 }
 

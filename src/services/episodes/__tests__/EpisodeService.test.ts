@@ -82,17 +82,19 @@ describe('EpisodeService', () => {
     const ep = await svc.create(show.id);
     await svc.refreshStatus(ep.id);
     expect((await svc.get(ep.id))?.status).toBe('draft');
-    await db.run('INSERT INTO topics (id, episode_id, position, text) VALUES (?,?,?,?)', [
-      't',
-      ep.id,
-      0,
-      'テーマ',
-    ]);
+    await db.run(
+      'INSERT INTO outline_items (id, episode_id, position, heading, body, recorded_take_id, recorded_src_smp) VALUES (?,?,?,?,?,?,?)',
+      ['t', ep.id, 0, 'テーマ', '台本', null, null],
+    );
     const dup = await svc.duplicate(ep.id);
     expect(dup.episode_number).toBe(2);
-    expect(await db.all('SELECT text FROM topics WHERE episode_id = ?', [dup.id])).toEqual([
-      { text: 'テーマ' },
-    ]);
+    // 見出しと台本は引き継ぎ、チャプター（録音位置）は引き継がない。
+    expect(
+      await db.all(
+        'SELECT heading, body, recorded_take_id FROM outline_items WHERE episode_id = ?',
+        [dup.id],
+      ),
+    ).toEqual([{ heading: 'テーマ', body: '台本', recorded_take_id: null }]);
     await svc.remove(ep.id);
     expect((await svc.list(show.id)).map((e) => e.id)).toEqual([dup.id]);
     expect(await svc.restore(ep.id)).toEqual({ episodeNumber: 1, renumbered: false });
@@ -155,7 +157,7 @@ describe('EpisodeService', () => {
     expect(after?.status).toBe('exported');
     expect(after?.audio_purged_at).toBe(5000);
     // 実体を消したので DB 側の参照も残さない。
-    expect(await loadDoc(db, ep.id)).toMatchObject({ voice: [], markers: [] });
+    expect(await loadDoc(db, ep.id)).toMatchObject({ voice: [] });
     expect(await svc.listTakes(ep.id)).toEqual([]);
     expect(await db.all('SELECT id FROM edit_ops WHERE episode_id = ?', [ep.id])).toEqual([]);
     // Opening / BGM はタイムライン固定なので残る。

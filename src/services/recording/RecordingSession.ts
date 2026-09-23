@@ -1,9 +1,14 @@
-import type { Marker } from '@/domain/editing/doc';
 import { AppError, type AppErrorCode } from '@/domain/errors';
 import { smp, type Smp } from '@/domain/time';
-import { appendTake, insertAt } from '@/domain/timeline/voice';
+import type { Range } from '@/domain/timeline/types';
+import { insertAt, keptIntervals } from '@/domain/timeline/voice';
 import type { SqlExecutor } from '@/infra/db/executor';
 import { loadDoc, saveDoc } from '@/infra/db/repositories/editableDocRepo';
+import {
+  insertRecordingEvent,
+  type RecordingEvent,
+  type RecordingEventKind,
+} from '@/infra/db/repositories/recordingEventsRepo';
 import {
   closeJournal,
   closeSegment,
@@ -90,6 +95,8 @@ interface ActiveTake {
   /** 先行 Segment の合計フレーム。 */
   offsetSmp: number;
   path: string;
+  /** 「言い直す」で捨てた Take 内の範囲（FR-REC-4）。確定時に声の並びから外す。 */
+  drops: Range[];
 }
 
 /**
@@ -208,6 +215,7 @@ export class RecordingSession {
         seq: 0,
         offsetSmp: 0,
         path: '',
+        drops: [],
       };
       await this.openSegment();
       this.setState('recording');
@@ -276,7 +284,7 @@ export class RecordingSession {
   async resumeAfterInterruption(): Promise<void> {
     if (this.state !== 'interrupted' || !this.active) return;
     await this.openSegment();
-    await this.addMarker('interruption', this.deps.labels().interruptionMarker);
+    await this.recordEvent('interruption', this.deps.labels().interruptionNote);
     this.setState('recording');
   }
 
@@ -364,19 +372,27 @@ export class RecordingSession {
       );
       if (durationSmp > 0) {
         const doc = await loadDoc(this.deps.db, a.episodeId);
-        const seg = {
-          id: this.deps.newId(),
-          takeId: a.takeId,
-          srcStart: smp(0),
-          srcEnd: durationSmp,
-          gainDb: 0,
-          fadeIn: smp(0),
-          fadeOut: smp(0),
-        };
-        const voice =
-          a.insertAtSmp === null
-            ? appendTake(doc.voice, { id: seg.id, takeId: a.takeId, durationSmp })
-            : insertAt(doc.voice, a.insertAtSmp, seg);
+        // 「言い直す」で捨てた範囲は声の並びに載せない。録音ファイルはそのまま残る（非破壊）。
+        const kept = keptIntervals(durationSmp, a.drops);
+        let voice = doc.voice;
+        let offset = 0;
+        for (const k of kept) {
+          const seg = {
+            id: this.deps.newId(),
+            takeId: a.takeId,
+            srcStart: k.start,
+            srcEnd: k.end,
+            gainDb: 0,
+            fadeIn: smp(0),
+            fadeOut: smp(0),
+          };
+          if (a.insertAtSmp === null) {
+            voice = [...voice, seg];
+          } else {
+            voice = insertAt(voice, smp(a.insertAtSmp + offset), seg);
+            offset += k.end - k.start;
+          }
+        }
         await saveDoc(this.deps.db, a.episodeId, { ...doc, voice }, now);
       }
     });
@@ -387,25 +403,46 @@ export class RecordingSession {
     return { takeId: a.takeId, durationSmp };
   }
 
-  /** 現在の録音位置（Take 座標）にマーカーを打つ。 */
-  async addMarker(kind: Marker['kind'], label = ''): Promise<Marker | null> {
+  /**
+   * 現在の録音位置（Take 座標）に「録音中の出来事」を記録する（DATA_MODEL.md §4.10）。
+   * アプリが自動で記録するものだけで、ユーザーが打つマーカーは持たない（FR-REC-4 廃止）。
+   */
+  async recordEvent(kind: RecordingEventKind, label = ''): Promise<RecordingEvent | null> {
     const a = this.active;
     if (!a) return null;
-    const srcSmp = smp(a.offsetSmp + this.deps.recorder.getFrames());
-    const m: Marker = {
+    const e: RecordingEvent = {
       id: this.deps.newId(),
       takeId: a.takeId,
-      srcSmp,
+      srcSmp: smp(a.offsetSmp + this.deps.recorder.getFrames()),
       label,
       kind,
-      resolved: false,
+      createdAt: this.deps.now(),
     };
-    const now = this.deps.now();
-    await this.deps.db.transaction(async () => {
-      const doc = await loadDoc(this.deps.db, a.episodeId);
-      await saveDoc(this.deps.db, a.episodeId, { ...doc, markers: [...doc.markers, m] }, now);
-    });
-    return m;
+    await insertRecordingEvent(this.deps.db, a.episodeId, e);
+    return e;
+  }
+
+  /**
+   * 言い直す（FR-REC-4）。`fromSrcSmp` から今までを声の並びから外し、録音は止めない。
+   * 録音ファイルには残るので非破壊で、`undoRetake()` で戻せる。
+   * 戻り値は捨てた長さ。録音中でない、または長さが 0 なら null。
+   */
+  retake(fromSrcSmp: Smp): Smp | null {
+    const a = this.active;
+    if (!a) return null;
+    const now = smp(a.offsetSmp + this.deps.recorder.getFrames());
+    const from = smp(Math.max(0, Math.min(now, fromSrcSmp)));
+    if (now - from <= 0) return null;
+    a.drops.push({ start: from, end: now });
+    return smp(now - from);
+  }
+
+  /** 直前の「言い直す」を取り消す。 */
+  undoRetake(): boolean {
+    const a = this.active;
+    if (!a || !a.drops.length) return false;
+    a.drops.pop();
+    return true;
   }
 
   /** 現在の録音位置（Take 座標）。録音中でなければ null。 */
