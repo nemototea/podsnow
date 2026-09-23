@@ -7,7 +7,7 @@ import { useServices } from '@/features/app/ServicesProvider';
 import { useHome } from '@/features/home/useHome';
 import { useT, type Messages } from '@/i18n';
 import type { EpisodeListItem } from '@/infra/db/repositories/episodesRepo';
-import { space, tabularNums, tone, typography } from '@/ui/tokens';
+import { space, tabularNums, typography } from '@/ui/tokens';
 import {
   Button,
   Card,
@@ -99,7 +99,6 @@ export default function HomeScreen() {
 
   const rec = recovered[0];
   const others = cont ? list.filter((e) => e.id !== cont.id) : list;
-  const accent = tone(c, 'accent');
 
   return (
     <Screen
@@ -123,7 +122,6 @@ export default function HomeScreen() {
       </View>
 
       <View style={st.showBlock}>
-        <Text style={[typography.overline, { color: c.textSecondary }]}>{t.home.yourShow}</Text>
         <Text
           style={[typography.display, { color: c.textPrimary }]}
           accessibilityRole="header"
@@ -165,21 +163,12 @@ export default function HomeScreen() {
 
       {cont ? (
         <Card>
-          <View style={st.contHead}>
-            <Text style={[typography.overline, { color: accent.text }]}>{t.home.inProgress}</Text>
-            <Text style={[typography.mono, tabularNums, { color: c.textSecondary }]}>
-              {t.home.episodeCode(cont.episode_number)}
-            </Text>
-          </View>
-          <Text
-            style={[typography.heading, { color: c.textPrimary, marginTop: space.sm }]}
-            numberOfLines={2}
-          >
+          <Text style={[typography.heading, { color: c.textPrimary }]} numberOfLines={2}>
             {cont.title || t.home.untitled}
           </Text>
           <View style={st.contMeta}>
             <Text style={[typography.mono, tabularNums, { color: c.textSecondary }]}>
-              {formatClock(smp(cont.duration_smp))}
+              {t.home.episodeCode(cont.episode_number)} · {formatClock(smp(cont.duration_smp))}
             </Text>
             <Text style={[typography.caption, { color: c.textSecondary }]}>
               {statusText(t, cont)} · {t.home.takes(cont.take_count)}
@@ -188,14 +177,13 @@ export default function HomeScreen() {
           <Button
             label={nextActionLabel(t, cont)}
             kind="secondary"
-            icon="arrow"
             onPress={() => router.push(`/episode/${cont.id}`)}
           />
         </Card>
       ) : !loading && list.length === 0 ? (
         <Card>
-          <Text style={[typography.title, { color: c.textPrimary }]}>{t.home.firstTitle}</Text>
-          <Text style={[typography.body, { color: c.textSecondary, marginTop: space.sm }]}>
+          <Text style={[typography.heading, { color: c.textPrimary }]}>{t.home.firstTitle}</Text>
+          <Text style={[typography.body, { color: c.textSecondary, marginTop: space.xs }]}>
             {t.home.firstLead}
           </Text>
         </Card>
@@ -307,7 +295,6 @@ const st = StyleSheet.create({
   },
   showBlock: { marginTop: space.xl, marginBottom: space.xl, gap: space.xs },
   noticeActions: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm, marginTop: space.sm },
-  contHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   contMeta: {
     flexDirection: 'row',
     alignItems: 'center',

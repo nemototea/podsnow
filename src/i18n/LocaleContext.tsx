@@ -44,7 +44,7 @@ export function LocaleProvider({
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 
-/** 文言カタログ。`const t = useT(); t.home.greeting` のように使う。 */
+/** 文言カタログ。`const t = useT(); t.home.restore` のように使う。 */
 export function useT(): Messages {
   return useContext(Ctx).t;
 }

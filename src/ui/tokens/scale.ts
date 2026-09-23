@@ -72,7 +72,7 @@ export const typography = {
   /** 画面タイトル。 */
   title: { fontSize: 24, lineHeight: 34, fontWeight: '700' },
   /** セクション見出し。 */
-  heading: { fontSize: 18, lineHeight: 26, fontWeight: '600' },
+  heading: { fontSize: 20, lineHeight: 28, fontWeight: '600' },
   /** 本文。説明、トークテーマ。 */
   body: { fontSize: 16, lineHeight: 26, fontWeight: '400' },
   /** 本文の強調。大きさは変えず太さだけ一段上げる。 */

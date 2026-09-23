@@ -80,7 +80,7 @@ export default function RestoreScreen() {
 
   return (
     <Screen>
-      <Header title={t.restore.title} subtitle={t.restore.subtitle} onBack={() => router.back()} />
+      <Header title={t.restore.title} onBack={() => router.back()} />
       <Card>
         <Text style={[st.body, { color: c.textSecondary }]}>{t.restore.lead}</Text>
         {phase === 'idle' || phase === 'error' ? (
@@ -110,7 +110,6 @@ export default function RestoreScreen() {
             </Text>
             <Button
               label={t.restore.openEpisode}
-              icon="arrow"
               onPress={() => router.replace(`/episode/${result.episodeId}`)}
             />
           </View>

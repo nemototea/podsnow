@@ -310,7 +310,7 @@ export function EditTab({
         </View>
       )}
 
-      <Button label={t.edit.toExport} icon="arrow" style={st.next} onPress={onGoExport} />
+      <Button label={t.edit.toExport} style={st.next} onPress={onGoExport} />
 
       <Sheet
         visible={sheet === 'silence'}

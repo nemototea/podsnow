@@ -223,7 +223,6 @@ export function RecordTab({
                   : t.record.firstTopic(state.outline[ws.outlineNext]?.heading ?? '')
               }
               kind="secondary"
-              icon="arrow"
               style={st.nextTopic}
               onPress={() =>
                 void ws
