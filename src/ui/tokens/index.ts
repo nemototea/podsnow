@@ -2,19 +2,22 @@
 export { colors, type Colors, type ThemeName } from './colors';
 export { tone, type Tone, type ToneName } from './tones';
 export {
+  compactWidth,
   concentric,
-  disabledOpacity,
+  family,
   glyphSlop,
   gutter,
+  gutterCompact,
   hit,
   hitSlop,
   icon,
   motion,
-  pressOpacity,
   pressScale,
   radius,
   space,
+  stroke,
   tabularNums,
   typography,
+  type FamilyRole,
   type TypeRole,
 } from './scale';

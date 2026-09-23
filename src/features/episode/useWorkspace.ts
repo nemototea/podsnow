@@ -56,6 +56,7 @@ export interface WorkspaceState {
   canRedo: boolean;
   undoLabel: string | null;
   redoLabel: string | null;
+  undoTopId: string | null;
   outline: OutlineItem[];
   events: RecordingEvent[];
   ready: boolean;
@@ -71,6 +72,7 @@ export function useWorkspace(episodeId: string) {
   const t = useT();
   const { db, root, recording, playback, engine, settings } = services;
   const editingRef = useRef<EditingService | null>(null);
+  const undoTopRef = useRef<string | null>(null);
   const [state, setState] = useState<WorkspaceState>({
     episode: null,
     doc: { voice: [], overlays: [] },
@@ -91,6 +93,7 @@ export function useWorkspace(episodeId: string) {
     canRedo: false,
     undoLabel: null,
     redoLabel: null,
+    undoTopId: null,
     outline: [],
     events: [],
     ready: false,
@@ -106,6 +109,7 @@ export function useWorkspace(episodeId: string) {
   const syncFromEditing = useCallback(
     (e: EditingService, extra: Partial<WorkspaceState> = {}) => {
       const doc = e.current;
+      undoTopRef.current = e.undoTopId;
       patch((s) => {
         const durations = extra.assetDurations ?? s.assetDurations;
         return {
@@ -116,6 +120,7 @@ export function useWorkspace(episodeId: string) {
           canRedo: e.canRedo,
           undoLabel: e.undoLabel,
           redoLabel: e.redoLabel,
+          undoTopId: e.undoTopId,
           ...extra,
         };
       });
@@ -582,6 +587,7 @@ export function useWorkspace(episodeId: string) {
 
   return {
     state,
+    undoTopRef,
     blocks,
     chaptersOnTimeline,
     chapterRange,

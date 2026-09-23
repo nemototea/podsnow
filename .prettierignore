@@ -7,3 +7,4 @@ dist
 coverage
 package-lock.json
 *.md
+scripts/web-preview

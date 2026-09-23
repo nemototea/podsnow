@@ -2,6 +2,7 @@ import { contrast } from '../contrast';
 import {
   colors,
   concentric,
+  family,
   hit,
   hitSlop,
   radius,
@@ -15,6 +16,8 @@ import {
 const TONES = [
   'accent',
   'danger',
+  'rec',
+  'success',
   'voice',
   'music',
   'insert',
@@ -33,6 +36,7 @@ const BODY_TEXT = [
   'textTertiary',
   'accentText',
   'dangerText',
+  'recText',
   'successText',
   'voiceText',
   'musicText',
@@ -44,8 +48,9 @@ const BODY_TEXT = [
 const NON_TEXT = [
   'borderStrong',
   'accentBorder',
-  'accentSolid',
+  'focusRing',
   'dangerSolid',
+  'successSolid',
   'recSolid',
   'voiceSolid',
   'musicSolid',
@@ -71,8 +76,10 @@ describe.each(THEMES)('%s テーマの色', (theme) => {
     }
   });
 
-  it.each(NON_TEXT)('%s は背景に対して 3:1 以上ある', (token) => {
-    expect(contrast(c[token], c.bg)).toBeGreaterThanOrEqual(3);
+  it.each(NON_TEXT)('%s はどの面に対しても 3:1 以上ある', (token) => {
+    for (const surface of TEXT_SURFACES) {
+      expect(contrast(c[token], c[surface])).toBeGreaterThanOrEqual(3);
+    }
   });
 
   it('塗りの上のラベルは押下中も 4.5:1 以上ある', () => {
@@ -80,7 +87,29 @@ describe.each(THEMES)('%s テーマの色', (theme) => {
       expect(contrast(c[`${role}OnSolid`], c[`${role}Solid`])).toBeGreaterThanOrEqual(4.5);
       expect(contrast(c[`${role}OnSolid`], c[`${role}SolidPressed`])).toBeGreaterThanOrEqual(4.5);
     }
+    expect(contrast(c.recOnSolid, c.recSolid)).toBeGreaterThanOrEqual(4.5);
   });
+
+  it('主操作の塗りは、背景か輪郭のどちらかで形が 3:1 以上に分かる', () => {
+    const byFill = contrast(c.accentSolid, c.bg) >= 3;
+    const byOutline =
+      contrast(c.accentBorder, c.bg) >= 3 && contrast(c.accentBorder, c.accentSolid) >= 3;
+    expect(byFill || byOutline).toBe(true);
+  });
+
+  it('録音中の表示は、どの面の上でも 3:1 以上ある', () => {
+    for (const surface of TEXT_SURFACES) {
+      expect(contrast(c.recSolid, c[surface])).toBeGreaterThanOrEqual(3);
+    }
+  });
+
+  it.each(['voice', 'music', 'insert', 'mistake'] as const)(
+    '%s の波形の棒はトラックの地から 3:1 以上ある',
+    (role) => {
+      expect(contrast(c[`${role}Solid`], c[`${role}Fill`])).toBeGreaterThanOrEqual(3);
+      expect(contrast(c[`${role}Solid`], c[`${role}FillAlt`])).toBeGreaterThanOrEqual(3);
+    },
+  );
 
   it.each(TONES)('%s の淡い地の上でも、文字は 4.5:1 / 輪郭は 3:1 ある', (name) => {
     const t = tone(c, name);
@@ -126,11 +155,17 @@ describe('両テーマで同じ役割が揃っている', () => {
     }
   });
 
-  it('同じ値を持つ役割は、意味を共有しているものだけ', () => {
-    // 「声トラック」と「録れている / 済んでいる」はひとつの意味（DESIGN_SYSTEM.md §2.3）。
+  it('声トラックと完了は別の色（声があっても完了とは限らない）', () => {
     for (const theme of THEMES) {
-      expect(colors[theme].successText).toBe(colors[theme].voiceText);
-      expect(colors[theme].successSolid).toBe(colors[theme].voiceSolid);
+      expect(colors[theme].successText).not.toBe(colors[theme].voiceText);
+      expect(colors[theme].successSolid).not.toBe(colors[theme].voiceSolid);
+    }
+  });
+
+  it('録音中と破壊的操作は別の色', () => {
+    for (const theme of THEMES) {
+      expect(colors[theme].recSolid).not.toBe(colors[theme].dangerSolid);
+      expect(colors[theme].recText).not.toBe(colors[theme].dangerText);
     }
   });
 });
@@ -149,12 +184,12 @@ describe('寸法', () => {
   });
 
   it('入れ子の角丸は 外側 = 内側 + 余白 になる', () => {
-    expect(concentric(radius.lg, space.md)).toBe(radius.sm);
-    expect(concentric(radius.xl, space.sm)).toBe(radius.lg - 4);
+    expect(concentric(radius.lg, space.md)).toBe(radius.xs);
+    expect(concentric(radius.xl, space.sm)).toBe(radius.lg);
     expect(concentric(radius.sm, space.lg)).toBe(0);
   });
 
-  it('hitSlop は見た目の大きさを 44 まで広げる', () => {
+  it('hitSlop は見た目の大きさを 48 まで広げる', () => {
     expect(24 + hitSlop(24) * 2).toBeGreaterThanOrEqual(hit.min);
     expect(hitSlop(hit.min)).toBe(0);
     expect(hitSlop(60)).toBe(0);
@@ -176,6 +211,26 @@ describe('書体', () => {
     for (const name of ['body', 'bodyStrong', 'caption'] as const) {
       expect(typography[name].lineHeight / typography[name].fontSize).toBeGreaterThanOrEqual(1.4);
     }
+  });
+
+  it('等幅の役割は同梱した太さ（400）だけを使う。ほかの太さは疑似太字になる', () => {
+    for (const role of Object.values(typography)) {
+      if ('fontFamily' in role && role.fontFamily === family.mono) {
+        expect(role.fontWeight).toBe('400');
+      }
+    }
+  });
+
+  it('UI の役割は同梱した 400 / 500 / 600 / 700 のどれか', () => {
+    for (const role of Object.values(typography)) {
+      expect(['400', '500', '600', '700']).toContain(role.fontWeight);
+    }
+  });
+
+  it('主要な操作の高さは 48 以上、通常のボタンは 52 以上', () => {
+    expect(hit.min).toBeGreaterThanOrEqual(48);
+    expect(hit.button).toBeGreaterThanOrEqual(52);
+    expect(hit.record).toBeGreaterThan(hit.secondary);
   });
 
   it('見出しは役割が下がるほど小さくなる', () => {

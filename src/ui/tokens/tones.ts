@@ -18,9 +18,18 @@ export interface Tone {
   solid: string;
 }
 
-export type ToneName = 'accent' | 'danger' | 'voice' | 'music' | 'insert' | 'mistake';
+export type ToneName =
+  'accent' | 'danger' | 'rec' | 'success' | 'voice' | 'music' | 'insert' | 'mistake';
 
 export function tone(c: Colors, name: ToneName): Tone {
+  if (name === 'rec' || name === 'success') {
+    return {
+      text: c[`${name}Text`],
+      border: c[`${name}Solid`],
+      subtle: c[`${name}Subtle`],
+      solid: c[`${name}Solid`],
+    };
+  }
   return {
     text: c[`${name}Text`],
     border: c[`${name}Border`],

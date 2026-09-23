@@ -1,7 +1,7 @@
 import * as DocumentPicker from 'expo-document-picker';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { useServices } from '@/features/app/ServicesProvider';
 import { errorText, useT } from '@/i18n';
@@ -11,8 +11,8 @@ import {
   type BackupProgress,
   type RestoreResult,
 } from '@/services/backup/BackupService';
-import { radius, space, typography } from '@/ui/tokens';
-import { Button, Card, Header, Screen } from '@/ui/components';
+import { space, typography } from '@/ui/tokens';
+import { Button, Card, Header, Notice, ProgressBar, Screen, Text } from '@/ui/components';
 import { useAppTheme } from '@/ui/ThemeContext';
 
 type Phase = 'idle' | 'running' | 'done' | 'error';
@@ -84,46 +84,44 @@ export default function RestoreScreen() {
       <Card>
         <Text style={[st.body, { color: c.textSecondary }]}>{t.restore.lead}</Text>
         {phase === 'idle' || phase === 'error' ? (
-          <Button label={t.restore.pick} onPress={() => void pick()} />
+          <Button label={t.restore.pick} icon="download" onPress={() => void pick()} />
         ) : null}
         {phase === 'running' ? (
-          <View>
-            <Text style={{ color: c.textPrimary, marginBottom: space.sm }}>
-              {phaseLabel}… {pct}%
+          <View style={st.progress}>
+            <Text
+              style={[typography.bodyStrong, { color: c.textPrimary }]}
+              accessibilityLiveRegion="polite"
+            >
+              {phaseLabel}
             </Text>
-            <View style={[st.track, { backgroundColor: c.surfaceRaised }]}>
-              <View style={[st.fill, { width: `${pct}%`, backgroundColor: c.accentSolid }]} />
-            </View>
+            <ProgressBar value={progress ? progress.progress : null} label={phaseLabel} />
+            <Text style={[typography.mono, { color: c.textSecondary }]}>{pct}%</Text>
           </View>
         ) : null}
         {phase === 'done' && result ? (
-          <View>
-            <Text style={[typography.bodyStrong, { color: c.textPrimary, marginBottom: space.xs }]}>
+          <View style={st.progress}>
+            <Text style={[typography.bodyStrong, { color: c.textPrimary }]}>
               {result.renumbered
                 ? t.restore.doneRenumbered(result.episodeNumber)
                 : t.restore.done(result.episodeNumber)}
             </Text>
-            <Text style={[typography.caption, { color: c.textSecondary, marginBottom: space.md }]}>
+            <Text style={[typography.caption, { color: c.textSecondary }]}>
               {t.restore.summary(result.takes, result.reusedAssets, result.importedAssets)}
             </Text>
             <Button
               label={t.restore.openEpisode}
+              icon="arrow"
               onPress={() => router.replace(`/episode/${result.episodeId}`)}
             />
           </View>
         ) : null}
-        {error ? (
-          <Text style={[typography.body, { color: c.dangerText, marginTop: space.md }]}>
-            {error}
-          </Text>
-        ) : null}
       </Card>
+      {error ? <Notice kind="error" title={t.restore.failed} body={error} /> : null}
     </Screen>
   );
 }
 
 const st = StyleSheet.create({
   body: { ...typography.body, marginBottom: space.lg },
-  track: { height: space.sm, borderRadius: radius.xs, overflow: 'hidden' },
-  fill: { height: space.sm },
+  progress: { gap: space.sm },
 });

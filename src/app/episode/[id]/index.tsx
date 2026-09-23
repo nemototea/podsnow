@@ -1,6 +1,6 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Linking, Platform, StyleSheet, View } from 'react-native';
 
 import { formatSmp, smp, type Smp } from '@/domain/time';
 import { useServices } from '@/features/app/ServicesProvider';
@@ -8,21 +8,30 @@ import { EditTab } from '@/features/episode/EditTab';
 import { ExportTab } from '@/features/episode/ExportTab';
 import { playMonitor } from '@/features/episode/monitor';
 import { RecordTab } from '@/features/episode/RecordTab';
+import { Transport } from '@/features/episode/Transport';
+import { useRecordingContext } from '@/features/episode/useRecordingContext';
 import { useWorkspace } from '@/features/episode/useWorkspace';
 import { errorCodeText, errorText, useT } from '@/i18n';
 import type { AssetRow } from '@/infra/db/repositories/assetsRepo';
-import { glyphSlop, gutter, icon, radius, space, typography } from '@/ui/tokens';
-import { Button, Header, Loading, Row, Screen, Segmented, Sheet, Toast } from '@/ui/components';
+import { space, typography } from '@/ui/tokens';
+import {
+  Button,
+  Header,
+  IconButton,
+  Loading,
+  Row,
+  Screen,
+  Segmented,
+  Sheet,
+  Text,
+  Toast,
+} from '@/ui/components';
 import { useAppTheme } from '@/ui/ThemeContext';
 import { useToast } from '@/ui/useToast';
 
 type Tab = 'record' | 'edit' | 'export';
+type Permission = null | 'ask' | 'denied';
 
-/**
- * エピソードの作業画面。録音 / 編集 / 書き出し の 3 タブを 1 画面に持つ
- * （REQUIREMENTS.md FR-EP-5、docs/ux-restructure.md §3）。
- * 工程ごとに画面を分けない。同じエピソードの中で切り替わるだけにする。
- */
 export default function EpisodeScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const episodeId = id ?? '';
@@ -32,37 +41,82 @@ export default function EpisodeScreen() {
   const services = useServices();
   const ws = useWorkspace(episodeId);
   const { state } = ws;
+  const recCtx = useRecordingContext(state.recording);
   const { toast, show: showToast, act, dismiss } = useToast();
   const [tab, setTab] = useState<Tab>('record');
   const [menu, setMenu] = useState(false);
   const [retake, setRetake] = useState(false);
+  const [permission, setPermission] = useState<Permission>(null);
   const [error, setError] = useState<string | null>(null);
+  const undoToastFor = useRef<string | null>(null);
 
   const isRec = state.recording === 'recording' || state.recording === 'paused';
   const interrupted = state.recording === 'interrupted';
+  const busy = state.recording === 'preparing' || state.recording === 'stopping';
+  const live = isRec || interrupted || busy;
 
   const toast1 = useCallback(
-    (text: string, undo?: () => void) =>
-      showToast(undo ? { text, action: t.common.undo, onAction: undo } : { text }),
-    [showToast, t],
+    (text: string, undo?: () => void) => {
+      if (!undo) {
+        undoToastFor.current = null;
+        showToast({ text });
+        return;
+      }
+      const top = ws.undoTopRef.current;
+      undoToastFor.current = top;
+      showToast({
+        text,
+        action: t.common.undo,
+        onAction: () => {
+          if (ws.undoTopRef.current === top) undo();
+        },
+      });
+    },
+    [showToast, t, ws.undoTopRef],
   );
+
+  useEffect(() => {
+    if (undoToastFor.current !== null && undoToastFor.current !== state.undoTopId) {
+      undoToastFor.current = null;
+      dismiss();
+    }
+  }, [dismiss, state.undoTopId]);
 
   useEffect(() => {
     const subs = [
       services.recording.on('error', (e) =>
         setError(e.code ? errorCodeText(t, e.code) : e.message),
       ),
-      services.recording.on('diskLow', () => showToast({ text: t.record.diskLow })),
+      services.recording.on('diskLow', () => showToast({ text: t.record.diskLow, persist: true })),
       services.recording.on('interruption', (e) => {
-        if (e.type === 'began') showToast({ text: t.record.interrupted });
+        if (e.type === 'began') showToast({ text: t.record.interrupted, persist: true });
       }),
       services.recording.on('routeChange', (e) => {
         if (e.reason === 'old_device_unavailable')
-          showToast({ text: t.record.routeChanged(e.currentInput?.name ?? t.record.builtInMic) });
+          showToast({
+            text: t.record.routeChanged(e.currentInput?.name ?? t.record.builtInMic),
+            persist: true,
+          });
       }),
     ];
     return () => subs.forEach((s) => s.remove());
   }, [services.recording, showToast, t]);
+
+  const start = useCallback(async () => {
+    try {
+      setTab('record');
+      await ws.startRecording();
+    } catch (e) {
+      setError(errorText(t, e));
+    }
+  }, [t, ws]);
+
+  const requestAndStart = useCallback(async () => {
+    setPermission(null);
+    const r = await services.recorder.requestPermissions().catch(() => null);
+    if (r?.microphone === 'granted') await start();
+    else setPermission('denied');
+  }, [services.recorder, start]);
 
   const toggleRec = useCallback(async () => {
     try {
@@ -75,15 +129,32 @@ export default function EpisodeScreen() {
         await ws.resumeAfterInterruption();
         return;
       }
-      setTab('record');
-      await ws.startRecording();
-      showToast({ text: t.record.started });
+      const perm = await services.recorder.getPermissions().catch(() => null);
+      const mic = perm?.microphone ?? 'granted';
+      if (mic === 'undetermined') {
+        setPermission('ask');
+        return;
+      }
+      if (mic === 'denied') {
+        if (Platform.OS === 'android') void requestAndStart();
+        else setPermission('denied');
+        return;
+      }
+      await start();
     } catch (e) {
       setError(errorText(t, e));
     }
-  }, [interrupted, isRec, showToast, t, ws]);
+  }, [interrupted, isRec, requestAndStart, services.recorder, showToast, start, t, ws]);
 
-  /** 言い直す（FR-REC-4）。捨てた分はトーストの「取り消す」で戻せる。 */
+  const finishFromInterruption = useCallback(async () => {
+    try {
+      const r = await ws.stopRecording();
+      if (r) showToast({ text: t.record.takeAdded(formatSmp(smp(r.durationSmp))) });
+    } catch (e) {
+      setError(errorText(t, e));
+    }
+  }, [showToast, t, ws]);
+
   const applyRetake = useCallback(
     (mode: 'chapter' | 'last10') => {
       const dropped = ws.retake(mode);
@@ -91,11 +162,14 @@ export default function EpisodeScreen() {
         showToast({ text: t.record.retakeNothing });
         return;
       }
-      toast1(t.record.retakeDone(formatSmp(dropped, { tenths: true })), () => {
-        ws.undoRetake();
+      undoToastFor.current = null;
+      showToast({
+        text: t.record.retakeDone(formatSmp(dropped, { tenths: true })),
+        action: t.common.undo,
+        onAction: () => void ws.undoRetake(),
       });
     },
-    [showToast, t, toast1, ws],
+    [showToast, t, ws],
   );
 
   const insertAsset = useCallback(
@@ -108,7 +182,7 @@ export default function EpisodeScreen() {
           try {
             playMonitor(services.root, a.path);
           } catch {
-            /* モニター再生の失敗は挿入結果に影響しない */
+            void 0;
           }
           showToast({ text: t.record.inserted(a.name) });
         } else {
@@ -123,132 +197,67 @@ export default function EpisodeScreen() {
     [isRec, services, showToast, state.playhead, t, toast1, ws],
   );
 
-  if (!state.ready || !state.episode) return <Loading label={t.common.loading} />;
+  const changeTab = (next: Tab) => {
+    if (live && next !== 'record') {
+      showToast({ text: t.record.finishFirst });
+      return;
+    }
+    setTab(next);
+  };
+
+  if (!state.ready || !state.episode) return <Loading label={t.common.loadingEpisode} />;
 
   const episode = state.episode;
-  const bottomBar =
-    tab === 'export' ? null : (
-      <View style={[st.bar, { borderTopColor: c.border }]}>
-        {tab === 'record' ? (
-          <>
-            <Pressable
-              onPress={() => setRetake(true)}
-              disabled={!isRec}
-              style={[st.side, { opacity: isRec ? 1 : 0.35 }]}
-              accessibilityLabel={t.record.retake}
-            >
-              <Text style={{ color: c.textPrimary, fontSize: icon.md }}>↺</Text>
-              <Text style={[typography.overline, { color: c.textSecondary }]}>
-                {t.record.retake}
-              </Text>
-            </Pressable>
-            <Pressable
-              onPress={() => void toggleRec()}
-              accessibilityLabel={isRec ? t.a11y.stopRecording : t.a11y.startRecording}
-              style={[
-                st.recBtn,
-                { backgroundColor: isRec ? c.surface : c.recSolid, borderColor: c.recSolid },
-              ]}
-            >
-              <View
-                style={
-                  isRec
-                    ? [st.recStop, { backgroundColor: c.recSolid }]
-                    : [st.recDot, { backgroundColor: c.dangerOnSolid }]
-                }
-              />
-            </Pressable>
-            <Pressable
-              onPress={() =>
-                void (state.recording === 'paused' ? ws.resumeRecording() : ws.pauseRecording())
-              }
-              disabled={!isRec}
-              style={[st.side, { opacity: isRec ? 1 : 0.35 }]}
-              accessibilityLabel={state.recording === 'paused' ? t.record.resume : t.record.pause}
-            >
-              <Text style={{ color: c.textPrimary, fontSize: icon.md }}>
-                {state.recording === 'paused' ? '▶' : '❚❚'}
-              </Text>
-              <Text style={[typography.overline, { color: c.textSecondary }]}>
-                {state.recording === 'paused' ? t.record.resume : t.record.pause}
-              </Text>
-            </Pressable>
-          </>
-        ) : (
-          <>
-            <Pressable
-              onPress={() => void ws.undo().then((op) => op && toast1(t.undo.undid(op.label)))}
-              disabled={!state.canUndo}
-              style={[st.side, { opacity: state.canUndo ? 1 : 0.35 }]}
-              accessibilityLabel={t.common.undo}
-            >
-              <Text style={{ color: c.textPrimary, fontSize: icon.md }}>↶</Text>
-              <Text style={[typography.overline, { color: c.textSecondary }]}>{t.common.undo}</Text>
-            </Pressable>
-            <Pressable
-              onPress={() => void ws.togglePlay()}
-              disabled={state.total === 0}
-              style={[st.playBtn, { borderColor: c.border, opacity: state.total ? 1 : 0.35 }]}
-              accessibilityLabel={state.playing ? t.a11y.pause : t.a11y.play}
-            >
-              <Text style={{ color: c.textPrimary, fontSize: icon.sm }}>
-                {state.playing ? '❚❚' : '▶'}
-              </Text>
-            </Pressable>
-            <Pressable
-              onPress={() => void ws.redo().then((op) => op && toast1(t.undo.redid(op.label)))}
-              disabled={!state.canRedo}
-              style={[st.side, { opacity: state.canRedo ? 1 : 0.35 }]}
-              accessibilityLabel={t.common.redo}
-            >
-              <Text style={{ color: c.textPrimary, fontSize: icon.md }}>↷</Text>
-              <Text style={[typography.overline, { color: c.textSecondary }]}>{t.common.redo}</Text>
-            </Pressable>
-          </>
-        )}
-      </View>
-    );
 
   return (
     <Screen
       overlay={<Toast toast={toast} onAction={act} onDismiss={dismiss} />}
-      {...(bottomBar ? { bottomBar } : {})}
+      {...(tab === 'export'
+        ? {}
+        : {
+            bottomBar: (
+              <Transport
+                tab={tab}
+                ws={ws}
+                recCtx={recCtx}
+                onToggleRec={() => void toggleRec()}
+                onFinishInterrupted={() => void finishFromInterruption()}
+                onRetake={() => setRetake(true)}
+              />
+            ),
+          })}
     >
       <Header
-        title={`#${episode.episode_number} ${episode.title || t.episode.untitled}`}
-        subtitle={
-          isRec
-            ? t.record.subtitleRecording
-            : interrupted
-              ? t.record.subtitleInterrupted
-              : t.record.subtitleSaved
-        }
-        onBack={() => (isRec ? showToast({ text: t.record.cannotLeave }) : router.back())}
+        title={t.episode.number(episode.episode_number)}
+        subtitle={episode.title || t.episode.untitled}
+        onBack={() => (live ? showToast({ text: t.record.cannotLeave }) : router.back())}
         right={
-          <Pressable
+          <IconButton
+            name="more"
+            label={t.episode.a11yMenu}
             onPress={() => setMenu(true)}
-            hitSlop={glyphSlop}
-            accessibilityLabel={t.a11y.menu}
-            accessibilityRole="button"
-          >
-            <Text style={{ color: c.textSecondary, fontSize: icon.md }}>⋮</Text>
-          </Pressable>
+            disabled={live}
+          />
         }
       />
 
-      <Segmented
-        value={tab}
-        onChange={setTab}
-        options={[
-          { value: 'record', label: t.episode.tabs.record },
-          { value: 'edit', label: t.episode.tabs.edit },
-          { value: 'export', label: t.episode.tabs.export },
-        ]}
-      />
+      <View style={st.tabs}>
+        <Segmented
+          value={tab}
+          onChange={changeTab}
+          disabled={() => live}
+          options={[
+            { value: 'record', label: t.episode.tabs.record },
+            { value: 'edit', label: t.episode.tabs.edit },
+            { value: 'export', label: t.episode.tabs.export },
+          ]}
+        />
+      </View>
 
       {tab === 'record' ? (
         <RecordTab
           ws={ws}
+          recCtx={recCtx}
           onInsertAsset={(a) => void insertAsset(a)}
           onOpenAssets={() => router.push('/show')}
           onShowToast={(text) => showToast({ text })}
@@ -260,18 +269,19 @@ export default function EpisodeScreen() {
           onOpenAssets={() => router.push('/show')}
           onShowToast={toast1}
           onError={setError}
+          onGoExport={() => setTab('export')}
         />
       ) : (
         <ExportTab
           ws={ws}
           onShowToast={toast1}
+          onGoEdit={() => setTab('edit')}
           onDone={(exportId) =>
             router.push(`/episode/${episodeId}/share?exportId=${exportId}` as never)
           }
         />
       )}
 
-      {/* 言い直す（FR-REC-4）: 直近の範囲を捨てて録音を続ける */}
       <Sheet
         visible={retake}
         onClose={() => setRetake(false)}
@@ -289,6 +299,7 @@ export default function EpisodeScreen() {
         <Row
           label={t.record.retakeLast10}
           sub={t.record.retakeLast10Sub}
+          last
           onPress={() => {
             setRetake(false);
             applyRetake('last10');
@@ -297,11 +308,36 @@ export default function EpisodeScreen() {
       </Sheet>
 
       <Sheet
+        visible={permission !== null}
+        onClose={() => setPermission(null)}
+        title={permission === 'denied' ? t.record.permDeniedTitle : t.record.permTitle}
+      >
+        <Text style={[typography.body, { color: c.textPrimary, marginBottom: space.lg }]}>
+          {permission === 'denied' ? t.record.permDeniedBody : t.record.permBody}
+        </Text>
+        <View style={st.sheetActions}>
+          {permission === 'denied' ? (
+            <Button
+              label={t.common.openSettings}
+              onPress={() => {
+                setPermission(null);
+                void Linking.openSettings();
+              }}
+            />
+          ) : (
+            <Button label={t.record.permAllow} icon="mic" onPress={() => void requestAndStart()} />
+          )}
+          <Button label={t.common.later} kind="ghost" onPress={() => setPermission(null)} />
+        </View>
+      </Sheet>
+
+      <Sheet
         visible={menu}
         onClose={() => setMenu(false)}
         title={episode.title || t.episode.untitled}
       >
         <Row
+          icon="archive"
           label={t.episode.menu.backup}
           onPress={() => {
             setMenu(false);
@@ -309,6 +345,7 @@ export default function EpisodeScreen() {
           }}
         />
         <Row
+          icon="copy"
           label={t.episode.menu.duplicate}
           onPress={() => {
             setMenu(false);
@@ -322,6 +359,7 @@ export default function EpisodeScreen() {
           }}
         />
         <Row
+          icon="trash"
           label={t.episode.menu.remove}
           sub={
             episode.status === 'exported'
@@ -329,6 +367,7 @@ export default function EpisodeScreen() {
               : t.episode.menu.removeSub
           }
           danger
+          last
           onPress={() => {
             setMenu(false);
             void services.episodes.remove(episodeId).then(() => router.back());
@@ -337,12 +376,12 @@ export default function EpisodeScreen() {
       </Sheet>
 
       <Sheet visible={!!error} onClose={() => setError(null)} title={t.common.error}>
-        <Text style={{ color: c.textPrimary, lineHeight: 20 }}>{error}</Text>
+        <Text style={[typography.body, { color: c.textPrimary }]}>{error}</Text>
         <Button
           label={t.common.close}
           kind="secondary"
           onPress={() => setError(null)}
-          style={{ marginTop: space.md }}
+          style={{ marginTop: space.lg }}
         />
       </Sheet>
     </Screen>
@@ -350,31 +389,6 @@ export default function EpisodeScreen() {
 }
 
 const st = StyleSheet.create({
-  bar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-evenly',
-    paddingVertical: space.md,
-    paddingHorizontal: gutter,
-    borderTopWidth: StyleSheet.hairlineWidth,
-  },
-  side: { alignItems: 'center', width: 72, minHeight: 44, justifyContent: 'center' },
-  recBtn: {
-    width: 72,
-    height: 72,
-    borderRadius: radius.pill,
-    borderWidth: 3,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  recDot: { width: 26, height: 26, borderRadius: radius.pill },
-  recStop: { width: 24, height: 24, borderRadius: radius.xs },
-  playBtn: {
-    width: 56,
-    height: 56,
-    borderRadius: radius.pill,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  tabs: { marginTop: space.xs, marginBottom: space.lg },
+  sheetActions: { gap: space.sm },
 });

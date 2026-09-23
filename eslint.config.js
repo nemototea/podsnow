@@ -50,7 +50,15 @@ module.exports = defineConfig([
   expoConfig,
   prettierConfig,
   {
-    ignores: ['dist/*', 'ios/*', 'android/*', 'pre-dev-sample/*', 'node_modules/*', 'coverage/*'],
+    ignores: [
+      'dist/*',
+      'ios/*',
+      'android/*',
+      'pre-dev-sample/*',
+      'node_modules/*',
+      'coverage/*',
+      'scripts/web-preview/*',
+    ],
   },
   {
     // 画面・features・ui はトークン経由でだけ色と寸法を書く（DESIGN_SYSTEM.md §1）
@@ -58,6 +66,25 @@ module.exports = defineConfig([
     ignores: ['src/ui/tokens/**'],
     rules: {
       'no-restricted-syntax': ['error', ...NO_RAW_DESIGN_VALUES],
+    },
+  },
+  {
+    // 文字は `@/ui/components` の Text / TextInput で描く（書体をロケールで選び、読込失敗時は OS 書体へ退避する）
+    files: ['src/app/**/*.tsx', 'src/features/**/*.tsx', 'src/ui/**/*.tsx'],
+    ignores: ['src/ui/Text.tsx'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: 'react-native',
+              importNames: ['Text', 'TextInput'],
+              message: '`@/ui/components` の Text / TextInput を使う（DESIGN_SYSTEM.md §4.3）。',
+            },
+          ],
+        },
+      ],
     },
   },
   {

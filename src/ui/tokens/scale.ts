@@ -1,4 +1,4 @@
-// 寸法・書体・動きのトークン（DESIGN_SYSTEM.md §3-§5）。
+// 寸法・書体・動きのトークン（DESIGN_SYSTEM.md §4, §6）。
 //
 // 画面に生の数値（`fontSize: 13`、`padding: 10`、`borderRadius: 14`）を書かない。
 // 0.1.0 の途中まではそうなっていて、文字サイズが 14 種類、余白が 14 種類、
@@ -19,10 +19,12 @@ export const space = {
   xl: 24,
   xxl: 32,
   xxxl: 40,
+  section: 48,
 } as const;
 
-/** 画面の左右余白。操作と文字はこの内側に入れる（better-layout: 面は端まで、操作は内側）。 */
-export const gutter = space.lg;
+export const gutter = 20;
+export const gutterCompact = space.lg;
+export const compactWidth = 360;
 
 /**
  * 角丸。
@@ -34,7 +36,7 @@ export const radius = {
   xs: 4,
   sm: 8,
   md: 12,
-  lg: 20,
+  lg: 16,
   xl: 24,
   pill: 999,
 } as const;
@@ -44,30 +46,45 @@ export function concentric(outer: number, pad: number): number {
   return Math.max(0, outer - pad);
 }
 
+export const family = {
+  latin: 'Manrope',
+  ja: 'Noto Sans JP',
+  mono: 'IBM Plex Mono',
+} as const;
+
+export type FamilyRole = 'ui' | 'mono';
+
 /**
  * 役割ごとの書体。大きさ・行間・太さをひとまとめにして、役割の選択ひとつで決まるようにする。
  *
  * - 18px 未満で太さ 300 以下は使わない（細い字は本文サイズだと消える）。
  * - 3 行以上に折り返しうる文字の行間は 1.4 以上。
- * - 日本語は英字より字面が大きいので、行間は英語の目安より気持ち広く取る。
+ * - 11px は波形の目盛りだけ（`tick`）。説明やボタンに使わない。
  */
 export const typography = {
-  /** 画面の主役。数字の大きな表示（録音時間など）。 */
-  display: { fontSize: 28, lineHeight: 34, fontWeight: '700' },
+  /** 収録中の時間。幅 320 では `timerCompact`。 */
+  timer: { fontSize: 48, lineHeight: 58, fontWeight: '400', fontFamily: family.mono },
+  timerCompact: { fontSize: 40, lineHeight: 48, fontWeight: '400', fontFamily: family.mono },
+  clock: { fontSize: 32, lineHeight: 40, fontWeight: '400', fontFamily: family.mono },
+  clockCompact: { fontSize: 24, lineHeight: 32, fontWeight: '400', fontFamily: family.mono },
+  /** 番組名、短い主要見出し。 */
+  display: { fontSize: 32, lineHeight: 40, fontWeight: '700' },
   /** 画面タイトル。 */
-  title: { fontSize: 20, lineHeight: 28, fontWeight: '700' },
+  title: { fontSize: 24, lineHeight: 34, fontWeight: '700' },
   /** セクション見出し。 */
-  heading: { fontSize: 17, lineHeight: 24, fontWeight: '700' },
-  /** 本文。行の一覧、説明文。 */
-  body: { fontSize: 15, lineHeight: 22, fontWeight: '400' },
+  heading: { fontSize: 18, lineHeight: 26, fontWeight: '600' },
+  /** 本文。説明、トークテーマ。 */
+  body: { fontSize: 16, lineHeight: 26, fontWeight: '400' },
   /** 本文の強調。大きさは変えず太さだけ一段上げる。 */
-  bodyStrong: { fontSize: 15, lineHeight: 22, fontWeight: '600' },
-  /** ボタン・チップのラベル。 */
-  label: { fontSize: 13, lineHeight: 18, fontWeight: '600' },
-  /** 補足。行の下に付く説明、空状態の文。 */
-  caption: { fontSize: 12, lineHeight: 17, fontWeight: '400' },
-  /** 見出しの上に置く小見出し。字間を広げる。 */
-  overline: { fontSize: 11, lineHeight: 15, fontWeight: '600', letterSpacing: 1.2 },
+  bodyStrong: { fontSize: 16, lineHeight: 26, fontWeight: '600' },
+  /** ボタン・設定項目。 */
+  label: { fontSize: 14, lineHeight: 21, fontWeight: '600' },
+  /** 日時、補助情報。 */
+  caption: { fontSize: 13, lineHeight: 20, fontWeight: '500' },
+  /** 小見出し、分類。 */
+  overline: { fontSize: 12, lineHeight: 18, fontWeight: '600' },
+  mono: { fontSize: 14, lineHeight: 20, fontWeight: '400', fontFamily: family.mono },
+  tick: { fontSize: 11, lineHeight: 14, fontWeight: '400', fontFamily: family.mono },
 } as const;
 
 export type TypeRole = keyof typeof typography;
@@ -78,30 +95,25 @@ export type TypeRole = keyof typeof typography;
  */
 export const tabularNums = { fontVariant: ['tabular-nums' as const] };
 
-/**
- * 字形アイコン（`⋮` `▶` `＋`）の大きさ。
- *
- * 書体の役割とは別の尺度にする。アイコンは行の中の文字ではなく、押せる的だから。
- * 隣の文字と並ぶときは、文字の太さに合わせて `md` を基準にする（better-ui）。
- */
+/** アイコンの大きさ。24 を基準に線幅 2 で描く（`src/ui/Icon.tsx`）。 */
 export const icon = {
   sm: 18,
-  md: 22,
+  md: 24,
   lg: 28,
 } as const;
 
 /**
- * 触れる面の大きさ。
+ * 触れる面の大きさ（DESIGN_SYSTEM.md §6、§10.1）。
  *
- * WCAG 2.5.8 (AA) の下限は 24x24、Apple HIG の推奨は 44x44。
- * 見た目が小さくてよくても、触れる面は `min` まで広げる。
+ * 48 は製品独自のタッチ目標。WCAG 2.5.8 (AA) の下限 24x24 とは別物。
  * 出典: https://www.w3.org/TR/WCAG22/#target-size-minimum
  */
 export const hit = {
-  /** 主要な操作。これを下回らない。 */
-  min: 44,
-  /** 一覧の行など、間隔が十分に取れている密な場所。 */
-  compact: 36,
+  /** すべての操作。これを下回らない。 */
+  min: 48,
+  button: 52,
+  record: 72,
+  secondary: 56,
 } as const;
 
 /** 見た目の大きさ `size` の要素を `hit.min` まで広げるための hitSlop。 */
@@ -109,13 +121,14 @@ export function hitSlop(size: number): number {
   return Math.max(0, Math.round((hit.min - size) / 2));
 }
 
-/**
- * 文字ひとつ（`⋮` `★` `✕` など）を押させるときの hitSlop。
- *
- * 字面の箱をおおよそ 20px と見て `hit.min` まで広げる。個別に 6 / 8 / 10 と
- * 散らすと、どれも 44 に届かないまま揃いもしない。
- */
-export const glyphSlop = hitSlop(20);
+/** アイコンひとつを押させるときの hitSlop。 */
+export const glyphSlop = hitSlop(icon.md);
+
+export const stroke = {
+  hairline: 1,
+  selected: 2,
+  focus: 3,
+} as const;
 
 /**
  * 動き。
@@ -134,9 +147,3 @@ export const motion = {
 
 /** 押し込みの縮小率（better-ui: 0.95 より小さいと大げさに見える）。 */
 export const pressScale = 0.96;
-
-/** 押せるものを押したときの不透明度。 */
-export const pressOpacity = 0.75;
-
-/** 無効状態の不透明度。 */
-export const disabledOpacity = 0.4;

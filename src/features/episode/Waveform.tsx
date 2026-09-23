@@ -3,7 +3,6 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Text,
   View,
   type LayoutChangeEvent,
   type NativeScrollEvent,
@@ -18,8 +17,20 @@ import type { PlacedOverlay } from '@/domain/timeline/overlays';
 import type { Range, VoiceSegment } from '@/domain/timeline/types';
 import { snapToBoundary } from '@/domain/timeline/blocks';
 import { placeVoice } from '@/domain/timeline/voice';
+import { useT } from '@/i18n';
 import type { RecordingEvent } from '@/infra/db/repositories/recordingEventsRepo';
-import { concentric, glyphSlop, hit, radius, space, tabularNums, typography } from '@/ui/tokens';
+import { Icon, Text } from '@/ui/components';
+import {
+  concentric,
+  glyphSlop,
+  hit,
+  icon,
+  radius,
+  space,
+  stroke,
+  tabularNums,
+  typography,
+} from '@/ui/tokens';
 import { useAppTheme } from '@/ui/ThemeContext';
 
 import { sampleVoiceColumns, type TakePeaks } from './peaks';
@@ -31,6 +42,7 @@ export interface WaveformProps {
   voice: readonly VoiceSegment[];
   peaksByTake: ReadonlyMap<string, TakePeaks>;
   overlays: readonly PlacedOverlay[];
+  assetNames?: readonly { id: string; name: string }[];
   /** トークテーマ由来のチャプター（FR-OUT-4）。ユーザーは打たない。 */
   chapters: readonly { item: OutlineItem; at: Smp }[];
   /** 割り込みなど、アプリが記録した位置（DATA_MODEL.md §4.10）。 */
@@ -48,7 +60,6 @@ export interface WaveformProps {
   onChapterPress: (item: OutlineItem) => void;
   /** チャプターを長押ししたとき。そのチャプターを丸ごと選ぶ。 */
   onChapterLongPress?: (item: OutlineItem) => void;
-  onVoiceSegmentPress?: (index: number) => void;
   /** 録音タブ用の低い表示。収録中は波形より読む内容に高さを使う（§5.1）。 */
   compact?: boolean;
   /** 無音で区切られた声の塊（FR-EDIT-2）。タップで選び、ハンドルで広げる。 */
@@ -71,6 +82,8 @@ const OVERLAY_H = 22;
  */
 export const Waveform = memo(function Waveform(p: WaveformProps) {
   const c = useAppTheme();
+  const t = useT();
+  const mark = c.isDark ? c.accentSolid : c.accentBorder;
   const height = p.compact ? COMPACT_HEIGHT : FULL_HEIGHT;
   const laneTop = 16 + height + 4 + OVERLAY_H * 2 + 4;
   const [viewW, setViewW] = useState(0);
@@ -99,6 +112,7 @@ export const Waveform = memo(function Waveform(p: WaveformProps) {
   const placed = useMemo(() => placeVoice(p.voice), [p.voice]);
 
   const seekAt = (x: number) => {
+    if (!Number.isFinite(x)) return;
     const at = smp(Math.max(0, (x / p.pps) * SAMPLE_RATE));
     if (p.onSelectBlock) p.onSelectBlock(at);
     else p.onSeek(at);
@@ -187,21 +201,24 @@ export const Waveform = memo(function Waveform(p: WaveformProps) {
         contentContainerStyle={{ width: contentW }}
       >
         <Pressable
-          style={{ width: contentW, height: height + OVERLAY_H * 2 + 28 }}
+          style={{ width: contentW, height: height + OVERLAY_H * 2 + 52 }}
           onPress={(e) => seekAt(e.nativeEvent.locationX)}
         >
           {/* 目盛り */}
           {Array.from({ length: Math.ceil(totalSec / 15) + 2 }).map((_, i) => (
-            <Text key={i} style={[styles.tick, { left: i * 15 * p.pps, color: c.textTertiary }]}>
+            <Text
+              key={i}
+              style={[styles.tick, tabularNums, { left: i * 15 * p.pps, color: c.textTertiary }]}
+            >
               {formatSmp(smp(i * 15 * SAMPLE_RATE))}
             </Text>
           ))}
           {/* 声 */}
-          <View style={[styles.voiceTrack, { backgroundColor: c.surface, top: 16, height }]}>
+          <View style={[styles.voiceTrack, { top: 16, height }]}>
             {placed.map((seg, i) => (
-              <Pressable
+              <View
                 key={seg.segment.id}
-                onPress={() => p.onVoiceSegmentPress?.(i)}
+                pointerEvents="none"
                 style={[
                   styles.voiceSeg,
                   {
@@ -259,7 +276,7 @@ export const Waveform = memo(function Waveform(p: WaveformProps) {
                 style={[
                   styles.selection,
                   selectionStyle,
-                  { backgroundColor: c.selectionOverlay, borderColor: c.accentBorder },
+                  { backgroundColor: c.selectionOverlay, borderColor: mark },
                 ]}
               />
             ) : null}
@@ -269,87 +286,132 @@ export const Waveform = memo(function Waveform(p: WaveformProps) {
             <>
               <GestureDetector gesture={startPan}>
                 <Animated.View style={[styles.handle, startStyle]}>
-                  <View style={[styles.grip, { backgroundColor: c.accentSolid }]} />
+                  <View style={[styles.grip, { backgroundColor: mark }]} />
                 </Animated.View>
               </GestureDetector>
               <GestureDetector gesture={endPan}>
                 <Animated.View style={[styles.handle, endStyle]}>
-                  <View style={[styles.grip, { backgroundColor: c.accentSolid }]} />
+                  <View style={[styles.grip, { backgroundColor: mark }]} />
                 </Animated.View>
               </GestureDetector>
             </>
           ) : null}
-          {/* 素材レイヤー */}
-          <View style={[styles.overlayTrack, { top: 16 + height + 4, backgroundColor: c.surface }]}>
-            {p.overlays.map((o) =>
-              o.status === 'placed' ? (
+          <View style={[styles.overlayTrack, { top: 16 + height + 4 }]}>
+            {p.overlays.map((o) => {
+              if (o.status !== 'placed') return null;
+              const music =
+                o.clip.kind === 'bgm' || o.clip.kind === 'opening' || o.clip.kind === 'ending';
+              const selected = p.selectedOverlay === o.clip.id;
+              const name =
+                p.assetNames?.find((a) => a.id === o.clip.assetId)?.name ??
+                t.assetKinds[o.clip.kind].label;
+              return (
                 <Pressable
                   key={o.clip.id}
                   onPress={() => p.onSelectOverlay(o.clip.id)}
+                  accessibilityRole="button"
+                  accessibilityLabel={t.edit.a11yOverlay(t.assetKinds[o.clip.kind].label, name)}
                   style={[
                     styles.overlayClip,
                     {
                       left: xOf(o.range.start),
                       width: Math.max(6, xOf(o.range.end) - xOf(o.range.start)),
-                      backgroundColor:
-                        o.clip.kind === 'bgm' ||
-                        o.clip.kind === 'opening' ||
-                        o.clip.kind === 'ending'
-                          ? c.musicFill
-                          : c.insertFill,
-                      borderColor: p.selectedOverlay === o.clip.id ? c.accentSolid : 'transparent',
+                      backgroundColor: music ? c.musicFill : c.insertFill,
+                      borderColor: selected ? mark : music ? c.musicBorder : c.insertBorder,
+                      borderWidth: selected ? stroke.selected : stroke.hairline,
                     },
                   ]}
                 >
-                  <Text numberOfLines={1} style={[styles.overlayLabel, { color: c.textPrimary }]}>
-                    {o.clip.kind}
+                  <Text
+                    numberOfLines={1}
+                    style={[styles.overlayLabel, { color: music ? c.musicText : c.insertText }]}
+                  >
+                    {name}
                   </Text>
                 </Pressable>
-              ) : null,
-            )}
+              );
+            })}
           </View>
-          {/* チャプター（トークテーマ由来） */}
           {p.chapters.map(({ item, at }) => (
             <Pressable
               key={item.id}
               onPress={() => p.onChapterPress(item)}
               onLongPress={() => p.onChapterLongPress?.(item)}
               hitSlop={glyphSlop}
+              accessibilityRole="button"
+              accessibilityLabel={t.edit.a11yChapter(item.heading)}
+              accessibilityHint={t.edit.a11yChapterHint}
               style={[styles.chapter, { left: xOf(at), top: laneTop }]}
             >
-              <Text numberOfLines={1} style={[typography.overline, { color: c.accentText }]}>
-                ▏{item.heading}
+              <View style={[styles.chapterTick, { backgroundColor: c.textSecondary }]} />
+              <Text
+                numberOfLines={1}
+                style={[typography.overline, { color: c.textSecondary, flexShrink: 1 }]}
+              >
+                {item.heading}
               </Text>
             </Pressable>
           ))}
-          {/* 録音中の出来事（アプリが記録したもの） */}
           {p.events.map(({ event, at }) => (
-            <View key={event.id} style={[styles.event, { left: xOf(at) - 8, top: laneTop }]}>
-              <Text style={{ color: c.dangerText, fontSize: typography.caption.fontSize }}>
-                {event.kind === 'interruption' ? '⏸' : '!'}
-              </Text>
+            <View
+              key={event.id}
+              accessible
+              accessibilityLabel={
+                event.kind === 'interruption' ? t.edit.a11yInterruption : t.edit.a11yRouteChange
+              }
+              style={[styles.event, { left: xOf(at) - icon.sm / 2, top: laneTop }]}
+            >
+              <Icon
+                name={event.kind === 'interruption' ? 'pause' : 'warning'}
+                color={c.mistakeText}
+                size={icon.sm}
+              />
             </View>
           ))}
-          {/* 再生ヘッド */}
           <View
             pointerEvents="none"
             style={[
               styles.playhead,
               {
                 left: xOf(p.recording ? p.total + p.recFrames : p.playhead),
-                backgroundColor: p.recording ? c.recSolid : c.accentSolid,
+                backgroundColor: p.recording ? c.recSolid : mark,
               },
             ]}
           />
         </Pressable>
       </ScrollView>
+      {p.compact ? null : (
+        <>
+          <Text
+            pointerEvents="none"
+            style={[styles.lane, styles.laneRight, { top: 0, color: c.textSecondary }]}
+          >
+            {t.edit.laneVoice}
+          </Text>
+          <Text
+            pointerEvents="none"
+            style={[
+              styles.lane,
+              styles.laneLeft,
+              { top: 16 + height + 4 + space.xs, color: c.textSecondary },
+            ]}
+          >
+            {p.overlays.some((o) => o.status === 'placed')
+              ? t.edit.laneAssets
+              : t.edit.laneAssetsEmpty}
+          </Text>
+        </>
+      )}
     </View>
   );
 });
 
 const styles = StyleSheet.create({
   root: { width: '100%' },
-  tick: { position: 'absolute', top: 0, ...typography.caption, ...tabularNums },
+  lane: { position: 'absolute', ...typography.overline },
+  laneLeft: { left: space.sm },
+  laneRight: { right: space.sm },
+  tick: { position: 'absolute', top: 0, ...typography.tick },
   voiceTrack: {
     position: 'absolute',
     left: 0,
@@ -383,12 +445,18 @@ const styles = StyleSheet.create({
     height: OVERLAY_H * 2 - space.xs,
     // 外側 radius.sm の内側に space.hair で入るので、同心になる角丸はこれ。
     borderRadius: concentric(radius.sm, space.hair),
-    borderWidth: 1.5,
     justifyContent: 'center',
     paddingHorizontal: space.sm,
   },
   overlayLabel: typography.overline,
-  chapter: { position: 'absolute', maxWidth: 140 },
-  event: { position: 'absolute', width: 16, alignItems: 'center' },
+  chapter: {
+    position: 'absolute',
+    maxWidth: 140,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.xs,
+  },
+  chapterTick: { width: stroke.selected, height: space.md },
+  event: { position: 'absolute', alignItems: 'center' },
   playhead: { position: 'absolute', top: space.md, bottom: 0, width: space.hair, borderRadius: 1 },
 });

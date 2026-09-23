@@ -1,25 +1,39 @@
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
-import { formatSmp, smp } from '@/domain/time';
+import { formatClock, formatSmp, smp } from '@/domain/time';
 import { useServices } from '@/features/app/ServicesProvider';
 import { useHome } from '@/features/home/useHome';
 import { useT, type Messages } from '@/i18n';
 import type { EpisodeListItem } from '@/infra/db/repositories/episodesRepo';
-import { glyphSlop, hit, icon, radius, space, typography } from '@/ui/tokens';
-import { Button, Card, Eyebrow, Fab, Row, Screen, Sheet, Toast } from '@/ui/components';
+import { space, tabularNums, tone, typography } from '@/ui/tokens';
+import {
+  Button,
+  Card,
+  IconButton,
+  Notice,
+  Row,
+  Screen,
+  SectionHeader,
+  Sheet,
+  Text,
+  Toast,
+} from '@/ui/components';
 import { useAppTheme } from '@/ui/ThemeContext';
 import { useToast } from '@/ui/useToast';
+import { Wordmark } from '@/ui/Wordmark';
 
-/**
- * 一覧の状態から「次にやること」を 1 つだけ出す（FR-EP-3、docs/ux-restructure.md §7.2）。
- * 状態の名前ではなく動詞を出す。判断を一覧に投げ返さない。
- */
 function nextActionLabel(t: Messages, e: EpisodeListItem): string {
   if (e.take_count === 0) return t.home.startRecording;
   if (e.status === 'exported') return t.home.share;
   return t.home.continueEditing;
+}
+
+function statusText(t: Messages, e: EpisodeListItem): string {
+  if (e.audio_purged_at) return t.home.badgeNoAudio;
+  if (e.take_count === 0) return t.home.badgeNew;
+  return t.status[e.status];
 }
 
 export default function HomeScreen() {
@@ -27,27 +41,17 @@ export default function HomeScreen() {
   const t = useT();
   const router = useRouter();
   const { show, episodes, recovered } = useServices();
-  const { list, cont, reload } = useHome();
+  const { list, cont, loading, reload } = useHome();
   const { toast, show: showToast, act, dismiss } = useToast();
   const [menu, setMenu] = useState<EpisodeListItem | null>(null);
   const [creating, setCreating] = useState(false);
+  const [recoveredOpen, setRecoveredOpen] = useState(recovered.length > 0);
 
   useFocusEffect(
     useCallback(() => {
       void reload();
     }, [reload]),
   );
-
-  const [recoveredShown, setRecoveredShown] = useState(false);
-  if (recovered.length && !recoveredShown) {
-    setRecoveredShown(true);
-    const r = recovered[0]!;
-    showToast({
-      text: t.home.recovered(formatSmp(r.durationSmp)),
-      action: t.common.open,
-      onAction: () => router.push(`/episode/${r.episodeId}`),
-    });
-  }
 
   const create = async () => {
     if (creating) return;
@@ -68,7 +72,6 @@ export default function HomeScreen() {
       text: t.home.removed(e.episode_number),
       action: t.common.undo,
       onAction: async () => {
-        // 待っている間に新しい回を作ると話数が衝突するので、その場合だけ振り直される。
         const r = await episodes.restore(e.id);
         await reload();
         showToast({
@@ -80,7 +83,6 @@ export default function HomeScreen() {
     });
   };
 
-  /** 音声だけ削除（FR-EP-4）。話数・タイトル・概要・書き出し履歴は残る。取り消せない。 */
   const purgeAudio = async (e: EpisodeListItem) => {
     setMenu(null);
     await episodes.purgeAudio(e.id);
@@ -95,153 +97,173 @@ export default function HomeScreen() {
     showToast({ text: t.home.duplicated(d.episode_number) });
   };
 
+  const rec = recovered[0];
+  const others = cont ? list.filter((e) => e.id !== cont.id) : list;
+  const accent = tone(c, 'accent');
+
   return (
     <Screen
-      overlay={
-        <>
-          <Fab label="＋" onPress={create} accessibilityLabel={t.a11y.newEpisode} />
-          <Toast toast={toast} onAction={act} onDismiss={dismiss} />
-        </>
+      overlay={<Toast toast={toast} onAction={act} onDismiss={dismiss} />}
+      bottomBar={
+        <Button
+          label={t.home.newEpisodeCta}
+          icon="plus"
+          onPress={() => void create()}
+          busy={creating}
+        />
       }
     >
       <View style={st.top}>
-        <View style={{ flex: 1 }}>
-          <Text style={[st.hello, { color: c.textSecondary }]}>{t.home.greeting}</Text>
-          <Text style={[st.showName, { color: c.textPrimary }]} numberOfLines={1}>
-            {show.name}
-          </Text>
-          <Text style={[st.meta, { color: c.textSecondary }]}>
-            {t.home.showMeta(show.default_season, list.length)}
-          </Text>
-        </View>
-        <Pressable
+        <Wordmark width={112} />
+        <IconButton
+          name="settings"
+          label={t.a11y.settings}
           onPress={() => router.push('/settings')}
-          hitSlop={glyphSlop}
-          accessibilityLabel={t.a11y.settings}
-          style={st.gear}
-        >
-          <Text style={{ color: c.textSecondary, fontSize: icon.md }}>⚙</Text>
-        </Pressable>
+        />
       </View>
 
+      <View style={st.showBlock}>
+        <Text style={[typography.overline, { color: c.textSecondary }]}>{t.home.yourShow}</Text>
+        <Text
+          style={[typography.display, { color: c.textPrimary }]}
+          accessibilityRole="header"
+          numberOfLines={2}
+        >
+          {show.name}
+        </Text>
+        <Text style={[typography.caption, { color: c.textSecondary }]}>
+          {t.home.showMeta(show.default_season, list.length)}
+        </Text>
+      </View>
+
+      {rec && recoveredOpen ? (
+        <Notice
+          kind="warning"
+          title={t.home.recoveredTitle}
+          body={t.home.recoveredBody(formatClock(rec.durationSmp))}
+          action={
+            <View style={st.noticeActions}>
+              <Button
+                label={t.home.reviewRecording}
+                kind="secondary"
+                compact
+                onPress={() => {
+                  setRecoveredOpen(false);
+                  router.push(`/episode/${rec.episodeId}`);
+                }}
+              />
+              <Button
+                label={t.common.close}
+                kind="ghost"
+                compact
+                onPress={() => setRecoveredOpen(false)}
+              />
+            </View>
+          }
+        />
+      ) : null}
+
       {cont ? (
-        <Card style={{ borderColor: c.accentBorder }}>
-          <Text style={[st.eyebrowInline, { color: c.accentText }]}>
-            ●{' '}
-            {cont.status === 'draft' && cont.take_count === 0
-              ? t.home.badgeNew
-              : t.home.badgeEditing}
-          </Text>
-          <Text style={[st.contNum, { color: c.textSecondary }]}>#{cont.episode_number}</Text>
-          <Text style={[st.contTitle, { color: c.textPrimary }]} numberOfLines={2}>
+        <Card>
+          <View style={st.contHead}>
+            <Text style={[typography.overline, { color: accent.text }]}>{t.home.inProgress}</Text>
+            <Text style={[typography.mono, tabularNums, { color: c.textSecondary }]}>
+              {t.home.episodeCode(cont.episode_number)}
+            </Text>
+          </View>
+          <Text
+            style={[typography.heading, { color: c.textPrimary, marginTop: space.sm }]}
+            numberOfLines={2}
+          >
             {cont.title || t.home.untitled}
           </Text>
-          <Text style={[st.meta, { color: c.textSecondary, marginBottom: space.md }]}>
-            {formatSmp(smp(cont.duration_smp))} · {t.home.takes(cont.take_count)}
-          </Text>
+          <View style={st.contMeta}>
+            <Text style={[typography.mono, tabularNums, { color: c.textSecondary }]}>
+              {formatClock(smp(cont.duration_smp))}
+            </Text>
+            <Text style={[typography.caption, { color: c.textSecondary }]}>
+              {statusText(t, cont)} · {t.home.takes(cont.take_count)}
+            </Text>
+          </View>
           <Button
             label={nextActionLabel(t, cont)}
+            kind="secondary"
+            icon="arrow"
             onPress={() => router.push(`/episode/${cont.id}`)}
           />
         </Card>
-      ) : (
+      ) : !loading && list.length === 0 ? (
         <Card>
-          <Text style={[typography.heading, { color: c.textPrimary }]}>
-            {list.length === 0 ? t.home.firstEpisode : t.home.nextEpisode}
+          <Text style={[typography.title, { color: c.textPrimary }]}>{t.home.firstTitle}</Text>
+          <Text style={[typography.body, { color: c.textSecondary, marginTop: space.sm }]}>
+            {t.home.firstLead}
           </Text>
-          <Text
-            style={{
-              color: c.textSecondary,
-              marginTop: space.sm,
-              marginBottom: space.md,
-              lineHeight: 20,
-            }}
-          >
-            {t.home.emptyLead}
-          </Text>
-          <Button label={t.home.newEpisode} onPress={create} />
         </Card>
-      )}
+      ) : null}
 
-      <View style={st.sectionHead}>
-        <Eyebrow>{t.home.sectionEpisodes}</Eyebrow>
-        <View style={{ flex: 1 }} />
-        <Pressable
-          onPress={() => router.push('/restore')}
-          hitSlop={glyphSlop}
-          style={{ marginRight: space.lg }}
-        >
-          <Text style={[typography.caption, { color: c.textSecondary, marginTop: space.lg }]}>
-            {t.home.restore}
-          </Text>
-        </Pressable>
-        <Pressable onPress={() => router.push('/show')} hitSlop={glyphSlop}>
-          <Text style={[typography.caption, { color: c.accentText, marginTop: space.lg }]}>
-            {t.home.showLink}
-          </Text>
-        </Pressable>
-      </View>
-      <Card style={{ paddingVertical: space.xs }}>
-        {list.length === 0 ? (
-          <Text style={{ color: c.textTertiary, paddingVertical: space.md }}>
-            {t.home.noEpisodes}
-          </Text>
-        ) : null}
-        {list.map((e) => (
-          <Row
-            key={e.id}
-            label={`#${e.episode_number}  ${e.title || t.home.untitled}`}
-            sub={
-              e.audio_purged_at
-                ? t.home.badgeNoAudio
-                : `${formatSmp(smp(e.duration_smp))} · ${t.home.takes(e.take_count)}`
-            }
-            onPress={() => router.push(`/episode/${e.id}`)}
+      {others.length > 0 ? (
+        <>
+          <SectionHeader
+            title={t.home.sectionEpisodes}
             right={
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.md }}>
-                <Text
-                  style={[
-                    st.badge,
-                    {
-                      color:
-                        e.status === 'draft'
-                          ? c.accentText
-                          : e.status === 'ready'
-                            ? c.successText
-                            : c.textSecondary,
-                      borderColor:
-                        e.status === 'draft'
-                          ? c.accentBorder
-                          : e.status === 'ready'
-                            ? c.voiceBorder
-                            : c.border,
-                    },
-                  ]}
-                >
-                  {t.status[e.status]}
-                </Text>
-                <Pressable
-                  onPress={() => setMenu(e)}
-                  hitSlop={glyphSlop}
-                  accessibilityLabel={t.a11y.menu}
-                >
-                  <Text style={{ color: c.textSecondary, fontSize: icon.sm }}>⋮</Text>
-                </Pressable>
-              </View>
+              <Text style={[typography.mono, tabularNums, { color: c.textSecondary }]}>
+                {list.length}
+              </Text>
             }
           />
-        ))}
+          {others.map((e, i) => (
+            <Row
+              key={e.id}
+              mono={String(e.episode_number).padStart(3, '0')}
+              label={e.title || t.home.untitled}
+              sub={
+                e.audio_purged_at
+                  ? t.home.badgeNoAudio
+                  : `${formatSmp(smp(e.duration_smp))} · ${statusText(t, e)}`
+              }
+              last={i === others.length - 1}
+              onPress={() => router.push(`/episode/${e.id}`)}
+              right={
+                <IconButton
+                  name="more"
+                  label={t.home.a11yEpisodeMenu(e.episode_number)}
+                  onPress={() => setMenu(e)}
+                />
+              }
+            />
+          ))}
+        </>
+      ) : null}
+
+      <SectionHeader title={t.home.moreSection} />
+      <Card style={st.linkCard}>
+        <Row
+          icon="show"
+          label={t.home.showAndAssets}
+          sub={t.home.showAndAssetsSub}
+          onPress={() => router.push('/show')}
+        />
+        <Row
+          icon="download"
+          label={t.home.restore}
+          sub={t.home.restoreSub}
+          onPress={() => router.push('/restore')}
+          last
+        />
       </Card>
 
       <Sheet
         visible={!!menu}
         onClose={() => setMenu(null)}
-        title={menu ? `#${menu.episode_number} ${menu.title || t.home.untitled}` : ''}
+        title={
+          menu ? `${t.home.episodeCode(menu.episode_number)} ${menu.title || t.home.untitled}` : ''
+        }
       >
         {menu ? (
           <>
-            <Row label={t.home.menu.duplicate} onPress={() => duplicate(menu)} />
+            <Row icon="copy" label={t.home.menu.duplicate} onPress={() => void duplicate(menu)} />
             <Row
+              icon="archive"
               label={t.home.menu.backup}
               sub={t.home.menu.backupSub}
               onPress={() => {
@@ -251,12 +273,14 @@ export default function HomeScreen() {
             />
             {menu.audio_purged_at ? null : (
               <Row
+                icon="volume"
                 label={t.home.menu.purgeAudio}
                 sub={t.home.menu.purgeAudioSub}
                 onPress={() => void purgeAudio(menu)}
               />
             )}
             <Row
+              icon="trash"
               label={t.home.menu.remove}
               sub={
                 menu.status === 'exported'
@@ -264,7 +288,8 @@ export default function HomeScreen() {
                   : t.home.menu.removeSub
               }
               danger
-              onPress={() => remove(menu)}
+              last
+              onPress={() => void remove(menu)}
             />
           </>
         ) : null}
@@ -276,30 +301,20 @@ export default function HomeScreen() {
 const st = StyleSheet.create({
   top: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    paddingTop: space.sm,
-    marginBottom: space.lg,
-  },
-  hello: typography.caption,
-  showName: { ...typography.display, marginTop: space.hair },
-  meta: { ...typography.overline, marginTop: space.xs },
-  gear: {
-    width: hit.min,
-    height: hit.min,
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'space-between',
     marginRight: -space.md,
   },
-  eyebrowInline: { ...typography.overline, marginBottom: space.sm },
-  contNum: typography.caption,
-  contTitle: { ...typography.title, marginTop: space.hair },
-  sectionHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  badge: {
-    ...typography.overline,
-    borderWidth: 1,
-    borderRadius: radius.pill,
-    paddingHorizontal: space.sm,
-    paddingVertical: space.hair,
-    overflow: 'hidden',
+  showBlock: { marginTop: space.xl, marginBottom: space.xl, gap: space.xs },
+  noticeActions: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm, marginTop: space.sm },
+  contHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  contMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: space.md,
+    marginTop: space.xs,
+    marginBottom: space.lg,
   },
+  linkCard: { paddingVertical: space.xs },
 });

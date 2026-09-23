@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { Platform, StyleSheet, Text, View } from 'react-native';
+import { Platform, StyleSheet } from 'react-native';
 
 import { APP_VERSION } from '@/domain/version';
 import { useServices } from '@/features/app/ServicesProvider';
@@ -9,8 +9,21 @@ import { useAsyncData } from '@/features/show/useAsyncData';
 import { useT, type Messages } from '@/i18n';
 import { availableDiskBytes } from '@/infra/files/fileSystem';
 import type { AppSettings } from '@/infra/db/repositories/settingsRepo';
-import { space, typography } from '@/ui/tokens';
-import { Card, Chip, Eyebrow, Header, Row, Screen, Sheet, Toast, Toggle } from '@/ui/components';
+import { space, tabularNums, typography } from '@/ui/tokens';
+import {
+  Card,
+  Chip,
+  Header,
+  Notice,
+  Row,
+  Screen,
+  SectionHeader,
+  Segmented,
+  Sheet,
+  Text,
+  Toast,
+  Toggle,
+} from '@/ui/components';
 import { useAppTheme } from '@/ui/ThemeContext';
 import { useToast } from '@/ui/useToast';
 
@@ -91,41 +104,31 @@ export default function SettingsScreen() {
     <Screen overlay={<Toast toast={toast} onAction={act} onDismiss={dismiss} />}>
       <Header title={t.settings.title} onBack={() => router.back()} />
 
-      <Eyebrow>{t.settings.languageEyebrow}</Eyebrow>
-      <View style={st.chips}>
-        {LANGUAGES.map((v) => (
-          <Chip
-            key={v}
-            label={t.settings.language[v]}
-            active={settings.language === v}
-            onPress={() => set('language', v)}
-          />
-        ))}
-      </View>
-      <Text style={[st.note, { color: c.textTertiary }]}>{t.settings.languageNote}</Text>
+      <SectionHeader title={t.settings.languageEyebrow} />
+      <Segmented
+        value={settings.language}
+        onChange={(v) => void set('language', v)}
+        options={LANGUAGES.map((v) => ({ value: v, label: t.settings.language[v] }))}
+      />
+      <Text style={[st.note, { color: c.textSecondary }]}>{t.settings.languageNote}</Text>
 
-      <Eyebrow>{t.settings.appearanceEyebrow}</Eyebrow>
-      <View style={st.chips}>
-        {THEMES.map((v) => (
-          <Chip
-            key={v}
-            label={t.settings.theme[v]}
-            active={settings.theme === v}
-            onPress={() => set('theme', v)}
-          />
-        ))}
-      </View>
+      <SectionHeader title={t.settings.appearanceEyebrow} />
+      <Segmented
+        value={settings.theme}
+        onChange={(v) => void set('theme', v)}
+        options={THEMES.map((v) => ({ value: v, label: t.settings.theme[v] }))}
+      />
       {settings.theme !== services.settings.theme ? (
-        <Text style={[st.note, { color: c.textTertiary }]}>{t.settings.themeNote}</Text>
+        <Text style={[st.note, { color: c.textSecondary }]}>{t.settings.themeNote}</Text>
       ) : null}
 
-      <Eyebrow>{t.settings.recordingEyebrow}</Eyebrow>
+      <SectionHeader title={t.settings.recordingEyebrow} />
       <Card style={{ paddingVertical: space.xs }}>
         <Row
           label={t.settings.quality}
           sub={t.settings.qualitySub}
-          right={
-            <View style={st.chipsInline}>
+          below={
+            <>
               {[44100, 48000].map((sr) => (
                 <Chip
                   key={sr}
@@ -134,14 +137,14 @@ export default function SettingsScreen() {
                   onPress={() => setRec({ sampleRate: sr })}
                 />
               ))}
-            </View>
+            </>
           }
         />
         <Row
           label={t.settings.channels}
           sub={t.settings.channelsSub}
-          right={
-            <View style={st.chipsInline}>
+          below={
+            <>
               <Chip
                 label={t.settings.mono}
                 active={settings.recording.channels === 1}
@@ -152,12 +155,16 @@ export default function SettingsScreen() {
                 active={settings.recording.channels === 2}
                 onPress={() => setRec({ channels: 2 })}
               />
-            </View>
+            </>
           }
         />
         <Row label={t.settings.inputDefault} sub={inputLabel} onPress={() => setSheet('input')} />
         {currentInput?.lowQuality ? (
-          <Text style={[st.warn, { color: c.mistakeText }]}>{t.settings.bluetoothWarning}</Text>
+          <Notice
+            kind="warning"
+            title={t.record.bluetoothTitle}
+            body={t.settings.bluetoothWarning}
+          />
         ) : null}
         <Row
           label={t.settings.autoResume}
@@ -172,8 +179,8 @@ export default function SettingsScreen() {
         <Row
           label={t.settings.expectedLength}
           sub={t.settings.expectedLengthSub}
-          right={
-            <View style={st.chipsInline}>
+          below={
+            <>
               {MINUTES.map((m) => (
                 <Chip
                   key={m}
@@ -182,7 +189,7 @@ export default function SettingsScreen() {
                   onPress={() => setRec({ expectedMinutes: m })}
                 />
               ))}
-            </View>
+            </>
           }
         />
         {Platform.OS === 'android' ? (
@@ -194,13 +201,13 @@ export default function SettingsScreen() {
         ) : null}
       </Card>
 
-      <Eyebrow>{t.settings.editingEyebrow}</Eyebrow>
+      <SectionHeader title={t.settings.editingEyebrow} />
       <Card style={{ paddingVertical: space.xs }}>
         <Row
           label={t.settings.silenceLength}
           sub={t.settings.silenceLengthSub}
-          right={
-            <View style={st.chipsInline}>
+          below={
+            <>
               {SILENCE_LEN.map((ms) => (
                 <Chip
                   key={ms}
@@ -209,14 +216,14 @@ export default function SettingsScreen() {
                   onPress={() => setSilence({ minDurationMs: ms })}
                 />
               ))}
-            </View>
+            </>
           }
         />
         <Row
           label={t.settings.silenceThreshold}
           sub={t.settings.silenceThresholdSub}
-          right={
-            <View style={st.chipsInline}>
+          below={
+            <>
               {SILENCE_DB.map((dbv) => (
                 <Chip
                   key={dbv}
@@ -225,14 +232,14 @@ export default function SettingsScreen() {
                   onPress={() => setSilence({ thresholdDb: dbv })}
                 />
               ))}
-            </View>
+            </>
           }
         />
         <Row
           label={t.settings.silencePad}
           sub={t.settings.silencePadSub}
-          right={
-            <View style={st.chipsInline}>
+          below={
+            <>
               {SILENCE_PAD.map((ms) => (
                 <Chip
                   key={ms}
@@ -241,7 +248,7 @@ export default function SettingsScreen() {
                   onPress={() => setSilence({ padMs: ms })}
                 />
               ))}
-            </View>
+            </>
           }
         />
         <Row
@@ -266,7 +273,7 @@ export default function SettingsScreen() {
         />
       </Card>
 
-      <Eyebrow>{t.settings.exportEyebrow}</Eyebrow>
+      <SectionHeader title={t.settings.exportEyebrow} />
       <Card style={{ paddingVertical: space.xs }}>
         <Row
           label={t.settings.defaultPreset}
@@ -275,7 +282,7 @@ export default function SettingsScreen() {
         />
       </Card>
 
-      <Eyebrow>{t.settings.showEyebrow}</Eyebrow>
+      <SectionHeader title={t.settings.showEyebrow} />
       <Card style={{ paddingVertical: space.xs }}>
         <Row
           label={t.settings.showSettings}
@@ -289,13 +296,13 @@ export default function SettingsScreen() {
         />
       </Card>
 
-      <Eyebrow>{t.settings.storageEyebrow}</Eyebrow>
+      <SectionHeader title={t.settings.storageEyebrow} />
       <Card style={{ paddingVertical: space.xs }}>
         <Row
           label={t.settings.recordingsSize}
           sub={t.settings.recordingsSizeSub}
           right={
-            <Text style={{ color: c.textPrimary }}>
+            <Text style={[typography.mono, tabularNums, { color: c.textPrimary }]}>
               {formatBytes(data.storage.recordingsBytes)}
             </Text>
           }
@@ -303,12 +310,18 @@ export default function SettingsScreen() {
         <Row
           label={t.settings.exportsSize}
           right={
-            <Text style={{ color: c.textPrimary }}>{formatBytes(data.storage.exportsBytes)}</Text>
+            <Text style={[typography.mono, tabularNums, { color: c.textPrimary }]}>
+              {formatBytes(data.storage.exportsBytes)}
+            </Text>
           }
         />
         <Row
           label={t.settings.freeSpace}
-          right={<Text style={{ color: c.textPrimary }}>{formatBytes(data.freeBytes)}</Text>}
+          right={
+            <Text style={[typography.mono, tabularNums, { color: c.textPrimary }]}>
+              {formatBytes(data.freeBytes)}
+            </Text>
+          }
         />
         <Row
           label={t.settings.cleanup}
@@ -348,7 +361,7 @@ export default function SettingsScreen() {
           />
         ))}
         {data.inputs.length === 0 ? (
-          <Text style={{ color: c.textTertiary, paddingVertical: space.md }}>
+          <Text style={[typography.body, { color: c.textSecondary, paddingVertical: space.md }]}>
             {t.settings.noInputs}
           </Text>
         ) : null}
@@ -412,15 +425,6 @@ export default function SettingsScreen() {
 }
 
 const st = StyleSheet.create({
-  chips: { flexDirection: 'row', gap: space.sm, marginBottom: space.xs },
-  chipsInline: {
-    flexDirection: 'row',
-    gap: space.sm,
-    flexWrap: 'wrap',
-    justifyContent: 'flex-end',
-    maxWidth: 190,
-  },
-  note: { ...typography.caption, marginTop: space.xs },
-  warn: { ...typography.caption, paddingVertical: space.sm },
+  note: { ...typography.caption, marginTop: space.sm },
   version: { ...typography.caption, textAlign: 'center', marginTop: space.xl },
 });

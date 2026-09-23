@@ -85,18 +85,20 @@ podcast, recorder, voice recorder, audio editor, recording, podcasting
 
 ## アイコン
 
-`assets/images/icon.png`（1024x1024、アルファ無し）。マイク + レベルメーター。
+`assets/images/icon.png`（1024x1024、アルファ無し）。シトロン地に `Pods` / `Now.` の 2 段ロゴタイプ（Issue #94）。
 意味と再生成の手順は `assets/brand/README.md`。
 
 ## スクリーンショット（撮影予定）
 
 日本語・英語の 2 セットを撮る（端末の言語設定を切り替えて同じ画面を撮影）。
 
-1. Home（続きのエピソード）
-2. Editor（録音中、レベルメーターとトークテーマ）
-3. Editor（波形とマーカー、範囲選択）
-4. 音の仕上げ
-5. 書き出し → 配信の準備
+1. Home（制作中の回と一覧）
+2. 録音タブ（収録中、レベルメーターと話すこと）
+3. 編集タブ（波形と範囲選択）
+4. 書き出しタブ（音の仕上げと形式）
+5. 配信の準備
+
+ストア画像には架空の番組名・音声を使う。実際のユーザーの録音やパスを載せない（DESIGN_SYSTEM.md §11）。
 
 ## リリース手順（DEVELOPMENT.md §2 に従う）
 

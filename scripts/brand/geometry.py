@@ -1,193 +1,199 @@
 """
-PodsNow のブランドマークの幾何定義（Issue #82）。
+PodsNow. のロゴタイプとアイコンの幾何定義（DESIGN_SYSTEM.md §3、Issue #94）。
 
-**ここが図形の正**。SVG も PNG もこの定義から生成するので、両者がずれることはない。
+**ここが図形の正**。SVG・PNG・アプリ内のロゴ（`src/ui/brand/wordmark.ts`）はすべて
+この定義から生成するので、互いにずれない。
 
-## マークの意味
+ロゴはサービス名そのもの `PodsNow.`。Manrope ExtraBold（800）の字形（`glyphs.py`）を
+土台に字間を光学調整し、末尾の点を独立した角丸正方形として描く。アイコンは `Pods` /
+`Now.` の 2 段で全文を残す。マイク・波形・雪・電波・頭文字だけのマークは使わない
+（assets/brand/README.md）。
 
-マイク（収録）＋ レベルメーター（声が録れている「いま」）。
-
-旧マークはマイク＋**雪の結晶**だった。サービス名は PodSnow ではなく **PodsNow**
-（Pods = エピソード、Now = いま録って、いま出す）なので、雪は名前の読み違いに
-由来するノイズでしかない。置き換えにあたっては次を避けた:
-
-- 雪・氷・冬を想起させるもの（名前の誤読の再生産）
-- 電波・Wi-Fi 的に扇状に開く弧（このアプリはネットワークを使わない。NFR-2 と矛盾する）
-- 単体の赤い丸（通知バッジ／エラーに見える）
-
-残ったのがレベルメーター。アプリ内の収録画面とWaveformが実際に出している形と同じで、
-音であることが一目で分かり、小さくても潰れない。
-
-## 座標系
-
-1024 x 1024、左上原点・y 下向き。色はデザイントークンの dark をそのまま読む。
+座標系: 字形はフォント単位（y 上向き）。配置後はキャンバスの px（左上原点・y 下向き）。
 """
 
 import os
+import re
 import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'design'))
 
 import ramps  # noqa: E402
+from glyphs import GLYPHS  # noqa: E402
 
 CANVAS = 1024
 
-# マークのために別の色を作らない（assets/brand/README.md）。
-# トークンの生成元をそのまま読むので、色を変えたらマークも必ず追従する。
-_DARK = ramps.build('dark')
-INK = _DARK['textPrimary']  # モノクロアイコン用
-BG = _DARK['bg']  # 背景
-GOLD = _DARK['accentSolid']  # マイク本体
-MINT = _DARK['voiceSolid']  # レベルメーター（声トラックの色）
+# 色はトークンの生成元をそのまま読む。ロゴのために別の色を作らない。
+DARK = ramps.build('dark')
+LIGHT = ramps.build('light')
+BG = DARK['bg']
+INK = DARK['textPrimary']
+DOT = DARK['accentText']
+ICON_BG = DARK['accentSolid']
+ICON_INK = DARK['accentOnSolid']
+LIGHT_INK = LIGHT['textPrimary']
+LIGHT_DOT = LIGHT['accentText']
+MONO = '#000000'
 
-# --- マイク本体 -------------------------------------------------------------
-# カプセル（振動板）
-MIC_CX = 430.0
-MIC_R = 105.0
-MIC_TOP = 300.0
-MIC_BOTTOM = 600.0
+# 字間（フォント単位）。字送りから一律に TRACK を詰め、特定の組だけ KERN で追加調整する。
+TRACK = -20
+KERN = {
+    ('P', 'o'): -40,
+    ('o', 'd'): -18,
+    ('d', 's'): -8,
+    ('s', 'N'): -12,
+    ('N', 'o'): -30,
+    ('o', 'w'): -28,
+}
 
-# クレードル（下半分の円弧）
-CRADLE_CY = 500.0
-CRADLE_R = 165.0  # 帯の中心半径
-CRADLE_W = 34.0  # 帯の太さ
+# 点（ピリオド）。字形ではなく独立した角丸正方形。最後の字の送りの後ろに置く。
+DOT_GAP = 28
+DOT_SIZE = 240
+DOT_RADIUS = 28
+DOT_ADVANCE = 280
 
-# 支柱と台座。
-# 隣接する図形はカバレッジを max で合成するので、境界をぴったり合わせると
-# 両方 0.5 のままになって継ぎ目の線が出る。必ず少し重ねる。
-STEM_HW = 16.0
-STEM_TOP = 675.0  # クレードル下端(682)に食い込ませる
-STEM_BOTTOM = 726.0  # 台座(712..745)に食い込ませる
-BASE_HW = 80.0
-BASE_TOP = 712.0
-BASE_BOTTOM = 745.0
-BASE_R = 16.0
+# 横組みの基準の箱（wordmark-*.svg）。
+WORDMARK_W, WORDMARK_H = 670, 130
+WORDMARK_LINE = (8, 7, 650)  # (left, top, width)
 
-# --- レベルメーター ---------------------------------------------------------
-# (中心 x, バーの高さ)。中心 y は BARS_CY。
-BAR_HW = 16.0
-BARS_CY = 420.0
-BARS = [(610.0, 96.0), (672.0, 180.0), (734.0, 120.0)]
+# アイコンの 2 段組。(left, top, width)。`Now.` は点まで含めた幅を `Pods` とそろえる。
+ICON_LINES = ((155, 220, 714), (155, 521, 714))  # iOS / ストア（マスク無しの全面）
+ADAPTIVE_LINES = ((267, 303, 490), (267, 510, 490))  # Android 前景・単色（中央の安全域）
+SMALL_LINES = ((135, 214, 754), (135, 535, 754))  # 32px 以下の小サイズ・favicon
 
-# --- 構図の中央寄せ ---------------------------------------------------------
-# 上の数値は描きやすさ優先で置いたので、最後に全体をキャンバス中央へ寄せる。
-_CONTENT_LEFT = MIC_CX - CRADLE_R - CRADLE_W / 2
-_CONTENT_RIGHT = BARS[-1][0] + BAR_HW
-_CONTENT_TOP = MIC_TOP
-_CONTENT_BOTTOM = BASE_BOTTOM
-SHIFT_X = CANVAS / 2 - (_CONTENT_LEFT + _CONTENT_RIGHT) / 2
-SHIFT_Y = CANVAS / 2 - (_CONTENT_TOP + _CONTENT_BOTTOM) / 2
+# スプラッシュ用の横組み画像（expo-splash-screen の image）。
+SPLASH_W, SPLASH_H = 1200, 240
+SPLASH_LINE = (20, 20, 1160)
+
+_TOKEN = re.compile(r'[MLHVQZ]|-?\d+(?:\.\d+)?')
 
 
-def shapes(scale: float = 1.0):
-    """
-    マークを構成する図形。`kind` ごとに描画側が解釈する。
-
-    `scale` はキャンバス中心を基準にした拡大率。アダプティブアイコンの前景は
-    マスクで欠けるので 1.0（安全域いっぱい）、マスクの無い iOS アイコンや
-    スプラッシュはもう少し大きくして余白を詰める。
-    """
-    dx, dy = SHIFT_X, SHIFT_Y
-    out = [
-        # カプセルは「線分 + 半径」で表す（上下が丸い角丸長方形と同じ）
-        {
-            'kind': 'capsule',
-            'x0': MIC_CX + dx,
-            'y0': MIC_TOP + MIC_R + dy,
-            'x1': MIC_CX + dx,
-            'y1': MIC_BOTTOM - MIC_R + dy,
-            'r': MIC_R,
-        },
-        # クレードルは下半分だけのリング
-        {
-            'kind': 'arc_bottom',
-            'cx': MIC_CX + dx,
-            'cy': CRADLE_CY + dy,
-            'r': CRADLE_R,
-            'w': CRADLE_W,
-        },
-        {
-            'kind': 'rect',
-            'x0': MIC_CX - STEM_HW + dx,
-            'y0': STEM_TOP + dy,
-            'x1': MIC_CX + STEM_HW + dx,
-            'y1': STEM_BOTTOM + dy,
-            'r': 0.0,
-        },
-        {
-            'kind': 'rect',
-            'x0': MIC_CX - BASE_HW + dx,
-            'y0': BASE_TOP + dy,
-            'x1': MIC_CX + BASE_HW + dx,
-            'y1': BASE_BOTTOM + dy,
-            'r': BASE_R,
-        },
-    ]
-    for cx, h in BARS:
-        out.append(
-            {
-                'kind': 'rect',
-                'x0': cx - BAR_HW + dx,
-                'y0': BARS_CY - h / 2 + dy,
-                'x1': cx + BAR_HW + dx,
-                'y1': BARS_CY + h / 2 + dy,
-                'r': BAR_HW,
-                'accent': True,  # レベルメーターだけ別色
-            }
-        )
-    return [_scaled(s, scale) for s in out] if scale != 1.0 else out
-
-
-def _scaled(s: dict, k: float) -> dict:
-    """キャンバス中心を基準に拡大する。"""
-    c = CANVAS / 2
-
-    def sx(v: float) -> float:
-        return c + (v - c) * k
-
-    out = dict(s)
-    for key in ('x0', 'x1', 'y0', 'y1', 'cx', 'cy'):
-        if key in out:
-            out[key] = sx(out[key])
-    for key in ('r', 'w'):
-        if key in out:
-            out[key] = out[key] * k
-    return out
-
-
-def safe_radius(scale: float = 1.0) -> float:
-    """
-    中心からいちばん遠い描画点までの距離。
-
-    Android のアダプティブアイコンは前景の中央 66%（= 半径 338）しか見える保証がない。
-    旧アイコンは雪の結晶が半径 498 まではみ出していて、丸マスクで欠けていた。
-    """
-    cx = cy = CANVAS / 2
-    worst = 0.0
-    for s in shapes(scale):
-        if s['kind'] == 'capsule':
-            pts = [
-                (s['x0'], s['y0'] - s['r']),
-                (s['x1'], s['y1'] + s['r']),
-                (s['x0'] - s['r'], s['y0']),
-                (s['x0'] + s['r'], s['y0']),
-                (s['x1'] - s['r'], s['y1']),
-                (s['x1'] + s['r'], s['y1']),
-            ]
-        elif s['kind'] == 'arc_bottom':
-            outer = s['r'] + s['w'] / 2
-            pts = [
-                (s['cx'] - outer, s['cy']),
-                (s['cx'] + outer, s['cy']),
-                (s['cx'], s['cy'] + outer),
-            ]
+def parse(d: str) -> list[list[tuple[str, tuple[float, ...]]]]:
+    """SVGPathPen の出力（M/L/H/V/Q/Z の絶対座標）を輪郭ごとのコマンド列にする。"""
+    toks = _TOKEN.findall(d)
+    contours: list[list[tuple[str, tuple[float, ...]]]] = []
+    cur: list[tuple[str, tuple[float, ...]]] = []
+    x = y = 0.0
+    i = 0
+    cmd = ''
+    while i < len(toks):
+        tk = toks[i]
+        if tk.isalpha():
+            cmd = tk
+            i += 1
+            if cmd == 'Z':
+                if cur:
+                    contours.append(cur)
+                cur = []
+                continue
+        n = {'M': 2, 'L': 2, 'H': 1, 'V': 1, 'Q': 4}[cmd]
+        v = [float(t) for t in toks[i : i + n]]
+        i += n
+        if cmd == 'M':
+            x, y = v
+            cur = [('M', (x, y))]
+            cmd = 'L'
+        elif cmd == 'L':
+            x, y = v
+            cur.append(('L', (x, y)))
+        elif cmd == 'H':
+            x = v[0]
+            cur.append(('L', (x, y)))
+        elif cmd == 'V':
+            y = v[0]
+            cur.append(('L', (x, y)))
         else:
-            pts = [
-                (s['x0'], s['y0']),
-                (s['x1'], s['y0']),
-                (s['x0'], s['y1']),
-                (s['x1'], s['y1']),
-            ]
-        for x, y in pts:
-            worst = max(worst, ((x - cx) ** 2 + (y - cy) ** 2) ** 0.5)
+            cur.append(('Q', tuple(v)))
+            x, y = v[2], v[3]
+    if cur:
+        contours.append(cur)
+    return contours
+
+
+def _word(text: str):
+    """字を並べる。戻り値は ([(字, x オフセット)], 送りの合計, 上端)。"""
+    x = 0
+    placed = []
+    ymax = 0.0
+    for i, ch in enumerate(text):
+        if i:
+            x += KERN.get((text[i - 1], ch), 0)
+        g = GLYPHS[ch]
+        placed.append((ch, x))
+        ymax = max(ymax, g['bounds'][3])
+        x += g['advance'] + TRACK
+    return placed, x, ymax
+
+
+def line(text: str, left: float, top: float, width: float):
+    """
+    1 行を配置し、キャンバス座標の図形を返す。
+
+    `text` が `.` で終わるときだけ点を付ける。幅 `width` は点まで含めた幅。
+    戻り値: {'contours': [[('M'|'L'|'Q', 座標...)...]], 'dot': (x, y, size, radius) | None}
+    """
+    has_dot = text.endswith('.')
+    placed, advance, ymax = _word(text.rstrip('.'))
+    s = width / (advance + (DOT_ADVANCE if has_dot else 0))
+    base_y = top + ymax * s
+
+    def tx(px: float, py: float) -> tuple[float, float]:
+        return left + px * s, base_y - py * s
+
+    out = []
+    for ch, ox in placed:
+        for contour in parse(GLYPHS[ch]['d']):
+            cc = []
+            for cmd, v in contour:
+                if cmd == 'Q':
+                    a = tx(v[0] + ox, v[1])
+                    b = tx(v[2] + ox, v[3])
+                    cc.append(('Q', (*a, *b)))
+                else:
+                    cc.append((cmd, tx(v[0] + ox, v[1])))
+            out.append(cc)
+    dot = None
+    if has_dot:
+        dx, dy = tx(advance + DOT_GAP, DOT_SIZE)
+        dot = (dx, dy, DOT_SIZE * s, DOT_RADIUS * s)
+    return {'contours': out, 'dot': dot}
+
+
+def wordmark(left: float, top: float, width: float):
+    return line('PodsNow.', left, top, width)
+
+
+def two_lines(spec):
+    (l1, t1, w1), (l2, t2, w2) = spec
+    return [line('Pods', l1, t1, w1), line('Now.', l2, t2, w2)]
+
+
+def extent(lines) -> tuple[float, float, float, float]:
+    """描画される範囲（x0, y0, x1, y1）。制御点を含むので実際よりわずかに広い（安全側）。"""
+    xs: list[float] = []
+    ys: list[float] = []
+    for ln in lines:
+        for contour in ln['contours']:
+            for _cmd, v in contour:
+                xs += v[0::2]
+                ys += v[1::2]
+        if ln['dot']:
+            x, y, size, _r = ln['dot']
+            xs += [x, x + size]
+            ys += [y, y + size]
+    return min(xs), min(ys), max(xs), max(ys)
+
+
+def max_radius(lines, cx: float = CANVAS / 2, cy: float = CANVAS / 2) -> float:
+    """中心からいちばん遠い点までの距離。Android のアダプティブアイコンの安全域の検査に使う。"""
+    worst = 0.0
+    for ln in lines:
+        for contour in ln['contours']:
+            for _cmd, v in contour:
+                for i in range(0, len(v), 2):
+                    worst = max(worst, ((v[i] - cx) ** 2 + (v[i + 1] - cy) ** 2) ** 0.5)
+        if ln['dot']:
+            x, y, size, _r = ln['dot']
+            for px, py in ((x, y), (x + size, y), (x, y + size), (x + size, y + size)):
+                worst = max(worst, ((px - cx) ** 2 + (py - cy) ** 2) ** 0.5)
     return worst

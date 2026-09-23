@@ -2,14 +2,17 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
   ActivityIndicator,
   Animated,
+  KeyboardAvoidingView,
   Modal,
   PanResponder,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
-  Text,
+  useWindowDimensions,
   View,
   type StyleProp,
+  type TextInputProps,
   type TextStyle,
   type ViewStyle,
 } from 'react-native';
@@ -18,34 +21,45 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useT } from '@/i18n';
 
 import { BOTTOM_GAP, BottomInsetProvider, useBottomInset } from './BottomInset';
+import { Icon, type IconName } from './Icon';
+import { Text, TextInput } from './Text';
 import { useAppTheme } from './ThemeContext';
 import {
+  compactWidth,
   concentric,
-  disabledOpacity,
   gutter,
+  gutterCompact,
   hit,
   hitSlop,
+  icon,
   motion,
   pressScale,
-  icon,
   radius,
   space,
+  stroke,
+  tabularNums,
+  tone as toneOf,
   typography,
+  type ToneName,
 } from './tokens';
 import { useReducedMotion } from './useReducedMotion';
+
+export function useGutter(): number {
+  const { width } = useWindowDimensions();
+  return width < compactWidth ? gutterCompact : gutter;
+}
+
+export function useCompact(): boolean {
+  const { width } = useWindowDimensions();
+  return width < compactWidth;
+}
 
 interface ScreenProps {
   children: ReactNode;
   scroll?: boolean;
   padded?: boolean;
   style?: StyleProp<ViewStyle>;
-  /** スクロールの外に重ねる要素（FAB、トースト）。 */
   overlay?: ReactNode;
-  /**
-   * 画面下部に固定する操作バー（エディタのトランスポートなど）。
-   * 高さを実測して `useBottomInset()` に流すので、トーストがこれを覆わない（Issue #89）。
-   * safe area の下端はここで足すため、バー側で余白を持たなくてよい。
-   */
   bottomBar?: ReactNode;
 }
 
@@ -67,30 +81,91 @@ function ScreenBody({
 }: ScreenProps) {
   const c = useAppTheme();
   const insets = useSafeAreaInsets();
-  const { barHeight, setBarHeight } = useBottomInset();
-  const inner = padded ? [s.padded, style] : style;
+  const g = useGutter();
+  const { barHeight, setBarHeight, toastHeight } = useBottomInset();
+  const inner = padded ? [{ paddingHorizontal: g, paddingTop: space.sm }, style] : style;
+  const bottomPad = space.xxxl + (bottomBar ? 0 : insets.bottom) + toastHeight;
   return (
     <SafeAreaView style={[s.root, { backgroundColor: c.bg }]} edges={['top', 'left', 'right']}>
-      {scroll ? (
-        <ScrollView
-          contentContainerStyle={[inner, { paddingBottom: space.xxxl + barHeight }]}
-          keyboardShouldPersistTaps="handled"
-        >
-          {children}
-        </ScrollView>
-      ) : (
-        <View style={[s.root, inner]}>{children}</View>
-      )}
-      {bottomBar ? (
-        <View
-          style={{ paddingBottom: insets.bottom }}
-          onLayout={(e) => setBarHeight(e.nativeEvent.layout.height)}
-        >
-          {bottomBar}
-        </View>
-      ) : null}
+      <KeyboardAvoidingView style={s.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        {scroll ? (
+          <ScrollView
+            contentContainerStyle={[inner, { paddingBottom: bottomPad }]}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="interactive"
+          >
+            {children}
+          </ScrollView>
+        ) : (
+          <View style={[s.root, inner]}>{children}</View>
+        )}
+        {bottomBar ? (
+          <View
+            style={[
+              s.bottomBar,
+              {
+                paddingBottom: insets.bottom + space.sm,
+                paddingHorizontal: g,
+                backgroundColor: c.bg,
+                borderTopColor: c.border,
+              },
+            ]}
+            onLayout={(e) => setBarHeight(e.nativeEvent.layout.height)}
+          >
+            {bottomBar}
+          </View>
+        ) : barHeight ? (
+          <ResetBar onReset={() => setBarHeight(0)} />
+        ) : null}
+      </KeyboardAvoidingView>
       {overlay}
     </SafeAreaView>
+  );
+}
+
+function ResetBar({ onReset }: { onReset: () => void }) {
+  useEffect(onReset, [onReset]);
+  return null;
+}
+
+export function IconButton({
+  name,
+  label,
+  onPress,
+  disabled,
+  color,
+  showLabel,
+  selected,
+}: {
+  name: IconName;
+  label: string;
+  onPress: () => void;
+  disabled?: boolean;
+  color?: string;
+  showLabel?: boolean;
+  selected?: boolean;
+}) {
+  const c = useAppTheme();
+  const fg = disabled ? c.textDisabled : (color ?? c.textPrimary);
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={disabled}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ disabled: !!disabled, ...(selected ? { selected } : {}) }}
+      style={({ pressed }) => [
+        showLabel ? s.iconButtonLabeled : s.iconButton,
+        { backgroundColor: pressed ? c.surfaceHover : 'transparent' },
+      ]}
+    >
+      <Icon name={name} color={fg} />
+      {showLabel ? (
+        <Text style={[typography.caption, { color: disabled ? c.textDisabled : c.textSecondary }]}>
+          {label}
+        </Text>
+      ) : null}
+    </Pressable>
   );
 }
 
@@ -99,42 +174,33 @@ export function Header({
   subtitle,
   onBack,
   right,
+  large,
 }: {
   title: string;
   subtitle?: string;
   onBack?: () => void;
   right?: ReactNode;
+  large?: boolean;
 }) {
   const c = useAppTheme();
   const t = useT();
   return (
     <View style={s.header}>
       {onBack ? (
-        <Pressable
-          onPress={onBack}
-          accessibilityRole="button"
-          accessibilityLabel={t.a11y.back}
-          style={({ pressed }) => [
-            s.back,
-            { backgroundColor: pressed ? c.surfaceHover : 'transparent' },
-          ]}
-        >
-          <Text style={[s.backGlyph, { color: c.textPrimary }]}>‹</Text>
-        </Pressable>
+        <View style={s.headerBack}>
+          <IconButton name="back" label={t.a11y.back} onPress={onBack} />
+        </View>
       ) : null}
-      <View style={{ flex: 1 }}>
+      <View style={s.flex}>
         <Text
-          style={[typography.title, { color: c.textPrimary }]}
-          numberOfLines={1}
+          style={[large ? typography.title : typography.bodyStrong, { color: c.textPrimary }]}
+          numberOfLines={2}
           accessibilityRole="header"
         >
           {title}
         </Text>
         {subtitle ? (
-          <Text
-            style={[typography.caption, { color: c.textSecondary, marginTop: space.hair }]}
-            numberOfLines={1}
-          >
+          <Text style={[typography.caption, { color: c.textSecondary }]} numberOfLines={2}>
             {subtitle}
           </Text>
         ) : null}
@@ -144,15 +210,33 @@ export function Header({
   );
 }
 
-export function Eyebrow({ children }: { children: ReactNode }) {
+export function Eyebrow({ children, right }: { children: ReactNode; right?: ReactNode }) {
   const c = useAppTheme();
   return (
-    <Text
-      style={[typography.overline, s.eyebrow, { color: c.textSecondary }]}
-      accessibilityRole="header"
-    >
-      {children}
-    </Text>
+    <View style={s.eyebrowRow}>
+      <Text
+        style={[typography.overline, s.flex, { color: c.textSecondary }]}
+        accessibilityRole="header"
+      >
+        {children}
+      </Text>
+      {right}
+    </View>
+  );
+}
+
+export function SectionHeader({ title, right }: { title: string; right?: ReactNode }) {
+  const c = useAppTheme();
+  return (
+    <View style={s.sectionHeader}>
+      <Text
+        style={[typography.heading, s.flex, { color: c.textPrimary }]}
+        accessibilityRole="header"
+      >
+        {title}
+      </Text>
+      {right}
+    </View>
   );
 }
 
@@ -160,25 +244,28 @@ export function Card({
   children,
   style,
   onPress,
+  accessibilityLabel,
+  raised,
 }: {
   children: ReactNode;
   style?: StyleProp<ViewStyle>;
   onPress?: () => void;
+  accessibilityLabel?: string;
+  raised?: boolean;
 }) {
   const c = useAppTheme();
+  const base = raised ? c.surfaceRaised : c.surface;
   const body = (pressed: boolean) => (
-    <View
-      style={[
-        s.card,
-        { backgroundColor: pressed ? c.surfaceHover : c.surface, borderColor: c.border },
-        style,
-      ]}
-    >
+    <View style={[s.card, { backgroundColor: pressed ? c.surfaceHover : base }, style]}>
       {children}
     </View>
   );
   return onPress ? (
-    <Pressable onPress={onPress} accessibilityRole="button">
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      {...(accessibilityLabel ? { accessibilityLabel } : {})}
+    >
       {({ pressed }) => body(pressed)}
     </Pressable>
   ) : (
@@ -186,51 +273,101 @@ export function Card({
   );
 }
 
+export type ButtonKind = 'primary' | 'secondary' | 'danger' | 'ghost';
+
 export function Button({
   label,
   onPress,
   kind = 'primary',
   disabled,
+  busy,
   style,
   accessibilityLabel,
+  icon: iconName,
+  compact,
 }: {
   label: string;
   onPress: () => void;
-  kind?: 'primary' | 'secondary' | 'danger' | 'ghost';
+  kind?: ButtonKind;
   disabled?: boolean;
+  busy?: boolean;
   style?: StyleProp<ViewStyle>;
   accessibilityLabel?: string;
+  icon?: IconName;
+  compact?: boolean;
 }) {
   const c = useAppTheme();
   const reduced = useReducedMotion();
-  // 塗りは押下用の段を持つ。不透明度で暗くすると、背面しだいでラベルとの比が変わる。
-  const fill = {
-    primary: [c.accentSolid, c.accentSolidPressed, c.accentOnSolid],
-    danger: [c.dangerSolid, c.dangerSolidPressed, c.dangerOnSolid],
-    secondary: [c.surfaceRaised, c.surfaceHover, c.textPrimary],
-    ghost: ['transparent', c.surfaceHover, c.textPrimary],
-  }[kind] as [string, string, string];
+  const off = disabled || busy;
+  const look = (pressed: boolean): { bg: string; border: string; fg: string } => {
+    if (off) {
+      return {
+        bg: kind === 'ghost' ? 'transparent' : c.surfaceRaised,
+        border: kind === 'ghost' ? 'transparent' : c.border,
+        fg: c.textDisabled,
+      };
+    }
+    switch (kind) {
+      case 'primary':
+        return {
+          bg: pressed ? c.accentSolidPressed : c.accentSolid,
+          border: c.isDark ? (pressed ? c.accentSolidPressed : c.accentSolid) : c.accentBorder,
+          fg: c.accentOnSolid,
+        };
+      case 'danger':
+        return {
+          bg: pressed ? c.dangerSolidPressed : c.dangerSolid,
+          border: pressed ? c.dangerSolidPressed : c.dangerSolid,
+          fg: c.dangerOnSolid,
+        };
+      case 'secondary':
+        return {
+          bg: pressed ? c.surfaceHover : 'transparent',
+          border: c.borderStrong,
+          fg: c.textPrimary,
+        };
+      case 'ghost':
+        return {
+          bg: pressed ? c.surfaceHover : 'transparent',
+          border: 'transparent',
+          fg: c.textPrimary,
+        };
+    }
+  };
   return (
     <Pressable
       onPress={onPress}
-      disabled={disabled}
+      disabled={off}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel ?? label}
-      accessibilityState={{ disabled: !!disabled }}
-      style={({ pressed }) => [
-        s.button,
-        {
-          backgroundColor: pressed ? fill[1] : fill[0],
-          borderColor: kind === 'ghost' ? c.borderStrong : pressed ? fill[1] : fill[0],
-          opacity: disabled ? disabledOpacity : 1,
-          transform: [{ scale: pressed && !reduced ? pressScale : 1 }],
-        },
-        style,
-      ]}
+      accessibilityState={{ disabled: !!off, busy: !!busy }}
+      style={({ pressed }) => {
+        const l = look(pressed);
+        return [
+          s.button,
+          compact ? s.buttonCompact : null,
+          {
+            backgroundColor: l.bg,
+            borderColor: l.border,
+            transform: [{ scale: pressed && !reduced ? pressScale : 1 }],
+          },
+          style,
+        ];
+      }}
     >
-      <Text style={[typography.bodyStrong, { color: fill[2] }]} numberOfLines={1}>
-        {label}
-      </Text>
+      {({ pressed }) => {
+        const l = look(pressed);
+        return (
+          <>
+            {busy ? (
+              <ActivityIndicator color={l.fg} />
+            ) : iconName ? (
+              <Icon name={iconName} color={l.fg} size={icon.sm} />
+            ) : null}
+            <Text style={[typography.label, s.buttonLabel, { color: l.fg }]}>{label}</Text>
+          </>
+        );
+      }}
     </Pressable>
   );
 }
@@ -241,45 +378,58 @@ export function Row({
   right,
   onPress,
   danger,
+  icon: iconName,
+  last,
+  accessibilityLabel,
+  mono,
+  below,
 }: {
   label: string;
   sub?: string;
+  below?: ReactNode;
   right?: ReactNode;
   onPress?: () => void;
   danger?: boolean;
+  icon?: IconName;
+  last?: boolean;
+  accessibilityLabel?: string;
+  mono?: string;
 }) {
   const c = useAppTheme();
   const body = (pressed: boolean) => (
     <View
       style={[
         s.row,
-        { borderBottomColor: c.border, backgroundColor: pressed ? c.surfaceHover : 'transparent' },
+        {
+          borderBottomColor: c.border,
+          borderBottomWidth: last ? 0 : StyleSheet.hairlineWidth,
+          backgroundColor: pressed ? c.surfaceHover : 'transparent',
+        },
       ]}
     >
-      <View style={{ flex: 1 }}>
+      {mono ? (
+        <Text style={[typography.mono, tabularNums, s.rowMono, { color: c.textTertiary }]}>
+          {mono}
+        </Text>
+      ) : null}
+      {iconName ? (
+        <Icon name={iconName} color={danger ? c.dangerText : c.textSecondary} size={icon.sm} />
+      ) : null}
+      <View style={s.flex}>
         <Text style={[typography.body, { color: danger ? c.dangerText : c.textPrimary }]}>
           {label}
         </Text>
-        {sub ? (
-          <Text style={[typography.caption, { color: c.textSecondary, marginTop: space.hair }]}>
-            {sub}
-          </Text>
-        ) : null}
+        {sub ? <Text style={[typography.caption, { color: c.textSecondary }]}>{sub}</Text> : null}
       </View>
-      {right ??
-        (onPress ? (
-          <Text
-            style={{ color: c.textTertiary, fontSize: icon.sm }}
-            accessibilityElementsHidden
-            importantForAccessibility="no"
-          >
-            ›
-          </Text>
-        ) : null)}
+      {right ?? (onPress ? <Icon name="arrow" color={c.textTertiary} size={icon.sm} /> : null)}
     </View>
   );
   return onPress ? (
-    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={label}>
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel ?? (sub ? `${label}, ${sub}` : label)}
+    >
       {({ pressed }) => body(pressed)}
     </Pressable>
   ) : (
@@ -306,14 +456,14 @@ export function Toggle({
       hitSlop={{
         top: hitSlop(TOGGLE_H),
         bottom: hitSlop(TOGGLE_H),
-        left: hitSlop(TOGGLE_W),
-        right: hitSlop(TOGGLE_W),
+        left: space.sm,
+        right: space.sm,
       }}
       style={[
         s.toggle,
         {
           backgroundColor: value ? c.accentSolid : c.surfaceRaised,
-          borderColor: value ? c.accentSolid : c.borderStrong,
+          borderColor: value ? (c.isDark ? c.accentSolid : c.accentBorder) : c.borderStrong,
         },
       ]}
     >
@@ -321,7 +471,7 @@ export function Toggle({
         style={[
           s.knob,
           {
-            backgroundColor: value ? c.accentOnSolid : c.textTertiary,
+            backgroundColor: value ? c.accentOnSolid : c.textSecondary,
             transform: [{ translateX: value ? KNOB_TRAVEL : 0 }],
           },
         ]}
@@ -345,40 +495,62 @@ export function Sheet({
 }) {
   const c = useAppTheme();
   const t = useT();
+  const insets = useSafeAreaInsets();
+  const g = useGutter();
+  const { height } = useWindowDimensions();
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable
-        style={[s.backdrop, { backgroundColor: c.overlayScrim }]}
-        onPress={onClose}
-        accessibilityRole="button"
-        accessibilityLabel={t.a11y.close}
-      />
-      <View style={[s.sheet, { backgroundColor: c.surface, borderColor: c.border }]}>
-        <View
-          style={[s.grip, { backgroundColor: c.borderStrong }]}
-          accessibilityElementsHidden
-          importantForAccessibility="no"
+    <Modal
+      visible={visible}
+      transparent
+      animationType="slide"
+      onRequestClose={onClose}
+      statusBarTranslucent
+      navigationBarTranslucent
+    >
+      <KeyboardAvoidingView style={s.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <Pressable
+          style={[s.backdrop, { backgroundColor: c.overlayScrim }]}
+          onPress={onClose}
+          accessibilityRole="button"
+          accessibilityLabel={t.a11y.close}
         />
-        {title ? (
-          <Text style={[typography.heading, { color: c.textPrimary }]} accessibilityRole="header">
-            {title}
-          </Text>
-        ) : null}
-        {subtitle ? (
-          <Text style={[typography.caption, { color: c.textSecondary, marginBottom: space.sm }]}>
-            {subtitle}
-          </Text>
-        ) : null}
-        <ScrollView style={{ maxHeight: SHEET_MAX_H }}>{children}</ScrollView>
-      </View>
+        <View
+          style={[
+            s.sheet,
+            {
+              backgroundColor: c.surfaceRaised,
+              paddingHorizontal: g,
+              paddingBottom: insets.bottom + space.lg,
+              maxHeight: height * 0.88,
+            },
+          ]}
+          accessibilityViewIsModal
+        >
+          <View style={s.sheetHead}>
+            <View style={s.flex}>
+              {title ? (
+                <Text
+                  style={[typography.heading, { color: c.textPrimary }]}
+                  accessibilityRole="header"
+                >
+                  {title}
+                </Text>
+              ) : null}
+              {subtitle ? (
+                <Text style={[typography.caption, { color: c.textSecondary }]}>{subtitle}</Text>
+              ) : null}
+            </View>
+            <View style={s.sheetClose}>
+              <IconButton name="close" label={t.a11y.close} onPress={onClose} />
+            </View>
+          </View>
+          <ScrollView keyboardShouldPersistTaps="handled">{children}</ScrollView>
+        </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
 
-/**
- * トースト。下部の操作エリアには**重ねず、その上に出す**（Issue #89）。
- * 位置は定数ではなく `useBottomInset()` の実測値から決める。下へスワイプで消せる。
- */
 export function Toast({
   toast,
   onAction,
@@ -386,12 +558,13 @@ export function Toast({
 }: {
   toast: { text: string; action?: string } | null;
   onAction?: () => void;
-  /** スワイプで閉じられたとき。省略時はスワイプしても消えない。 */
   onDismiss?: () => void;
 }) {
   const c = useAppTheme();
+  const t = useT();
   const insets = useSafeAreaInsets();
   const reduced = useReducedMotion();
+  const g = useGutter();
   const { barHeight, setToastHeight } = useBottomInset();
   const [anim] = useState(() => new Animated.Value(0));
   const [drag] = useState(() => new Animated.Value(0));
@@ -399,25 +572,23 @@ export function Toast({
   useEffect(() => {
     Animated.timing(anim, {
       toValue: toast ? 1 : 0,
-      duration: motion.quick,
+      duration: reduced ? 0 : motion.quick,
       useNativeDriver: true,
     }).start();
     if (!toast) drag.setValue(0);
-  }, [toast, anim, drag]);
+  }, [toast, anim, drag, reduced]);
 
-  // 消えたら高さを 0 に戻す（FAB を元の位置へ戻すため）。
   useEffect(() => {
     if (!toast) setToastHeight(0);
   }, [toast, setToastHeight]);
 
-  // 下へ一定量スワイプしたら閉じる。横スワイプや上方向は拾わない。
   const pan = useMemo(
     () =>
       PanResponder.create({
-        onMoveShouldSetPanResponder: (_e, g) => g.dy > 4 && Math.abs(g.dy) > Math.abs(g.dx),
-        onPanResponderMove: (_e, g) => drag.setValue(Math.max(0, g.dy)),
-        onPanResponderRelease: (_e, g) => {
-          if (g.dy > DISMISS_DRAG) onDismiss?.();
+        onMoveShouldSetPanResponder: (_e, gs) => gs.dy > 4 && Math.abs(gs.dy) > Math.abs(gs.dx),
+        onPanResponderMove: (_e, gs) => drag.setValue(Math.max(0, gs.dy)),
+        onPanResponderRelease: (_e, gs) => {
+          if (gs.dy > DISMISS_DRAG) onDismiss?.();
           else Animated.spring(drag, { toValue: 0, useNativeDriver: true }).start();
         },
       }),
@@ -428,14 +599,15 @@ export function Toast({
   return (
     <Animated.View
       {...pan.panHandlers}
-      onLayout={(e) => setToastHeight(e.nativeEvent.layout.height)}
+      onLayout={(e) => setToastHeight(e.nativeEvent.layout.height + BOTTOM_GAP)}
       style={[
         s.toast,
         {
+          left: g,
+          right: g,
           backgroundColor: c.surfaceRaised,
-          borderColor: c.border,
+          borderColor: c.borderStrong,
           opacity: anim,
-          // 操作バーがあればその上、無ければ safe area の上。
           bottom: (barHeight || insets.bottom) + BOTTOM_GAP,
           transform: reduced ? [] : [{ translateY: drag }],
         },
@@ -443,69 +615,21 @@ export function Toast({
       accessibilityLiveRegion="polite"
       accessibilityRole="alert"
     >
-      <Text style={[typography.body, { color: c.textPrimary, flex: 1 }]}>{toast.text}</Text>
+      <Text style={[typography.body, s.flex, { color: c.textPrimary }]}>{toast.text}</Text>
       {toast.action && onAction ? (
         <Pressable
           onPress={onAction}
           accessibilityRole="button"
-          hitSlop={hitSlop(typography.label.lineHeight)}
+          accessibilityLabel={toast.action}
+          style={({ pressed }) => [
+            s.toastAction,
+            { backgroundColor: pressed ? c.surfaceHover : 'transparent' },
+          ]}
         >
           <Text style={[typography.label, { color: c.accentText }]}>{toast.action}</Text>
         </Pressable>
       ) : null}
-    </Animated.View>
-  );
-}
-
-/**
- * 画面右下のフローティングボタン。トーストが出ているあいだは、その分だけ上へ退避する
- * （重ねず押し上げる = M3 の Snackbar と FAB の扱い / Issue #89）。
- * `Screen` の `overlay` に置いて使う。
- */
-export function Fab({
-  label,
-  onPress,
-  accessibilityLabel,
-}: {
-  label: string;
-  onPress: () => void;
-  accessibilityLabel: string;
-}) {
-  const c = useAppTheme();
-  const insets = useSafeAreaInsets();
-  const reduced = useReducedMotion();
-  const { toastHeight } = useBottomInset();
-  const [shift] = useState(() => new Animated.Value(0));
-  const target = toastHeight > 0 ? -(toastHeight + BOTTOM_GAP) : 0;
-  useEffect(() => {
-    if (reduced) {
-      shift.setValue(target);
-      return;
-    }
-    Animated.timing(shift, {
-      toValue: target,
-      duration: motion.quick,
-      useNativeDriver: true,
-    }).start();
-  }, [target, shift, reduced]);
-  return (
-    <Animated.View
-      style={[s.fab, { bottom: insets.bottom + BOTTOM_GAP, transform: [{ translateY: shift }] }]}
-    >
-      <Pressable
-        onPress={onPress}
-        accessibilityLabel={accessibilityLabel}
-        accessibilityRole="button"
-        style={({ pressed }) => [
-          s.fabInner,
-          {
-            backgroundColor: pressed ? c.accentSolidPressed : c.accentSolid,
-            transform: [{ scale: pressed && !reduced ? pressScale : 1 }],
-          },
-        ]}
-      >
-        <Text style={[s.fabGlyph, { color: c.accentOnSolid }]}>{label}</Text>
-      </Pressable>
+      {onDismiss ? <IconButton name="close" label={t.a11y.dismiss} onPress={onDismiss} /> : null}
     </Animated.View>
   );
 }
@@ -514,7 +638,7 @@ export function Loading({ label }: { label?: string }) {
   const c = useAppTheme();
   return (
     <View style={[s.root, s.center, { backgroundColor: c.bg }]}>
-      <ActivityIndicator color={c.accentSolid} />
+      <ActivityIndicator color={c.textSecondary} />
       {label ? (
         <Text
           style={[typography.body, { color: c.textSecondary, marginTop: space.sm }]}
@@ -532,67 +656,87 @@ export function Chip({
   active,
   onPress,
   tone,
+  icon: iconName,
+  accessibilityLabel,
+  disabled,
 }: {
   label: string;
   active?: boolean;
   onPress?: () => void;
-  /** 分類を表す色。省略するとアクセント。地と輪郭はトークンで受け取る。 */
   tone?: { text: string; border: string; subtle: string };
+  icon?: IconName;
+  accessibilityLabel?: string;
+  disabled?: boolean;
 }) {
   const c = useAppTheme();
-  const t = tone ?? { text: c.accentText, border: c.accentBorder, subtle: c.accentSubtle };
+  const t = tone ?? { text: c.textPrimary, border: c.accentBorder, subtle: c.accentSubtle };
+  const fg = disabled ? c.textDisabled : active ? t.text : c.textSecondary;
   return (
     <Pressable
       onPress={onPress}
+      disabled={disabled || !onPress}
       accessibilityRole="button"
-      accessibilityState={{ selected: !!active }}
+      accessibilityState={{ selected: !!active, disabled: !!disabled }}
+      {...(accessibilityLabel ? { accessibilityLabel } : {})}
       hitSlop={{ top: hitSlop(CHIP_H), bottom: hitSlop(CHIP_H) }}
       style={({ pressed }) => [
         s.chip,
         {
-          borderColor: active ? t.border : c.borderStrong,
+          borderColor: disabled ? c.border : active ? t.border : c.borderStrong,
+          borderWidth: active ? stroke.selected : stroke.hairline,
           backgroundColor: active ? t.subtle : pressed ? c.surfaceHover : 'transparent',
         },
       ]}
     >
-      <Text style={[typography.label, { color: active ? t.text : c.textSecondary }]}>{label}</Text>
+      {iconName ? <Icon name={iconName} color={fg} size={icon.sm} /> : null}
+      <Text style={[typography.label, { color: fg }]}>{label}</Text>
     </Pressable>
   );
 }
 
-/**
- * 画面内のタブ（録音 / 編集 / 書き出し）。
- * 画面を分けずに工程を切り替えるための帯（docs/ux-restructure.md §3）。
- */
 export function Segmented<T extends string>({
   value,
   options,
   onChange,
+  disabled,
 }: {
   value: T;
   options: readonly { value: T; label: string }[];
   onChange: (v: T) => void;
+  disabled?: (v: T) => boolean;
 }) {
   const c = useAppTheme();
   return (
-    <View style={[s.segmented, { backgroundColor: c.surface, borderColor: c.border }]}>
+    <View
+      style={[s.segmented, { backgroundColor: c.surface, borderColor: c.border }]}
+      accessibilityRole="tablist"
+    >
       {options.map((o) => {
         const active = o.value === value;
+        const off = !active && !!disabled?.(o.value);
         return (
           <Pressable
             key={o.value}
             onPress={() => onChange(o.value)}
             accessibilityRole="tab"
-            accessibilityState={{ selected: active }}
-            style={[
+            accessibilityState={{ selected: active, disabled: off }}
+            style={({ pressed }) => [
               s.segment,
-              active && { backgroundColor: c.surfaceRaised, borderColor: c.accentBorder },
+              {
+                backgroundColor: active
+                  ? c.surfaceHover
+                  : pressed
+                    ? c.surfaceRaised
+                    : 'transparent',
+                borderBottomColor: active ? c.accentBorder : 'transparent',
+              },
             ]}
           >
             <Text
               style={[
                 typography.label,
-                { color: active ? c.textPrimary : c.textSecondary, textAlign: 'center' },
+                s.center,
+                { color: active ? c.textPrimary : off ? c.textDisabled : c.textSecondary },
               ]}
             >
               {o.label}
@@ -604,71 +748,238 @@ export function Segmented<T extends string>({
   );
 }
 
-const TOGGLE_W = 48;
-const TOGGLE_H = 28;
-const TOGGLE_PAD = 3;
-const KNOB = 20;
-/** つまみが端から端まで動く距離。枠線と内側の余白を引いた実寸から出す。 */
+export function ProgressBar({
+  value,
+  label,
+  color,
+}: {
+  value: number | null;
+  label: string;
+  color?: string;
+}) {
+  const c = useAppTheme();
+  const reduced = useReducedMotion();
+  const [slide] = useState(() => new Animated.Value(0));
+  const indeterminate = value === null;
+  useEffect(() => {
+    if (!indeterminate || reduced) return;
+    const loop = Animated.loop(
+      Animated.timing(slide, { toValue: 1, duration: 1200, useNativeDriver: false }),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [indeterminate, reduced, slide]);
+  const pct = value === null ? null : Math.round(Math.max(0, Math.min(1, value)) * 100);
+  return (
+    <View
+      style={[s.track, { backgroundColor: c.surfaceHover }]}
+      accessibilityRole="progressbar"
+      accessibilityLabel={label}
+      {...(pct === null ? {} : { accessibilityValue: { min: 0, max: 100, now: pct } })}
+    >
+      {pct === null ? (
+        <Animated.View
+          style={[
+            s.trackFill,
+            s.indeterminate,
+            {
+              backgroundColor: color ?? c.accentSolid,
+              left: reduced
+                ? '30%'
+                : slide.interpolate({ inputRange: [0, 1], outputRange: ['-40%', '100%'] }),
+            },
+          ]}
+        />
+      ) : (
+        <View
+          style={[s.trackFill, { width: `${pct}%`, backgroundColor: color ?? c.accentSolid }]}
+        />
+      )}
+    </View>
+  );
+}
+
+export type NoticeKind = 'info' | 'warning' | 'error' | 'success' | 'rec';
+
+export function Notice({
+  kind = 'info',
+  title,
+  body,
+  action,
+}: {
+  kind?: NoticeKind;
+  title: string;
+  body?: string;
+  action?: ReactNode;
+}) {
+  const c = useAppTheme();
+  const toneName: ToneName | null =
+    kind === 'warning'
+      ? 'mistake'
+      : kind === 'error'
+        ? 'danger'
+        : kind === 'success'
+          ? 'success'
+          : kind === 'rec'
+            ? 'rec'
+            : null;
+  const tn = toneName ? toneOf(c, toneName) : null;
+  const iconName: IconName =
+    kind === 'warning' || kind === 'error' ? 'warning' : kind === 'success' ? 'check' : 'flag';
+  return (
+    <View
+      style={[
+        s.notice,
+        { backgroundColor: tn ? tn.subtle : c.surface, borderColor: tn ? tn.border : c.border },
+      ]}
+      accessibilityRole={kind === 'error' ? 'alert' : undefined}
+    >
+      <Icon name={iconName} color={tn ? tn.text : c.textSecondary} size={icon.sm} />
+      <View style={[s.flex, { gap: space.xs }]}>
+        <Text style={[typography.bodyStrong, { color: c.textPrimary }]}>{title}</Text>
+        {body ? <Text style={[typography.caption, { color: c.textSecondary }]}>{body}</Text> : null}
+        {action}
+      </View>
+    </View>
+  );
+}
+
+export function Field({
+  label,
+  help,
+  error,
+  multiline,
+  style,
+  ...input
+}: TextInputProps & {
+  label: string;
+  help?: string;
+  error?: string | null;
+}) {
+  const c = useAppTheme();
+  const [focused, setFocused] = useState(false);
+  return (
+    <View style={s.field}>
+      <Text style={[typography.label, { color: c.textSecondary }]}>{label}</Text>
+      <TextInput
+        {...input}
+        multiline={multiline}
+        textAlignVertical={multiline ? 'top' : 'center'}
+        accessibilityLabel={input.accessibilityLabel ?? label}
+        {...(error || help ? { accessibilityHint: error ?? help } : {})}
+        placeholderTextColor={c.textTertiary}
+        onFocus={(e) => {
+          setFocused(true);
+          input.onFocus?.(e);
+        }}
+        onBlur={(e) => {
+          setFocused(false);
+          input.onBlur?.(e);
+        }}
+        style={[
+          s.input,
+          multiline ? s.multiline : null,
+          {
+            color: c.textPrimary,
+            backgroundColor: c.bg,
+            borderColor: error ? c.dangerBorder : focused ? c.focusRing : c.borderStrong,
+            borderWidth: focused || error ? stroke.selected : stroke.hairline,
+          },
+          style,
+        ]}
+      />
+      {error ? (
+        <Text
+          style={[typography.caption, { color: c.dangerText }]}
+          accessibilityLiveRegion="polite"
+        >
+          {error}
+        </Text>
+      ) : help ? (
+        <Text style={[typography.caption, { color: c.textTertiary }]}>{help}</Text>
+      ) : null}
+    </View>
+  );
+}
+
+const TOGGLE_W = 52;
+const TOGGLE_H = 32;
+const TOGGLE_PAD = 4;
+const KNOB = 22;
 const KNOB_TRAVEL = TOGGLE_W - 2 - TOGGLE_PAD * 2 - KNOB;
-const CHIP_H = 30;
-const SHEET_MAX_H = 460;
+const CHIP_H = 40;
 const DISMISS_DRAG = 24;
 
 const s = StyleSheet.create({
   root: { flex: 1 },
-  center: { alignItems: 'center', justifyContent: 'center' },
-  padded: { paddingHorizontal: gutter, paddingTop: space.sm },
-  header: { flexDirection: 'row', alignItems: 'center', paddingVertical: space.sm, gap: space.sm },
-  back: {
-    width: hit.min,
-    height: hit.min,
-    marginLeft: -space.md,
-    borderRadius: radius.sm,
+  flex: { flex: 1 },
+  center: { alignItems: 'center', justifyContent: 'center', textAlign: 'center' },
+  bottomBar: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: space.md },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    minHeight: hit.min + space.sm,
+    paddingVertical: space.xs,
+    gap: space.sm,
+  },
+  headerBack: { marginLeft: -space.md },
+  iconButton: {
+    minWidth: hit.min,
+    minHeight: hit.min,
+    borderRadius: radius.md,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  backGlyph: { fontSize: icon.lg + 2, lineHeight: 34, marginTop: -4 },
-  eyebrow: { marginTop: space.xl, marginBottom: space.sm },
-  segmented: {
-    flexDirection: 'row',
+  iconButtonLabeled: {
+    minWidth: hit.min + space.xl,
+    minHeight: hit.min,
     borderRadius: radius.md,
-    borderWidth: 1,
-    padding: space.hair,
-    gap: space.hair,
-    marginBottom: space.sm,
-  },
-  segment: {
-    flex: 1,
-    minHeight: hit.compact,
+    alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: concentric(radius.md, space.hair),
-    borderWidth: 1,
-    borderColor: 'transparent',
-    paddingHorizontal: space.sm,
+    paddingHorizontal: space.xs,
+    gap: space.hair,
+  },
+  eyebrowRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: space.xl,
+    marginBottom: space.sm,
+    gap: space.sm,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: space.xxl,
+    marginBottom: space.sm,
+    gap: space.sm,
   },
   card: {
     borderRadius: radius.lg,
-    borderWidth: 1,
-    padding: space.lg,
+    padding: gutter,
     marginBottom: space.md,
   },
   button: {
-    minHeight: hit.min,
-    paddingVertical: space.md,
+    minHeight: hit.button,
+    paddingVertical: space.sm,
     paddingHorizontal: space.lg,
     borderRadius: radius.md,
+    borderWidth: 1,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
+    gap: space.sm,
   },
+  buttonCompact: { minHeight: hit.min, paddingHorizontal: space.md },
+  buttonLabel: { textAlign: 'center', flexShrink: 1 },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    minHeight: hit.min,
+    minHeight: hit.min + space.sm,
     paddingVertical: space.md,
-    borderBottomWidth: StyleSheet.hairlineWidth,
     gap: space.md,
   },
+  rowMono: { minWidth: space.xxl },
+  rowBelow: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm, marginTop: space.sm },
   toggle: {
     width: TOGGLE_W,
     height: TOGGLE_H,
@@ -682,50 +993,82 @@ const s = StyleSheet.create({
   sheet: {
     borderTopLeftRadius: radius.xl,
     borderTopRightRadius: radius.xl,
-    borderWidth: 1,
-    padding: space.lg,
-    paddingBottom: space.xxl,
+    paddingTop: space.md,
     gap: space.xs,
   },
-  grip: {
-    width: 36,
-    height: 4,
-    borderRadius: radius.pill,
-    alignSelf: 'center',
-    marginBottom: space.md,
+  sheetHead: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: space.sm,
+    paddingTop: space.xs,
   },
-  // bottom は実測値から決めるのでここには置かない（Issue #89）。
+  sheetClose: { marginRight: -space.md, marginTop: -space.sm },
   toast: {
     position: 'absolute',
-    left: gutter,
-    right: gutter,
     borderRadius: radius.md,
     borderWidth: 1,
-    padding: space.md,
+    paddingLeft: space.lg,
+    paddingRight: space.xs,
+    paddingVertical: space.xs,
+    minHeight: hit.min + space.sm,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: space.md,
+    gap: space.xs,
   },
-  fab: { position: 'absolute', right: gutter + space.xs },
-  fabInner: {
-    width: 56,
-    height: 56,
-    borderRadius: radius.pill,
-    alignItems: 'center',
+  toastAction: {
+    minHeight: hit.min,
+    paddingHorizontal: space.md,
+    borderRadius: radius.sm,
     justifyContent: 'center',
-    elevation: 4,
   },
-  fabGlyph: { fontSize: icon.lg, lineHeight: 32 },
   chip: {
-    height: CHIP_H,
+    minHeight: CHIP_H,
     paddingHorizontal: space.md,
     borderRadius: radius.pill,
-    borderWidth: 1,
+    flexDirection: 'row',
+    gap: space.xs,
     alignItems: 'center',
     justifyContent: 'center',
   },
+  segmented: {
+    flexDirection: 'row',
+    borderRadius: radius.md,
+    borderWidth: 1,
+    padding: space.xs,
+    gap: space.xs,
+  },
+  segment: {
+    flex: 1,
+    minHeight: hit.min,
+    justifyContent: 'center',
+    borderRadius: concentric(radius.md, space.xs),
+    borderBottomWidth: stroke.selected,
+    paddingHorizontal: space.sm,
+  },
+  track: { height: space.sm, borderRadius: radius.pill, overflow: 'hidden' },
+  trackFill: { height: space.sm, borderRadius: radius.pill },
+  indeterminate: { position: 'absolute', width: '40%' },
+  notice: {
+    flexDirection: 'row',
+    gap: space.md,
+    borderWidth: 1,
+    borderRadius: radius.md,
+    padding: space.lg,
+    marginBottom: space.md,
+    alignItems: 'flex-start',
+  },
+  field: { gap: space.sm, marginBottom: space.lg },
+  input: {
+    ...typography.body,
+    minHeight: hit.button,
+    borderRadius: radius.md,
+    paddingHorizontal: space.lg,
+    paddingVertical: space.md,
+  },
+  multiline: { minHeight: 128 },
 });
 
-/** 画面側でトークンをそのまま使うための再輸出（生の数値を書かないため）。 */
 export type { TextStyle, ViewStyle };
+export { Icon, type IconName } from './Icon';
+export { Text, TextInput } from './Text';
 export { concentric, gutter, hit, hitSlop, icon, radius, space, typography };

@@ -1,7 +1,7 @@
 import * as DocumentPicker from 'expo-document-picker';
 import { useAudioPlayer } from 'expo-audio';
 import { useCallback, useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { formatSmp, smp } from '@/domain/time';
 import { useServices } from '@/features/app/ServicesProvider';
@@ -10,8 +10,18 @@ import { useAsyncData } from '@/features/show/useAsyncData';
 import { useT } from '@/i18n';
 import type { AssetKind, AssetRow } from '@/infra/db/repositories/assetsRepo';
 import { joinRoot } from '@/infra/files/layout';
-import { glyphSlop, hit, icon, radius, space, typography } from '@/ui/tokens';
-import { Button, Card, Eyebrow, Row, Sheet } from '@/ui/components';
+import { space, typography } from '@/ui/tokens';
+import {
+  Button,
+  Card,
+  Field,
+  IconButton,
+  ProgressBar,
+  Row,
+  SectionHeader,
+  Sheet,
+  Text,
+} from '@/ui/components';
 import { useAppTheme } from '@/ui/ThemeContext';
 
 function stripScheme(uri: string): string {
@@ -131,117 +141,76 @@ export function AssetsSection({ onToast }: AssetsSectionProps) {
 
   return (
     <>
-      <Eyebrow>{t.showAssets.title}</Eyebrow>
+      <SectionHeader title={t.showAssets.title} />
       <Text style={[st.lead, { color: c.textSecondary }]}>{t.showAssets.lead}</Text>
 
       {assetKinds(t).map((k) => {
         const items = list.filter((a) => a.kind === k.kind);
         const busy = importing?.kind === k.kind;
         return (
-          <View key={k.kind}>
+          <Card key={k.kind} style={st.group}>
             <View style={st.groupHead}>
               <View style={{ flex: 1 }}>
-                <Eyebrow>{k.label}</Eyebrow>
-                <Text style={[st.groupSub, { color: c.textTertiary }]}>{k.sub}</Text>
+                <Text style={[typography.bodyStrong, { color: c.textPrimary }]}>{k.label}</Text>
+                <Text style={[typography.caption, { color: c.textSecondary }]}>{k.sub}</Text>
               </View>
-              <Pressable
-                onPress={() => pick(k.kind)}
+              <Button
+                label={t.showAssets.add}
+                icon="plus"
+                kind="secondary"
+                compact
                 disabled={!!importing}
-                accessibilityRole="button"
                 accessibilityLabel={t.showAssets.a11yAdd(k.label)}
-                hitSlop={glyphSlop}
-                style={{ marginTop: space.lg, opacity: importing ? 0.4 : 1 }}
-              >
-                <Text style={[typography.label, { color: c.accentText }]}>{t.showAssets.add}</Text>
-              </Pressable>
+                onPress={() => void pick(k.kind)}
+              />
             </View>
-            <Card style={{ paddingVertical: space.xs }}>
-              {busy ? (
-                <View style={st.progressWrap}>
-                  <Text style={[typography.caption, { color: c.textSecondary }]}>
-                    {t.showAssets.importing(Math.round((importing?.progress ?? 0) * 100))}
-                  </Text>
-                  <View style={[st.progressTrack, { backgroundColor: c.surfaceRaised }]}>
-                    <View
-                      style={[
-                        st.progressBar,
-                        {
-                          backgroundColor: c.accentSolid,
-                          width: `${Math.round((importing?.progress ?? 0) * 100)}%`,
-                        },
-                      ]}
+            {busy ? (
+              <View style={st.progressWrap}>
+                <Text style={[typography.caption, { color: c.textSecondary }]}>
+                  {t.showAssets.importing(Math.round((importing?.progress ?? 0) * 100))}
+                </Text>
+                <ProgressBar
+                  value={importing?.progress ?? 0}
+                  label={t.showAssets.importing(Math.round((importing?.progress ?? 0) * 100))}
+                />
+              </View>
+            ) : null}
+            {items.length === 0 && !busy ? (
+              <Text style={[typography.body, { color: c.textSecondary, paddingTop: space.sm }]}>
+                {t.showAssets.empty}
+              </Text>
+            ) : null}
+            {items.map((a, i) => (
+              <Row
+                key={a.id}
+                label={a.name}
+                sub={`${formatSmp(smp(a.duration_smp))} · ${a.default_gain_db} dB`}
+                last={i === items.length - 1}
+                right={
+                  <View style={st.rowRight}>
+                    <IconButton
+                      name={playingId === a.id ? 'stop' : 'play'}
+                      label={playingId === a.id ? t.showAssets.stop : t.showAssets.preview}
+                      selected={playingId === a.id}
+                      onPress={() => preview(a)}
+                    />
+                    <IconButton
+                      name={a.is_favorite ? 'starFilled' : 'star'}
+                      label={a.is_favorite ? t.showAssets.unfavorite : t.showAssets.favorite}
+                      color={a.is_favorite ? c.accentText : c.textSecondary}
+                      selected={!!a.is_favorite}
+                      onPress={() => void toggleFavorite(a)}
+                    />
+                    <IconButton
+                      name="more"
+                      label={t.showAssets.a11yMenu(a.name)}
+                      onPress={() => setMenu(a)}
                     />
                   </View>
-                </View>
-              ) : null}
-              {items.length === 0 && !busy ? (
-                <Text
-                  style={[typography.body, { color: c.textTertiary, paddingVertical: space.md }]}
-                >
-                  {t.showAssets.empty}
-                </Text>
-              ) : null}
-              {items.map((a) => (
-                <Row
-                  key={a.id}
-                  label={a.name}
-                  sub={`${formatSmp(smp(a.duration_smp))} · ${a.default_gain_db} dB`}
-                  right={
-                    <View style={st.rowRight}>
-                      <Pressable
-                        onPress={() => preview(a)}
-                        hitSlop={glyphSlop}
-                        accessibilityRole="button"
-                        accessibilityLabel={
-                          playingId === a.id ? t.showAssets.stop : t.showAssets.preview
-                        }
-                        style={[
-                          st.playBtn,
-                          {
-                            borderColor: c.border,
-                            backgroundColor: playingId === a.id ? c.accentSolid : 'transparent',
-                          },
-                        ]}
-                      >
-                        <Text
-                          style={{
-                            color: playingId === a.id ? c.accentOnSolid : c.textPrimary,
-                            fontSize: typography.caption.fontSize,
-                          }}
-                        >
-                          {playingId === a.id ? '■' : '▶'}
-                        </Text>
-                      </Pressable>
-                      <Pressable
-                        onPress={() => toggleFavorite(a)}
-                        hitSlop={glyphSlop}
-                        accessibilityRole="button"
-                        accessibilityLabel={
-                          a.is_favorite ? t.showAssets.unfavorite : t.showAssets.favorite
-                        }
-                      >
-                        <Text
-                          style={{
-                            color: a.is_favorite ? c.accentText : c.textTertiary,
-                            fontSize: icon.sm,
-                          }}
-                        >
-                          {a.is_favorite ? '★' : '☆'}
-                        </Text>
-                      </Pressable>
-                      <Pressable
-                        onPress={() => setMenu(a)}
-                        hitSlop={glyphSlop}
-                        accessibilityLabel={t.a11y.menu}
-                      >
-                        <Text style={{ color: c.textSecondary, fontSize: icon.sm }}>⋮</Text>
-                      </Pressable>
-                    </View>
-                  }
-                />
-              ))}
-            </Card>
-          </View>
+                }
+              />
+            ))}
+          </Card>
         );
       })}
 
@@ -253,10 +222,11 @@ export function AssetsSection({ onToast }: AssetsSectionProps) {
       >
         {menu ? (
           <>
-            <Row label={t.common.rename} onPress={() => startRename(menu)} />
-            <Row label={t.common.moveUp} onPress={() => move(menu, -1)} />
-            <Row label={t.common.moveDown} onPress={() => move(menu, 1)} />
+            <Row icon="edit" label={t.common.rename} onPress={() => startRename(menu)} />
+            <Row icon="up" label={t.common.moveUp} onPress={() => void move(menu, -1)} />
+            <Row icon="down" label={t.common.moveDown} onPress={() => void move(menu, 1)} />
             <Row
+              icon={menu.is_favorite ? 'star' : 'starFilled'}
               label={menu.is_favorite ? t.showAssets.unfavorite : t.showAssets.favorite}
               onPress={() => {
                 setMenu(null);
@@ -264,56 +234,36 @@ export function AssetsSection({ onToast }: AssetsSectionProps) {
               }}
             />
             <Row
+              icon="trash"
               label={t.common.delete}
               sub={t.showAssets.removeSub}
               danger
-              onPress={() => remove(menu)}
+              last
+              onPress={() => void remove(menu)}
             />
           </>
         ) : null}
       </Sheet>
 
       <Sheet visible={!!renaming} onClose={() => setRenaming(null)} title={t.common.rename}>
-        <TextInput
+        <Field
+          label={t.showAssets.a11yAssetName}
           value={renameText}
           onChangeText={setRenameText}
           autoFocus
-          accessibilityLabel={t.showAssets.a11yAssetName}
-          style={[
-            st.input,
-            { color: c.textPrimary, borderColor: c.border, backgroundColor: c.surfaceRaised },
-          ]}
-          onSubmitEditing={commitRename}
+          onSubmitEditing={() => void commitRename()}
           returnKeyType="done"
         />
-        <Button label={t.common.save} onPress={commitRename} style={{ marginTop: space.md }} />
+        <Button label={t.common.save} onPress={() => void commitRename()} />
       </Sheet>
     </>
   );
 }
 
 const st = StyleSheet.create({
-  lead: { ...typography.body, marginBottom: space.xs },
-  groupHead: { flexDirection: 'row', alignItems: 'flex-start' },
-  groupSub: { ...typography.caption, marginTop: -space.xs, marginBottom: space.sm },
-  rowRight: { flexDirection: 'row', alignItems: 'center', gap: space.md },
-  playBtn: {
-    width: hit.compact,
-    height: hit.compact,
-    borderRadius: radius.pill,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  lead: { ...typography.body, marginBottom: space.md },
+  group: { paddingBottom: space.sm },
+  groupHead: { flexDirection: 'row', alignItems: 'center', gap: space.md },
+  rowRight: { flexDirection: 'row', alignItems: 'center', marginRight: -space.md },
   progressWrap: { paddingVertical: space.md, gap: space.sm },
-  progressTrack: { height: space.xs, borderRadius: radius.xs, overflow: 'hidden' },
-  progressBar: { height: space.xs },
-  input: {
-    ...typography.body,
-    minHeight: hit.min,
-    borderWidth: 1,
-    borderRadius: radius.md,
-    paddingHorizontal: space.md,
-    paddingVertical: space.md,
-  },
 });

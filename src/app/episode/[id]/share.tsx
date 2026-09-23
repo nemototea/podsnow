@@ -1,65 +1,63 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as Sharing from 'expo-sharing';
 import { useCallback, useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { formatAllMetadata } from '@/domain/metadata/template';
-import { formatSmp, smp } from '@/domain/time';
+import { formatClock, smp } from '@/domain/time';
 import { useServices } from '@/features/app/ServicesProvider';
+import { formatBytes } from '@/features/episode/ExportTab';
 import { useCopy } from '@/features/episode/useCopy';
 import { useEpisode } from '@/features/episode/useEpisode';
 import { useT } from '@/i18n';
 import { listExports, type ExportRow } from '@/infra/db/repositories/exportsRepo';
+import { fileExists } from '@/infra/files/fileSystem';
 import { joinRoot } from '@/infra/files/layout';
-import { glyphSlop, icon, space, typography } from '@/ui/tokens';
-import { Button, Card, Eyebrow, Header, Loading, Screen, Toast } from '@/ui/components';
+import { radius, space, tabularNums, typography } from '@/ui/tokens';
+import { Button, Card, Header, Icon, Loading, Notice, Screen, Text, Toast } from '@/ui/components';
 import { useAppTheme } from '@/ui/ThemeContext';
 import { useToast } from '@/ui/useToast';
 
-function formatBytes(b: number): string {
-  const mb = b / 1048576;
-  return mb < 10 ? `${mb.toFixed(1)} MB` : `${Math.round(mb)} MB`;
+function formatWhen(ms: number): string {
+  const d = new Date(ms);
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
-function CopyRow({
+function CopyBlock({
   label,
   value,
-  active,
+  copied,
   onCopy,
 }: {
   label: string;
   value: string;
-  active: boolean;
+  copied: boolean;
   onCopy: () => void;
 }) {
   const c = useAppTheme();
   const t = useT();
   return (
-    <Card>
-      <View style={st.labelRow}>
-        <Eyebrow>{label}</Eyebrow>
-        <Pressable
+    <View style={[st.copyBlock, { borderBottomColor: c.border }]}>
+      <View style={st.copyHead}>
+        <Text style={[typography.label, { color: c.textSecondary, flex: 1 }]}>{label}</Text>
+        <Button
+          label={copied ? t.common.copied : t.common.copy}
+          icon={copied ? 'check' : 'copy'}
+          kind="secondary"
+          compact
+          disabled={!value}
+          accessibilityLabel={copied ? t.pack.a11yCopied(label) : t.pack.a11yCopy(label)}
           onPress={onCopy}
-          hitSlop={glyphSlop}
-          accessibilityRole="button"
-          accessibilityLabel={active ? t.pack.a11yCopied(label) : t.pack.a11yCopy(label)}
-        >
-          <Text style={[typography.label, { color: active ? c.successText : c.accentText }]}>
-            {active ? t.common.copied : t.common.copy}
-          </Text>
-        </Pressable>
+        />
       </View>
-      <Text style={{ color: c.textPrimary, lineHeight: 20 }} selectable>
+      <Text style={[typography.body, { color: value ? c.textPrimary : c.textTertiary }]} selectable>
         {value || t.common.empty}
       </Text>
-    </Card>
+    </View>
   );
 }
 
-/**
- * Distribution Pack（FR-EXP-6〜8）: 書き出しの終点を「配信管理画面へ貼れる状態」にする。
- * 音声ファイルの共有と、タイトル / 概要 / 全メタデータの個別コピー。
- */
 export default function DistributionPackScreen() {
   const { id, exportId } = useLocalSearchParams<{ id: string; exportId?: string }>();
   const episodeId = id ?? '';
@@ -71,12 +69,17 @@ export default function DistributionPackScreen() {
   const { copied, copy } = useCopy();
   const { toast, show: showToast, act, dismiss } = useToast();
   const [row, setRow] = useState<ExportRow | null | undefined>(undefined);
+  const [latestId, setLatestId] = useState<string | null>(null);
+  const [exists, setExists] = useState(true);
 
   const load = useCallback(async () => {
     const all = await listExports(db, episodeId);
     const done = all.filter((e) => e.status === 'done');
-    setRow((exportId ? done.find((e) => e.id === exportId) : done[0]) ?? null);
-  }, [db, episodeId, exportId]);
+    const r = (exportId ? done.find((e) => e.id === exportId) : done[0]) ?? null;
+    setLatestId(done[0]?.id ?? null);
+    setRow(r);
+    setExists(r?.path ? fileExists(joinRoot(root, r.path)) : false);
+  }, [db, episodeId, exportId, root]);
 
   useEffect(() => {
     let alive = true;
@@ -91,7 +94,7 @@ export default function DistributionPackScreen() {
   if (!episode || row === undefined) return <Loading label={t.common.loading} />;
 
   const fileName = `episode-${String(episode.episode_number).padStart(3, '0')}.${row?.format ?? 'm4a'}`;
-  const durationLabel = formatSmp(smp(row?.duration_smp ?? 0));
+  const durationLabel = formatClock(smp(row?.duration_smp ?? 0));
   const allMeta = formatAllMetadata({
     title: episode.title,
     episodeNumber: episode.episode_number,
@@ -105,6 +108,10 @@ export default function DistributionPackScreen() {
 
   const share = async () => {
     if (!row?.path) return;
+    if (!fileExists(joinRoot(root, row.path))) {
+      setExists(false);
+      return;
+    }
     if (!(await Sharing.isAvailableAsync())) {
       showToast({ text: t.common.shareUnavailable });
       return;
@@ -116,75 +123,111 @@ export default function DistributionPackScreen() {
     });
   };
 
+  const doCopy = (key: string, text: string) =>
+    void copy(key, text).catch(() => showToast({ text: t.pack.copyFailed }));
+
   return (
     <Screen overlay={<Toast toast={toast} onAction={act} onDismiss={dismiss} />}>
       <Header
         title={t.pack.title}
-        subtitle={`#${episode.episode_number} ${episode.title || t.episode.untitled}`}
+        subtitle={`${t.episode.number(episode.episode_number)} · ${episode.title || t.episode.untitled}`}
         onBack={() => router.back()}
       />
 
       {row ? (
-        <Card style={{ borderColor: c.accentBorder }}>
-          <View style={st.fileRow}>
-            <Text style={{ color: c.accentText, fontSize: icon.md }}>♪</Text>
-            <View style={{ flex: 1 }}>
-              <Text style={[typography.bodyStrong, { color: c.textPrimary }]}>{fileName}</Text>
-              <Text style={[typography.caption, { color: c.textSecondary, marginTop: space.hair }]}>
-                {formatBytes(row.bytes ?? 0)} · {durationLabel}
-                {row.measured_lufs != null ? ` · ${row.measured_lufs.toFixed(1)} LUFS` : ''}
-              </Text>
+        <>
+          <View style={st.hero}>
+            <View style={[st.done, { backgroundColor: c.successSubtle }]}>
+              <Icon name="check" color={c.successText} />
             </View>
+            <Text style={[typography.title, { color: c.textPrimary }]} accessibilityRole="header">
+              {t.pack.done}
+            </Text>
+            <Text style={[typography.body, { color: c.textSecondary }]}>{t.pack.lead}</Text>
           </View>
-          <Button
-            label={t.pack.shareFile}
-            onPress={() => void share()}
-            style={{ marginTop: space.md }}
-          />
-          <Text style={[typography.caption, { color: c.textTertiary, marginTop: space.sm }]}>
-            {t.pack.shareNote}
-          </Text>
-        </Card>
+
+          {row.id !== latestId ? (
+            <Notice
+              title={t.pack.olderExport(formatWhen(row.created_at), row.format.toUpperCase())}
+            />
+          ) : null}
+
+          <Card>
+            <View style={st.file}>
+              <View style={[st.badge, { backgroundColor: c.accentSolid }]}>
+                <Text style={[typography.mono, tabularNums, { color: c.accentOnSolid }]}>
+                  {String(episode.episode_number).padStart(3, '0')}.
+                </Text>
+              </View>
+              <View style={st.flex}>
+                <Text style={[typography.bodyStrong, { color: c.textPrimary }]}>{fileName}</Text>
+                <Text style={[typography.mono, tabularNums, { color: c.textSecondary }]}>
+                  {durationLabel} · {formatBytes(row.bytes ?? 0)}
+                  {row.measured_lufs != null ? ` · ${row.measured_lufs.toFixed(1)} LUFS` : ''}
+                </Text>
+              </View>
+            </View>
+            {exists ? (
+              <Button label={t.pack.shareFile} icon="share" onPress={() => void share()} />
+            ) : (
+              <Notice
+                kind="error"
+                title={t.pack.missingFile}
+                body={t.pack.missingFileBody}
+                action={
+                  <Button
+                    label={t.pack.exportAgain}
+                    kind="secondary"
+                    compact
+                    onPress={() => router.back()}
+                  />
+                }
+              />
+            )}
+            <Text style={[typography.caption, { color: c.textSecondary, marginTop: space.md }]}>
+              {t.pack.notPublished}
+            </Text>
+          </Card>
+        </>
       ) : (
-        <Card>
-          <Text style={{ color: c.textPrimary }}>{t.pack.noExport}</Text>
-          <Button
-            label={t.pack.toExport}
-            kind="secondary"
-            style={{ marginTop: space.md }}
-            onPress={() => router.push(`/episode/${episodeId}` as never)}
-          />
-        </Card>
+        <Notice
+          kind="info"
+          title={t.pack.noExport}
+          action={
+            <Button
+              label={t.pack.toExport}
+              kind="secondary"
+              compact
+              onPress={() => router.back()}
+            />
+          }
+        />
       )}
 
-      <CopyRow
-        label={t.pack.titleEyebrow}
-        value={episode.title}
-        active={copied === 'title'}
-        onCopy={() => void copy('title', episode.title)}
-      />
-      <CopyRow
-        label={t.pack.descriptionEyebrow}
-        value={episode.description}
-        active={copied === 'desc'}
-        onCopy={() => void copy('desc', episode.description)}
-      />
-      <CopyRow
-        label={t.pack.allMetadataEyebrow}
-        value={allMeta}
-        active={copied === 'meta'}
-        onCopy={() => void copy('meta', allMeta)}
-      />
+      <Card>
+        <CopyBlock
+          label={t.pack.titleEyebrow}
+          value={episode.title}
+          copied={copied === 'title'}
+          onCopy={() => doCopy('title', episode.title)}
+        />
+        <CopyBlock
+          label={t.pack.descriptionEyebrow}
+          value={episode.description}
+          copied={copied === 'desc'}
+          onCopy={() => doCopy('desc', episode.description)}
+        />
+        <CopyBlock
+          label={t.pack.allMetadataEyebrow}
+          value={allMeta}
+          copied={copied === 'meta'}
+          onCopy={() => doCopy('meta', allMeta)}
+        />
+      </Card>
 
       <Button
-        label={copied === 'all' ? t.common.copied : t.pack.copyAllMetadata}
-        kind="secondary"
-        onPress={() => void copy('all', allMeta)}
-      />
-      <Button
         label={t.pack.backHome}
-        kind="ghost"
-        style={{ marginTop: space.md }}
+        kind="secondary"
         onPress={() => router.dismissTo('/' as never)}
       />
     </Screen>
@@ -192,11 +235,28 @@ export default function DistributionPackScreen() {
 }
 
 const st = StyleSheet.create({
-  labelRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    justifyContent: 'space-between',
-    marginBottom: space.xs,
+  flex: { flex: 1 },
+  hero: { gap: space.sm, marginTop: space.lg, marginBottom: space.xl },
+  done: {
+    width: space.section,
+    height: space.section,
+    borderRadius: radius.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: space.sm,
   },
-  fileRow: { flexDirection: 'row', alignItems: 'center', gap: space.md },
+  file: { flexDirection: 'row', alignItems: 'center', gap: space.md, marginBottom: space.lg },
+  badge: {
+    width: space.section + space.sm,
+    height: space.section + space.sm,
+    borderRadius: radius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  copyBlock: {
+    gap: space.sm,
+    paddingVertical: space.md,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  copyHead: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
 });

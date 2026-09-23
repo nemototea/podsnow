@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 """
-アプリアイコン・スプラッシュ・favicon とブランドマークの SVG を生成する（Issue #82）。
+アプリアイコン・スプラッシュ・favicon・ロゴの SVG と、アプリ内ロゴのデータを生成する
+（DESIGN_SYSTEM.md §3、Issue #94）。
 
     python3 scripts/brand/generate.py
 
-図形の定義は `geometry.py` ひとつだけ。SVG も PNG もそこから作るのでずれない。
-Python 標準ライブラリしか使わないので、追加の依存やデザインツールは要らない。
+図形の定義は `geometry.py`（字形は `glyphs.py`）だけ。Python 標準ライブラリしか使わない。
 """
 
+import json
 import os
 import sys
 
@@ -19,103 +20,118 @@ import render as r  # noqa: E402
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 IMAGES = os.path.join(ROOT, 'assets', 'images')
 BRAND = os.path.join(ROOT, 'assets', 'brand')
+APP_WORDMARK = os.path.join(ROOT, 'src', 'ui', 'brand', 'wordmark.ts')
+APP_JSON = os.path.join(ROOT, 'app.json')
 
-# Android のアダプティブアイコンで見えることが保証される半径（前景の中央 66%）
+# Android のアダプティブアイコンで見えることが保証される半径（前景 108dp の中央 66dp 相当）。
 ADAPTIVE_SAFE_RADIUS = g.CANVAS * 0.66 / 2
 
 
-def svg(base_color: str, accent_color: str, background: str | None, scale: float = 1.0) -> str:
-    """同じ幾何定義から SVG を書き出す（デザイン作業の受け渡し用）。"""
-    parts = [
-        f'<svg xmlns="http://www.w3.org/2000/svg" width="{g.CANVAS}" height="{g.CANVAS}" '
-        f'viewBox="0 0 {g.CANVAS} {g.CANVAS}">',
-        '  <!-- scripts/brand/generate.py が生成。直接編集せず geometry.py を直すこと。 -->',
-    ]
-    if background:
-        parts.append(f'  <rect width="{g.CANVAS}" height="{g.CANVAS}" fill="{background}"/>')
-    for s in g.shapes(scale):
-        fill = accent_color if s.get('accent') else base_color
-        if s['kind'] == 'capsule':
-            x = s['x0'] - s['r']
-            y = s['y0'] - s['r']
-            w = s['r'] * 2
-            h = (s['y1'] - s['y0']) + s['r'] * 2
-            parts.append(
-                f'  <rect x="{x:.1f}" y="{y:.1f}" width="{w:.1f}" height="{h:.1f}" '
-                f'rx="{s["r"]:.1f}" fill="{fill}"/>'
-            )
-        elif s['kind'] == 'arc_bottom':
-            cx, cy, rad = s['cx'], s['cy'], s['r']
-            # y 下向きなので sweep-flag=0 が下半分
-            parts.append(
-                f'  <path d="M {cx - rad:.1f} {cy:.1f} '
-                f'A {rad:.1f} {rad:.1f} 0 0 0 {cx + rad:.1f} {cy:.1f}" '
-                f'fill="none" stroke="{fill}" stroke-width="{s["w"]:.1f}" stroke-linecap="butt"/>'
-            )
-        else:
-            w = s['x1'] - s['x0']
-            h = s['y1'] - s['y0']
-            rx = f' rx="{s["r"]:.1f}"' if s['r'] else ''
-            parts.append(
-                f'  <rect x="{s["x0"]:.1f}" y="{s["y0"]:.1f}" width="{w:.1f}" '
-                f'height="{h:.1f}"{rx} fill="{fill}"/>'
-            )
-    parts.append('</svg>')
-    return '\n'.join(parts) + '\n'
+def split(lines):
+    """字と点を別の層にする（色が違うため）。"""
+    ink = [{'contours': ln['contours'], 'dot': None} for ln in lines]
+    dots = [{'contours': [], 'dot': ln['dot']} for ln in lines if ln['dot']]
+    return ink, dots
 
 
-# アダプティブアイコン（Android）はマスクされるので等倍のまま安全域に収める。
-# マスクの無い iOS アイコン・スプラッシュ・favicon は拡大して余白を詰める。
-ADAPTIVE_SCALE = 1.0
-FULL_SCALE = 1.28
-SPLASH_SCALE = 1.6
+def png(name, lines, size, ink, dot, background, scale_from=g.CANVAS, height=None):
+    w = size
+    h = height or size
+    k = w / scale_from
+    a, b = split(lines)
+    rows = r.compose([(r.polygons(a, k), ink), (r.polygons(b, k), dot)], w, h, background)
+    path = os.path.join(IMAGES, name)
+    r.write_png(path, rows, w, h, background is None)
+    print('書き出し', os.path.relpath(path, ROOT), f'({w}x{h})')
+
+
+def write(path: str, text: str) -> None:
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, 'w', encoding='utf-8') as f:
+        f.write(text)
+    print('書き出し', os.path.relpath(path, ROOT))
+
+
+def app_wordmark() -> str:
+    lines = [g.wordmark(*g.WORDMARK_LINE)]
+    x, y, size, rad = lines[0]['dot']
+    data = {
+        'width': g.WORDMARK_W,
+        'height': g.WORDMARK_H,
+        'd': r.path_d(lines),
+        'dot': {'x': round(x, 2), 'y': round(y, 2), 'size': round(size, 2), 'r': round(rad, 2)},
+    }
+    return (
+        '// scripts/brand/generate.py が生成。直接編集せず scripts/brand/geometry.py を直すこと。\n'
+        f'export const wordmark = {json.dumps(data, ensure_ascii=False)} as const;\n'
+    )
+
+
+def check_app_json() -> list[str]:
+    with open(APP_JSON, encoding='utf-8') as f:
+        cfg = json.load(f)['expo']
+    want = {
+        'android.adaptiveIcon.backgroundColor': (cfg['android']['adaptiveIcon']['backgroundColor'], g.ICON_BG),
+        'splash.backgroundColor': (cfg['splash']['backgroundColor'], g.BG),
+    }
+    for p in cfg.get('plugins', []):
+        if isinstance(p, list) and p[0] == 'expo-splash-screen':
+            want['expo-splash-screen.backgroundColor'] = (p[1]['backgroundColor'], g.BG)
+    return [f'app.json {k} = {got}（期待 {exp}）' for k, (got, exp) in want.items() if got.upper() != exp.upper()]
 
 
 def main() -> int:
-    safe = g.safe_radius(ADAPTIVE_SCALE)
-    print(f'中心からの最大描画半径: {safe:.0f}px (アダプティブ安全域 {ADAPTIVE_SAFE_RADIUS:.0f}px)')
-    if safe > ADAPTIVE_SAFE_RADIUS:
-        print('  ! 前景がアダプティブアイコンのマスクで欠ける。geometry.py を縮めること。')
+    adaptive = g.two_lines(g.ADAPTIVE_LINES)
+    rad = g.max_radius(adaptive)
+    print(f'前景の最大描画半径: {rad:.0f}px（アダプティブ安全域 {ADAPTIVE_SAFE_RADIUS:.0f}px）')
+    if rad > ADAPTIVE_SAFE_RADIUS:
+        print('  ! 前景がアダプティブアイコンのマスクで欠ける。ADAPTIVE_LINES を縮めること。')
         return 1
-    for name, sc in (('フル', FULL_SCALE), ('スプラッシュ', SPLASH_SCALE)):
-        rad = g.safe_radius(sc)
-        print(f'{name}の最大描画半径: {rad:.0f}px (キャンバス半径 {g.CANVAS / 2:.0f}px)')
-        if rad > g.CANVAS / 2:
-            print('  ! キャンバスからはみ出す。倍率を下げること。')
+    for name, spec in (('iOS', g.ICON_LINES), ('小サイズ', g.SMALL_LINES)):
+        x0, y0, x1, y1 = g.extent(g.two_lines(spec))
+        if x0 < 0 or y0 < 0 or x1 > g.CANVAS or y1 > g.CANVAS:
+            print(f'  ! {name}のアイコンがキャンバスからはみ出す')
             return 1
+    bad = check_app_json()
+    if bad:
+        for m in bad:
+            print('  !', m)
+        print('app.json の色をトークンに合わせること。')
+        return 1
 
-    os.makedirs(BRAND, exist_ok=True)
+    icon = g.two_lines(g.ICON_LINES)
+    small = g.two_lines(g.SMALL_LINES)
+    mark = [g.wordmark(*g.WORDMARK_LINE)]
+    splash = [g.wordmark(*g.SPLASH_LINE)]
 
-    # --- SVG（ブランドマークの原本） ---
-    for name, base, accent, bg, sc in [
-        ('mark-dark.svg', g.GOLD, g.MINT, g.BG, FULL_SCALE),
-        ('mark-transparent.svg', g.GOLD, g.MINT, None, ADAPTIVE_SCALE),
-        ('mark-monochrome.svg', g.INK, g.INK, None, ADAPTIVE_SCALE),
-    ]:
-        with open(os.path.join(BRAND, name), 'w') as f:
-            f.write(svg(base, accent, bg, sc))
-        print('書き出し', os.path.relpath(os.path.join(BRAND, name), ROOT))
+    W, H = g.WORDMARK_W, g.WORDMARK_H
+    write(os.path.join(BRAND, 'wordmark-dark.svg'), r.svg(W, H, [(mark, g.INK, g.DOT)]))
+    write(
+        os.path.join(BRAND, 'wordmark-light.svg'),
+        r.svg(W, H, [(mark, g.LIGHT_INK, g.LIGHT_DOT)]),
+    )
+    write(os.path.join(BRAND, 'wordmark-mono.svg'), r.svg(W, H, [(mark, g.MONO, g.MONO)]))
+    C = g.CANVAS
+    write(os.path.join(BRAND, 'app-icon.svg'), r.svg(C, C, [(icon, g.ICON_INK, g.ICON_INK)], g.ICON_BG))
+    write(os.path.join(BRAND, 'icon-small.svg'), r.svg(C, C, [(small, g.ICON_INK, g.ICON_INK)], g.ICON_BG))
+    write(
+        os.path.join(BRAND, 'android-foreground.svg'),
+        r.svg(C, C, [(adaptive, g.ICON_INK, g.ICON_INK)]),
+    )
+    write(
+        os.path.join(BRAND, 'android-monochrome.svg'),
+        r.svg(C, C, [(adaptive, g.MONO, g.MONO)]),
+    )
+    write(APP_WORDMARK, app_wordmark())
 
-    # --- PNG ---
-    # (ファイル名, サイズ, 基本色, アクセント色, 背景, アルファ, 倍率)
-    targets = [
-        # iOS のアプリアイコンはアルファを持てないので不透明 RGB
-        ('icon.png', 1024, g.GOLD, g.MINT, g.BG, False, FULL_SCALE),
-        # 前景はマスクされるので等倍（安全域いっぱい）
-        ('android-icon-foreground.png', 1024, g.GOLD, g.MINT, None, True, ADAPTIVE_SCALE),
-        ('android-icon-monochrome.png', 1024, g.INK, g.INK, None, True, ADAPTIVE_SCALE),
-        ('splash-icon.png', 400, g.GOLD, g.MINT, None, True, SPLASH_SCALE),
-        ('favicon.png', 48, g.GOLD, g.MINT, g.BG, False, SPLASH_SCALE),
-    ]
-    for name, size, base, accent, bg, alpha, sc in targets:
-        rows = r.render(g.shapes(sc), size, g.CANVAS, base, accent, bg)
-        path = os.path.join(IMAGES, name)
-        r.write_png(path, rows, size, alpha)
-        print('書き出し', os.path.relpath(path, ROOT), f'({size}x{size})')
+    png('icon.png', icon, 1024, g.ICON_INK, g.ICON_INK, g.ICON_BG)
+    png('android-icon-foreground.png', adaptive, 1024, g.ICON_INK, g.ICON_INK, None)
+    png('android-icon-monochrome.png', adaptive, 1024, g.MONO, g.MONO, None)
+    png('favicon.png', small, 48, g.ICON_INK, g.ICON_INK, g.ICON_BG)
+    png('splash-icon.png', splash, g.SPLASH_W, g.INK, g.DOT, None, g.SPLASH_W, g.SPLASH_H)
 
-    # Android の背景レイヤーは単色（app.json の adaptiveIcon.backgroundColor と同じ）
     path = os.path.join(IMAGES, 'android-icon-background.png')
-    r.write_png(path, r.solid(1024, g.BG), 1024, True)
+    r.write_png(path, r.solid(1024, 1024, g.ICON_BG), 1024, 1024, True)
     print('書き出し', os.path.relpath(path, ROOT), '(1024x1024, 単色)')
     return 0
 
