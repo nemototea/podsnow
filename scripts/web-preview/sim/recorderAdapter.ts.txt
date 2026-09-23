@@ -1,0 +1,86 @@
+import type { RecorderPort } from '@/services/recording/RecorderPort';
+
+type L = (e: any) => void;
+const listeners = new Map<string, Set<L>>();
+const emit = (ev: string, p: unknown) => listeners.get(ev)?.forEach((l) => l(p));
+const g = globalThis as any;
+g.__framesByPath = g.__framesByPath ?? new Map<string, number>();
+const params = new URLSearchParams(typeof location !== 'undefined' ? location.search : '');
+const SPEED = Number(params.get('speed') ?? '1');
+
+export function createNativeRecorder(): RecorderPort {
+  let state: any = 'idle';
+  let frames = 0;
+  let path = '';
+  let timer: any = null;
+  let t = 0;
+  const tick = () => {
+    if (state !== 'recording') return;
+    frames += 4800 * SPEED;
+    t += 1;
+    const peak = -30 + 18 * Math.abs(Math.sin(t / 3)) + (t % 7 === 0 ? 8 : 0);
+    emit('onLevel', { peakDb: Math.min(-2, peak), rmsDb: peak - 8, frames, clipped: false });
+  };
+  const result = () => ({ path, frames, bytes: 44 + frames * 2, sampleRate: 48000, channels: 1 });
+  g.__sim = {
+    interrupt: () => {
+      const r = result();
+      state = 'interrupted';
+      g.__framesByPath.set(path, frames);
+      emit('onSegmentClosed', { ...r, reason: 'interruption' });
+      emit('onInterruption', { type: 'began', shouldResume: false });
+    },
+  };
+  return {
+    requestPermissions: async () => ({ microphone: 'granted', notifications: 'granted' }),
+    getPermissions: async () => ({
+      microphone: (params.get('perm') as any) ?? 'granted',
+      notifications: 'granted',
+    }),
+    prepare: async () => {
+      state = 'prepared';
+    },
+    start: async (p) => {
+      path = p;
+      frames = 0;
+      state = 'recording';
+      (globalThis as any).__memfs.set(p.replace(/^file:\/\//, ''), new Uint8Array(44));
+      clearInterval(timer);
+      timer = setInterval(tick, 100);
+    },
+    pause: async () => {
+      state = 'paused';
+    },
+    resume: async () => {
+      state = 'recording';
+    },
+    stop: async () => {
+      clearInterval(timer);
+      const r = result();
+      g.__framesByPath.set(path, frames);
+      state = 'prepared';
+      emit('onSegmentClosed', { ...r, reason: 'stop' });
+      return r;
+    },
+    release: async () => {
+      state = 'idle';
+    },
+    getState: () => state,
+    getFrames: () => frames,
+    getInputs: async () => [{ uid: 'builtin', name: '内蔵マイク', type: 'builtin', lowQuality: false }],
+    setInput: async () => {},
+    getCurrentInput: async () =>
+      params.get('bt')
+        ? { uid: 'bt', name: 'AirPods Pro', type: 'bluetooth', lowQuality: true }
+        : { uid: 'builtin', name: '内蔵マイク', type: 'builtin', lowQuality: false },
+    isSpeakerOutput: async () => true,
+    repairWavHeader: async (p) => ({ path: p, frames: 0, bytes: 44, sampleRate: 48000, channels: 1 }),
+    getAvailableDiskBytes: async () => 12 * 1024 ** 3,
+    on: (event, listener) => {
+      const set = listeners.get(event) ?? new Set();
+      set.add(listener as L);
+      listeners.set(event, set);
+      return { remove: () => set.delete(listener as L) };
+    },
+  };
+}
