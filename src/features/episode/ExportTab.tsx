@@ -27,6 +27,7 @@ import {
   Text,
   Toggle,
 } from '@/ui/components';
+import { DateField } from '@/ui/DateField';
 import { useAppTheme } from '@/ui/ThemeContext';
 
 import type { Workspace } from './useWorkspace';
@@ -116,7 +117,7 @@ export interface ExportTabProps {
 export function ExportTab({ ws, onShowToast, onDone, onGoEdit }: ExportTabProps) {
   const c = useAppTheme();
   const t = useT();
-  const { db, root, show, episodes, exporter, settings } = useServices();
+  const { db, root, show, episodes, exporter, settings, haptics } = useServices();
   const { state } = ws;
   const episode = state.episode;
 
@@ -192,6 +193,7 @@ export function ExportTab({ ws, onShowToast, onDone, onGoEdit }: ExportTabProps)
       exporter.on('done', (e) => {
         setJob((j) => (j && j.exportId === e.exportId ? null : j));
         void reloadHistory();
+        haptics.play('success');
         onDone(e.exportId);
       }),
       exporter.on('failed', (e) => {
@@ -202,7 +204,7 @@ export function ExportTab({ ws, onShowToast, onDone, onGoEdit }: ExportTabProps)
       }),
     ];
     return () => subs.forEach((s) => s.remove());
-  }, [exporter, onDone, onShowToast, reloadHistory, t]);
+  }, [exporter, haptics, onDone, onShowToast, reloadHistory, t]);
 
   const mark =
     <T,>(setter: (v: T) => void) =>
@@ -542,11 +544,10 @@ export function ExportTab({ ws, onShowToast, onDone, onGoEdit }: ExportTabProps)
             }}
           />
         ) : null}
-        <Field
+        <DateField
           label={t.details.recordedEyebrow}
           value={recordedAt}
-          onChangeText={mark(setRecordedAt)}
-          placeholder="YYYY-MM-DD"
+          onChange={mark(setRecordedAt)}
           help={t.details.dateHelp}
         />
         <Button

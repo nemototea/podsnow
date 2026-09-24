@@ -12,6 +12,7 @@ import {
   resetTmpDir,
 } from '@/infra/files/fileSystem';
 import { createNativeAudioEngine } from '@/infra/native/audioEngineAdapter';
+import { createNativeHaptics } from '@/infra/native/hapticsAdapter';
 import { createNativeRecorder } from '@/infra/native/recorderAdapter';
 
 import { AssetsService } from '../assets/AssetsService';
@@ -20,6 +21,8 @@ import { PlaybackService } from '../audio/PlaybackService';
 import { EditingService } from '../editing/EditingService';
 import { EpisodeService } from '../episodes/EpisodeService';
 import { ExportService } from '../export/ExportService';
+import type { HapticsPort } from '../feedback/HapticsPort';
+import { HapticsService } from '../feedback/HapticsService';
 import { OutlineService } from '../outline/OutlineService';
 import type { RecorderPort } from '../recording/RecorderPort';
 import { RecordingSession } from '../recording/RecordingSession';
@@ -41,6 +44,8 @@ export interface AppServices {
   episodes: EpisodeService;
   assets: AssetsService;
   outline: OutlineService;
+  /** 設定の「ハプティクス」に従う触覚（DESIGN_SYSTEM.md §6.2）。 */
+  haptics: HapticsService;
   openEditing: (episodeId: string) => Promise<EditingService>;
   updateSettings: <K extends keyof AppSettings>(key: K, value: AppSettings[K]) => Promise<void>;
   /**
@@ -61,7 +66,7 @@ export interface AppServices {
 export async function bootstrap(
   /** 初回起動時に DB へ書き込む既定文言。UI 層が i18n から渡す（Issue #80）。 */
   labels: ServiceLabels,
-  overrides: { recorder?: RecorderPort; engine?: AudioEnginePort } = {},
+  overrides: { recorder?: RecorderPort; engine?: AudioEnginePort; haptics?: HapticsPort } = {},
 ): Promise<AppServices> {
   const db = await openAppDatabase();
   const root = dataRoot();
@@ -111,6 +116,10 @@ export async function bootstrap(
   });
   const assets = new AssetsService({ db, engine, root, ensureDir, newId, now });
   const outline = new OutlineService({ db, newId, now });
+  const haptics = new HapticsService({
+    port: overrides.haptics ?? createNativeHaptics(),
+    enabled: () => liveSettings.settings.haptics,
+  });
 
   const services: AppServices = {
     db,
@@ -125,6 +134,7 @@ export async function bootstrap(
     episodes,
     assets,
     outline,
+    haptics,
     openEditing: (episodeId) => EditingService.open({ db, newId, now }, episodeId),
     updateSettings: async (key, value) => {
       await saveSetting(db, key, value);
