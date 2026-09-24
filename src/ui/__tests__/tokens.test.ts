@@ -90,6 +90,12 @@ describe.each(THEMES)('%s テーマの色', (theme) => {
     expect(contrast(c.recOnSolid, c.recSolid)).toBeGreaterThanOrEqual(4.5);
   });
 
+  it('ブランドの点は表示先の背景と白い面から 3:1 以上で見分けられる', () => {
+    for (const surface of ['bg', 'surface'] as const) {
+      expect(contrast(c.brandAccent, c[surface])).toBeGreaterThanOrEqual(3);
+    }
+  });
+
   it('主操作の塗りは、背景か輪郭のどちらかで形が 3:1 以上に分かる', () => {
     const byFill = contrast(c.accentSolid, c.bg) >= 3;
     const byOutline =
@@ -239,5 +245,14 @@ describe('書体', () => {
     );
     expect(steps).toEqual([...steps].sort((a, b) => b - a));
     expect(new Set(steps).size).toBe(steps.length);
+  });
+});
+
+describe('ライトのボタン', () => {
+  it('濃い輪郭は背景・塗り・押下中の塗りから見分けられる', () => {
+    const c = colors.light;
+    for (const surface of [...TEXT_SURFACES, 'accentSolid', 'accentSolidPressed'] as const) {
+      expect(contrast(c.controlBorder, c[surface])).toBeGreaterThanOrEqual(3);
+    }
   });
 });

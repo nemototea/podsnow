@@ -45,6 +45,12 @@ PodsNow は「スマートフォンの小さな DAW」ではなく、ポッド�
 
 ## 2. アートディレクション【仮説】
 
+【事実】Issue #105: ライトは温かい白とグラファイトの輪郭、シトロンの主操作を使う。
+主操作・副操作ボタンに短いぼかし無しの影を付け、ネオブルータリズムの押せる形を取り入れる。
+ダークは従来の配色を維持し、太い白枠や硬い影は追加しない。両テーマのボタンは同じ角丸・寸法と押し込み動作を持つ。
+リストの全面カード化、傾いたカード、多色の装飾は行わない。
+
+
 **グラファイトの面、明るい文字、ひとつのシトロン。**
 
 毎日触る精度の高いスタジオ機材をイメージする。説明のつかない発光、ガラス、粒子、宇宙、
@@ -100,13 +106,13 @@ PodsNow は「スマートフォンの小さな DAW」ではなく、ポッド�
 
 ### 3.2 色・余白【事実】
 
-- 横組み: 文字 `textPrimary`、点 `accentText`（ダークはシトロン、ライトは濃いオリーブ）。
+- 横組み: 文字 `textPrimary`、点 `brandAccent`（ダークは従来のシトロン、ライトは白地に 3:1 以上を持つ鮮やかなライム）。
 - アイコン: 背景 `accentSolid`、文字と点 `accentOnSolid`。単色版は黒。
 - アイコンに独自の角丸を焼き込まない（OS がマスクする）。Android 前景は中央 66% の安全域に収める。
 - Home には 1 回だけロゴを出す。エピソード画面の上部はエピソード名に使う。
 
 【事実】スプラッシュはアプリ内のテーマ設定とは独立して、OS のライト／ダーク設定に従う。
-ライトは `bg`・`textPrimary`・`accentText` のライト用、ダークはダーク用を使用する。
+ライトは `bg`・`textPrimary`・`brandAccent` のライト用、ダークはダーク用を使用する。
 【確認済み】Expo の `expo-splash-screen` プラグインの通常設定と `dark` 設定で出し分ける。
 変更の反映にはネイティブ再ビルドが必要。実機のリリースビルドでの表示は未検証。
 出典: https://docs.expo.dev/versions/v57.0.0/sdk/splash-screen/
@@ -119,7 +125,7 @@ python3 scripts/brand/extract_glyphs.py path/to/Manrope[wght].ttf   # 字形を�
 ```
 
 - 図形の正は `scripts/brand/geometry.py`（字間・点・配置）と `scripts/brand/glyphs.py`（Manrope 800 の輪郭。生成物）。
-- 色はトークンの生成元 `ramps.py` をそのまま読む。`app.json` の背景色（スプラッシュはライト `#F1F3EF` / ダーク `#111416`、
+- 色はトークンの生成元 `ramps.py` をそのまま読む。`app.json` の背景色（スプラッシュはライト `#F7F6F3` / ダーク `#111416`、
   アダプティブ背景 `#D8F36A`）がトークンとずれていれば `generate.py` が失敗する。
 - 受け渡しパッケージの `build_brand.py` と同じ字間・配置を再現しており、SVG の差分は描画して 0.1% 未満
   （`docs/design-refresh/README.md` §5）。受け渡しパッケージの生成元はリポジトリに置かない（生成元を 2 つにしない）。
@@ -179,24 +185,26 @@ python3 scripts/brand/extract_glyphs.py path/to/Manrope[wght].ttf   # 字形を�
 
 | 役割 | Dark | Light | 用途 |
 |---|---|---|---|
-| `bg` | `#111416` | `#F1F3EF` | キャンバス |
+| `bg` | `#111416` | `#F7F6F3` | キャンバス |
 | `surface` | `#1B2023` | `#FFFFFF` | カード、波形パネル |
-| `surfaceRaised` | `#252B2F` | `#E7ECE5` | シート、通知、無効ボタン |
-| `surfaceHover` | `#30373B` | `#DFE5DC` | 押下、選択セグメント |
-| `textPrimary` | `#F1F3EF` | `#18201C` | 本文、見出し |
-| `textSecondary` | `#BEC7CB` | `#404D44` | 補助情報 |
-| `textTertiary` | `#A6B1B7` | `#4D5B50` | 目盛り、低優先情報 |
-| `textDisabled` | `#8B979D` | `#687568` | 無効状態の文字・アイコン |
-| `border` | `#3D454A` | `#C4CDC5` | 装飾の区切り |
-| `borderStrong` | `#849096` | `#717B71` | 入力欄、操作の輪郭 |
+| `surfaceRaised` | `#252B2F` | `#ECEBE8` | シート、通知、無効ボタン |
+| `surfaceHover` | `#30373B` | `#E3E2DF` | 押下、選択セグメント |
+| `textPrimary` | `#F1F3EF` | `#202221` | 本文、見出し |
+| `textSecondary` | `#BEC7CB` | `#474948` | 補助情報 |
+| `textTertiary` | `#A6B1B7` | `#555756` | 目盛り、低優先情報 |
+| `textDisabled` | `#8B979D` | `#6F7170` | 無効状態の文字・アイコン |
+| `border` | `#3D454A` | `#C1C1BE` | 装飾の区切り |
+| `borderStrong` | `#849096` | `#505351` | 入力欄、操作の輪郭 |
 | `accentSolid` | `#D8F36A` | `#D8F36A` | 主操作の塗り |
 | `accentOnSolid` | `#172007` | `#172007` | シトロン上の文字 |
-| `accentText` | `#D8F36A` | `#3D500C` | 選択された文字、ロゴの点 |
-| `accentBorder` | `#BBD44F` | `#5B721F` | 選択の輪郭、ライトの主操作の輪郭 |
-| `focusRing` | `#D8F36A` | `#4A6212` | 入力中の輪郭 |
+| `accentText` | `#D8F36A` | `#3D4F0A` | 選択された文字（ロゴの点は専用の `brandAccent`） |
+| `accentBorder` | `#BBD44F` | `#5A711E` | 選択・トグル・再生ヘッドの輪郭 |
+| `focusRing` | `#D8F36A` | `#4A6110` | 入力中の輪郭 |
+| `brandAccent` | `#D8F36A` | `#819500` | ロゴの点（本文には使わない） |
+| `controlBorder` | `#849096` | `#202221` | ライトの主・副ボタンの輪郭と硬い影 |
 
-ライトではシトロンの塗りが白地に 3:1 を持てないので、主操作・トグル・再生ヘッド・選択のハンドルは
-`accentBorder` の輪郭（または線色）で形を示す。塗りの色だけを反転する実装をしない。
+ライトではシトロンの塗りが白地に 3:1 を持てないので、主操作ボタンは `controlBorder`、
+トグル・再生ヘッド・選択のハンドルは `accentBorder` の輪郭（または線色）で形を示す。塗りの色だけを反転する実装をしない。
 
 ### 5.2 情報に使う色【事実】
 
@@ -223,7 +231,7 @@ python3 scripts/brand/extract_glyphs.py path/to/Manrope[wght].ttf   # 字形を�
 - **面と塗り**は OKLCh（明度・彩度・色相）を決め打ちする。設計の hex をそのまま再現する値。
 - **文字と境界**は彩度と色相だけを決め、明度を**目標コントラスト比から逆算**する。目標比は設計値が
   実際に持っていた比（小数第 2 位で切り捨て）。面を動かせば文字が追従し、読めない組み合わせが残らない。
-- `generate.py` は書き出す前に 246 組を測り、ひとつでも落ちたら何も書かない。`src/ui/__tests__/tokens.test.ts`
+- `generate.py` は書き出す前に 256 組を測り、ひとつでも落ちたら何も書かない。`src/ui/__tests__/tokens.test.ts`
   が生成物を測り直す（生成を忘れて `colors.ts` を手で直したときに CI で落とす）。
 
 基準【確認済み】:
@@ -237,6 +245,8 @@ python3 scripts/brand/extract_glyphs.py path/to/Manrope[wght].ttf   # 字形を�
 これは配色の部分検証で、アプリ全体の WCAG 適合を宣言するものではない。
 
 ### 5.4 設計値との差【事実】
+
+【事実】以下は #94 統合時の記録。#105 でライトのニュートラル色と、それに追従する文字色は更新した。
 
 逆算の二分探索の丸めで、次の 6 値が設計（`tokens.json`）と sRGB の 1 段だけ違う。見た目の差は無く、
 いずれも目標比を満たす。設計値に揃えるために逆算をやめることはしない。
@@ -262,6 +272,15 @@ python3 scripts/brand/extract_glyphs.py path/to/Manrope[wght].ttf   # 字形を�
 
 ## 6. 空間・部品・動き【事実】
 
+Issue #105: 共通 Button の primary / secondary は押下時に 2px 下へ沈む（120ms）。
+ライトは 2px の `controlBorder`、白い副操作面、右 2px・下 3px の硬い影。
+影は押下時に右 0px・下 1px へ縮む。ダークは既存の境界色と影無しの面を維持する。
+無効・処理中は影と移動をなくし、「動きを減らす」では位置と影を固定して色だけで反応する。
+入力欄はライトの通常時も 2px。録音・破壊・ghost 操作やネイティブ部品には装飾を広げない。
+【確認済み】硬い影には React Native の boxShadow を使用する。Android 9 未満では影を省き、輪郭を維持する。
+出典: https://reactnative.dev/docs/0.86/view-style-props#boxshadow
+
+
 | 項目 | 規定 | トークン |
 |---|---|---|
 | 基本単位 | 4（`hair` 2 は例外） | `space` |
@@ -274,7 +293,7 @@ python3 scripts/brand/extract_glyphs.py path/to/Manrope[wght].ttf   # 字形を�
 | カード | 角丸 16、内側 20。一覧をすべて囲わない | `Card` |
 | シート | 上辺 24、閉じるボタン、下端 safe area | `Sheet` |
 | 線 | 区切り 1、選択 2、焦点 3 | `stroke` |
-| 押下 | 120ms 以内、0.96 の縮小。動きを減らす設定では縮小しない | `motion`、`pressScale` |
+| 押下 | Button は 120ms 以内の 2px 押し込み。他の操作は既存の縮小。動きを減らす設定では移動・縮小しない | `motion`、`buttonDepth`、`pressScale` |
 
 - 入れ子の角丸は外側 = 内側 + 余白（`concentric()`）。
 - アイコンは 24 基準・線幅 2 の単一セット（`src/ui/Icon.tsx`、react-native-svg）。`▶ ⚙ ⋮ ＋` などの

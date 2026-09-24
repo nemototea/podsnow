@@ -19,7 +19,14 @@ export function Wordmark({ width }: { width: number }) {
       accessibilityLabel={t.app.name}
     >
       <Path d={wordmark.d} fill={c.textPrimary} />
-      <Rect x={dot.x} y={dot.y} width={dot.size} height={dot.size} rx={dot.r} fill={c.accentText} />
+      <Rect
+        x={dot.x}
+        y={dot.y}
+        width={dot.size}
+        height={dot.size}
+        rx={dot.r}
+        fill={c.brandAccent}
+      />
     </Svg>
   );
 }

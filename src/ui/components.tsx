@@ -33,6 +33,7 @@ import { Icon, type IconName } from './Icon';
 import { Text, TextInput } from './Text';
 import { useAppTheme } from './ThemeContext';
 import {
+  buttonDepth,
   compactWidth,
   concentric,
   gutter,
@@ -258,12 +259,28 @@ export function Button({
   const c = useAppTheme();
   const reduced = useReducedMotion();
   const off = disabled || busy;
-  const scale = useSharedValue(1);
   const [pressed, setPressed] = useState(false);
-  const pressStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.get() }] }));
-  const press = (to: number) => {
-    if (!reduced) scale.set(withTiming(to, { duration: motion.instant }));
-  };
+  const tactile = kind === 'primary' || kind === 'secondary';
+  const depressed = pressed && !off && tactile && !reduced;
+  const pressStyle = useAnimatedStyle(() => ({
+    transform: [
+      {
+        scale:
+          reduced || off || tactile
+            ? 1
+            : withTiming(pressed ? pressScale : 1, { duration: motion.instant }),
+      },
+      {
+        translateY:
+          reduced || off
+            ? 0
+            : withTiming(depressed ? buttonDepth.travel : 0, { duration: motion.instant }),
+      },
+    ],
+  }));
+  // Android 7/8 では boxShadow が未対応。形は不透明な輪郭で伝える。
+  const hardShadow =
+    tactile && !off && !c.isDark && (Platform.OS !== 'android' || Number(Platform.Version) >= 28);
   const look = (pressed: boolean): { bg: string; border: string; fg: string } => {
     if (off) {
       return {
@@ -276,7 +293,7 @@ export function Button({
       case 'primary':
         return {
           bg: pressed ? c.accentSolidPressed : c.accentSolid,
-          border: c.isDark ? (pressed ? c.accentSolidPressed : c.accentSolid) : c.accentBorder,
+          border: c.isDark ? (pressed ? c.accentSolidPressed : c.accentSolid) : c.controlBorder,
           fg: c.accentOnSolid,
         };
       case 'danger':
@@ -287,8 +304,8 @@ export function Button({
         };
       case 'secondary':
         return {
-          bg: pressed ? c.surfaceHover : 'transparent',
-          border: c.borderStrong,
+          bg: pressed ? c.surfaceHover : c.isDark ? 'transparent' : c.surface,
+          border: c.isDark ? c.borderStrong : c.controlBorder,
           fg: c.textPrimary,
         };
       case 'ghost':
@@ -305,11 +322,9 @@ export function Button({
       onPress={onPress}
       onPressIn={() => {
         setPressed(true);
-        press(pressScale);
       }}
       onPressOut={() => {
         setPressed(false);
-        press(1);
       }}
       disabled={off}
       accessibilityRole="button"
@@ -318,7 +333,21 @@ export function Button({
       style={[
         s.button,
         compact ? s.buttonCompact : null,
-        { backgroundColor: l.bg, borderColor: l.border },
+        {
+          backgroundColor: l.bg,
+          borderColor: l.border,
+          borderWidth: tactile && !c.isDark ? stroke.selected : stroke.hairline,
+          boxShadow: hardShadow
+            ? [
+                {
+                  offsetX: depressed ? 0 : buttonDepth.offsetX,
+                  offsetY: depressed ? buttonDepth.pressedOffsetY : buttonDepth.offsetY,
+                  blurRadius: 0,
+                  color: c.controlBorder,
+                },
+              ]
+            : [],
+        },
         pressStyle,
         style,
       ]}
@@ -728,7 +757,7 @@ export function Field({
             color: c.textPrimary,
             backgroundColor: c.bg,
             borderColor: error ? c.dangerBorder : focused ? c.focusRing : c.borderStrong,
-            borderWidth: focused || error ? stroke.selected : stroke.hairline,
+            borderWidth: focused || error || !c.isDark ? stroke.selected : stroke.hairline,
           },
           inputStyle,
         ]}

@@ -46,6 +46,11 @@ def checks(t: dict[str, str], theme: str) -> list[tuple[str, str, float, str]]:
     for role in ('accent', 'danger', 'voice', 'music', 'insert', 'mistake'):
         for s in TEXT_SURFACES + (f'{role}Subtle',):
             out.append((f'{role}Border', s, 3.0, 'WCAG 1.4.11 輪郭'))
+    for s in ('bg', 'surface'):
+        out.append(('brandAccent', s, 3.0, 'ブランドの点の製品基準'))
+    if theme == 'light':
+        for s in TEXT_SURFACES + ('accentSolid', 'accentSolidPressed'):
+            out.append(('controlBorder', s, 3.0, 'ライトのボタンの輪郭'))
     out += [
         ('accentOnSolid', 'accentSolid', 4.5, '主操作のラベル'),
         ('accentOnSolid', 'accentSolidPressed', 4.5, '押下中も読める'),

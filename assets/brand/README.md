@@ -35,12 +35,12 @@
 
 | 用途 | 文字 | 点 | 背景 |
 |---|---|---|---|
-| 横組み（ダーク） | `textPrimary` | `accentText`（シトロン） | 透過（スプラッシュは `bg`） |
-| 横組み（ライト） | light `textPrimary` | light `accentText` | 透過（スプラッシュは light `bg`） |
+| 横組み（ダーク） | `textPrimary` | `brandAccent`（シトロン） | 透過（スプラッシュは `bg`） |
+| 横組み（ライト） | light `textPrimary` | light `brandAccent` | 透過（スプラッシュは light `bg`） |
 | アプリアイコン | `accentOnSolid` | `accentOnSolid` | `accentSolid` |
 | 単色 | 黒 | 黒 | 透過 |
 
-背景を変えたら `app.json`（スプラッシュはライト `#F1F3EF` / ダーク `#111416`、アダプティブ背景 `#D8F36A`）も合わせる。
+背景を変えたら `app.json`（スプラッシュはライト `#F7F6F3` / ダーク `#111416`、アダプティブ背景 `#D8F36A`）も合わせる。
 ずれていると `generate.py` が失敗する。
 
 ## ファイル
