@@ -67,7 +67,17 @@ python3 scripts/brand/generate.py
 ## 安全域
 
 Android のアダプティブアイコンは前景の**中央 66%（半径 338px / 1024px 中）**しか見える保証がない。
-`generate.py` は生成前にこれを検査し、はみ出していれば失敗する（現在の前景は最大 311px）。
+`generate.py` は生成前にこれを検査し、はみ出していれば失敗する（現在の前景は最大 300px）。
+
+アイコンの 2 段組は、`geometry.py` の `ICON_LINES` などで行の大きさと行間だけを決め、位置は
+`two_lines` が**実際の描画範囲の中心をキャンバス中心に合わせて**決める。`top` / `left` を手で
+合わせると、字形のサイドベアリングや行間の見込み違いで上下左右にずれる（Android のランチャーで
+上ずって見えた）。
+
+Android 12+ のスプラッシュ（SplashScreen API）は、画像を `imageWidth` dp の正方形に収めて 288dp の枠の
+中央に置き、**直径 192dp の円で切り抜く**。横長のロゴは四隅までこの円に入らないと左右が欠けるので、
+`app.json` の `expo-splash-screen` で `android.imageWidth` を 176 にしている（iOS は 240 のまま）。
+`generate.py` はロゴの最大半径が 90dp（192dp の円から余白 6dp）を超えると失敗する。
 
 ## 注意
 

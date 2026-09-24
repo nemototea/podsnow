@@ -26,6 +26,11 @@ APP_JSON = os.path.join(ROOT, 'app.json')
 # Android のアダプティブアイコンで見えることが保証される半径（前景 108dp の中央 66dp 相当）。
 ADAPTIVE_SAFE_RADIUS = g.CANVAS * 0.66 / 2
 
+# Android 12+ のスプラッシュ（SplashScreen API）。expo-splash-screen は画像を imageWidth（dp）の
+# 正方形に contain で収め、288dp の枠の中央に置く。背景なしのアイコンは直径 192dp の円で切り抜かれる。
+# 横長のロゴは幅だけでなく四隅がこの円に収まる必要がある。余白を 6dp 見込む。
+ANDROID_SPLASH_SAFE_RADIUS_DP = 192 / 2 - 6
+
 
 def split(lines):
     """字と点を別の層にする（色が違うため）。"""
@@ -67,6 +72,25 @@ def app_wordmark() -> str:
     )
 
 
+def splash_plugin() -> dict:
+    with open(APP_JSON, encoding='utf-8') as f:
+        cfg = json.load(f)['expo']
+    for p in cfg.get('plugins', []):
+        if isinstance(p, list) and p[0] == 'expo-splash-screen':
+            return p[1]
+    return {}
+
+
+def android_splash_radius_dp() -> tuple[float, float]:
+    """Android のスプラッシュで、ロゴの中心からいちばん遠い点までの距離（dp）と imageWidth。"""
+    opts = splash_plugin()
+    width = opts.get('android', {}).get('imageWidth', opts.get('imageWidth', 100))
+    splash = [g.wordmark(*g.SPLASH_LINE)]
+    rad = g.max_radius(splash, g.SPLASH_W / 2, g.SPLASH_H / 2)
+    # contain なので長辺（幅）が imageWidth になる。
+    return rad * width / max(g.SPLASH_W, g.SPLASH_H), width
+
+
 def check_app_json() -> list[str]:
     with open(APP_JSON, encoding='utf-8') as f:
         cfg = json.load(f)['expo']
@@ -86,6 +110,15 @@ def main() -> int:
     print(f'前景の最大描画半径: {rad:.0f}px（アダプティブ安全域 {ADAPTIVE_SAFE_RADIUS:.0f}px）')
     if rad > ADAPTIVE_SAFE_RADIUS:
         print('  ! 前景がアダプティブアイコンのマスクで欠ける。ADAPTIVE_LINES を縮めること。')
+        return 1
+    srad, swidth = android_splash_radius_dp()
+    print(
+        f'Android スプラッシュのロゴ最大半径: {srad:.0f}dp（imageWidth {swidth}dp、'
+        f'安全域 {ANDROID_SPLASH_SAFE_RADIUS_DP:.0f}dp）'
+    )
+    if srad > ANDROID_SPLASH_SAFE_RADIUS_DP:
+        print('  ! Android 12+ のスプラッシュでロゴが円形マスクに欠ける。')
+        print('    app.json の expo-splash-screen の android.imageWidth を小さくすること。')
         return 1
     for name, spec in (('iOS', g.ICON_LINES), ('小サイズ', g.SMALL_LINES)):
         x0, y0, x1, y1 = g.extent(g.two_lines(spec))

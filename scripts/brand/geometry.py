@@ -57,6 +57,9 @@ WORDMARK_W, WORDMARK_H = 670, 130
 WORDMARK_LINE = (8, 7, 650)  # (left, top, width)
 
 # アイコンの 2 段組。(left, top, width)。`Now.` は点まで含めた幅を `Pods` とそろえる。
+# left / top は 2 行の相対位置（左端の共有と行間）だけに効く。最終的な位置は `two_lines` が
+# 実際の描画範囲の中心をキャンバス中心に合わせて決める（字形のサイドベアリングや
+# 行間の見込み違いで上下左右にずれないように）。
 ICON_LINES = ((155, 220, 714), (155, 521, 714))  # iOS / ストア（マスク無しの全面）
 ADAPTIVE_LINES = ((267, 303, 490), (267, 510, 490))  # Android 前景・単色（中央の安全域）
 SMALL_LINES = ((135, 214, 754), (135, 535, 754))  # 32px 以下の小サイズ・favicon
@@ -163,9 +166,28 @@ def wordmark(left: float, top: float, width: float):
     return line('PodsNow.', left, top, width)
 
 
-def two_lines(spec):
+def shift(lines, dx: float, dy: float):
+    """配置済みの行を平行移動する。"""
+    out = []
+    for ln in lines:
+        contours = [
+            [(cmd, tuple(c + (dx if i % 2 == 0 else dy) for i, c in enumerate(v))) for cmd, v in contour]
+            for contour in ln['contours']
+        ]
+        dot = None
+        if ln['dot']:
+            x, y, size, r = ln['dot']
+            dot = (x + dx, y + dy, size, r)
+        out.append({'contours': contours, 'dot': dot})
+    return out
+
+
+def two_lines(spec, cx: float = CANVAS / 2, cy: float = CANVAS / 2):
+    """アイコンの 2 段組。描画範囲（`ink_extent`）の中心を (cx, cy) に合わせる。"""
     (l1, t1, w1), (l2, t2, w2) = spec
-    return [line('Pods', l1, t1, w1), line('Now.', l2, t2, w2)]
+    lines = [line('Pods', l1, t1, w1), line('Now.', l2, t2, w2)]
+    x0, y0, x1, y1 = ink_extent(lines)
+    return shift(lines, cx - (x0 + x1) / 2, cy - (y0 + y1) / 2)
 
 
 def extent(lines) -> tuple[float, float, float, float]:
@@ -177,6 +199,39 @@ def extent(lines) -> tuple[float, float, float, float]:
             for _cmd, v in contour:
                 xs += v[0::2]
                 ys += v[1::2]
+        if ln['dot']:
+            x, y, size, _r = ln['dot']
+            xs += [x, x + size]
+            ys += [y, y + size]
+    return min(xs), min(ys), max(xs), max(ys)
+
+
+def ink_extent(lines) -> tuple[float, float, float, float]:
+    """実際に塗られる範囲（x0, y0, x1, y1）。二次曲線は極値を解いて求める（制御点は含めない）。"""
+    xs: list[float] = []
+    ys: list[float] = []
+
+    def quad_extrema(p0: float, p1: float, p2: float) -> list[float]:
+        den = p0 - 2 * p1 + p2
+        if den == 0:
+            return []
+        t = (p0 - p1) / den
+        if 0 < t < 1:
+            return [(1 - t) ** 2 * p0 + 2 * (1 - t) * t * p1 + t * t * p2]
+        return []
+
+    for ln in lines:
+        for contour in ln['contours']:
+            px = py = 0.0
+            for cmd, v in contour:
+                if cmd == 'Q':
+                    xs += [v[2], *quad_extrema(px, v[0], v[2])]
+                    ys += [v[3], *quad_extrema(py, v[1], v[3])]
+                    px, py = v[2], v[3]
+                else:
+                    px, py = v
+                    xs.append(px)
+                    ys.append(py)
         if ln['dot']:
             x, y, size, _r = ln['dot']
             xs += [x, x + size]
