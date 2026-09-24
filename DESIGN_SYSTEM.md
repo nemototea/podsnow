@@ -223,10 +223,11 @@ python3 scripts/brand/extract_glyphs.py path/to/Manrope[wght].ttf   # 字形を�
 | `accentBorder` | `#BBD44F` | `#5A711E` | 選択・トグル・再生ヘッドの輪郭 |
 | `focusRing` | `#D8F36A` | `#4A6110` | 入力中の輪郭 |
 | `brandAccent` | `#D8F36A` | `#819500` | ロゴの点（本文には使わない） |
-| `controlShadow` | `#040607` | `#202221` | ボタンの硬い影・ダーク主操作の濃い枠 |
-| `controlBorder` | `#849096` | `#202221` | ライトの主・副ボタンの輪郭と硬い影 |
+| `controlEdge` | `#040607` | `#202221` | 主操作（シトロン）の 2px の枠 |
+| `controlBorder` | `#F1F3EF` | `#202221` | 副操作の 2px の枠 |
+| `controlShadow` | `#F1F3EF` | `#202221` | 主・副操作の硬い影 |
 
-ライトではシトロンの塗りが白地に 3:1 を持てないので、主操作ボタンは `controlBorder`、
+ライトではシトロンの塗りが白地に 3:1 を持てないので、主操作ボタンは `controlEdge`、
 トグル・再生ヘッド・選択のハンドルは `accentBorder` の輪郭（または線色）で形を示す。塗りの色だけを反転する実装をしない。
 
 ### 5.2 情報に使う色【事実】
@@ -254,7 +255,7 @@ python3 scripts/brand/extract_glyphs.py path/to/Manrope[wght].ttf   # 字形を�
 - **面と塗り**は OKLCh（明度・彩度・色相）を決め打ちする。設計の hex をそのまま再現する値。
 - **文字と境界**は彩度と色相だけを決め、明度を**目標コントラスト比から逆算**する。目標比は設計値が
   実際に持っていた比（小数第 2 位で切り捨て）。面を動かせば文字が追従し、読めない組み合わせが残らない。
-- `generate.py` は書き出す前に 258 組を測り、ひとつでも落ちたら何も書かない。`src/ui/__tests__/tokens.test.ts`
+- `generate.py` は書き出す前に 275 組を測り、ひとつでも落ちたら何も書かない。`src/ui/__tests__/tokens.test.ts`
   が生成物を測り直す（生成を忘れて `colors.ts` を手で直したときに CI で落とす）。
 
 基準【確認済み】:
@@ -296,10 +297,14 @@ python3 scripts/brand/extract_glyphs.py path/to/Manrope[wght].ttf   # 字形を�
 ## 6. 空間・部品・動き【事実】
 
 Issue #105 / #110: 共通 Button の primary / secondary は押下時に 2px 下へ沈む（120ms）。
-ライトは 2px の `controlBorder`、白い副操作面、右 2px・下 3px の硬い影。
-影は押下時に右 0px・下 1px へ縮む。ダークも #110 から同じ硬い影・2pxの輪郭を使う。主操作の濃い境界は `controlShadow`、副操作は `controlBorder`。副操作面は `surfaceRaised`。
+ライトは 2px の輪郭、白い副操作面、右 2px・下 3px の硬い影。
+影は押下時に右 0px・下 1px へ縮む。ダークも #110 から同じ硬い影・2pxの輪郭を使う。主操作の枠は `controlEdge`、副操作の枠は `controlBorder`、影は `controlShadow`。ダークの副操作面は `surfaceRaised`。
+輪郭と影は本文と同じインク（`textPrimary`）で描く。ライトは濃いインク、ダークは明るいインクになる（#113）。
+【事実】#110 のダークの影は濃い色（`#040607`）で、`bg` に対して 1.1:1 しかなく見えなかった。
+ダークの主操作の枠だけはシトロンと区別するため濃いまま残し、明るい影との間に線として見せる。
+シトロンの色付き影は使わない（シトロンは主操作・選択の意味。§5.2）。
 無効・処理中は影と移動をなくし、「動きを減らす」では位置と影を固定して色だけで反応する。
-入力欄はライトの通常時も 2px。録音・破壊・ghost 操作やネイティブ部品には装飾を広げない。
+入力欄は通常時も 2px（ダークも #113 から）。録音・破壊・ghost 操作やネイティブ部品には装飾を広げない。
 【確認済み】硬い影には React Native の boxShadow を使用する。Android 9 未満では影を省き、輪郭を維持する。
 出典: https://reactnative.dev/docs/0.86/view-style-props#boxshadow
 

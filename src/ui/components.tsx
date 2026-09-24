@@ -293,7 +293,7 @@ export function Button({
       case 'primary':
         return {
           bg: pressed ? c.accentSolidPressed : c.accentSolid,
-          border: c.isDark ? c.controlShadow : c.controlBorder,
+          border: c.controlEdge,
           fg: c.accentOnSolid,
         };
       case 'danger':
@@ -305,7 +305,7 @@ export function Button({
       case 'secondary':
         return {
           bg: pressed ? c.surfaceHover : c.isDark ? c.surfaceRaised : c.surface,
-          border: c.isDark ? c.borderStrong : c.controlBorder,
+          border: c.controlBorder,
           fg: c.textPrimary,
         };
       case 'ghost':
@@ -761,7 +761,7 @@ export function Field({
             color: c.textPrimary,
             backgroundColor: c.bg,
             borderColor: error ? c.dangerBorder : focused ? c.focusRing : c.borderStrong,
-            borderWidth: focused || error || !c.isDark ? stroke.selected : stroke.hairline,
+            borderWidth: stroke.selected,
           },
           inputStyle,
         ]}
