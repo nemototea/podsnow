@@ -96,11 +96,13 @@ def check_app_json() -> list[str]:
         cfg = json.load(f)['expo']
     want = {
         'android.adaptiveIcon.backgroundColor': (cfg['android']['adaptiveIcon']['backgroundColor'], g.ICON_BG),
-        'splash.backgroundColor': (cfg['splash']['backgroundColor'], g.BG),
+        'splash.backgroundColor': (cfg['splash']['backgroundColor'], g.LIGHT_BG),
+        'splash.dark.backgroundColor': (cfg['splash']['dark']['backgroundColor'], g.BG),
     }
     for p in cfg.get('plugins', []):
         if isinstance(p, list) and p[0] == 'expo-splash-screen':
-            want['expo-splash-screen.backgroundColor'] = (p[1]['backgroundColor'], g.BG)
+            want['expo-splash-screen.backgroundColor'] = (p[1]['backgroundColor'], g.LIGHT_BG)
+            want['expo-splash-screen.dark.backgroundColor'] = (p[1]['dark']['backgroundColor'], g.BG)
     return [f'app.json {k} = {got}（期待 {exp}）' for k, (got, exp) in want.items() if got.upper() != exp.upper()]
 
 
@@ -161,6 +163,7 @@ def main() -> int:
     png('android-icon-foreground.png', adaptive, 1024, g.ICON_INK, g.ICON_INK, None)
     png('android-icon-monochrome.png', adaptive, 1024, g.MONO, g.MONO, None)
     png('favicon.png', small, 48, g.ICON_INK, g.ICON_INK, g.ICON_BG)
+    png('splash-icon-light.png', splash, g.SPLASH_W, g.LIGHT_INK, g.LIGHT_DOT, None, g.SPLASH_W, g.SPLASH_H)
     png('splash-icon.png', splash, g.SPLASH_W, g.INK, g.DOT, None, g.SPLASH_W, g.SPLASH_H)
 
     path = os.path.join(IMAGES, 'android-icon-background.png')

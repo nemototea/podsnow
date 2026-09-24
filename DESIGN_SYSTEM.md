@@ -93,7 +93,7 @@ PodsNow は「スマートフォンの小さな DAW」ではなく、ポッド�
 
 | 形 | 用途 | 生成物 |
 |---|---|---|
-| 横組み `PodsNow.` | Home 上部、スプラッシュ、ストア | `assets/brand/wordmark-{dark,light,mono}.svg`、`src/ui/brand/wordmark.ts`、`assets/images/splash-icon.png` |
+| 横組み `PodsNow.` | Home 上部、スプラッシュ、ストア | `assets/brand/wordmark-{dark,light,mono}.svg`、`src/ui/brand/wordmark.ts`、`assets/images/splash-icon{,-light}.png` |
 | 2 段 `Pods` / `Now.` | iOS アイコン | `assets/brand/app-icon.svg`、`assets/images/icon.png` |
 | 2 段（安全域） | Android アダプティブ前景・単色 | `android-foreground.svg`、`android-monochrome.svg`、`android-icon-{foreground,monochrome}.png` |
 | 2 段（小サイズ） | favicon など 32px 以下 | `icon-small.svg`、`favicon.png` |
@@ -105,6 +105,12 @@ PodsNow は「スマートフォンの小さな DAW」ではなく、ポッド�
 - アイコンに独自の角丸を焼き込まない（OS がマスクする）。Android 前景は中央 66% の安全域に収める。
 - Home には 1 回だけロゴを出す。エピソード画面の上部はエピソード名に使う。
 
+【事実】スプラッシュはアプリ内のテーマ設定とは独立して、OS のライト／ダーク設定に従う。
+ライトは `bg`・`textPrimary`・`accentText` のライト用、ダークはダーク用を使用する。
+【確認済み】Expo の `expo-splash-screen` プラグインの通常設定と `dark` 設定で出し分ける。
+変更の反映にはネイティブ再ビルドが必要。実機のリリースビルドでの表示は未検証。
+出典: https://docs.expo.dev/versions/v57.0.0/sdk/splash-screen/
+
 ### 3.3 生成経路【事実】
 
 ```sh
@@ -113,7 +119,7 @@ python3 scripts/brand/extract_glyphs.py path/to/Manrope[wght].ttf   # 字形を�
 ```
 
 - 図形の正は `scripts/brand/geometry.py`（字間・点・配置）と `scripts/brand/glyphs.py`（Manrope 800 の輪郭。生成物）。
-- 色はトークンの生成元 `ramps.py` をそのまま読む。`app.json` の背景色（スプラッシュ `#111416`、
+- 色はトークンの生成元 `ramps.py` をそのまま読む。`app.json` の背景色（スプラッシュはライト `#F1F3EF` / ダーク `#111416`、
   アダプティブ背景 `#D8F36A`）がトークンとずれていれば `generate.py` が失敗する。
 - 受け渡しパッケージの `build_brand.py` と同じ字間・配置を再現しており、SVG の差分は描画して 0.1% 未満
   （`docs/design-refresh/README.md` §5）。受け渡しパッケージの生成元はリポジトリに置かない（生成元を 2 つにしない）。

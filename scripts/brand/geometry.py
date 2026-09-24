@@ -31,6 +31,7 @@ INK = DARK['textPrimary']
 DOT = DARK['accentText']
 ICON_BG = DARK['accentSolid']
 ICON_INK = DARK['accentOnSolid']
+LIGHT_BG = LIGHT['bg']
 LIGHT_INK = LIGHT['textPrimary']
 LIGHT_DOT = LIGHT['accentText']
 MONO = '#000000'
