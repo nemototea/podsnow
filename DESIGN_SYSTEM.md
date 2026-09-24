@@ -279,18 +279,53 @@ python3 scripts/brand/extract_glyphs.py path/to/Manrope[wght].ttf   # 字形を�
 
 | 部品 | 要点 |
 |---|---|
-| `Screen` | safe area、キーボード回避（iOS）、下部固定の操作バー（高さを実測して通知の位置に使う） |
-| `Header` | 戻る（48）、タイトル 2 行まで、右に操作 |
+| `Screen` | safe area（上端は Home だけ `edgeTop`。ほかはナビゲーションバーが取る）、キーボード分のスクロール余白（iOS は `automaticallyAdjustKeyboardInsets`）、下部固定の操作バー（高さを実測して通知の位置に使う） |
+| `ScreenHeader` | ネイティブのナビゲーションバーに題（と 2 行目の補足）を出す。`lockBack` の間は戻る操作を止め、理由をトーストで出す |
 | `SectionHeader` | 見出しの役割を読み上げに伝える。上に分類ラベルを重ねない |
 | `Button` | primary / secondary / danger / ghost。無効は不透明な色。`busy` で重複操作を防ぐ |
 | `IconButton` | 48 の的。`accessibilityLabel` 必須。ラベル付き表示あり |
-| `Row` | ラベル・補足・右側・下段（選択肢）。押せる行は読み上げに補足も含める |
+| `Row` | ラベル・補足・右側・下段（選択肢）。押せる行は読み上げに補足も含める。右側の操作は行の押下の外に置く（入れ子にしない） |
+| `MoreMenu` / `HeaderMenu` | 「…」の操作。iOS はネイティブのメニュー、ほかはシート |
+| `ChoiceMenu` | 値を 1 つ選ぶ行。iOS はメニュー形式のピッカー、ほかはシート（選択中にチェック） |
+| `DateField` | 日付。iOS はコンパクトな日付ピッカー、ほかは `YYYY-MM-DD` の文字入力 |
+| `Sheet` | iOS はページシート（下スワイプで閉じる）、ほかは下からのシート |
+| `alerts` | `confirmDestructive` / `ask` / `notify`（OS のアラート）、`iosActionSheet`、`iosPrompt` |
 | `Field` | 常に見えるラベル、補足、エラー（読み上げに関連付け）、焦点の輪郭 |
-| `Segmented` | タブ。選択は一段明るい面 + 輪郭 1 周 + 文字色。片側の線は引かない（§2.1）。無効時は `textDisabled` |
+| `Segmented` | タブ（iOS は `UISegmentedControl`）。選択は一段明るい面 + 輪郭 1 周 + 文字色。片側の線は引かない（§2.1）。無効時は `textDisabled` |
 | `Chip` | 高さ 40 + 上下の hitSlop で 48。選択は輪郭 2 と淡い地 |
+| `Toggle` | OS の `Switch`。オンは `accentSolid`（iOS のつまみは OS の白のまま） |
 | `Toast` | 操作バーの上。**閉じるボタンを持つ**。操作を含む通知・割り込み・容量不足は時間で消さない |
 | `Notice` | 画面内の状態表示（注意・エラー・完了）。アイコンと文字を併せる |
 | `ProgressBar` | 実値があれば確定、無ければ不定表示（架空の % を出さない） |
+
+### 6.2 OS の標準部品を使う範囲（#98）【事実】
+
+**作るのは PodsNow の個性が出る所だけ。** OS が持っている部品は使い、色・書体・太さ・角丸・配置だけを当てる。
+自作の部品は、見た目が似ていても下スワイプで閉じる・長押しメニュー・戻るジェスチャ・読み上げの作法・触覚などの
+振る舞いが欠ける（#94 の実装で起きていた）。
+
+| 役割 | 使うもの | 当てるデザイン | iOS 以外 |
+|---|---|---|---|
+| ナビゲーションバー（Home 以外） | expo-router のネイティブスタックヘッダー | 題の書体、`accentText` の色合い、背景 `bg`、区切り線なし、戻るは矢印だけ | 同じ（Android は Material のツールバー） |
+| 「…」の操作 | `Stack.Toolbar.Menu`（ヘッダー）、`@expo/ui` の `Menu`（行） | SF Symbols、削除は destructive | 現行のシート（`MoreMenu`） |
+| 選択肢（設定の値など） | `@expo/ui` の `Menu` によるプルダウン（選択中にチェック） | — | 現行のシート（`ChoiceMenu`） |
+| 確認・エラー・マイク権限・無音を詰める確認・名前の変更 | `Alert.alert` / `Alert.prompt`、言い直すは `ActionSheetIOS` | — | `Alert.alert`（Web は confirm）。名前の変更と言い直すはシート |
+| 入力や一覧を伴うシート | `Modal` の `pageSheet`（下スワイプで閉じる） | 題の書体、閉じるボタン | 現行の下からのシート |
+| スイッチ | `Switch` | オン `accentSolid` | 同じ |
+| エピソードのタブ | `UISegmentedControl` | 書体、選択面 `surfaceRaised` | 現行の `Segmented` |
+| アイコン | SF Symbols（`expo-symbols`） | 太さ medium、色はトークン | 現行の SVG（線幅 2） |
+| 収録日 | `@react-native-community/datetimepicker`（compact） | `accentText` の色合い | 文字入力（`YYYY-MM-DD`） |
+| 触覚 | `expo-haptics`（`services.haptics`、設定でオフにできる） | 録音の開始・停止は impact、タブや選択は selection、完了は success | Android も同じ API |
+| 押下・通知の動き | Reanimated（UI スレッド）と Gesture Handler | `motion` の時間、`pressScale`。動きを減らす設定では動かさない | 同じ |
+
+独自のまま残すもの: ロゴ、色、書体、Home 上部のブランド領域、録音の操作バー（`Transport`）、波形、
+レベルメーター、`Card` / `Row` / `Button` / `Notice`（OS に同等の部品が無く、ブランドの形そのもの）。
+
+- iOS だけの実装は `*.ios.tsx` に分け、Android と Web は既存の実装を使う。Android / Web で `@expo/ui` の
+  SwiftUI 部品を読み込まないため。
+- 収録中は戻るジェスチャと戻るボタンを止める（`gestureEnabled: false`、`usePreventRemove`）。
+- 取り消せない操作（音声の削除）と、話数の再利用を伴う削除（書き出し済みの回）は OS のアラートで確かめる。
+  iOS のメニューは項目の補足を出さないため、補足に書いていた注意をアラートへ移した。
 
 ## 7. 情報構造とナビゲーション【事実】
 
