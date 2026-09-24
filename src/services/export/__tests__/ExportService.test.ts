@@ -5,7 +5,17 @@ import { saveDoc } from '@/infra/db/repositories/editableDocRepo';
 import { listExports } from '@/infra/db/repositories/exportsRepo';
 import { FakeAudioEngine } from '@/services/audio/__tests__/FakeAudioEngine';
 
-import { estimateExportBytes, EXPORT_PRESETS, ExportService } from '../ExportService';
+import { DEFAULT_SETTINGS } from '@/infra/db/repositories/settingsRepo';
+
+import {
+  CUSTOM_BITRATES,
+  DEFAULT_CUSTOM_EXPORT,
+  estimateExportBytes,
+  EXPORT_PRESETS,
+  ExportService,
+  normalizeCustomExport,
+  resolveExportPreset,
+} from '../ExportService';
 
 const flush = () => new Promise((r) => setTimeout(r, 0));
 
@@ -138,5 +148,60 @@ describe('ExportService', () => {
   it('estimates file sizes', () => {
     expect(estimateExportBytes(EXPORT_PRESETS.podcast, 48000 * 60)).toBe(960000);
     expect(estimateExportBytes(EXPORT_PRESETS.wav, 48000 * 60)).toBe(48000 * 60 * 2 + 44);
+  });
+
+  it('passes custom bitrate and channels to the renderer and records them', async () => {
+    const { db, engine, svc } = await setup();
+    const preset = resolveExportPreset('custom', { format: 'm4a', bitrate: 256_000, channels: 1 });
+    await svc.start('e', preset);
+    const r = engine.renders[0]!;
+    expect(r.opts).toMatchObject({ format: 'm4a', bitrate: 256_000 });
+    expect((r.doc as { channels: number }).channels).toBe(1);
+    const row = (await listExports(db, 'e'))[0]!;
+    expect(JSON.parse(row.preset)).toEqual({
+      format: 'm4a',
+      bitrate: 256_000,
+      channels: 1,
+      sampleRate: 48000,
+    });
+  });
+});
+
+describe('custom export settings', () => {
+  it('resolves fixed presets unchanged', () => {
+    expect(resolveExportPreset('podcast', null)).toBe(EXPORT_PRESETS.podcast);
+    expect(resolveExportPreset('high', { bitrate: 64_000 })).toBe(EXPORT_PRESETS.high);
+  });
+
+  it('builds stereo WAV without a bitrate', () => {
+    expect(resolveExportPreset('custom', { format: 'wav', bitrate: 256_000, channels: 2 })).toEqual(
+      { format: 'wav', bitrate: 0, channels: 2, sampleRate: 48000 },
+    );
+  });
+
+  it('falls back per field for broken stored values', () => {
+    expect(normalizeCustomExport(undefined)).toEqual(DEFAULT_CUSTOM_EXPORT);
+    expect(normalizeCustomExport('x')).toEqual(DEFAULT_CUSTOM_EXPORT);
+    expect(normalizeCustomExport({ format: 'mp3', bitrate: 999, channels: 6 })).toEqual(
+      DEFAULT_CUSTOM_EXPORT,
+    );
+    expect(normalizeCustomExport({ format: 'wav', bitrate: 999, channels: 2 })).toEqual({
+      format: 'wav',
+      bitrate: DEFAULT_CUSTOM_EXPORT.bitrate,
+      channels: 2,
+    });
+  });
+
+  it('keeps the settings default in sync and within the offered bitrates', () => {
+    expect(DEFAULT_SETTINGS.export.custom).toEqual(DEFAULT_CUSTOM_EXPORT);
+    expect(CUSTOM_BITRATES).toContain(DEFAULT_CUSTOM_EXPORT.bitrate);
+  });
+
+  it('estimates AAC size from bitrate only, WAV from channels', () => {
+    const min = 48000 * 60;
+    const aacMono = resolveExportPreset('custom', { format: 'm4a', bitrate: 256_000, channels: 1 });
+    expect(estimateExportBytes(aacMono, min)).toBe(1_920_000);
+    const wavStereo = resolveExportPreset('custom', { format: 'wav', channels: 2 });
+    expect(estimateExportBytes(wavStereo, min)).toBe(min * 2 * 2 + 44);
   });
 });

@@ -17,7 +17,11 @@ export interface AppSettings {
   };
   silence: { minDurationMs: number; thresholdDb: number; padMs: number; autoApply: boolean };
   haptics: boolean;
-  export: { defaultPreset: 'podcast' | 'high' | 'wav' };
+  export: {
+    defaultPreset: 'podcast' | 'high' | 'wav' | 'custom';
+    /** カスタム書き出しの項目。読み出し側で `normalizeCustomExport` を通す。 */
+    custom: { format: 'm4a' | 'wav'; bitrate: number; channels: 1 | 2 };
+  };
   monitor: { jinglePlayback: 'always' | 'headphonesOnly' | 'never' };
 }
 
@@ -34,7 +38,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   },
   silence: { minDurationMs: 1500, thresholdDb: -45, padMs: 250, autoApply: false },
   haptics: true,
-  export: { defaultPreset: 'podcast' },
+  export: { defaultPreset: 'podcast', custom: { format: 'm4a', bitrate: 192_000, channels: 1 } },
   monitor: { jinglePlayback: 'headphonesOnly' },
 };
 

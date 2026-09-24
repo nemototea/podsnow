@@ -322,7 +322,7 @@ Take の「時間軸」は Segment を `seq` 順に連結したもの。割り�
 ### 4.16 `app_settings`
 `expo-sqlite/kv-store`（【確認済み】AsyncStorage 互換の KV）を使う案と、専用テーブル `app_settings(key TEXT PK, value TEXT)` の案がある。型安全性のため専用テーブル + Zod スキーマ【仮説】。
 
-キー例: `theme`, `recording.sampleRate`, `recording.channels`, `recording.preferredInput`, `silence.minDurationMs`, `silence.thresholdDb`, `silence.autoApply`, `haptics`, `export.defaultPreset`, `interruption.autoResume`, `monitor.jinglePlayback`（`always` / `headphonesOnly` / `never`）。
+キー例: `theme`, `recording.sampleRate`, `recording.channels`, `recording.preferredInput`, `silence.minDurationMs`, `silence.thresholdDb`, `silence.autoApply`, `haptics`, `export.defaultPreset`（`podcast` / `high` / `wav` / `custom`）, `export.custom`（`{ format: m4a|wav, bitrate, channels: 1|2 }`。サンプルレートは 48 kHz 固定）, `interruption.autoResume`, `monitor.jinglePlayback`（`always` / `headphonesOnly` / `never`）。
 
 ## 5. タイムラインのセマンティクス（domain/timeline）
 

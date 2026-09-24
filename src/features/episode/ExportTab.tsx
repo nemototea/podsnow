@@ -11,7 +11,16 @@ import { listExports, type ExportRow } from '@/infra/db/repositories/exportsRepo
 import { getDefaultTemplate } from '@/infra/db/repositories/showsRepo';
 import { joinRoot } from '@/infra/files/layout';
 import { parseSoundSettings, type SoundSettings } from '@/services/audio/renderDocumentFromDb';
-import { estimateExportBytes, EXPORT_PRESETS } from '@/services/export/ExportService';
+import {
+  CUSTOM_BITRATES,
+  estimateExportBytes,
+  EXPORT_PRESETS,
+  normalizeCustomExport,
+  resolveExportPreset,
+  type CustomExportSettings,
+  type ExportPreset,
+  type ExportPresetKey,
+} from '@/services/export/ExportService';
 import { hit, radius, space, stroke, tabularNums, typography } from '@/ui/tokens';
 import {
   Button,
@@ -24,6 +33,7 @@ import {
   ProgressBar,
   Row,
   SectionHeader,
+  Segmented,
   Text,
   Toggle,
 } from '@/ui/components';
@@ -32,8 +42,10 @@ import { useAppTheme } from '@/ui/ThemeContext';
 
 import type { Workspace } from './useWorkspace';
 
-type PresetKey = keyof typeof EXPORT_PRESETS;
-const PRESET_KEYS = Object.keys(EXPORT_PRESETS) as PresetKey[];
+const PRESET_KEYS: readonly ExportPresetKey[] = [
+  ...(Object.keys(EXPORT_PRESETS) as (keyof typeof EXPORT_PRESETS)[]),
+  'custom',
+];
 
 export function formatBytes(b: number): string {
   const mb = b / 1048576;
@@ -117,7 +129,7 @@ export interface ExportTabProps {
 export function ExportTab({ ws, onShowToast, onDone, onGoEdit }: ExportTabProps) {
   const c = useAppTheme();
   const t = useT();
-  const { db, root, show, episodes, exporter, settings, haptics } = useServices();
+  const { db, root, show, episodes, exporter, settings, updateSettings, haptics } = useServices();
   const { state } = ws;
   const episode = state.episode;
 
@@ -130,7 +142,10 @@ export function ExportTab({ ws, onShowToast, onDone, onGoEdit }: ExportTabProps)
   const [dirty, setDirty] = useState(false);
   const [sound, setSound] = useState<SoundSettings | null>(null);
   const [soundAdvanced, setSoundAdvanced] = useState(false);
-  const [preset, setPreset] = useState<PresetKey>(settings.export.defaultPreset);
+  const [preset, setPreset] = useState<ExportPresetKey>(settings.export.defaultPreset);
+  const [custom, setCustom] = useState<CustomExportSettings>(() =>
+    normalizeCustomExport(settings.export.custom),
+  );
   const [history, setHistory] = useState<ExportRow[]>([]);
   const [job, setJob] = useState<{ exportId: string; progress: number; phase: string } | null>(
     null,
@@ -245,6 +260,13 @@ export function ExportTab({ ws, onShowToast, onDone, onGoEdit }: ExportTabProps)
     ws,
   ]);
 
+  /** カスタムの項目は次回も使えるよう設定に残す（既定プリセットは変えない）。 */
+  const updateCustom = (patch: Partial<CustomExportSettings>) => {
+    const next = { ...custom, ...patch };
+    setCustom(next);
+    void updateSettings('export', { ...settings.export, custom: next });
+  };
+
   const updateSound = (next: SoundSettings) => {
     if (!episode) return;
     setSound(next);
@@ -256,7 +278,7 @@ export function ExportTab({ ws, onShowToast, onDone, onGoEdit }: ExportTabProps)
     if (dirty && !(await save())) return;
     setFailure(null);
     try {
-      const exportId = await exporter.start(episode.id, EXPORT_PRESETS[preset]);
+      const exportId = await exporter.start(episode.id, resolveExportPreset(preset, custom));
       setJob({ exportId, progress: 0, phase: 'measuring' });
     } catch (e) {
       setFailure(errorText(t, e));
@@ -278,7 +300,18 @@ export function ExportTab({ ws, onShowToast, onDone, onGoEdit }: ExportTabProps)
 
   if (!episode || !hydrated || !sound) return <Loading label={t.common.loading} />;
 
-  const p = EXPORT_PRESETS[preset];
+  const p = resolveExportPreset(preset, custom);
+  const presetText = (k: ExportPresetKey) =>
+    k === 'custom'
+      ? { ...t.export.presets.custom, spec: specText(resolveExportPreset('custom', custom)) }
+      : t.export.presets[k];
+  function specText(x: ExportPreset): string {
+    const ch = x.channels === 1 ? t.export.custom.mono : t.export.custom.stereo;
+    return x.format === 'wav'
+      ? t.export.specWav(ch)
+      : t.export.specM4a(Math.round(x.bitrate / 1000), ch);
+  }
+
   const phaseLabel = job?.phase === 'measuring' ? t.export.phaseMeasuring : t.export.phaseRendering;
   const hasBgm = state.doc.overlays.some((o) => o.kind === 'bgm');
   const num = Number.parseInt(episodeNumber, 10);
@@ -563,13 +596,14 @@ export function ExportTab({ ws, onShowToast, onDone, onGoEdit }: ExportTabProps)
       <Card style={st.listCard}>
         {PRESET_KEYS.map((k, i) => {
           const on = preset === k;
+          const text = presetText(k);
           return (
             <Pressable
               key={k}
               onPress={() => setPreset(k)}
               accessibilityRole="radio"
               accessibilityState={{ checked: on }}
-              accessibilityLabel={`${t.export.presets[k].label}, ${t.export.presets[k].spec}`}
+              accessibilityLabel={`${text.label}, ${text.spec}`}
               style={({ pressed }) => [
                 st.preset,
                 {
@@ -597,16 +631,62 @@ export function ExportTab({ ws, onShowToast, onDone, onGoEdit }: ExportTabProps)
                 ) : null}
               </View>
               <View style={st.flex}>
-                <Text style={[typography.bodyStrong, { color: c.textPrimary }]}>
-                  {t.export.presets[k].label}
-                </Text>
+                <Text style={[typography.bodyStrong, { color: c.textPrimary }]}>{text.label}</Text>
                 <Text style={[typography.caption, { color: c.textSecondary }]}>
-                  {t.export.presets[k].sub} · {t.export.presets[k].spec}
+                  {text.sub} · {text.spec}
                 </Text>
               </View>
             </Pressable>
           );
         })}
+        {preset === 'custom' ? (
+          <View style={st.custom}>
+            <Text style={[typography.caption, { color: c.textSecondary }]}>
+              {t.export.custom.format}
+            </Text>
+            <Segmented
+              value={custom.format}
+              onChange={(v) => updateCustom({ format: v })}
+              options={[
+                { value: 'm4a' as const, label: t.export.custom.m4a },
+                { value: 'wav' as const, label: t.export.custom.wav },
+              ]}
+            />
+            <Text style={[typography.caption, { color: c.textSecondary }]}>
+              {t.export.custom.bitrate}
+            </Text>
+            {custom.format === 'm4a' ? (
+              <View style={st.chips}>
+                {CUSTOM_BITRATES.map((b) => (
+                  <Chip
+                    key={b}
+                    label={`${b / 1000} kbps`}
+                    active={custom.bitrate === b}
+                    onPress={() => updateCustom({ bitrate: b })}
+                  />
+                ))}
+              </View>
+            ) : (
+              <Text style={[typography.caption, { color: c.textTertiary }]}>
+                {t.export.custom.wavNoBitrate}
+              </Text>
+            )}
+            <Text style={[typography.caption, { color: c.textSecondary }]}>
+              {t.export.custom.channels}
+            </Text>
+            <Segmented
+              value={custom.channels === 1 ? 'mono' : 'stereo'}
+              onChange={(v) => updateCustom({ channels: v === 'mono' ? 1 : 2 })}
+              options={[
+                { value: 'mono' as const, label: t.export.custom.mono },
+                { value: 'stereo' as const, label: t.export.custom.stereo },
+              ]}
+            />
+            <Text style={[typography.caption, { color: c.textTertiary }]}>
+              {t.export.custom.channelsNote}
+            </Text>
+          </View>
+        ) : null}
         <View style={[st.kv, st.sizeRow]}>
           <Text style={[typography.body, { color: c.textSecondary }]}>
             {t.export.estimatedSize}
@@ -738,5 +818,6 @@ const st = StyleSheet.create({
   },
   radioDot: { width: space.md, height: space.md, borderRadius: radius.pill },
   sizeRow: { marginTop: space.md, marginBottom: 0 },
+  custom: { gap: space.sm, paddingTop: space.md },
   cancel: { marginTop: space.lg },
 });

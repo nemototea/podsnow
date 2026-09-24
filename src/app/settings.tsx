@@ -49,7 +49,12 @@ const SOURCES: readonly AppSettings['recording']['androidAudioSource'][] = [
   'unprocessed',
   'camcorder',
 ];
-const PRESETS: readonly AppSettings['export']['defaultPreset'][] = ['podcast', 'high', 'wav'];
+const PRESETS: readonly AppSettings['export']['defaultPreset'][] = [
+  'podcast',
+  'high',
+  'wav',
+  'custom',
+];
 const MONITOR: readonly AppSettings['monitor']['jinglePlayback'][] = [
   'headphonesOnly',
   'always',
@@ -317,7 +322,7 @@ export default function SettingsScreen() {
             label: t.settings.presets[v].label,
             sub: t.settings.presets[v].sub,
           }))}
-          onChange={(v) => void set('export', { defaultPreset: v })}
+          onChange={(v) => void set('export', { ...services.settings.export, defaultPreset: v })}
         />
       </Card>
 

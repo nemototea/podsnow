@@ -27,6 +27,56 @@ export const EXPORT_PRESETS: Record<'podcast' | 'high' | 'wav', ExportPreset> = 
   wav: { format: 'wav', bitrate: 0, channels: 1, sampleRate: 48000 },
 };
 
+/** 固定プリセットに「カスタム」を足した選択肢（FR-EXP-3）。 */
+export type ExportPresetKey = keyof typeof EXPORT_PRESETS | 'custom';
+
+/**
+ * カスタム書き出しでユーザーが選べる項目。
+ * サンプルレートは選ばせない: 素材もタイムラインも 48 kHz 前提で、レンダラはリサンプルしない。
+ */
+export interface CustomExportSettings {
+  format: 'm4a' | 'wav';
+  /** bps。M4A のときだけ使う。 */
+  bitrate: number;
+  channels: 1 | 2;
+}
+
+/** AAC-LC で iOS / Android のエンコーダが受け付ける範囲に収める【仮説】（実機未検証）。 */
+export const CUSTOM_BITRATES: readonly number[] = [
+  64_000, 96_000, 128_000, 160_000, 192_000, 256_000,
+];
+
+export const DEFAULT_CUSTOM_EXPORT: CustomExportSettings = {
+  format: 'm4a',
+  bitrate: 192_000,
+  channels: 1,
+};
+
+/** 保存値（JSON 由来で型が信用できない）を正規化する。壊れた項目は既定値に戻す。 */
+export function normalizeCustomExport(v: unknown): CustomExportSettings {
+  const o = typeof v === 'object' && v !== null ? (v as Record<string, unknown>) : {};
+  return {
+    format: o.format === 'wav' || o.format === 'm4a' ? o.format : DEFAULT_CUSTOM_EXPORT.format,
+    bitrate:
+      typeof o.bitrate === 'number' && CUSTOM_BITRATES.includes(o.bitrate)
+        ? o.bitrate
+        : DEFAULT_CUSTOM_EXPORT.bitrate,
+    channels: o.channels === 1 || o.channels === 2 ? o.channels : DEFAULT_CUSTOM_EXPORT.channels,
+  };
+}
+
+/** プリセットのキー（カスタムなら保存済みの項目も）からレンダに渡す設定を作る。 */
+export function resolveExportPreset(key: ExportPresetKey, custom: unknown): ExportPreset {
+  if (key !== 'custom') return EXPORT_PRESETS[key];
+  const c = normalizeCustomExport(custom);
+  return {
+    format: c.format,
+    bitrate: c.format === 'wav' ? 0 : c.bitrate,
+    channels: c.channels,
+    sampleRate: 48000,
+  };
+}
+
 /** 推定ファイルサイズ（bytes）。 */
 export function estimateExportBytes(preset: ExportPreset, durationSmp: number): number {
   const sec = durationSmp / preset.sampleRate;
