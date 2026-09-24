@@ -134,11 +134,12 @@ final class RenderJob {
     let total = doc.totalFrames
     var gainDb = 0.0, lufs = -120.0, tp = -120.0
     let mixer = Mixer(doc: doc)
-    let buf = UnsafeMutablePointer<Float>.allocate(capacity: block)
+    let ch = mixer.channels
+    let buf = UnsafeMutablePointer<Float>.allocate(capacity: block * ch)
     defer { buf.deallocate() }
     if doc.loudnessEnabled {
-      let meter = LoudnessMeter(sampleRate: doc.sampleRate)
-      let tpm = TruePeakMeter()
+      let meter = LoudnessMeter(sampleRate: doc.sampleRate, channels: ch)
+      let tpm = TruePeakMeter(channels: ch)
       var f: Int64 = 0
       var blocks = 0
       while f < total {
@@ -157,12 +158,12 @@ final class RenderJob {
       mixer.reset()
     }
     let gain = dbToLinear(gainDb)
-    let limiter = doc.loudnessEnabled ? Limiter(sampleRate: doc.sampleRate, ceilingDb: doc.truePeakDbtp) : nil
+    let limiter = doc.loudnessEnabled ? Limiter(sampleRate: doc.sampleRate, ceilingDb: doc.truePeakDbtp, channels: ch) : nil
     let latency = limiter?.latency ?? 0
     let sink: PcmSink = format == "wav"
-      ? try WavSink(path: outPath, sampleRate: doc.sampleRate, channels: doc.channels)
-      : try AacSink(path: outPath, sampleRate: doc.sampleRate, channels: doc.channels, bitrate: bitrate)
-    let pcm = UnsafeMutablePointer<Int16>.allocate(capacity: block * doc.channels)
+      ? try WavSink(path: outPath, sampleRate: doc.sampleRate, channels: ch)
+      : try AacSink(path: outPath, sampleRate: doc.sampleRate, channels: ch, bitrate: bitrate)
+    let pcm = UnsafeMutablePointer<Int16>.allocate(capacity: block * ch)
     defer { pcm.deallocate() }
     var f: Int64 = 0
     var emitted: Int64 = 0
@@ -172,7 +173,7 @@ final class RenderJob {
       if cancelled { throw AudioEngineError.cancelled }
       let n = Int(min(Int64(block), renderEnd - f))
       try mixer.render(frame: f, count: n, into: buf)
-      for i in 0..<n { buf[i] *= gain }
+      for i in 0..<(n * ch) { buf[i] *= gain }
       limiter?.process(buf, count: n)
       var outStart = 0
       if f < Int64(latency) { outStart = min(n, Int(Int64(latency) - f)) }
@@ -180,9 +181,9 @@ final class RenderJob {
       if emitted + Int64(outCount) > total { outCount = Int(total - emitted) }
       if outCount > 0 {
         var k = 0
-        for i in outStart..<(outStart + outCount) {
-          let s = Int16((max(-1, min(1, buf[i])) * 32767).rounded())
-          for _ in 0..<doc.channels { pcm[k] = s; k += 1 }
+        for i in (outStart * ch)..<((outStart + outCount) * ch) {
+          pcm[k] = Int16((max(-1, min(1, buf[i])) * 32767).rounded())
+          k += 1
         }
         try sink.write(pcm, frames: outCount)
         emitted += Int64(outCount)

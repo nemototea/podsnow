@@ -146,10 +146,11 @@ class RenderJob(
     var lufs = -120.0
     var tp = -120.0
     Mixer(doc).use { mixer ->
+      val ch = mixer.channels
       if (doc.loudnessEnabled) {
-        val meter = LoudnessMeter(doc.sampleRate)
-        val tpm = TruePeakMeter()
-        val buf = FloatArray(block)
+        val meter = LoudnessMeter(doc.sampleRate, ch)
+        val tpm = TruePeakMeter(ch)
+        val buf = FloatArray(block * ch)
         var f = 0L
         while (f < total) {
           if (cancelled) throw InterruptedException("cancelled")
@@ -170,12 +171,12 @@ class RenderJob(
         mixer.reset()
       }
       val gain = dbToLinear(gainDb)
-      val limiter = if (doc.loudnessEnabled) Limiter(doc.sampleRate, doc.truePeakDbtp) else null
+      val limiter = if (doc.loudnessEnabled) Limiter(doc.sampleRate, doc.truePeakDbtp, ch) else null
       val latency = limiter?.latency ?: 0
-      val sink: PcmSink = if (format == "wav") WavSink(outPath, doc.sampleRate, doc.channels)
-      else AacSink(outPath, doc.sampleRate, doc.channels, bitrate)
-      val buf = FloatArray(block)
-      val pcm = ShortArray(block * doc.channels)
+      val sink: PcmSink = if (format == "wav") WavSink(outPath, doc.sampleRate, ch)
+      else AacSink(outPath, doc.sampleRate, ch, bitrate)
+      val buf = FloatArray(block * ch)
+      val pcm = ShortArray(block * ch)
       var f = 0L
       var emitted = 0L
       val renderEnd = total + latency
@@ -184,7 +185,7 @@ class RenderJob(
           if (cancelled) throw InterruptedException("cancelled")
           val n = minOf(block.toLong(), renderEnd - f).toInt()
           mixer.render(f, n, buf)
-          for (i in 0 until n) buf[i] *= gain
+          for (i in 0 until n * ch) buf[i] *= gain
           limiter?.process(buf, n)
           // 先頭 latency サンプルは遅延分なので捨て、total を超える分も捨てる
           var outStart = 0
@@ -193,9 +194,8 @@ class RenderJob(
           if (emitted + outCount > total) outCount = (total - emitted).toInt()
           if (outCount > 0) {
             var k = 0
-            for (i in outStart until outStart + outCount) {
-              val s = (buf[i].coerceIn(-1f, 1f) * 32767f).roundToInt().toShort()
-              for (c in 0 until doc.channels) pcm[k++] = s
+            for (i in outStart * ch until (outStart + outCount) * ch) {
+              pcm[k++] = (buf[i].coerceIn(-1f, 1f) * 32767f).roundToInt().toShort()
             }
             sink.write(pcm, outCount)
             emitted += outCount

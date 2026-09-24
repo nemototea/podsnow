@@ -51,27 +51,46 @@ final class WavReader {
   /// [frame, frame+count) をモノラル Float にダウンミックスして out[outOffset...] に書く（不足分は 0）。
   @discardableResult
   func readMono(frame: Int64, count: Int, into out: UnsafeMutablePointer<Float>, outOffset: Int = 0) -> Int {
-    let o = out + outOffset
-    if frame >= frames || count <= 0 { o.update(repeating: 0, count: max(0, count)); return 0 }
+    read(frame: frame, count: count, into: out, outOffset: outOffset, outChannels: 1)
+  }
+
+  /// [frame, frame+count) を outChannels チャンネルのインターリーブ Float にして書く（不足分は 0）。
+  /// outOffset はフレーム単位。チャンネル数の変換:
+  /// 同数はそのまま、1 ch 出力は全チャンネルの平均、モノラル素材の 2 ch 出力は左右に複製。
+  @discardableResult
+  func read(frame: Int64, count: Int, into out: UnsafeMutablePointer<Float>, outOffset: Int = 0, outChannels: Int) -> Int {
+    let oc = outChannels
+    let o = out + outOffset * oc
+    if frame >= frames || count <= 0 { o.update(repeating: 0, count: max(0, count) * oc); return 0 }
     let n = Int(min(Int64(count), frames - frame))
     let bytes = n * channels * 2
     do {
       try handle.seek(toOffset: dataOffset + UInt64(frame) * UInt64(channels * 2))
-      guard let d = try handle.read(upToCount: bytes) else { o.update(repeating: 0, count: count); return 0 }
+      guard let d = try handle.read(upToCount: bytes) else { o.update(repeating: 0, count: count * oc); return 0 }
       let got = d.count / (channels * 2)
-      let inv = 1 / (32768 * Float(channels))
+      let ch = channels
       d.withUnsafeBytes { raw in
         let p = raw.bindMemory(to: Int16.self)
-        for i in 0..<got {
-          var acc: Int32 = 0
-          for c in 0..<channels { acc += Int32(Int16(littleEndian: p[i * channels + c])) }
-          o[i] = Float(acc) * inv
+        if oc == 1 {
+          let inv = 1 / (32768 * Float(ch))
+          for i in 0..<got {
+            var acc: Int32 = 0
+            for c in 0..<ch { acc += Int32(Int16(littleEndian: p[i * ch + c])) }
+            o[i] = Float(acc) * inv
+          }
+        } else {
+          let inv: Float = 1 / 32768
+          for i in 0..<got {
+            for c in 0..<oc {
+              o[i * oc + c] = Float(Int16(littleEndian: p[i * ch + min(c, ch - 1)])) * inv
+            }
+          }
         }
       }
-      if got < count { (o + got).update(repeating: 0, count: count - got) }
+      if got < count { (o + got * oc).update(repeating: 0, count: (count - got) * oc) }
       return got
     } catch {
-      o.update(repeating: 0, count: count)
+      o.update(repeating: 0, count: count * oc)
       return 0
     }
   }

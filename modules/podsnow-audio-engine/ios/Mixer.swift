@@ -65,9 +65,11 @@ struct RenderDocument {
 }
 
 /// ストリーミングミキサー。render(frame, count) を昇順に呼ぶとダッキングの状態が連続する。シークしたら reset()。
-/// 出力はモノラル Float32（ステレオ出力は呼び出し側で複製）。
+/// 出力は doc.channels チャンネルのインターリーブ Float32。モノラル素材はステレオ出力で左右に複製し、
+/// ステレオ素材はモノラル出力で平均する（ステレオ録音の左右は書き出しまで保つ）。
 final class Mixer {
   private let doc: RenderDocument
+  let channels: Int
   private var readers: [String: WavReader] = [:]
   private var duckGain: Float = 1
   private let attackCoef: Float
@@ -79,10 +81,12 @@ final class Mixer {
   private var voiceBuf: UnsafeMutablePointer<Float>
   private var duckCurve: UnsafeMutablePointer<Float>
   private var tmp: UnsafeMutablePointer<Float>
+  /// フレーム数での容量（バッファ実長は capacity * channels）。
   private var capacity: Int
 
   init(doc: RenderDocument) {
     self.doc = doc
+    channels = max(1, min(2, doc.channels))
     func coef(_ ms: Double) -> Float { ms <= 0 ? 0 : Float(exp(-1.0 / (Double(doc.sampleRate) * ms / 1000))) }
     attackCoef = coef(doc.duckAttackMs)
     releaseCoef = coef(doc.duckReleaseMs)
@@ -90,9 +94,9 @@ final class Mixer {
     duckFloor = dbToLinear(doc.duckDepthDb)
     threshold = dbToLinear(doc.duckThresholdDb)
     capacity = 8192
-    voiceBuf = .allocate(capacity: capacity)
+    voiceBuf = .allocate(capacity: capacity * channels)
     duckCurve = .allocate(capacity: capacity)
-    tmp = .allocate(capacity: capacity)
+    tmp = .allocate(capacity: capacity * channels)
   }
 
   deinit {
@@ -112,19 +116,23 @@ final class Mixer {
     if n > capacity {
       voiceBuf.deallocate(); duckCurve.deallocate(); tmp.deallocate()
       capacity = n
-      voiceBuf = .allocate(capacity: n); duckCurve = .allocate(capacity: n); tmp = .allocate(capacity: n)
+      voiceBuf = .allocate(capacity: n * channels); duckCurve = .allocate(capacity: n); tmp = .allocate(capacity: n * channels)
     }
   }
 
-  /// out[0, count) にミックス結果（モノラル）を書く。
+  /// out[0, count * channels) にミックス結果（インターリーブ）を書く。
   func render(frame: Int64, count: Int, into out: UnsafeMutablePointer<Float>) throws {
     ensure(count)
-    voiceBuf.update(repeating: 0, count: count)
+    let ch = channels
+    let len = count * ch
+    voiceBuf.update(repeating: 0, count: len)
     for c in doc.voice { try mixClip(c, frame: frame, count: count, out: voiceBuf) }
-    out.update(repeating: 0, count: count)
+    out.update(repeating: 0, count: len)
     if !doc.overlays.isEmpty {
       for i in 0..<count {
-        let v = abs(voiceBuf[i])
+        // 左右どちらかで話していれば声ありとみなす
+        var v: Float = 0
+        for c in 0..<ch { v = max(v, abs(voiceBuf[i * ch + c])) }
         voiceEnv = v > voiceEnv ? v : voiceEnv * envCoef + v * (1 - envCoef)
         let target: Float = (doc.duckEnabled && voiceEnv > threshold) ? duckFloor : 1
         duckGain = target < duckGain ? duckGain * attackCoef + target * (1 - attackCoef)
@@ -133,7 +141,7 @@ final class Mixer {
       }
       for o in doc.overlays { try mixOverlay(o, frame: frame, count: count, out: out) }
     }
-    for i in 0..<count { out[i] += voiceBuf[i] }
+    for i in 0..<len { out[i] += voiceBuf[i] }
   }
 
   private func fade(_ pos: Int64, _ length: Int64, _ fadeIn: Int64, _ fadeOut: Int64) -> Float {
@@ -148,11 +156,13 @@ final class Mixer {
     let end = min(frame + Int64(count), c.tlEnd)
     if end <= start { return }
     let n = Int(end - start)
-    try reader(c.path).readMono(frame: c.fileStart + (start - c.tlStart), count: n, into: tmp)
+    let ch = channels
+    try reader(c.path).read(frame: c.fileStart + (start - c.tlStart), count: n, into: tmp, outChannels: ch)
     let oi = Int(start - frame)
     for i in 0..<n {
       let pos = start - c.tlStart + Int64(i)
-      out[oi + i] += tmp[i] * c.gain * fade(pos, c.fileLength, c.fadeIn, c.fadeOut)
+      let g = c.gain * fade(pos, c.fileLength, c.fadeIn, c.fadeOut)
+      for k in 0..<ch { out[(oi + i) * ch + k] += tmp[i * ch + k] * g }
     }
   }
 
@@ -161,23 +171,24 @@ final class Mixer {
     let end = min(frame + Int64(count), c.tlEnd)
     if end <= start || c.fileLength <= 0 { return }
     let n = Int(end - start)
+    let ch = channels
     let total = c.tlEnd - c.tlStart
     let r = try reader(c.path)
-    tmp.update(repeating: 0, count: n)
+    tmp.update(repeating: 0, count: n * ch)
     var i = 0
     while i < n {
       let pos = start - c.tlStart + Int64(i)
       let srcPos = c.loop ? pos % c.fileLength : pos
       if srcPos >= c.fileLength { break }
       let run = Int(min(Int64(n - i), c.fileLength - srcPos))
-      r.readMono(frame: c.fileStart + srcPos, count: run, into: tmp, outOffset: i)
+      r.read(frame: c.fileStart + srcPos, count: run, into: tmp, outOffset: i, outChannels: ch)
       i += run
     }
     let oi = Int(start - frame)
-    for k in 0..<n {
-      let pos = start - c.tlStart + Int64(k)
-      let g = c.gain * fade(pos, total, c.fadeIn, c.fadeOut) * (c.duck ? duckCurve[oi + k] : 1)
-      out[oi + k] += tmp[k] * g
+    for j in 0..<n {
+      let pos = start - c.tlStart + Int64(j)
+      let g = c.gain * fade(pos, total, c.fadeIn, c.fadeOut) * (c.duck ? duckCurve[oi + j] : 1)
+      for k in 0..<ch { out[(oi + j) * ch + k] += tmp[j * ch + k] * g }
     }
   }
 }
@@ -213,10 +224,12 @@ struct Biquad {
   }
 }
 
-/// ITU-R BS.1770-4 の統合ラウドネス（モノラル入力、K 特性 + ゲーティング）。
+/// ITU-R BS.1770-4 の統合ラウドネス（K 特性 + ゲーティング）。
+/// 入力はインターリーブ。L / R の重みは 1.0 で、各チャンネルの二乗和を足す（BS.1770-4 §2.4）。
 final class LoudnessMeter {
-  private var shelf: Biquad
-  private var hp: Biquad
+  private var shelf: [Biquad]
+  private var hp: [Biquad]
+  private let channels: Int
   private let blockLen: Int
   private let hop: Int
   private var hopSums = [Double](repeating: 0, count: 4)
@@ -226,17 +239,22 @@ final class LoudnessMeter {
   private var inHop = 0
   private var blocks: [Double] = []
 
-  init(sampleRate: Int) {
-    shelf = .highShelf(fs: sampleRate, f0: 1681.974450955533, gainDb: 3.999843853973347, q: 0.7071752369554196)
-    hp = .highPass(fs: sampleRate, f0: 38.13547087602444, q: 0.5003270373238773)
+  init(sampleRate: Int, channels: Int = 1) {
+    self.channels = max(1, channels)
+    shelf = Array(repeating: Biquad.highShelf(fs: sampleRate, f0: 1681.974450955533, gainDb: 3.999843853973347, q: 0.7071752369554196), count: self.channels)
+    hp = Array(repeating: Biquad.highPass(fs: sampleRate, f0: 38.13547087602444, q: 0.5003270373238773), count: self.channels)
     blockLen = Int(Double(sampleRate) * 0.4)
     hop = blockLen / 4
   }
 
+  /// count はフレーム数。
   func process(_ buf: UnsafeMutablePointer<Float>, count: Int) {
+    let ch = channels
     for i in 0..<count {
-      let y = hp.process(shelf.process(Double(buf[i])))
-      hopSum += y * y
+      for c in 0..<ch {
+        let y = hp[c].process(shelf[c].process(Double(buf[i * ch + c])))
+        hopSum += y * y
+      }
       inHop += 1
       if inHop == hop {
         hopSums[hopIdx] = hopSum
@@ -262,15 +280,17 @@ final class LoudnessMeter {
   }
 }
 
-/// 4 倍オーバーサンプリングの簡易トゥルーピーク計（4 相の窓付き sinc）。【仮説】
+/// 4 倍オーバーサンプリングの簡易トゥルーピーク計（4 相の窓付き sinc）。全チャンネルの最大値。【仮説】
 final class TruePeakMeter {
   private let taps = 4
+  private let channels: Int
   private var phases: [[Double]] = []
-  private var hist: [Float]
+  private var hist: [[Float]]
   private(set) var peak: Float = 0
 
-  init() {
-    hist = [Float](repeating: 0, count: taps * 2)
+  init(channels: Int = 1) {
+    self.channels = max(1, channels)
+    hist = Array(repeating: [Float](repeating: 0, count: taps * 2), count: self.channels)
     let n = taps * 2
     for p in 0..<4 {
       phases.append((0..<n).map { k in
@@ -281,23 +301,29 @@ final class TruePeakMeter {
     }
   }
 
+  /// 入力はインターリーブ。count はフレーム数。
   func process(_ buf: UnsafeMutablePointer<Float>, count: Int) {
+    let ch = channels
     for i in 0..<count {
-      hist.removeFirst()
-      hist.append(buf[i])
-      for h in phases {
-        var acc = 0.0
-        for k in 0..<hist.count { acc += Double(hist[k]) * h[k] }
-        let v = Float(abs(acc))
-        if v > peak { peak = v }
+      for c in 0..<ch {
+        hist[c].removeFirst()
+        hist[c].append(buf[i * ch + c])
+        for h in phases {
+          var acc = 0.0
+          for k in 0..<hist[c].count { acc += Double(hist[c][k]) * h[k] }
+          let v = Float(abs(acc))
+          if v > peak { peak = v }
+        }
       }
     }
   }
 }
 
-/// 先読みピークリミッター（AUDIO_DESIGN.md §8）。ブロック単位の先読みで O(n)。出力は latency サンプル遅れる。
+/// 先読みピークリミッター（AUDIO_DESIGN.md §8）。ブロック単位の先読みで O(n)。出力は latency フレーム遅れる。
+/// 入力はインターリーブ。ゲインは全チャンネル共通（リンク）にし、左右の定位を崩さない。
 final class Limiter {
   private let ceiling: Float
+  private let channels: Int
   let latency: Int
   private let release: Float
   private var prev: [Float]
@@ -307,25 +333,32 @@ final class Limiter {
   private var curMax: Float = 0
   private var gain: Float = 1
 
-  init(sampleRate: Int, ceilingDb: Double, lookaheadMs: Double = 5, releaseMs: Double = 50) {
+  init(sampleRate: Int, ceilingDb: Double, channels: Int = 1, lookaheadMs: Double = 5, releaseMs: Double = 50) {
     ceiling = dbToLinear(ceilingDb)
+    self.channels = max(1, channels)
     latency = max(1, Int(Double(sampleRate) * lookaheadMs / 1000))
     release = Float(exp(-1.0 / (Double(sampleRate) * releaseMs / 1000)))
-    prev = [Float](repeating: 0, count: latency)
-    cur = [Float](repeating: 0, count: latency)
+    prev = [Float](repeating: 0, count: latency * self.channels)
+    cur = [Float](repeating: 0, count: latency * self.channels)
   }
 
+  /// count はフレーム数。
   func process(_ buf: UnsafeMutablePointer<Float>, count: Int) {
+    let ch = channels
     for i in 0..<count {
-      let x = buf[i]
-      let ax = abs(x)
-      if ax > curMax { curMax = ax }
-      cur[curLen] = x
+      for c in 0..<ch {
+        let x = buf[i * ch + c]
+        let ax = abs(x)
+        if ax > curMax { curMax = ax }
+        cur[curLen * ch + c] = x
+      }
       curLen += 1
       let mx = max(prevMax, curMax)
       let target: Float = mx > ceiling ? ceiling / mx : 1
       gain = target < gain ? target : gain * release + target * (1 - release)
-      buf[i] = max(-ceiling, min(ceiling, prev[curLen - 1] * gain))
+      for c in 0..<ch {
+        buf[i * ch + c] = max(-ceiling, min(ceiling, prev[(curLen - 1) * ch + c] * gain))
+      }
       if curLen == latency {
         swap(&prev, &cur)
         prevMax = curMax

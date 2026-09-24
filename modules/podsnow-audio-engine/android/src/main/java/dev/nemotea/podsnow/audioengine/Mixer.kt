@@ -67,9 +67,12 @@ class RenderDocument(
 
 /**
  * ストリーミングミキサー。render(frame, count) を昇順に呼ぶとダッキングの状態が連続する。
- * シークしたら reset(frame) を呼ぶ。出力はモノラル Float32（ステレオ出力は呼び出し側で複製）。
+ * シークしたら reset() を呼ぶ。出力は doc.channels チャンネルのインターリーブ Float32。
+ * モノラル素材はステレオ出力で左右に複製し、ステレオ素材はモノラル出力で平均する
+ * （ステレオ録音の左右は書き出しまで保つ）。
  */
 class Mixer(private val doc: RenderDocument) : AutoCloseable {
+  val channels = doc.channels.coerceIn(1, 2)
   private val readers = HashMap<String, WavReader>()
   private var duckGain = 1f
   private val attackCoef = coef(doc.duckAttackMs)
@@ -78,8 +81,9 @@ class Mixer(private val doc: RenderDocument) : AutoCloseable {
   private val threshold = dbToLinear(doc.duckThresholdDb)
   private var voiceEnv = 0f
   private val envCoef = coef(10.0)
-  private var scratch = FloatArray(0)
+  private var duckCurve = FloatArray(0)
   private var voiceBuf = FloatArray(0)
+  private var tmp = FloatArray(0)
 
   private fun coef(ms: Double): Float = if (ms <= 0) 0f else exp(-1.0 / (doc.sampleRate * ms / 1000.0)).toFloat()
 
@@ -87,27 +91,29 @@ class Mixer(private val doc: RenderDocument) : AutoCloseable {
 
   fun reset() { duckGain = 1f; voiceEnv = 0f }
 
-  /** out[0, count) にミックス結果（モノラル）を書く。 */
+  /** out[0, count * channels) にミックス結果（インターリーブ）を書く。 */
   fun render(frame: Long, count: Int, out: FloatArray) {
-    if (scratch.size < count) { scratch = FloatArray(count); voiceBuf = FloatArray(count) }
-    java.util.Arrays.fill(voiceBuf, 0, count, 0f)
+    val ch = channels
+    val len = count * ch
+    if (duckCurve.size < count) { duckCurve = FloatArray(count); voiceBuf = FloatArray(len); tmp = FloatArray(len) }
+    java.util.Arrays.fill(voiceBuf, 0, len, 0f)
     for (c in doc.voice) mixClip(c, frame, count, voiceBuf)
-    // 声のエンベロープからダッキングゲインを毎サンプル更新
-    java.util.Arrays.fill(out, 0, count, 0f)
+    // 声のエンベロープからダッキングゲインを毎フレーム更新（左右どちらかで話していれば声あり）
+    java.util.Arrays.fill(out, 0, len, 0f)
     val overlays = doc.overlays
     if (overlays.isNotEmpty()) {
-      val duckCurve = scratch
       for (i in 0 until count) {
-        val v = absf(voiceBuf[i])
+        var v = 0f
+        for (k in 0 until ch) v = maxOf(v, absf(voiceBuf[i * ch + k]))
         voiceEnv = if (v > voiceEnv) v else voiceEnv * envCoef + v * (1 - envCoef)
         val target = if (doc.duckEnabled && voiceEnv > threshold) duckFloor else 1f
         duckGain = if (target < duckGain) duckGain * attackCoef + target * (1 - attackCoef)
         else duckGain * releaseCoef + target * (1 - releaseCoef)
         duckCurve[i] = duckGain
       }
-      for (o in overlays) mixOverlay(o, frame, count, out, duckCurve)
+      for (o in overlays) mixOverlay(o, frame, count, out)
     }
-    for (i in 0 until count) out[i] += voiceBuf[i]
+    for (i in 0 until len) out[i] += voiceBuf[i]
   }
 
   private fun mixClip(c: RenderClip, frame: Long, count: Int, out: FloatArray) {
@@ -115,21 +121,23 @@ class Mixer(private val doc: RenderDocument) : AutoCloseable {
     val end = minOf(frame + count, c.tlEnd)
     if (end <= start) return
     val n = (end - start).toInt()
-    val tmp = FloatArray(n)
-    reader(c.path).readMono(c.fileStart + (start - c.tlStart), n, tmp)
+    val ch = channels
+    reader(c.path).read(c.fileStart + (start - c.tlStart), n, tmp, 0, ch)
     val oi = (start - frame).toInt()
     for (i in 0 until n) {
       val pos = start - c.tlStart + i
-      out[oi + i] += tmp[i] * c.gain * fade(pos, c.fileLength, c.fadeIn, c.fadeOut)
+      val g = c.gain * fade(pos, c.fileLength, c.fadeIn, c.fadeOut)
+      for (k in 0 until ch) out[(oi + i) * ch + k] += tmp[i * ch + k] * g
     }
   }
 
-  private fun mixOverlay(c: RenderClip, frame: Long, count: Int, out: FloatArray, duckCurve: FloatArray) {
+  private fun mixOverlay(c: RenderClip, frame: Long, count: Int, out: FloatArray) {
     val start = maxOf(frame, c.tlStart)
     val end = minOf(frame + count, c.tlEnd)
     if (end <= start || c.fileLength <= 0) return
     val n = (end - start).toInt()
-    val tmp = FloatArray(n)
+    val ch = channels
+    java.util.Arrays.fill(tmp, 0, n * ch, 0f)
     val total = c.tlEnd - c.tlStart
     val r = reader(c.path)
     // ループ再生: ファイル長で折り返す
@@ -139,14 +147,14 @@ class Mixer(private val doc: RenderDocument) : AutoCloseable {
       val srcPos = if (c.loop) pos % c.fileLength else pos
       if (srcPos >= c.fileLength) break
       val run = minOf((n - i).toLong(), c.fileLength - srcPos).toInt()
-      r.readMono(c.fileStart + srcPos, run, tmp, i)
+      r.read(c.fileStart + srcPos, run, tmp, i, ch)
       i += run
     }
     val oi = (start - frame).toInt()
-    for (k in 0 until n) {
-      val pos = start - c.tlStart + k
-      val g = c.gain * fade(pos, total, c.fadeIn, c.fadeOut) * (if (c.duck) duckCurve[oi + k] else 1f)
-      out[oi + k] += tmp[k] * g
+    for (j in 0 until n) {
+      val pos = start - c.tlStart + j
+      val g = c.gain * fade(pos, total, c.fadeIn, c.fadeOut) * (if (c.duck) duckCurve[oi + j] else 1f)
+      for (k in 0 until ch) out[(oi + j) * ch + k] += tmp[j * ch + k] * g
     }
   }
 
@@ -160,11 +168,15 @@ class Mixer(private val doc: RenderDocument) : AutoCloseable {
   override fun close() { readers.values.forEach { it.close() }; readers.clear() }
 }
 
-/** ITU-R BS.1770-4 の統合ラウドネス（モノラル入力、K 特性 + ゲーティング）。 */
-class LoudnessMeter(sampleRate: Int) {
+/**
+ * ITU-R BS.1770-4 の統合ラウドネス（K 特性 + ゲーティング）。
+ * 入力はインターリーブ。L / R の重みは 1.0 で、各チャンネルの二乗和を足す（BS.1770-4 §2.4）。
+ */
+class LoudnessMeter(sampleRate: Int, channels: Int = 1) {
+  private val ch = maxOf(1, channels)
   // K-weighting: pre-filter (high shelf) + RLB (high pass)。係数は 48 kHz 用を周波数に合わせて再計算する。
-  private val shelf = Biquad.highShelf(sampleRate, 1681.974450955533, 3.999843853973347, 0.7071752369554196)
-  private val hp = Biquad.highPass(sampleRate, 38.13547087602444, 0.5003270373238773)
+  private val shelf = Array(ch) { Biquad.highShelf(sampleRate, 1681.974450955533, 3.999843853973347, 0.7071752369554196) }
+  private val hp = Array(ch) { Biquad.highPass(sampleRate, 38.13547087602444, 0.5003270373238773) }
   private val blockLen = (sampleRate * 0.4).toInt()
   private val hop = blockLen / 4
   private val hopSums = DoubleArray(4)
@@ -174,10 +186,13 @@ class LoudnessMeter(sampleRate: Int) {
   private var inHop = 0
   private val blocks = ArrayList<Double>()
 
+  /** count はフレーム数。 */
   fun process(buf: FloatArray, count: Int) {
     for (i in 0 until count) {
-      val y = hp.process(shelf.process(buf[i])).toDouble()
-      hopSum += y * y
+      for (c in 0 until ch) {
+        val y = hp[c].process(shelf[c].process(buf[i * ch + c])).toDouble()
+        hopSum += y * y
+      }
       inHop++
       if (inHop == hop) {
         hopSums[hopIdx] = hopSum
@@ -233,25 +248,31 @@ class Biquad(private val b0: Double, private val b1: Double, private val b2: Dou
   }
 }
 
-/** 4 倍オーバーサンプリングの簡易トゥルーピーク計（線形補間ではなく 4 相の窓付き sinc）。【仮説】 */
-class TruePeakMeter {
+/** 4 倍オーバーサンプリングの簡易トゥルーピーク計（線形補間ではなく 4 相の窓付き sinc）。全チャンネルの最大値。【仮説】 */
+class TruePeakMeter(channels: Int = 1) {
   private val taps = 4
+  private val ch = maxOf(1, channels)
   private val phases = Array(4) { p -> DoubleArray(taps * 2) { k -> sinc(k - taps + 1 - p / 4.0) * hann(k, taps * 2) } }
-  private val hist = FloatArray(taps * 2)
+  private val hist = Array(ch) { FloatArray(taps * 2) }
   var peak = 0f
     private set
   private fun sinc(x: Double) = if (x == 0.0) 1.0 else Math.sin(Math.PI * x) / (Math.PI * x)
   private fun hann(k: Int, n: Int) = 0.5 - 0.5 * Math.cos(2 * Math.PI * (k + 0.5) / n)
+
+  /** 入力はインターリーブ。count はフレーム数。 */
   fun process(buf: FloatArray, count: Int) {
     for (i in 0 until count) {
-      System.arraycopy(hist, 1, hist, 0, hist.size - 1)
-      hist[hist.size - 1] = buf[i]
-      for (p in 0 until 4) {
-        var acc = 0.0
-        val h = phases[p]
-        for (k in hist.indices) acc += hist[k] * h[k]
-        val v = absf(acc.toFloat())
-        if (v > peak) peak = v
+      for (c in 0 until ch) {
+        val hc = hist[c]
+        System.arraycopy(hc, 1, hc, 0, hc.size - 1)
+        hc[hc.size - 1] = buf[i * ch + c]
+        for (p in 0 until 4) {
+          var acc = 0.0
+          val h = phases[p]
+          for (k in hc.indices) acc += hc[k] * h[k]
+          val v = absf(acc.toFloat())
+          if (v > peak) peak = v
+        }
       }
     }
   }
@@ -259,33 +280,38 @@ class TruePeakMeter {
 
 /**
  * 先読みピークリミッター（AUDIO_DESIGN.md §8）。ブロック単位の先読みで O(n)。
- * 出力は latency サンプル遅れる。呼び出し側は latency 分を余計に流して先頭を捨てる。
+ * 出力は latency フレーム遅れる。呼び出し側は latency 分を余計に流して先頭を捨てる。
+ * 入力はインターリーブ。ゲインは全チャンネル共通（リンク）にし、左右の定位を崩さない。
  */
-class Limiter(sampleRate: Int, ceilingDb: Double, lookaheadMs: Double = 5.0, releaseMs: Double = 50.0) {
+class Limiter(sampleRate: Int, ceilingDb: Double, channels: Int = 1, lookaheadMs: Double = 5.0, releaseMs: Double = 50.0) {
   private val ceiling = dbToLinear(ceilingDb)
+  private val ch = maxOf(1, channels)
   val latency = maxOf(1, (sampleRate * lookaheadMs / 1000).toInt())
   private val release = exp(-1.0 / (sampleRate * releaseMs / 1000.0)).toFloat()
-  private val prev = FloatArray(latency)
+  private val prev = FloatArray(latency * ch)
   private var prevMax = 0f
-  private val cur = FloatArray(latency)
+  private val cur = FloatArray(latency * ch)
   private var curLen = 0
   private var curMax = 0f
   private var gain = 1f
 
-  /** in-place。buf[i] には latency サンプル前の入力にゲインを掛けたものが入る。 */
+  /** in-place。count はフレーム数。buf の各フレームには latency フレーム前の入力にゲインを掛けたものが入る。 */
   fun process(buf: FloatArray, count: Int) {
     for (i in 0 until count) {
-      val x = buf[i]
-      val ax = absf(x)
-      if (ax > curMax) curMax = ax
-      cur[curLen++] = x
-      // 出力: prev ブロックの同じ位置のサンプル。目標ゲインは prev と cur（先読み）の最大値から。
+      for (c in 0 until ch) {
+        val x = buf[i * ch + c]
+        val ax = absf(x)
+        if (ax > curMax) curMax = ax
+        cur[curLen * ch + c] = x
+      }
+      curLen++
+      // 出力: prev ブロックの同じ位置のフレーム。目標ゲインは prev と cur（先読み）の最大値から。
       val mx = if (prevMax > curMax) prevMax else curMax
       val target = if (mx > ceiling) ceiling / mx else 1f
       gain = if (target < gain) target else gain * release + target * (1 - release)
-      buf[i] = (prev[curLen - 1] * gain).coerceIn(-ceiling, ceiling)
+      for (c in 0 until ch) buf[i * ch + c] = (prev[(curLen - 1) * ch + c] * gain).coerceIn(-ceiling, ceiling)
       if (curLen == latency) {
-        System.arraycopy(cur, 0, prev, 0, latency)
+        System.arraycopy(cur, 0, prev, 0, latency * ch)
         prevMax = curMax
         curLen = 0
         curMax = 0f

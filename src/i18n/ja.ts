@@ -437,7 +437,8 @@ Podcast: {{show_name}}
       channels: 'チャンネル',
       mono: 'モノラル',
       stereo: 'ステレオ',
-      channelsNote: 'ステレオにしても左右は同じ音です。声だけの番組ならモノラルで十分です',
+      channelsNote:
+        'ステレオはステレオ録音（バイノーラルマイク等）や BGM の左右をそのまま残します。モノラル録音は左右同じ音になります',
     },
     estimatedSize: '推定サイズ',
     duration: '長さ',

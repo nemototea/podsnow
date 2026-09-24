@@ -43,20 +43,22 @@ final class TimelinePlayer {
     let session = AVAudioSession.sharedInstance()
     if session.category != .playAndRecord { try? session.setCategory(.playback, mode: .default) }
     try session.setActive(true)
-    guard let fmt = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: Double(d.sampleRate), channels: 1, interleaved: false) else {
+    let ch = m.channels
+    guard let fmt = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: Double(d.sampleRate), channels: AVAudioChannelCount(ch), interleaved: false) else {
       throw AudioEngineError.message("format")
     }
     m.reset()
     let node = AVAudioSourceNode(format: fmt) { [weak self] _, _, frameCount, abl -> OSStatus in
       guard let self else { return noErr }
       let n = Int(frameCount)
-      let out = UnsafeMutableAudioBufferListPointer(abl)[0].mData!.assumingMemoryBound(to: Float.self)
+      // 非インターリーブ: チャンネルごとに別バッファ（音声スレッドなので配列は作らない）
+      let outs = UnsafeMutableAudioBufferListPointer(abl)
       self.lock.lock()
       if self.pendingSeek >= 0 { self.position = self.pendingSeek; self.pendingSeek = -1; m.reset() }
       let pos = self.position
       let remain = d.totalFrames - pos
       if remain <= 0 {
-        out.update(repeating: 0, count: n)
+        for b in outs { b.mData!.assumingMemoryBound(to: Float.self).update(repeating: 0, count: n) }
         self.lock.unlock()
         if self.playing {
           self.playing = false
@@ -65,10 +67,14 @@ final class TimelinePlayer {
         return noErr
       }
       let count = Int(min(Int64(n), remain))
-      if count > self.scratchCap { self.scratch.deallocate(); self.scratch = .allocate(capacity: count); self.scratchCap = count }
-      do { try m.render(frame: pos, count: count, into: self.scratch) } catch { self.scratch.update(repeating: 0, count: count) }
-      for i in 0..<count { out[i] = max(-1, min(1, self.scratch[i])) }
-      if count < n { (out + count).update(repeating: 0, count: n - count) }
+      if count * ch > self.scratchCap { self.scratch.deallocate(); self.scratch = .allocate(capacity: count * ch); self.scratchCap = count * ch }
+      do { try m.render(frame: pos, count: count, into: self.scratch) } catch { self.scratch.update(repeating: 0, count: count * ch) }
+      for (c, b) in outs.enumerated() {
+        let out = b.mData!.assumingMemoryBound(to: Float.self)
+        let src = min(c, ch - 1)
+        for i in 0..<count { out[i] = max(-1, min(1, self.scratch[i * ch + src])) }
+        if count < n { (out + count).update(repeating: 0, count: n - count) }
+      }
       self.position = pos + Int64(count)
       self.sincePos += Int64(count)
       let shouldEmit = self.sincePos >= Int64(d.sampleRate / 10)

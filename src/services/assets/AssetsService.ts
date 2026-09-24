@@ -50,7 +50,8 @@ export class AssetsService {
     this.deps.ensureDir(joinRoot(this.deps.root, `${relPaths.showDir(showId)}/assets`));
     const r = await this.deps.engine.importAsset(srcAbsPath, abs, {
       sampleRate: 48000,
-      channels: 1,
+      // BGM やジングルのステレオを保つ。ステレオで書き出したときに左右が残るように。
+      channels: 2,
     });
     const peaksRel = relPaths.assetPeaks(showId, id);
     await this.deps.engine.generatePeaks(abs, joinRoot(this.deps.root, peaksRel), PEAKS_PER_SECOND);
