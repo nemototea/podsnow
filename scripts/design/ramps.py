@@ -41,7 +41,7 @@ NEAR_NEUTRAL = ('voice',)
 
 FIXED = {
     'dark': {
-        'controlShadow': (0.12, 0.0062, 236.9),
+        'controlEdge': (0.12, 0.0062, 236.9),
         'bg': (0.1889, 0.0062, 236.9),
         'surface': (0.2397, 0.0094, 234.1),
         'surfaceRaised': (0.2848, 0.0112, 237.0),
@@ -79,7 +79,7 @@ FIXED = {
         'successSubtle': (0.3155, 0.0316, 169.4),
     },
     'light': {
-        'controlShadow': (0.2500, 0.0040, 150.0),
+        'controlEdge': (0.2500, 0.0040, 150.0),
         'bg': (0.9730, 0.0040, 95.0),
         'surface': (1.0000, 0.0000, 89.9),
         'surfaceRaised': (0.9410, 0.0040, 95.0),
@@ -221,7 +221,11 @@ def build(theme: str) -> dict[str, str]:
 
     # ブランドの点は本文色から独立。表示先 bg / surface に対して 3:1 を守る。
     t['brandAccent'] = t['accentSolid'] if lighter else _solve(0.18, HUES['accent'], 3.1, [t['bg'], t['surface']], False)
-    t['controlBorder'] = t['borderStrong'] if lighter else t['textPrimary']
+    # ネオブルータリズムの輪郭と硬い影は本文と同じインクで描く。ダークでは明るいインクになり、
+    # 暗い面の上でも影が見える（#113。濃い影は bg と 1.1:1 で溶けていた）。主操作の枠 `controlEdge`
+    # だけはシトロンの塗りと区別するため濃いまま残し、ダークでは明るい影との間の線になる。
+    t['controlBorder'] = t['textPrimary']
+    t['controlShadow'] = t['textPrimary']
 
     t['overlayScrim'] = '#00000099' if theme == 'dark' else '#00000066'
 

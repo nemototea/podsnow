@@ -249,21 +249,30 @@ describe('書体', () => {
   });
 });
 
-describe('ライトのボタン', () => {
-  it('濃い輪郭は背景・塗り・押下中の塗りから見分けられる', () => {
-    const c = colors.light;
-    for (const surface of [...TEXT_SURFACES, 'accentSolid', 'accentSolidPressed'] as const) {
-      expect(contrast(c.controlBorder, c[surface])).toBeGreaterThanOrEqual(3);
+describe('ボタンの輪郭と硬い影', () => {
+  it.each(['dark', 'light'] as const)(
+    '%s: 副操作の輪郭と影は、ボタンが載る面から見分けられる',
+    (theme) => {
+      const c = colors[theme];
+      for (const surface of TEXT_SURFACES) {
+        expect(contrast(c.controlBorder, c[surface])).toBeGreaterThanOrEqual(3);
+        expect(contrast(c.controlShadow, c[surface])).toBeGreaterThanOrEqual(3);
+      }
+    },
+  );
+
+  it.each(['dark', 'light'] as const)('%s: 主操作の枠はシトロンの塗りから見分けられる', (theme) => {
+    const c = colors[theme];
+    for (const fill of ['accentSolid', 'accentSolidPressed'] as const) {
+      expect(contrast(c.controlEdge, c[fill])).toBeGreaterThanOrEqual(3);
     }
   });
-});
 
-describe('ダークの主操作', () => {
-  it('濃い枠がライムの塗りから区別でき、塗りは背景から区別できる', () => {
+  it('ダーク: 明るい影の手前で主操作の枠が線として見え、塗りは背景から区別できる', () => {
     const c = colors.dark;
-    for (const surface of ['accentSolid', 'accentSolidPressed'] as const) {
-      expect(contrast(c.controlShadow, c[surface])).toBeGreaterThanOrEqual(3);
-      expect(contrast(c[surface], c.bg)).toBeGreaterThanOrEqual(3);
+    expect(contrast(c.controlShadow, c.controlEdge)).toBeGreaterThanOrEqual(3);
+    for (const fill of ['accentSolid', 'accentSolidPressed'] as const) {
+      expect(contrast(c[fill], c.bg)).toBeGreaterThanOrEqual(3);
     }
   });
 });

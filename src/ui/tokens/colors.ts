@@ -5,7 +5,7 @@
 
 export const colors = {
   dark: {
-    controlShadow: '#040607',
+    controlEdge: '#040607',
     bg: '#111416',
     surface: '#1B2023',
     surfaceRaised: '#252B2F',
@@ -61,13 +61,14 @@ export const colors = {
     focusRing: '#D8F36A',
     voiceText: '#D7E0E4',
     brandAccent: '#D8F36A',
-    controlBorder: '#849096',
+    controlBorder: '#F1F3EF',
+    controlShadow: '#F1F3EF',
     overlayScrim: '#00000099',
     selectionOverlay: '#D8F36A33',
     recordingOverlay: '#FF896A33',
   },
   light: {
-    controlShadow: '#202221',
+    controlEdge: '#202221',
     bg: '#F7F6F3',
     surface: '#FFFFFF',
     surfaceRaised: '#ECEBE8',
@@ -124,6 +125,7 @@ export const colors = {
     voiceText: '#263E49',
     brandAccent: '#819500',
     controlBorder: '#202221',
+    controlShadow: '#202221',
     overlayScrim: '#00000066',
     selectionOverlay: '#D8F36A33',
     recordingOverlay: '#AB3C1D33',
