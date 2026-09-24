@@ -147,3 +147,6 @@ export const motion = {
 
 /** 押し込みの縮小率（better-ui: 0.95 より小さいと大げさに見える）。 */
 export const pressScale = 0.96;
+
+/** Button の硬い影と押し込み。配置は動かさず描画だけを移動する。 */
+export const buttonDepth = { offsetX: 2, offsetY: 3, travel: 2, pressedOffsetY: 1 } as const;

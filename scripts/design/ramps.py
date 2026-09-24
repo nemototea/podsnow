@@ -78,12 +78,12 @@ FIXED = {
         'successSubtle': (0.3155, 0.0316, 169.4),
     },
     'light': {
-        'bg': (0.9615, 0.0057, 128.5),
+        'bg': (0.9730, 0.0040, 95.0),
         'surface': (1.0000, 0.0000, 89.9),
-        'surfaceRaised': (0.9373, 0.0107, 136.6),
-        'surfaceHover': (0.9148, 0.0136, 134.9),
-        'border': (0.8391, 0.0147, 148.7),
-        'textPrimary': (0.2341, 0.0139, 163.5),
+        'surfaceRaised': (0.9410, 0.0040, 95.0),
+        'surfaceHover': (0.9130, 0.0040, 95.0),
+        'border': (0.8100, 0.0040, 95.0),
+        'textPrimary': (0.2500, 0.0040, 150.0),
         'accentSolid': (0.9177, 0.1645, 119.1),
         'accentSolidPressed': (0.8259, 0.1592, 119.1),
         'accentOnSolid': (0.2277, 0.0448, 126.2),
@@ -140,10 +140,10 @@ SOLVED = {
         'successText': (0.0701, 163.3, 8.45),
     },
     'light': {
-        'textSecondary': (0.0223, 155.1, 6.93),
-        'textTertiary': (0.0248, 151.6, 5.59),
-        'textDisabled': (0.0252, 145.2, 3.77),
-        'borderStrong': (0.0192, 145.3, 3.43),
+        'textSecondary': (0.0040, 150.0, 6.93),
+        'textTertiary': (0.0040, 150.0, 5.59),
+        'textDisabled': (0.0040, 150.0, 3.77),
+        'borderStrong': (0.0040, 150.0, 6.00),
         'accentText': (0.0933, 124.5, 6.96),
         'accentBorder': (0.1111, 123.8, 4.23),
         'focusRing': (0.1073, 125.4, 5.37),
@@ -216,6 +216,10 @@ def build(theme: str) -> dict[str, str]:
         t[role] = _solve(C, h, target, against, lighter)
     for role, src in SAME_AS[theme].items():
         t[role] = t[src]
+
+    # ブランドの点は本文色から独立。表示先 bg / surface に対して 3:1 を守る。
+    t['brandAccent'] = t['accentSolid'] if lighter else _solve(0.18, HUES['accent'], 3.1, [t['bg'], t['surface']], False)
+    t['controlBorder'] = t['borderStrong'] if lighter else t['textPrimary']
 
     t['overlayScrim'] = '#00000099' if theme == 'dark' else '#00000066'
 

@@ -28,12 +28,12 @@ DARK = ramps.build('dark')
 LIGHT = ramps.build('light')
 BG = DARK['bg']
 INK = DARK['textPrimary']
-DOT = DARK['accentText']
+DOT = DARK['brandAccent']
 ICON_BG = DARK['accentSolid']
 ICON_INK = DARK['accentOnSolid']
 LIGHT_BG = LIGHT['bg']
 LIGHT_INK = LIGHT['textPrimary']
-LIGHT_DOT = LIGHT['accentText']
+LIGHT_DOT = LIGHT['brandAccent']
 MONO = '#000000'
 
 # 字間（フォント単位）。字送りから一律に TRACK を詰め、特定の組だけ KERN で追加調整する。
