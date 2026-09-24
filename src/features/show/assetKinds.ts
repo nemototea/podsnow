@@ -7,12 +7,11 @@ export const ASSET_KIND_ORDER: readonly AssetKind[] = ['opening', 'ending', 'jin
 export interface AssetKindLabel {
   kind: AssetKind;
   label: string;
-  sub: string;
 }
 
 /** 表示順にラベルを解決した配列。 */
 export function assetKinds(t: Messages): readonly AssetKindLabel[] {
-  return ASSET_KIND_ORDER.map((kind) => ({ kind, ...t.assetKinds[kind] }));
+  return ASSET_KIND_ORDER.map((kind) => ({ kind, label: t.assetKinds[kind].label }));
 }
 
 export function kindLabel(t: Messages, kind: AssetKind): string {

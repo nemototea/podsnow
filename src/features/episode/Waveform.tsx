@@ -396,9 +396,7 @@ export const Waveform = memo(function Waveform(p: WaveformProps) {
               { top: 16 + height + 4 + space.xs, color: c.textSecondary },
             ]}
           >
-            {p.overlays.some((o) => o.status === 'placed')
-              ? t.edit.laneAssets
-              : t.edit.laneAssetsEmpty}
+            {t.edit.laneAssets}
           </Text>
         </>
       )}

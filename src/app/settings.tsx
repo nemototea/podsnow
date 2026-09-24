@@ -19,13 +19,11 @@ import {
   SectionHeader,
   Segmented,
   Text,
-  Toast,
   Toggle,
 } from '@/ui/components';
 import { ChoiceMenu } from '@/ui/ChoiceMenu';
 import { ScreenHeader } from '@/ui/ScreenHeader';
 import { useAppTheme } from '@/ui/ThemeContext';
-import { useToast } from '@/ui/useToast';
 
 import type { AudioInput } from '../../modules/podsnow-recorder/src/PodsnowRecorder.types';
 
@@ -68,7 +66,6 @@ export default function SettingsScreen() {
   const router = useRouter();
   const services = useServices();
   const { db, recorder, updateSettings } = services;
-  const { toast, show: showToast, act, dismiss } = useToast();
   const [settings, setSettings] = useState<AppSettings>(services.settings);
 
   const loader = useCallback(async (): Promise<Loaded> => {
@@ -114,7 +111,7 @@ export default function SettingsScreen() {
     : t.settings.inputOsDefault;
 
   return (
-    <Screen overlay={<Toast toast={toast} onAction={act} onDismiss={dismiss} />}>
+    <Screen>
       <ScreenHeader title={t.settings.title} />
 
       <SectionHeader title={t.settings.languageEyebrow} />
@@ -135,7 +132,6 @@ export default function SettingsScreen() {
       <Card style={{ paddingVertical: space.xs }}>
         <Row
           label={t.settings.quality}
-          sub={t.settings.qualitySub}
           below={
             <>
               {[44100, 48000].map((sr) => (
@@ -151,7 +147,6 @@ export default function SettingsScreen() {
         />
         <Row
           label={t.settings.channels}
-          sub={t.settings.channelsSub}
           below={
             <>
               <Chip
@@ -173,7 +168,7 @@ export default function SettingsScreen() {
           title={t.settings.inputDefault}
           value={settings.recording.preferredInputUid ?? ''}
           options={[
-            { value: '', label: t.settings.inputOsDefault, sub: t.settings.inputOsDefaultSub },
+            { value: '', label: t.settings.inputOsDefault },
             ...data.inputs.map((i) => ({
               value: i.uid,
               label: inputName(i),
@@ -191,7 +186,6 @@ export default function SettingsScreen() {
         ) : null}
         <Row
           label={t.settings.autoResume}
-          sub={t.settings.autoResumeSub}
           right={
             <Toggle
               value={settings.recording.autoResumeAfterInterruption}
@@ -201,7 +195,6 @@ export default function SettingsScreen() {
         />
         <Row
           label={t.settings.expectedLength}
-          sub={t.settings.expectedLengthSub}
           below={
             <>
               {MINUTES.map((m) => (
@@ -235,7 +228,6 @@ export default function SettingsScreen() {
       <Card style={{ paddingVertical: space.xs }}>
         <Row
           label={t.settings.silenceLength}
-          sub={t.settings.silenceLengthSub}
           below={
             <>
               {SILENCE_LEN.map((ms) => (
@@ -251,7 +243,6 @@ export default function SettingsScreen() {
         />
         <Row
           label={t.settings.silenceThreshold}
-          sub={t.settings.silenceThresholdSub}
           below={
             <>
               {SILENCE_DB.map((dbv) => (
@@ -267,7 +258,6 @@ export default function SettingsScreen() {
         />
         <Row
           label={t.settings.silencePad}
-          sub={t.settings.silencePadSub}
           below={
             <>
               {SILENCE_PAD.map((ms) => (
@@ -283,7 +273,6 @@ export default function SettingsScreen() {
         />
         <Row
           label={t.settings.silenceAuto}
-          sub={t.settings.silenceAutoSub}
           right={
             <Toggle
               value={settings.silence.autoApply}
@@ -293,7 +282,6 @@ export default function SettingsScreen() {
         />
         <Row
           label={t.settings.haptics}
-          sub={t.settings.hapticsSub}
           right={<Toggle value={settings.haptics} onChange={(v) => set('haptics', v)} />}
         />
         <ChoiceMenu
@@ -328,23 +316,13 @@ export default function SettingsScreen() {
 
       <SectionHeader title={t.settings.showEyebrow} />
       <Card style={{ paddingVertical: space.xs }}>
-        <Row
-          label={t.settings.showSettings}
-          sub={t.settings.showSettingsSub}
-          onPress={() => router.push('/show')}
-        />
-        <Row
-          label={t.settings.showAssets}
-          sub={t.settings.showAssetsSub}
-          onPress={() => router.push('/show')}
-        />
+        <Row label={t.settings.showSettings} onPress={() => router.push('/show')} last />
       </Card>
 
       <SectionHeader title={t.settings.storageEyebrow} />
       <Card style={{ paddingVertical: space.xs }}>
         <Row
           label={t.settings.recordingsSize}
-          sub={t.settings.recordingsSizeSub}
           right={
             <Text style={[typography.mono, tabularNums, { color: c.textPrimary }]}>
               {formatBytes(data.storage.recordingsBytes)}
@@ -361,24 +339,16 @@ export default function SettingsScreen() {
         />
         <Row
           label={t.settings.freeSpace}
+          last
           right={
             <Text style={[typography.mono, tabularNums, { color: c.textPrimary }]}>
               {formatBytes(data.freeBytes)}
             </Text>
           }
         />
-        <Row
-          label={t.settings.cleanup}
-          sub={t.settings.cleanupSub(formatBytes(data.storage.exportedEpisodesRecordingsBytes))}
-          onPress={() => showToast({ text: t.settings.cleanupToast })}
-        />
       </Card>
 
-      <Text style={[st.version, { color: c.textTertiary }]}>
-        {t.app.versionLine(APP_VERSION)}
-        {'\n'}
-        {t.app.nonDestructiveNote}
-      </Text>
+      <Text style={[st.version, { color: c.textTertiary }]}>{t.app.versionLine(APP_VERSION)}</Text>
     </Screen>
   );
 }

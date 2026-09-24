@@ -26,6 +26,7 @@ import {
   Card,
   Chip,
   Field,
+  Icon,
   IconButton,
   Row,
   Screen,
@@ -178,6 +179,7 @@ export default function ShowScreen() {
 
   const assetName = (id: string | null) =>
     data.assets.find((a) => a.id === id)?.name ?? t.common.none;
+  const pickedId = picking ? ((data.layout?.[SLOT_COL[picking]] as string | null) ?? null) : null;
   const pickList = picking ? data.assets.filter((a) => a.kind === (picking as AssetKind)) : [];
 
   return (
@@ -208,7 +210,6 @@ export default function ShowScreen() {
           onChangeText={(v) => setField('season', v.replace(/[^0-9]/g, ''))}
           keyboardType="number-pad"
         />
-        <Row label={t.showSettings.coverArt} sub={t.showSettings.coverArtSub} />
       </Card>
 
       <SectionHeader title={t.showSettings.layoutEyebrow} />
@@ -236,14 +237,9 @@ export default function ShowScreen() {
           );
         })}
         <View style={[st.slot, { borderBottomWidth: 0 }]}>
-          <View style={{ flex: 1 }}>
-            <Text style={[st.slotLabel, { color: c.textPrimary }]}>
-              {t.showSettings.duckingLabel}
-            </Text>
-            <Text style={[typography.caption, { color: c.textSecondary, marginTop: space.xs }]}>
-              {t.showSettings.duckingSub}
-            </Text>
-          </View>
+          <Text style={[st.slotLabel, { color: c.textPrimary, flex: 1 }]}>
+            {t.showSettings.duckingLabel}
+          </Text>
           <Stepper
             label={`${data.layout?.bgm_duck_db ?? -10} dB`}
             onMinus={() => bumpDuck(-1)}
@@ -256,7 +252,6 @@ export default function ShowScreen() {
       <Card>
         <Field
           label={t.showSettings.topicTemplateEyebrow}
-          help={t.showSettings.topicTemplateNote}
           value={d.topicTemplate}
           onChangeText={(v) => setField('topicTemplate', v)}
           multiline
@@ -268,7 +263,6 @@ export default function ShowScreen() {
       <Card>
         <Field
           label={t.showSettings.a11yTemplate}
-          help={t.showSettings.templateNote}
           value={d.template}
           onChangeText={(v) => setField('template', v)}
           multiline
@@ -280,7 +274,7 @@ export default function ShowScreen() {
             return (
               <Chip
                 key={key}
-                label={`${token} ${desc}`}
+                label={desc}
                 accessibilityLabel={t.showSettings.a11yInsertPlaceholder(desc)}
                 onPress={() => setField('template', `${d.template}${token}`)}
               />
@@ -303,20 +297,20 @@ export default function ShowScreen() {
         title={picking ? t.showSettings.slotAssets(slotLabel(picking)) : ''}
         subtitle={picking ? kindLabel(t, picking) : ''}
       >
-        <Row label={t.common.none} onPress={() => picking && setSlot(picking, null)} />
+        <Row
+          label={t.common.none}
+          onPress={() => picking && setSlot(picking, null)}
+          {...(pickedId === null ? { right: <Icon name="check" color={c.accentText} /> } : {})}
+        />
         {pickList.map((a) => (
           <Row
             key={a.id}
             label={a.name}
             sub={formatSmp(smp(a.duration_smp))}
             onPress={() => picking && setSlot(picking, a.id)}
+            {...(pickedId === a.id ? { right: <Icon name="check" color={c.accentText} /> } : {})}
           />
         ))}
-        {picking && pickList.length === 0 ? (
-          <Text style={[typography.body, { color: c.textSecondary, paddingVertical: space.md }]}>
-            {t.showSettings.noAssetsForSlot}
-          </Text>
-        ) : null}
       </Sheet>
     </Screen>
   );

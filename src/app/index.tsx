@@ -7,10 +7,11 @@ import { useServices } from '@/features/app/ServicesProvider';
 import { useHome } from '@/features/home/useHome';
 import { useT, type Messages } from '@/i18n';
 import type { EpisodeListItem } from '@/infra/db/repositories/episodesRepo';
-import { space, tabularNums, typography } from '@/ui/tokens';
+import { icon, space, tabularNums, typography } from '@/ui/tokens';
 import {
   Button,
   Card,
+  Icon,
   IconButton,
   Notice,
   Row,
@@ -18,6 +19,7 @@ import {
   SectionHeader,
   Text,
   Toast,
+  type IconName,
 } from '@/ui/components';
 import { useAppTheme } from '@/ui/ThemeContext';
 import { useToast } from '@/ui/useToast';
@@ -32,6 +34,14 @@ function nextActionLabel(t: Messages, e: EpisodeListItem): string {
   return t.home.continueEditing;
 }
 
+/** 状態はアイコンで示す（DESIGN_SYSTEM.md §2.3）。文字は読み上げにだけ使う。 */
+function statusIcon(e: EpisodeListItem): IconName {
+  if (e.audio_purged_at) return 'volume';
+  if (e.take_count === 0) return 'mic';
+  if (e.status === 'exported') return 'check';
+  return 'edit';
+}
+
 function statusText(t: Messages, e: EpisodeListItem): string {
   if (e.audio_purged_at) return t.home.badgeNoAudio;
   if (e.take_count === 0) return t.home.badgeNew;
@@ -43,7 +53,7 @@ export default function HomeScreen() {
   const t = useT();
   const router = useRouter();
   const { show, episodes, recovered } = useServices();
-  const { list, cont, loading, reload } = useHome();
+  const { list, cont, reload } = useHome();
   const { toast, show: showToast, act, dismiss } = useToast();
   const [creating, setCreating] = useState(false);
   const [recoveredOpen, setRecoveredOpen] = useState(recovered.length > 0);
@@ -106,7 +116,6 @@ export default function HomeScreen() {
       key: 'backup',
       icon: 'archive',
       label: t.home.menu.backup,
-      sub: t.home.menu.backupSub,
       onPress: () => router.push(`/episode/${e.id}/backup`),
     },
     ...(e.audio_purged_at
@@ -116,7 +125,6 @@ export default function HomeScreen() {
             key: 'purge',
             icon: 'volume' as const,
             label: t.home.menu.purgeAudio,
-            sub: t.home.menu.purgeAudioSub,
             onPress: () =>
               confirmDestructive({
                 title: t.home.menu.purgeAudio,
@@ -131,10 +139,6 @@ export default function HomeScreen() {
       key: 'remove',
       icon: 'trash',
       label: t.home.menu.remove,
-      sub:
-        e.status === 'exported'
-          ? t.home.menu.removeExportedNote(e.episode_number)
-          : t.home.menu.removeSub,
       destructive: true,
       onPress: () =>
         e.status === 'exported'
@@ -219,12 +223,10 @@ export default function HomeScreen() {
           <Text style={[typography.heading, { color: c.textPrimary }]} numberOfLines={2}>
             {cont.title || t.home.untitled}
           </Text>
-          <View style={st.contMeta}>
+          <View style={st.contMeta} accessibilityLabel={statusText(t, cont)}>
+            <Icon name={statusIcon(cont)} color={c.textSecondary} size={icon.sm} />
             <Text style={[typography.mono, tabularNums, { color: c.textSecondary }]}>
               {t.home.episodeCode(cont.episode_number)} · {formatClock(smp(cont.duration_smp))}
-            </Text>
-            <Text style={[typography.caption, { color: c.textSecondary }]}>
-              {statusText(t, cont)} · {t.home.takes(cont.take_count)}
             </Text>
           </View>
           <Button
@@ -232,13 +234,6 @@ export default function HomeScreen() {
             kind="secondary"
             onPress={() => router.push(`/episode/${cont.id}`)}
           />
-        </Card>
-      ) : !loading && list.length === 0 ? (
-        <Card>
-          <Text style={[typography.heading, { color: c.textPrimary }]}>{t.home.firstTitle}</Text>
-          <Text style={[typography.body, { color: c.textSecondary, marginTop: space.xs }]}>
-            {t.home.firstLead}
-          </Text>
         </Card>
       ) : null}
 
@@ -256,12 +251,10 @@ export default function HomeScreen() {
             <Row
               key={e.id}
               mono={String(e.episode_number).padStart(3, '0')}
+              icon={statusIcon(e)}
               label={e.title || t.home.untitled}
-              sub={
-                e.audio_purged_at
-                  ? t.home.badgeNoAudio
-                  : `${formatSmp(smp(e.duration_smp))} · ${statusText(t, e)}`
-              }
+              sub={e.audio_purged_at ? t.home.badgeNoAudio : formatSmp(smp(e.duration_smp))}
+              accessibilityLabel={`${e.title || t.home.untitled}, ${statusText(t, e)}`}
               last={i === others.length - 1}
               onPress={() => router.push(`/episode/${e.id}`)}
               right={
@@ -278,19 +271,8 @@ export default function HomeScreen() {
 
       <SectionHeader title={t.home.moreSection} />
       <Card style={st.linkCard}>
-        <Row
-          icon="show"
-          label={t.home.showAndAssets}
-          sub={t.home.showAndAssetsSub}
-          onPress={() => router.push('/show')}
-        />
-        <Row
-          icon="download"
-          label={t.home.restore}
-          sub={t.home.restoreSub}
-          onPress={() => router.push('/restore')}
-          last
-        />
+        <Row icon="show" label={t.home.showAndAssets} onPress={() => router.push('/show')} />
+        <Row icon="download" label={t.home.restore} onPress={() => router.push('/restore')} last />
       </Card>
     </Screen>
   );
@@ -309,7 +291,7 @@ const st = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     flexWrap: 'wrap',
-    gap: space.md,
+    gap: space.sm,
     marginTop: space.xs,
     marginBottom: space.lg,
   },
