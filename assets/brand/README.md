@@ -36,11 +36,11 @@
 | 用途 | 文字 | 点 | 背景 |
 |---|---|---|---|
 | 横組み（ダーク） | `textPrimary` | `accentText`（シトロン） | 透過（スプラッシュは `bg`） |
-| 横組み（ライト） | light `textPrimary` | light `accentText` | 透過 |
+| 横組み（ライト） | light `textPrimary` | light `accentText` | 透過（スプラッシュは light `bg`） |
 | アプリアイコン | `accentOnSolid` | `accentOnSolid` | `accentSolid` |
 | 単色 | 黒 | 黒 | 透過 |
 
-背景を変えたら `app.json`（スプラッシュ `#111416`、アダプティブ背景 `#D8F36A`）も合わせる。
+背景を変えたら `app.json`（スプラッシュはライト `#F1F3EF` / ダーク `#111416`、アダプティブ背景 `#D8F36A`）も合わせる。
 ずれていると `generate.py` が失敗する。
 
 ## ファイル
@@ -84,3 +84,7 @@ Android 12+ のスプラッシュ（SplashScreen API）は、画像を `imageWid
 - `icon.png` は**アルファを持たない RGB**。iOS のアプリアイコンの要件。角丸は焼き込まない。
 - `android-icon-background.png` は単色（`accentSolid`）。
 - アイコンを変えたら `npx expo prebuild --clean` → 再ビルドが必要。
+
+【事実】スプラッシュは OS の配色に従う（アプリ内のテーマ設定とは独立）。
+`assets/images/splash-icon-light.png` がライト用、`splash-icon.png` がダーク用。
+変更後はネイティブを再生成・再ビルドする。両 OS のリリースビルドでの表示は未検証。
