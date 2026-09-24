@@ -265,10 +265,7 @@ export function RecordTab({
         </View>
       )}
 
-      <SectionHeader title={t.record.recordingsEyebrow} />
-      {state.doc.voice.length === 0 ? (
-        <Text style={[typography.body, { color: c.textSecondary }]}>{t.record.noRecordings}</Text>
-      ) : null}
+      {state.doc.voice.length ? <SectionHeader title={t.record.recordingsEyebrow} /> : null}
       {state.doc.voice.map((v, i) => {
         const take = state.takes.find((x) => x.id === v.takeId);
         const last = i === state.doc.voice.length - 1;
@@ -313,11 +310,6 @@ export function RecordTab({
         title={t.record.topicsTitle}
         subtitle={t.record.topicsSubtitle}
       >
-        {state.outline.length === 0 ? (
-          <Text style={[typography.body, { color: c.textSecondary, marginBottom: space.md }]}>
-            {t.record.topicsEmpty}
-          </Text>
-        ) : null}
         {state.outline.map((item, i) => (
           <Row
             key={item.id}

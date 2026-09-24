@@ -226,13 +226,11 @@ export function EditTab({
         </View>
       </View>
 
-      <Text style={[typography.caption, { color: c.textSecondary, marginTop: space.sm }]}>
-        {sel
-          ? t.edit.hintSelection(formatSmp(sel.start), formatSmp(sel.end, { tenths: true }))
-          : ws.blocks.length
-            ? t.edit.hintBlocks
-            : t.edit.hintIdle}
-      </Text>
+      {sel ? (
+        <Text style={[typography.caption, { color: c.textSecondary, marginTop: space.sm }]}>
+          {t.edit.hintSelection(formatSmp(sel.start), formatSmp(sel.end, { tenths: true }))}
+        </Text>
+      ) : null}
 
       {sel ? (
         <>

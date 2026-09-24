@@ -158,41 +158,35 @@ export function AssetsSection({ onToast }: AssetsSectionProps) {
         return (
           <Card key={k.kind} style={st.group}>
             <View style={st.groupHead}>
-              <View style={{ flex: 1 }}>
-                <Text style={[typography.bodyStrong, { color: c.textPrimary }]}>{k.label}</Text>
-                <Text style={[typography.caption, { color: c.textSecondary }]}>{k.sub}</Text>
+              <Text style={[typography.bodyStrong, { color: c.textPrimary, flex: 1 }]}>
+                {k.label}
+              </Text>
+              <View style={st.addWrap}>
+                <IconButton
+                  name="plus"
+                  label={t.showAssets.a11yAdd(k.label)}
+                  disabled={!!importing}
+                  onPress={() => void pick(k.kind)}
+                />
               </View>
-              <Button
-                label={t.showAssets.add}
-                icon="plus"
-                kind="secondary"
-                compact
-                disabled={!!importing}
-                accessibilityLabel={t.showAssets.a11yAdd(k.label)}
-                onPress={() => void pick(k.kind)}
-              />
             </View>
             {busy ? (
               <View style={st.progressWrap}>
-                <Text style={[typography.caption, { color: c.textSecondary }]}>
-                  {t.showAssets.importing(Math.round((importing?.progress ?? 0) * 100))}
-                </Text>
                 <ProgressBar
                   value={importing?.progress ?? 0}
                   label={t.showAssets.importing(Math.round((importing?.progress ?? 0) * 100))}
                 />
               </View>
             ) : null}
-            {items.length === 0 && !busy ? (
-              <Text style={[typography.body, { color: c.textSecondary, paddingTop: space.sm }]}>
-                {t.showAssets.empty}
-              </Text>
-            ) : null}
             {items.map((a, i) => (
               <Row
                 key={a.id}
                 label={a.name}
-                sub={`${formatSmp(smp(a.duration_smp))} · ${a.default_gain_db} dB`}
+                sub={
+                  a.default_gain_db
+                    ? `${formatSmp(smp(a.duration_smp))} · ${a.default_gain_db > 0 ? '+' : ''}${a.default_gain_db} dB`
+                    : formatSmp(smp(a.duration_smp))
+                }
                 last={i === items.length - 1}
                 right={
                   <View style={st.rowRight}>
@@ -235,7 +229,6 @@ export function AssetsSection({ onToast }: AssetsSectionProps) {
                           key: 'remove',
                           icon: 'trash',
                           label: t.common.delete,
-                          sub: t.showAssets.removeSub,
                           destructive: true,
                           onPress: () => void remove(a),
                         },
@@ -267,6 +260,7 @@ export function AssetsSection({ onToast }: AssetsSectionProps) {
 const st = StyleSheet.create({
   group: { paddingBottom: space.sm },
   groupHead: { flexDirection: 'row', alignItems: 'center', gap: space.md },
+  addWrap: { marginRight: -space.md },
   rowRight: { flexDirection: 'row', alignItems: 'center', marginRight: -space.md },
   progressWrap: { paddingVertical: space.md, gap: space.sm },
 });

@@ -462,7 +462,6 @@ export function ExportTab({ ws, onShowToast, onDone, onGoEdit }: ExportTabProps)
             />
           </>
         ) : null}
-        <Text style={[typography.caption, st.note, { color: c.textTertiary }]}>{t.sound.note}</Text>
       </Card>
 
       <SectionHeader title={t.details.title} />
@@ -529,7 +528,6 @@ export function ExportTab({ ws, onShowToast, onDone, onGoEdit }: ExportTabProps)
           value={description}
           onChangeText={mark(setDescription)}
           placeholder={t.details.descriptionPlaceholder}
-          help={t.details.templateStatus}
           multiline
         />
         <View style={st.actionRow}>
@@ -734,9 +732,6 @@ export function ExportTab({ ws, onShowToast, onDone, onGoEdit }: ExportTabProps)
             onPress={() => exporter.cancel(job.exportId)}
             style={st.cancel}
           />
-          <Text style={[typography.caption, { color: c.textTertiary, marginTop: space.sm }]}>
-            {t.export.cancelNote}
-          </Text>
         </Card>
       ) : (
         <Button
@@ -750,16 +745,9 @@ export function ExportTab({ ws, onShowToast, onDone, onGoEdit }: ExportTabProps)
         <Text style={[typography.caption, { color: c.textSecondary, marginTop: space.sm }]}>
           {t.export.emptyVoice}
         </Text>
-      ) : (
-        <Text style={[typography.caption, { color: c.textTertiary, marginTop: space.sm }]}>
-          {t.export.notPublishNote}
-        </Text>
-      )}
-
-      <SectionHeader title={t.export.historyEyebrow} />
-      {history.length === 0 ? (
-        <Text style={[typography.body, { color: c.textSecondary }]}>{t.export.noHistory}</Text>
       ) : null}
+
+      {history.length ? <SectionHeader title={t.export.historyEyebrow} /> : null}
       {history.map((h, i) => (
         <Row
           key={h.id}
@@ -809,7 +797,6 @@ const st = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   stepVal: { minWidth: 84, textAlign: 'center' },
-  note: { marginTop: space.sm },
   actionRow: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm, marginBottom: space.md },
   pair: { flexDirection: 'row', gap: space.md },
   preset: {

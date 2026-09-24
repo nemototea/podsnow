@@ -134,11 +134,11 @@ Podcast: {{show_name}}
 
   /** 素材の用途（FR-AST-1）。 */
   assetKinds: {
-    opening: { label: 'オープニング', sub: '番組冒頭の固定音声' },
-    ending: { label: 'エンディング', sub: '番組終了時の固定音声' },
-    jingle: { label: 'ジングル', sub: '話題転換など。★はクイック挿入の先頭に出ます' },
-    sfx: { label: '効果音', sub: '短い効果音' },
-    bgm: { label: 'BGM', sub: '会話の背景音。しゃべり中は自動で下がります' },
+    opening: { label: 'オープニング' },
+    ending: { label: 'エンディング' },
+    jingle: { label: 'ジングル' },
+    sfx: { label: '効果音' },
+    bgm: { label: 'BGM' },
   },
 
   home: {
@@ -214,7 +214,6 @@ Podcast: {{show_name}}
     topicsTitle: 'トークテーマと台本',
     topicsSubtitle: '1 行に 1 つ。まとめて貼り付けると行ごとに分かれます',
     topicsPlaceholder: '話すことを 1 行ずつ。貼り付けもできます',
-    topicsEmpty: 'まだ何も書いていません',
     addScript: 'タップして台本を書く',
     scriptTitle: '台本',
     scriptPlaceholder: '読み上げる原稿（任意）',
@@ -230,7 +229,6 @@ Podcast: {{show_name}}
     insertedAt: (name: string, at: string) => `${name} を ${at} に入れました`,
 
     recordingsEyebrow: 'この回の録音',
-    noRecordings: 'まだ録音がありません',
     removedFromEpisode: 'この回から外しました（録音ファイルは残ります）',
 
     retake: '言い直す',
@@ -301,8 +299,6 @@ Podcast: {{show_name}}
     removeSilence: '無音を詰める',
     deleted: (duration: string) => `${duration} を削除しました`,
     hintSelection: (from: string, to: string) => `${from} 〜 ${to} を選択中`,
-    hintIdle: '波形をタップで再生位置。素材をタップで音量と位置',
-    hintBlocks: '声の塊をタップで選択。両端をドラッグで広げられます',
 
     silenceTitle: '無音を詰める',
     silenceSubtitle: '設定のしきい値より静かで長い区間を詰めます',
@@ -330,7 +326,6 @@ Podcast: {{show_name}}
     a11yRedo: (label: string) => `やり直す：${label}`,
     laneVoice: '声',
     laneAssets: '素材',
-    laneAssetsEmpty: '素材なし',
     startSec: '開始（秒）',
     endSec: '終了（秒）',
     cutSelection: '選択をカット',
@@ -380,11 +375,10 @@ Podcast: {{show_name}}
     seasonEyebrow: 'シーズン',
     recordedEyebrow: '収録日',
     badDate: '収録日は YYYY-MM-DD で入力してください',
-    noTopics: 'トークテーマがありません（Editor で追加できます）',
+    noTopics: 'トークテーマがありません',
     noTemplate: '概要欄テンプレートがありません',
     templateApplied: 'テンプレートを適用しました',
     numberTaken: 'この話数はほかの回でも使われています（保存はできます）',
-    templateStatus: '番組の概要テンプレートから作成しました',
     undoTemplate: 'テンプレートの適用を取り消す',
     dateHelp: '例：2026-09-23',
   },
@@ -404,7 +398,6 @@ Podcast: {{show_name}}
     attack: 'アタック',
     release: 'リリース',
     threshold: '声のしきい値',
-    note: '設定は書き出し時に適用されます。元の録音は変更されません。',
     loudnessTarget: (lufs: number, peak: number) => `${lufs} LUFS・最大ピーク ${peak} dBTP`,
     duckingNoBgm: 'この回には BGM がありません。BGM を入れると使えます',
     addBgm: '編集で BGM を入れる',
@@ -450,7 +443,6 @@ Podcast: {{show_name}}
     run: '音声を書き出す',
     emptyVoice: 'まだ録音がありません。録音タブで録音してから書き出します',
     historyEyebrow: '書き出し履歴',
-    noHistory: 'まだ書き出しはありません',
     cancelled: '書き出しを中止しました',
     failed: (message: string) => `書き出しに失敗しました: ${message}`,
     historyFailed: (message: string) => `失敗: ${message}`,
@@ -459,8 +451,6 @@ Podcast: {{show_name}}
     failedTitle: '音声の書き出しに失敗しました',
     failedBody: '収録データと編集内容は端末に残っています',
     cancel: '書き出しをキャンセル',
-    cancelNote: 'キャンセルしても、収録データと編集内容は消えません',
-    notPublishNote: '音声ファイルは端末に保存されます。公開は配信サービスで行います',
     a11yOpenHandoff: (when: string) => `${when} の書き出しを配信の準備で開く`,
   },
 
@@ -659,10 +649,8 @@ Podcast: {{show_name}}
 
   showAssets: {
     title: '素材',
-    add: '追加',
     a11yAdd: (kind: string) => `${kind} に音源を追加`,
     importing: (pct: number) => `取り込み中… ${pct}%`,
-    empty: 'まだ登録されていません',
     imported: (kind: string, name: string) => `${kind} に「${name}」を追加しました`,
     importFailed: (message: string) => `取り込みに失敗しました: ${message}`,
     removed: (name: string) => `「${name}」を削除しました`,
@@ -670,7 +658,6 @@ Podcast: {{show_name}}
     stop: '停止',
     favorite: 'お気に入りにする',
     unfavorite: 'お気に入りを解除',
-    removeSub: '既存エピソードでの配置は残ります・取り消し可',
     a11yAssetName: '素材の名前',
     a11yMenu: (name: string) => `${name} の操作`,
   },
