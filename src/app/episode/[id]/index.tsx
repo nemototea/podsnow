@@ -294,10 +294,6 @@ export default function EpisodeScreen() {
             key: 'remove',
             icon: 'trash',
             label: t.episode.menu.remove,
-            sub:
-              episode.status === 'exported'
-                ? t.episode.menu.removeExportedNote(episode.episode_number)
-                : t.episode.menu.removeSub,
             destructive: true,
             onPress: () => {
               const run = () => void services.episodes.remove(episodeId).then(() => router.back());

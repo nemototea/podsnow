@@ -102,9 +102,7 @@ export default function RestoreScreen() {
         {phase === 'done' && result ? (
           <View style={st.progress}>
             <Text style={[typography.bodyStrong, { color: c.textPrimary }]}>
-              {result.renumbered
-                ? t.restore.doneRenumbered(result.episodeNumber)
-                : t.restore.done(result.episodeNumber)}
+              {t.restore.done(result.episodeNumber)}
             </Text>
             <Text style={[typography.caption, { color: c.textSecondary }]}>
               {t.restore.summary(result.takes, result.reusedAssets, result.importedAssets)}

@@ -5,22 +5,22 @@ import { StyleSheet, View } from 'react-native';
 
 import { formatSmp, smp } from '@/domain/time';
 import { useServices } from '@/features/app/ServicesProvider';
-import { assetKinds, kindLabel } from '@/features/show/assetKinds';
+import { ASSET_KIND_ORDER, assetKinds, kindLabel } from '@/features/show/assetKinds';
 import { useAsyncData } from '@/features/show/useAsyncData';
 import { useT } from '@/i18n';
 import type { AssetKind, AssetRow } from '@/infra/db/repositories/assetsRepo';
 import { joinRoot } from '@/infra/files/layout';
-import { space, typography } from '@/ui/tokens';
+import { space } from '@/ui/tokens';
 import {
   Button,
   Card,
+  Chip,
   Field,
   IconButton,
   ProgressBar,
   Row,
   SectionHeader,
   Sheet,
-  Text,
 } from '@/ui/components';
 import { iosPrompt } from '@/ui/alerts';
 import { MoreMenu } from '@/ui/MoreMenu';
@@ -45,6 +45,8 @@ export function AssetsSection({ onToast }: AssetsSectionProps) {
   const { assets, show, root, engine, db, now } = useServices();
   const loader = useCallback(() => assets.list(show.id), [assets, show.id]);
   const { data: list, reload } = useAsyncData<AssetRow[]>(loader, []);
+  // 用途は切り替え式。空の用途が画面を占めない（DESIGN_SYSTEM.md §2.3）。
+  const [kind, setKind] = useState<AssetKind>(ASSET_KIND_ORDER[0]!);
   const [renaming, setRenaming] = useState<AssetRow | null>(null);
   const [renameText, setRenameText] = useState('');
   const [importing, setImporting] = useState<{ kind: AssetKind; progress: number } | null>(null);
@@ -148,106 +150,109 @@ export function AssetsSection({ onToast }: AssetsSectionProps) {
     await reload();
   };
 
+  const items = list.filter((a) => a.kind === kind);
+
   return (
     <>
-      <SectionHeader title={t.showAssets.title} />
+      <SectionHeader
+        title={t.showAssets.title}
+        right={
+          <View style={st.addWrap}>
+            <IconButton
+              name="plus"
+              label={t.showAssets.a11yAdd(kindLabel(t, kind))}
+              disabled={!!importing}
+              onPress={() => void pick(kind)}
+            />
+          </View>
+        }
+      />
+      <View style={st.kinds}>
+        {assetKinds(t).map((k) => {
+          const n = list.filter((a) => a.kind === k.kind).length;
+          return (
+            <Chip
+              key={k.kind}
+              label={n ? `${k.label} ${n}` : k.label}
+              active={kind === k.kind}
+              onPress={() => setKind(k.kind)}
+            />
+          );
+        })}
+      </View>
 
-      {assetKinds(t).map((k) => {
-        const items = list.filter((a) => a.kind === k.kind);
-        const busy = importing?.kind === k.kind;
-        return (
-          <Card key={k.kind} style={st.group}>
-            <View style={st.groupHead}>
-              <View style={{ flex: 1 }}>
-                <Text style={[typography.bodyStrong, { color: c.textPrimary }]}>{k.label}</Text>
-                <Text style={[typography.caption, { color: c.textSecondary }]}>{k.sub}</Text>
-              </View>
-              <Button
-                label={t.showAssets.add}
-                icon="plus"
-                kind="secondary"
-                compact
-                disabled={!!importing}
-                accessibilityLabel={t.showAssets.a11yAdd(k.label)}
-                onPress={() => void pick(k.kind)}
-              />
-            </View>
-            {busy ? (
-              <View style={st.progressWrap}>
-                <Text style={[typography.caption, { color: c.textSecondary }]}>
-                  {t.showAssets.importing(Math.round((importing?.progress ?? 0) * 100))}
-                </Text>
-                <ProgressBar
-                  value={importing?.progress ?? 0}
-                  label={t.showAssets.importing(Math.round((importing?.progress ?? 0) * 100))}
-                />
-              </View>
-            ) : null}
-            {items.length === 0 && !busy ? (
-              <Text style={[typography.body, { color: c.textSecondary, paddingTop: space.sm }]}>
-                {t.showAssets.empty}
-              </Text>
-            ) : null}
-            {items.map((a, i) => (
-              <Row
-                key={a.id}
-                label={a.name}
-                sub={`${formatSmp(smp(a.duration_smp))} · ${a.default_gain_db} dB`}
-                last={i === items.length - 1}
-                right={
-                  <View style={st.rowRight}>
-                    <IconButton
-                      name={playingId === a.id ? 'stop' : 'play'}
-                      label={playingId === a.id ? t.showAssets.stop : t.showAssets.preview}
-                      selected={playingId === a.id}
-                      onPress={() => preview(a)}
-                    />
-                    <IconButton
-                      name={a.is_favorite ? 'starFilled' : 'star'}
-                      label={a.is_favorite ? t.showAssets.unfavorite : t.showAssets.favorite}
-                      color={a.is_favorite ? c.accentText : c.textSecondary}
-                      selected={!!a.is_favorite}
-                      onPress={() => void toggleFavorite(a)}
-                    />
-                    <MoreMenu
-                      label={t.showAssets.a11yMenu(a.name)}
-                      title={`${a.name} · ${kindLabel(t, a.kind)}`}
-                      actions={[
-                        {
-                          key: 'rename',
-                          icon: 'edit',
-                          label: t.common.rename,
-                          onPress: () => startRename(a),
-                        },
-                        {
-                          key: 'up',
-                          icon: 'up',
-                          label: t.common.moveUp,
-                          onPress: () => void move(a, -1),
-                        },
-                        {
-                          key: 'down',
-                          icon: 'down',
-                          label: t.common.moveDown,
-                          onPress: () => void move(a, 1),
-                        },
-                        {
-                          key: 'remove',
-                          icon: 'trash',
-                          label: t.common.delete,
-                          sub: t.showAssets.removeSub,
-                          destructive: true,
-                          onPress: () => void remove(a),
-                        },
-                      ]}
-                    />
-                  </View>
-                }
-              />
-            ))}
-          </Card>
-        );
-      })}
+      {importing?.kind === kind ? (
+        <View style={st.progressWrap}>
+          <ProgressBar
+            value={importing.progress}
+            label={t.showAssets.importing(Math.round(importing.progress * 100))}
+          />
+        </View>
+      ) : null}
+      {items.length ? (
+        <Card style={st.group}>
+          {items.map((a, i) => (
+            <Row
+              key={a.id}
+              label={a.name}
+              sub={
+                a.default_gain_db
+                  ? `${formatSmp(smp(a.duration_smp))} · ${a.default_gain_db > 0 ? '+' : ''}${a.default_gain_db} dB`
+                  : formatSmp(smp(a.duration_smp))
+              }
+              last={i === items.length - 1}
+              right={
+                <View style={st.rowRight}>
+                  <IconButton
+                    name={playingId === a.id ? 'stop' : 'play'}
+                    label={playingId === a.id ? t.showAssets.stop : t.showAssets.preview}
+                    selected={playingId === a.id}
+                    onPress={() => preview(a)}
+                  />
+                  <IconButton
+                    name={a.is_favorite ? 'starFilled' : 'star'}
+                    label={a.is_favorite ? t.showAssets.unfavorite : t.showAssets.favorite}
+                    color={a.is_favorite ? c.accentText : c.textSecondary}
+                    selected={!!a.is_favorite}
+                    onPress={() => void toggleFavorite(a)}
+                  />
+                  <MoreMenu
+                    label={t.showAssets.a11yMenu(a.name)}
+                    title={`${a.name} · ${kindLabel(t, a.kind)}`}
+                    actions={[
+                      {
+                        key: 'rename',
+                        icon: 'edit',
+                        label: t.common.rename,
+                        onPress: () => startRename(a),
+                      },
+                      {
+                        key: 'up',
+                        icon: 'up',
+                        label: t.common.moveUp,
+                        onPress: () => void move(a, -1),
+                      },
+                      {
+                        key: 'down',
+                        icon: 'down',
+                        label: t.common.moveDown,
+                        onPress: () => void move(a, 1),
+                      },
+                      {
+                        key: 'remove',
+                        icon: 'trash',
+                        label: t.common.delete,
+                        destructive: true,
+                        onPress: () => void remove(a),
+                      },
+                    ]}
+                  />
+                </View>
+              }
+            />
+          ))}
+        </Card>
+      ) : null}
 
       <Sheet visible={!!renaming} onClose={() => setRenaming(null)} title={t.common.rename}>
         <Field
@@ -265,8 +270,9 @@ export function AssetsSection({ onToast }: AssetsSectionProps) {
 }
 
 const st = StyleSheet.create({
-  group: { paddingBottom: space.sm },
-  groupHead: { flexDirection: 'row', alignItems: 'center', gap: space.md },
+  group: { paddingVertical: space.xs, marginTop: space.md },
+  kinds: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
+  addWrap: { marginRight: -space.md },
   rowRight: { flexDirection: 'row', alignItems: 'center', marginRight: -space.md },
   progressWrap: { paddingVertical: space.md, gap: space.sm },
 });

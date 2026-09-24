@@ -428,16 +428,20 @@ export function Toggle({
   value,
   onChange,
   accessibilityLabel,
+  disabled,
 }: {
   value: boolean;
   onChange: (v: boolean) => void;
   accessibilityLabel?: string;
+  /** 押せない理由は文で書かず、近くに解決の操作（例: BGM を入れる）を置く。 */
+  disabled?: boolean;
 }) {
   const c = useAppTheme();
   return (
     <Switch
       value={value}
       onValueChange={onChange}
+      disabled={!!disabled}
       trackColor={{ false: c.surfaceHover, true: c.accentSolid }}
       ios_backgroundColor={c.surfaceHover}
       {...(Platform.OS === 'ios' ? {} : { thumbColor: value ? c.accentOnSolid : c.textSecondary })}
