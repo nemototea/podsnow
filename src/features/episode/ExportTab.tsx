@@ -348,11 +348,11 @@ export function ExportTab({ ws, onShowToast, onDone, onGoEdit }: ExportTabProps)
       <Card style={st.listCard}>
         <Row
           label={t.sound.loudness}
-          sub={
-            sound.loudness.enabled
-              ? t.sound.loudnessTarget(sound.loudness.targetLufs, sound.loudness.truePeakDbtp)
-              : t.sound.loudnessSub
-          }
+          {...(sound.loudness.enabled
+            ? {
+                sub: t.sound.loudnessTarget(sound.loudness.targetLufs, sound.loudness.truePeakDbtp),
+              }
+            : {})}
           right={
             <Toggle
               accessibilityLabel={t.sound.loudness}
@@ -365,12 +365,13 @@ export function ExportTab({ ws, onShowToast, onDone, onGoEdit }: ExportTabProps)
         />
         <Row
           label={t.sound.ducking}
-          sub={hasBgm ? t.sound.duckingSub : t.sound.duckingNoBgm}
+          {...(hasBgm && sound.ducking.enabled ? { sub: `${sound.ducking.depthDb} dB` } : {})}
           last={!soundAdvanced}
           right={
             <Toggle
               accessibilityLabel={t.sound.ducking}
               value={sound.ducking.enabled && hasBgm}
+              disabled={!hasBgm}
               onChange={(v) => {
                 if (!hasBgm) return;
                 updateSound({ ...sound, ducking: { ...sound.ducking, enabled: v } });
@@ -638,10 +639,10 @@ export function ExportTab({ ws, onShowToast, onDone, onGoEdit }: ExportTabProps)
                 ) : null}
               </View>
               <View style={st.flex}>
-                <Text style={[typography.bodyStrong, { color: c.textPrimary }]}>{text.label}</Text>
-                <Text style={[typography.caption, { color: c.textSecondary }]}>
-                  {text.sub} · {text.spec}
+                <Text style={[typography.bodyStrong, { color: c.textPrimary }]}>
+                  {k === 'podcast' ? `${text.label}${t.sound.recommended}` : text.label}
                 </Text>
+                <Text style={[typography.caption, { color: c.textSecondary }]}>{text.spec}</Text>
               </View>
             </Pressable>
           );
@@ -659,9 +660,11 @@ export function ExportTab({ ws, onShowToast, onDone, onGoEdit }: ExportTabProps)
                 { value: 'wav' as const, label: t.export.custom.wav },
               ]}
             />
-            <Text style={[typography.caption, { color: c.textSecondary }]}>
-              {t.export.custom.bitrate}
-            </Text>
+            {custom.format === 'm4a' ? (
+              <Text style={[typography.caption, { color: c.textSecondary }]}>
+                {t.export.custom.bitrate}
+              </Text>
+            ) : null}
             {custom.format === 'm4a' ? (
               <View style={st.chips}>
                 {CUSTOM_BITRATES.map((b) => (
@@ -673,11 +676,7 @@ export function ExportTab({ ws, onShowToast, onDone, onGoEdit }: ExportTabProps)
                   />
                 ))}
               </View>
-            ) : (
-              <Text style={[typography.caption, { color: c.textTertiary }]}>
-                {t.export.custom.wavNoBitrate}
-              </Text>
-            )}
+            ) : null}
             <Text style={[typography.caption, { color: c.textSecondary }]}>
               {t.export.custom.channels}
             </Text>
@@ -689,9 +688,6 @@ export function ExportTab({ ws, onShowToast, onDone, onGoEdit }: ExportTabProps)
                 { value: 'stereo' as const, label: t.export.custom.stereo },
               ]}
             />
-            <Text style={[typography.caption, { color: c.textTertiary }]}>
-              {t.export.custom.channelsNote}
-            </Text>
           </View>
         ) : null}
         <View style={[st.kv, st.sizeRow]}>

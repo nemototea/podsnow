@@ -150,7 +150,6 @@ export default function DistributionPackScreen() {
             <Notice
               kind="error"
               title={t.pack.missingFile}
-              body={t.pack.missingFileBody}
               action={
                 <Button
                   label={t.pack.exportAgain}
@@ -184,9 +183,6 @@ export default function DistributionPackScreen() {
               disabled={!exists}
               onPress={() => void share()}
             />
-            <Text style={[typography.caption, { color: c.textSecondary, marginTop: space.md }]}>
-              {t.pack.notPublished}
-            </Text>
           </Card>
         </>
       ) : (

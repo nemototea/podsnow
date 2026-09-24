@@ -9,7 +9,6 @@ import type { SessionState } from '@/services/recording/RecordingSession';
 import { icon, radius, space, stroke, tabularNums, typography } from '@/ui/tokens';
 import {
   Button,
-  Card,
   Chip,
   Field,
   Icon,
@@ -36,7 +35,8 @@ export interface RecordTabProps {
   onShowToast: (text: string) => void;
 }
 
-function stateLabel(t: Messages, s: SessionState): { text: string; icon: IconName | null } {
+/** 待機中は何も出さない。録音ボタン・タイマー・メーターで分かる（DESIGN_SYSTEM.md §2.3）。 */
+function stateLabel(t: Messages, s: SessionState): { text: string; icon: IconName | null } | null {
   switch (s) {
     case 'recording':
       return { text: t.record.stateRecording, icon: 'record' };
@@ -49,7 +49,7 @@ function stateLabel(t: Messages, s: SessionState): { text: string; icon: IconNam
     case 'stopping':
       return { text: t.record.stateStopping, icon: null };
     default:
-      return { text: t.record.stateIdle, icon: null };
+      return null;
   }
 }
 
@@ -97,15 +97,17 @@ export function RecordTab({
 
   return (
     <View>
-      <View style={st.statusRow}>
-        <View style={st.stateLabel} accessibilityLiveRegion="polite">
-          {label.icon ? <Icon name={label.icon} color={stateColor} size={icon.sm} /> : null}
-          <Text style={[typography.label, { color: stateColor }]}>{label.text}</Text>
+      {label ? (
+        <View style={st.statusRow}>
+          <View style={st.stateLabel} accessibilityLiveRegion="polite">
+            {label.icon ? <Icon name={label.icon} color={stateColor} size={icon.sm} /> : null}
+            <Text style={[typography.label, { color: stateColor }]}>{label.text}</Text>
+          </View>
+          <Text style={[typography.caption, { color: c.textSecondary }]}>
+            {live ? t.record.takeLabel(state.takes.length + 1) : ''}
+          </Text>
         </View>
-        <Text style={[typography.caption, { color: c.textSecondary }]}>
-          {live ? t.record.takeLabel(state.takes.length + 1) : ''}
-        </Text>
-      </View>
+      ) : null}
 
       <Text
         style={[
@@ -121,13 +123,6 @@ export function RecordTab({
       >
         {formatClock(live ? smp(state.recFrames) : state.total)}
       </Text>
-      {!live ? (
-        <Text style={[typography.caption, { color: c.textSecondary }]}>
-          {state.takes.length
-            ? t.record.recordedSoFar(state.takes.length, formatClock(state.total))
-            : t.record.notRecordedYet}
-        </Text>
-      ) : null}
 
       <LevelMeter level={isRec && s === 'recording' ? state.level : null} />
 
@@ -159,12 +154,12 @@ export function RecordTab({
         }
       />
       {state.outline.length === 0 ? (
-        <Card onPress={() => setSheet('topics')} accessibilityLabel={t.record.writeTopics}>
-          <Text style={[typography.body, { color: c.textPrimary }]}>{t.record.writeTopics}</Text>
-          <Text style={[typography.caption, { color: c.textSecondary }]}>
-            {t.record.writeTopicsSub}
-          </Text>
-        </Card>
+        <Button
+          label={t.record.addTopics}
+          icon="plus"
+          kind="secondary"
+          onPress={() => setSheet('topics')}
+        />
       ) : (
         <View>
           {state.outline.map((item, i) => {
@@ -206,11 +201,6 @@ export function RecordTab({
                   {isCurrent && item.body.trim() ? (
                     <Text style={[typography.body, { color: c.textSecondary }]}>{item.body}</Text>
                   ) : null}
-                  {isCurrent ? (
-                    <Text style={[typography.caption, { color: c.accentText }]}>
-                      {t.record.talkingNow}
-                    </Text>
-                  ) : null}
                 </View>
               </View>
             );
@@ -230,24 +220,18 @@ export function RecordTab({
                   .then((it) => it && onShowToast(t.record.advanced(it.heading)))
               }
             />
-          ) : (
-            <Text style={[typography.caption, { color: c.textSecondary, marginTop: space.sm }]}>
-              {t.record.allDone}
-            </Text>
-          )}
+          ) : null}
         </View>
       )}
 
       <SectionHeader title={t.record.assetsTitle} />
       {favorites.length === 0 ? (
-        <Card onPress={onOpenAssets} accessibilityLabel={t.record.registerAssets}>
-          <Text style={[typography.bodyStrong, { color: c.textPrimary }]}>
-            {t.record.registerAssets}
-          </Text>
-          <Text style={[typography.caption, { color: c.textSecondary }]}>
-            {t.record.registerAssetsSub}
-          </Text>
-        </Card>
+        <Button
+          label={t.record.registerAssets}
+          icon="plus"
+          kind="secondary"
+          onPress={onOpenAssets}
+        />
       ) : (
         <View style={st.assets}>
           {favorites.slice(0, 4).map((a) => (
@@ -308,7 +292,6 @@ export function RecordTab({
         visible={sheet === 'topics'}
         onClose={() => setSheet(null)}
         title={t.record.topicsTitle}
-        subtitle={t.record.topicsSubtitle}
       >
         {state.outline.map((item, i) => (
           <Row

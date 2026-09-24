@@ -122,7 +122,6 @@ export default function BackupScreen() {
         ) : null}
       </Card>
       {error ? <Notice kind="error" title={t.backup.failed} body={error} /> : null}
-      <Text style={[typography.caption, { color: c.textSecondary }]}>{t.backup.footer}</Text>
     </Screen>
   );
 }
