@@ -63,7 +63,10 @@ export class PlaybackService {
   async reload(episodeId: string): Promise<void> {
     const wasPlaying = this.playing;
     const at = this.frame;
-    const doc = await renderDocumentFromDb(this.deps.db, this.deps.root, episodeId);
+    // 試聴はステレオで鳴らす。ステレオ録音の左右をそのまま聴けるように（モノラル素材は左右同じ）。
+    const doc = await renderDocumentFromDb(this.deps.db, this.deps.root, episodeId, {
+      channels: 2,
+    });
     await this.deps.engine.loadTimeline(JSON.stringify(doc));
     this.loadedEpisode = episodeId;
     await this.deps.engine.seek(Math.min(at, doc.totalFrames));

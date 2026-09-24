@@ -14,6 +14,8 @@ type Listener = (e: never) => void;
 export class FakeAudioEngine implements AudioEnginePort {
   calls: string[] = [];
   renders: { jobId: string; doc: unknown; opts: RenderOptions }[] = [];
+  timelines: unknown[] = [];
+  imports: ImportOptions[] = [];
   silences: FrameRange[] = [];
   wavInfo: WavInfo = { frames: 48000, sampleRate: 48000, channels: 1 };
   position = 0;
@@ -30,6 +32,7 @@ export class FakeAudioEngine implements AudioEnginePort {
   }
   async importAsset(_src: string, dst: string, o: ImportOptions): Promise<ImportedAsset> {
     this.calls.push(`import:${dst}`);
+    this.imports.push(o);
     return { path: dst, frames: 96000, sampleRate: o.sampleRate, channels: o.channels };
   }
   async readWavInfo() {
@@ -37,7 +40,7 @@ export class FakeAudioEngine implements AudioEnginePort {
   }
   async loadTimeline(json: string) {
     this.calls.push('load');
-    JSON.parse(json);
+    this.timelines.push(JSON.parse(json));
   }
   async play(at?: number | null) {
     this.playing = true;

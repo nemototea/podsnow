@@ -51,20 +51,39 @@ class WavReader(val path: String) : AutoCloseable {
    * [frame, frame+count) を Float32 モノラルにダウンミックスして out に書く（不足分は 0）。
    * 戻り値: 実際に読めたフレーム数。
    */
-  fun readMono(frame: Long, count: Int, out: FloatArray, outOffset: Int = 0): Int {
-    if (frame >= frames || count <= 0) { java.util.Arrays.fill(out, outOffset, outOffset + count, 0f); return 0 }
+  fun readMono(frame: Long, count: Int, out: FloatArray, outOffset: Int = 0): Int =
+    read(frame, count, out, outOffset, 1)
+
+  /**
+   * [frame, frame+count) を outChannels チャンネルのインターリーブ Float32 にして out に書く（不足分は 0）。
+   * outOffset はフレーム単位。チャンネル数の変換:
+   * 同数はそのまま、1 ch 出力は全チャンネルの平均、モノラル素材の 2 ch 出力は左右に複製。
+   */
+  fun read(frame: Long, count: Int, out: FloatArray, outOffset: Int, outChannels: Int): Int {
+    val oc = outChannels
+    val base = outOffset * oc
+    if (frame >= frames || count <= 0) { java.util.Arrays.fill(out, base, base + maxOf(0, count) * oc, 0f); return 0 }
     val n = minOf(count.toLong(), frames - frame).toInt()
     val bytes = ByteArray(n * channels * 2)
     file.seek(dataOffset + frame * channels * 2)
     file.readFully(bytes)
     val bb = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)
-    val inv = 1f / (32768f * channels)
-    for (i in 0 until n) {
-      var acc = 0
-      for (c in 0 until channels) acc += bb.getShort((i * channels + c) * 2).toInt()
-      out[outOffset + i] = acc * inv
+    if (oc == 1) {
+      val inv = 1f / (32768f * channels)
+      for (i in 0 until n) {
+        var acc = 0
+        for (c in 0 until channels) acc += bb.getShort((i * channels + c) * 2).toInt()
+        out[base + i] = acc * inv
+      }
+    } else {
+      val inv = 1f / 32768f
+      for (i in 0 until n) {
+        for (c in 0 until oc) {
+          out[base + i * oc + c] = bb.getShort((i * channels + minOf(c, channels - 1)) * 2) * inv
+        }
+      }
     }
-    java.util.Arrays.fill(out, outOffset + n, outOffset + count, 0f)
+    java.util.Arrays.fill(out, base + n * oc, base + count * oc, 0f)
     return n
   }
 

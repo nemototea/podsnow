@@ -5,7 +5,18 @@ import { saveDoc } from '@/infra/db/repositories/editableDocRepo';
 import { listExports } from '@/infra/db/repositories/exportsRepo';
 import { FakeAudioEngine } from '@/services/audio/__tests__/FakeAudioEngine';
 
-import { estimateExportBytes, EXPORT_PRESETS, ExportService } from '../ExportService';
+import { DEFAULT_SETTINGS } from '@/infra/db/repositories/settingsRepo';
+
+import {
+  CUSTOM_BITRATES,
+  DEFAULT_CUSTOM_EXPORT,
+  estimateExportBytes,
+  exportLoudness,
+  EXPORT_PRESETS,
+  ExportService,
+  normalizeCustomExport,
+  resolveExportPreset,
+} from '../ExportService';
 
 const flush = () => new Promise((r) => setTimeout(r, 0));
 
@@ -138,5 +149,97 @@ describe('ExportService', () => {
   it('estimates file sizes', () => {
     expect(estimateExportBytes(EXPORT_PRESETS.podcast, 48000 * 60)).toBe(960000);
     expect(estimateExportBytes(EXPORT_PRESETS.wav, 48000 * 60)).toBe(48000 * 60 * 2 + 44);
+  });
+
+  it('passes custom bitrate and channels to the renderer and records them', async () => {
+    const { db, engine, svc } = await setup();
+    const preset = resolveExportPreset('custom', { format: 'm4a', bitrate: 256_000, channels: 1 });
+    await svc.start('e', preset);
+    const r = engine.renders[0]!;
+    expect(r.opts).toMatchObject({ format: 'm4a', bitrate: 256_000 });
+    expect((r.doc as { channels: number }).channels).toBe(1);
+    const row = (await listExports(db, 'e'))[0]!;
+    expect(JSON.parse(row.preset)).toEqual({
+      format: 'm4a',
+      bitrate: 256_000,
+      channels: 1,
+      sampleRate: 48000,
+      loudness: { enabled: true, targetLufs: -16, truePeakDbtp: -1 },
+    });
+  });
+});
+
+describe('exportLoudness', () => {
+  const preset = (loudness?: object) =>
+    JSON.stringify({ format: 'm4a', bitrate: 128000, channels: 1, sampleRate: 48000, loudness });
+  const on = { enabled: true, targetLufs: -16, truePeakDbtp: -1 };
+
+  it('shows the measured output loudness', () => {
+    expect(exportLoudness({ preset: preset(on), measured_lufs: -16.04 })).toEqual({
+      lufs: -16.04,
+      shortOfTarget: null,
+    });
+  });
+
+  it('flags outputs more than 1 LU below the target (recording too quiet)', () => {
+    expect(exportLoudness({ preset: preset(on), measured_lufs: -23.8 })?.shortOfTarget).toBe(-16);
+    expect(exportLoudness({ preset: preset(on), measured_lufs: -16.9 })?.shortOfTarget).toBeNull();
+  });
+
+  it('does not flag when loudness adjustment was off', () => {
+    const off = { ...on, enabled: false };
+    expect(exportLoudness({ preset: preset(off), measured_lufs: -30 })).toEqual({
+      lufs: -30,
+      shortOfTarget: null,
+    });
+  });
+
+  it('hides values from older rows that stored the pre-adjustment loudness', () => {
+    expect(exportLoudness({ preset: preset(), measured_lufs: -23.4 })).toBeNull();
+    expect(exportLoudness({ preset: 'broken', measured_lufs: -16 })).toBeNull();
+  });
+
+  it('hides silence and missing values', () => {
+    expect(exportLoudness({ preset: preset(on), measured_lufs: -120 })).toBeNull();
+    expect(exportLoudness({ preset: preset(on), measured_lufs: null })).toBeNull();
+  });
+});
+
+describe('custom export settings', () => {
+  it('resolves fixed presets unchanged', () => {
+    expect(resolveExportPreset('podcast', null)).toBe(EXPORT_PRESETS.podcast);
+    expect(resolveExportPreset('high', { bitrate: 64_000 })).toBe(EXPORT_PRESETS.high);
+  });
+
+  it('builds stereo WAV without a bitrate', () => {
+    expect(resolveExportPreset('custom', { format: 'wav', bitrate: 256_000, channels: 2 })).toEqual(
+      { format: 'wav', bitrate: 0, channels: 2, sampleRate: 48000 },
+    );
+  });
+
+  it('falls back per field for broken stored values', () => {
+    expect(normalizeCustomExport(undefined)).toEqual(DEFAULT_CUSTOM_EXPORT);
+    expect(normalizeCustomExport('x')).toEqual(DEFAULT_CUSTOM_EXPORT);
+    expect(normalizeCustomExport({ format: 'mp3', bitrate: 999, channels: 6 })).toEqual(
+      DEFAULT_CUSTOM_EXPORT,
+    );
+    expect(normalizeCustomExport({ format: 'wav', bitrate: 999, channels: 2 })).toEqual({
+      format: 'wav',
+      bitrate: DEFAULT_CUSTOM_EXPORT.bitrate,
+      channels: 2,
+    });
+  });
+
+  it('keeps the settings default in sync and within the offered bitrates', () => {
+    expect(DEFAULT_SETTINGS.export.custom).toEqual(DEFAULT_CUSTOM_EXPORT);
+    expect(CUSTOM_BITRATES).toContain(DEFAULT_CUSTOM_EXPORT.bitrate);
+  });
+
+  it('estimates AAC size from bitrate only, WAV from channels', () => {
+    const min = 48000 * 60;
+    const aacMono = resolveExportPreset('custom', { format: 'm4a', bitrate: 256_000, channels: 1 });
+    expect(estimateExportBytes(aacMono, min)).toBe(1_920_000);
+    const wavStereo = resolveExportPreset('custom', { format: 'wav', channels: 2 });
+    expect(estimateExportBytes(wavStereo, min)).toBe(min * 2 * 2 + 44);
   });
 });

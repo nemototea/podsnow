@@ -6,13 +6,14 @@ import { StyleSheet, View } from 'react-native';
 import { formatAllMetadata } from '@/domain/metadata/template';
 import { formatClock, smp } from '@/domain/time';
 import { useServices } from '@/features/app/ServicesProvider';
-import { formatBytes } from '@/features/episode/ExportTab';
+import { formatBytes, loudnessText } from '@/features/episode/ExportTab';
 import { useCopy } from '@/features/episode/useCopy';
 import { useEpisode } from '@/features/episode/useEpisode';
 import { useT } from '@/i18n';
 import { listExports, type ExportRow } from '@/infra/db/repositories/exportsRepo';
 import { fileExists } from '@/infra/files/fileSystem';
 import { joinRoot } from '@/infra/files/layout';
+import { exportLoudness } from '@/services/export/ExportService';
 import { space, tabularNums, typography } from '@/ui/tokens';
 import { Button, Card, Loading, Notice, Screen, Text, Toast } from '@/ui/components';
 import { ScreenHeader } from '@/ui/ScreenHeader';
@@ -96,6 +97,7 @@ export default function DistributionPackScreen() {
 
   const fileName = `episode-${String(episode.episode_number).padStart(3, '0')}.${row?.format ?? 'm4a'}`;
   const durationLabel = formatClock(smp(row?.duration_smp ?? 0));
+  const shortOfTarget = row ? (exportLoudness(row)?.shortOfTarget ?? null) : null;
   const allMeta = formatAllMetadata({
     title: episode.title,
     episodeNumber: episode.episode_number,
@@ -164,10 +166,18 @@ export default function DistributionPackScreen() {
             <View style={st.file}>
               <Text style={[typography.bodyStrong, { color: c.textPrimary }]}>{fileName}</Text>
               <Text style={[typography.mono, tabularNums, { color: c.textSecondary }]}>
-                {durationLabel} · {formatBytes(row.bytes ?? 0)}
-                {row.measured_lufs != null ? ` · ${row.measured_lufs.toFixed(1)} LUFS` : ''}
+                {[durationLabel, formatBytes(row.bytes ?? 0), loudnessText(t, row)]
+                  .filter(Boolean)
+                  .join(' · ')}
               </Text>
             </View>
+            {shortOfTarget != null ? (
+              <Text
+                style={[typography.caption, { color: c.textSecondary, marginBottom: space.md }]}
+              >
+                {t.pack.belowTargetNote(shortOfTarget)}
+              </Text>
+            ) : null}
             <Button
               label={t.pack.shareFile}
               icon="share"

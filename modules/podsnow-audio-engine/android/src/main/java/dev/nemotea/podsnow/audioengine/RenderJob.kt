@@ -8,7 +8,6 @@ import java.io.File
 import java.io.RandomAccessFile
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
-import kotlin.math.max
 import kotlin.math.roundToInt
 
 /** 書き出し先のエンコーダ抽象。write は Int16 インターリーブ PCM。 */
@@ -123,12 +122,22 @@ class AacSink(path: String, private val sampleRate: Int, private val channels: I
   }
 }
 
-data class RenderResult(val path: String, val frames: Long, val measuredLufs: Double, val measuredTruePeakDb: Double, val appliedGainDb: Double)
+/**
+ * measuredLufs / measuredTruePeakDb は書き出したファイル（出力）の測定値。
+ * inputLufs は調整前のミックス（ラウドネス調整が無効なら測らないので -120）。
+ */
+data class RenderResult(
+  val path: String,
+  val frames: Long,
+  val measuredLufs: Double,
+  val measuredTruePeakDb: Double,
+  val appliedGainDb: Double,
+  val inputLufs: Double,
+)
 
 /**
- * オフラインレンダリング（AUDIO_DESIGN.md §8）。
- * pass 1: ミックスしながら統合ラウドネスとトゥルーピークを測定 → ゲイン決定
- * pass 2: ミックス → ゲイン → リミッター → エンコード
+ * オフラインレンダリング（AUDIO_DESIGN.md §8）。ラウドネス制御は LoudnessRenderer（§8.2）。
+ * 測定パス → （必要ならリミッター込みの測り直し）→ ミックス → ゲイン → リミッター → エンコード
  */
 class RenderJob(
   private val doc: RenderDocument,
@@ -141,71 +150,24 @@ class RenderJob(
   private val block = 4096
 
   fun run(): RenderResult {
-    val total = doc.totalFrames
-    var gainDb = 0.0
-    var lufs = -120.0
-    var tp = -120.0
     Mixer(doc).use { mixer ->
-      if (doc.loudnessEnabled) {
-        val meter = LoudnessMeter(doc.sampleRate)
-        val tpm = TruePeakMeter()
-        val buf = FloatArray(block)
-        var f = 0L
-        while (f < total) {
-          if (cancelled) throw InterruptedException("cancelled")
-          val n = minOf(block.toLong(), total - f).toInt()
-          mixer.render(f, n, buf)
-          meter.process(buf, n)
-          tpm.process(buf, n)
-          f += n
-          if ((f / block) % 50 == 0L) onProgress(0.5 * f / max(1, total), "measuring")
-        }
-        lufs = meter.integrated()
-        tp = linearToDb(tpm.peak.toDouble())
-        if (lufs > -100) {
-          gainDb = doc.targetLufs - lufs
-          // ゲイン後のトゥルーピークが天井を大きく超えるならリミッターに任せるが、+20 dB 以上の持ち上げはしない
-          gainDb = gainDb.coerceIn(-40.0, 20.0)
-        }
-        mixer.reset()
-      }
-      val gain = dbToLinear(gainDb)
-      val limiter = if (doc.loudnessEnabled) Limiter(doc.sampleRate, doc.truePeakDbtp) else null
-      val latency = limiter?.latency ?: 0
-      val sink: PcmSink = if (format == "wav") WavSink(outPath, doc.sampleRate, doc.channels)
-      else AacSink(outPath, doc.sampleRate, doc.channels, bitrate)
-      val buf = FloatArray(block)
-      val pcm = ShortArray(block * doc.channels)
-      var f = 0L
-      var emitted = 0L
-      val renderEnd = total + latency
-      sink.use {
-        while (f < renderEnd) {
-          if (cancelled) throw InterruptedException("cancelled")
-          val n = minOf(block.toLong(), renderEnd - f).toInt()
-          mixer.render(f, n, buf)
-          for (i in 0 until n) buf[i] *= gain
-          limiter?.process(buf, n)
-          // 先頭 latency サンプルは遅延分なので捨て、total を超える分も捨てる
-          var outStart = 0
-          if (f < latency) outStart = minOf(n, (latency - f).toInt())
-          var outCount = n - outStart
-          if (emitted + outCount > total) outCount = (total - emitted).toInt()
-          if (outCount > 0) {
-            var k = 0
-            for (i in outStart until outStart + outCount) {
-              val s = (buf[i].coerceIn(-1f, 1f) * 32767f).roundToInt().toShort()
-              for (c in 0 until doc.channels) pcm[k++] = s
-            }
-            sink.write(pcm, outCount)
-            emitted += outCount
+      val r = LoudnessRenderer(doc, mixer, block, { cancelled }, onProgress)
+      val ch = r.channels
+      val gainDb = r.solveGain()
+      val sink: PcmSink = if (format == "wav") WavSink(outPath, doc.sampleRate, ch)
+      else AacSink(outPath, doc.sampleRate, ch, bitrate)
+      val pcm = ShortArray(block * ch)
+      val out = sink.use {
+        r.render(gainDb) { buf, offset, frames ->
+          var k = 0
+          for (i in offset * ch until (offset + frames) * ch) {
+            pcm[k++] = (buf[i].coerceIn(-1f, 1f) * 32767f).roundToInt().toShort()
           }
-          f += n
-          if ((f / block) % 50 == 0L) onProgress((if (doc.loudnessEnabled) 0.5 else 0.0) + (if (doc.loudnessEnabled) 0.5 else 1.0) * f / max(1, renderEnd), "encoding")
+          sink.write(pcm, frames)
         }
       }
       onProgress(1.0, "done")
-      return RenderResult(outPath, total, lufs, tp, gainDb)
+      return RenderResult(outPath, doc.totalFrames, out.lufs, out.truePeakDb, gainDb, r.inputLufs)
     }
   }
 }

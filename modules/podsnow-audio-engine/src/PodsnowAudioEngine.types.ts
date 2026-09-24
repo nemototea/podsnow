@@ -48,9 +48,13 @@ export interface RenderDoneEvent {
   jobId: string;
   path: string;
   frames: number;
+  /** 書き出したファイル（出力）の統合ラウドネス（LUFS）。 */
   measuredLufs: number;
+  /** 書き出したファイル（出力）のトゥルーピーク（dBTP）。 */
   measuredTruePeakDb: number;
   appliedGainDb: number;
+  /** 調整前のミックスの統合ラウドネス。ラウドネス調整が無効なら -120。 */
+  inputLufs?: number;
 }
 
 export interface RenderErrorEvent {

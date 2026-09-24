@@ -424,7 +424,25 @@ Podcast: {{show_name}}
       podcast: { label: 'Podcast', sub: 'おすすめ', spec: 'M4A · 128 kbps · モノラル' },
       high: { label: 'High Quality', sub: '音楽が多い回に', spec: 'M4A · 256 kbps · ステレオ' },
       wav: { label: 'WAV', sub: '別ツールで再編集する', spec: '48 kHz · 16 bit · 非圧縮' },
+      custom: { label: 'カスタム', sub: '形式・ビットレート・チャンネルを選ぶ' },
     },
+    specM4a: (kbps: number, channels: string) => `M4A · ${kbps} kbps · ${channels}`,
+    specWav: (channels: string) => `WAV · 48 kHz · 16 bit · ${channels}`,
+    custom: {
+      format: '形式',
+      m4a: 'M4A（AAC）',
+      wav: 'WAV（非圧縮）',
+      bitrate: 'ビットレート',
+      wavNoBitrate: 'WAV は非圧縮のため、ビットレートは選べません',
+      channels: 'チャンネル',
+      mono: 'モノラル',
+      stereo: 'ステレオ',
+      channelsNote:
+        'ステレオはステレオ録音（バイノーラルマイク等）や BGM の左右をそのまま残します。モノラル録音は左右同じ音になります',
+    },
+    lufs: (value: string) => `${value} LUFS`,
+    lufsBelowTarget: (value: string, target: number) =>
+      `${value} LUFS（目標 ${target} LUFS に届いていません）`,
     estimatedSize: '推定サイズ',
     duration: '長さ',
     phaseMeasuring: '音を整えています',
@@ -464,6 +482,8 @@ Podcast: {{show_name}}
     missingFileBody: '端末から削除された可能性があります。タイトルと概要は引き続きコピーできます。',
     exportAgain: 'もう一度書き出す',
     notPublished: 'まだ公開されていません。公開は配信サービスでアップロードして行います',
+    belowTargetNote: (target: number) =>
+      `録音の音が小さいため、目標の ${target} LUFS まで上げられませんでした（持ち上げは +20 dB まで）。マイクに近づくか、入力の音量を上げて録り直すと届きます`,
     copyFailed: 'コピーできませんでした',
   },
 
@@ -583,6 +603,7 @@ Podcast: {{show_name}}
       podcast: { label: 'Podcast', sub: 'M4A 128 kbps モノラル' },
       high: { label: 'High Quality', sub: 'M4A 256 kbps ステレオ' },
       wav: { label: 'WAV', sub: '非圧縮 48 kHz' },
+      custom: { label: 'カスタム', sub: '書き出し画面で最後に選んだ設定' },
     },
     showEyebrow: '番組',
     showSettings: '番組の設定',

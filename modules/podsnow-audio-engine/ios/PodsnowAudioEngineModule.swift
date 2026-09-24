@@ -105,6 +105,7 @@ public class PodsnowAudioEngineModule: Module {
           self?.sendEvent("onRenderDone", [
             "jobId": id, "path": r.path, "frames": r.frames,
             "measuredLufs": r.measuredLufs, "measuredTruePeakDb": r.measuredTruePeakDb, "appliedGainDb": r.appliedGainDb,
+            "inputLufs": r.inputLufs,
           ])
         } catch AudioEngineError.cancelled {
           self?.sendEvent("onRenderError", ["jobId": id, "message": "cancelled", "cancelled": true])

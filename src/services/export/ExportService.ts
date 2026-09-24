@@ -27,6 +27,86 @@ export const EXPORT_PRESETS: Record<'podcast' | 'high' | 'wav', ExportPreset> = 
   wav: { format: 'wav', bitrate: 0, channels: 1, sampleRate: 48000 },
 };
 
+/** 固定プリセットに「カスタム」を足した選択肢（FR-EXP-3）。 */
+export type ExportPresetKey = keyof typeof EXPORT_PRESETS | 'custom';
+
+/**
+ * カスタム書き出しでユーザーが選べる項目。
+ * サンプルレートは選ばせない: 素材もタイムラインも 48 kHz 前提で、レンダラはリサンプルしない。
+ */
+export interface CustomExportSettings {
+  format: 'm4a' | 'wav';
+  /** bps。M4A のときだけ使う。 */
+  bitrate: number;
+  channels: 1 | 2;
+}
+
+/** AAC-LC で iOS / Android のエンコーダが受け付ける範囲に収める【仮説】（実機未検証）。 */
+export const CUSTOM_BITRATES: readonly number[] = [
+  64_000, 96_000, 128_000, 160_000, 192_000, 256_000,
+];
+
+export const DEFAULT_CUSTOM_EXPORT: CustomExportSettings = {
+  format: 'm4a',
+  bitrate: 192_000,
+  channels: 1,
+};
+
+/** 保存値（JSON 由来で型が信用できない）を正規化する。壊れた項目は既定値に戻す。 */
+export function normalizeCustomExport(v: unknown): CustomExportSettings {
+  const o = typeof v === 'object' && v !== null ? (v as Record<string, unknown>) : {};
+  return {
+    format: o.format === 'wav' || o.format === 'm4a' ? o.format : DEFAULT_CUSTOM_EXPORT.format,
+    bitrate:
+      typeof o.bitrate === 'number' && CUSTOM_BITRATES.includes(o.bitrate)
+        ? o.bitrate
+        : DEFAULT_CUSTOM_EXPORT.bitrate,
+    channels: o.channels === 1 || o.channels === 2 ? o.channels : DEFAULT_CUSTOM_EXPORT.channels,
+  };
+}
+
+/** プリセットのキー（カスタムなら保存済みの項目も）からレンダに渡す設定を作る。 */
+export function resolveExportPreset(key: ExportPresetKey, custom: unknown): ExportPreset {
+  if (key !== 'custom') return EXPORT_PRESETS[key];
+  const c = normalizeCustomExport(custom);
+  return {
+    format: c.format,
+    bitrate: c.format === 'wav' ? 0 : c.bitrate,
+    channels: c.channels,
+    sampleRate: 48000,
+  };
+}
+
+/** 書き出したファイルの音量（履歴・配信の準備での表示用）。 */
+export interface ExportLoudness {
+  /** 出力の統合ラウドネス（LUFS）。 */
+  lufs: number;
+  /** 音量調整が有効で、出力が目標より 1 LU 以上小さいときの目標値。録音が小さすぎて上げきれなかった。 */
+  shortOfTarget: number | null;
+}
+
+/**
+ * exports の行から、書き出したファイルの音量を取り出す。
+ * preset に loudness が無い行は、measured_lufs が調整前の値だった頃の記録なので出さない。
+ */
+export function exportLoudness(row: {
+  preset: string;
+  measured_lufs: number | null;
+}): ExportLoudness | null {
+  if (row.measured_lufs == null || row.measured_lufs <= -70) return null;
+  let loudness: { enabled?: unknown; targetLufs?: unknown } | undefined;
+  try {
+    loudness = (JSON.parse(row.preset) as { loudness?: typeof loudness }).loudness;
+  } catch {
+    return null;
+  }
+  if (!loudness) return null;
+  const target = typeof loudness.targetLufs === 'number' ? loudness.targetLufs : null;
+  const short =
+    loudness.enabled === true && target != null && row.measured_lufs < target - 1 ? target : null;
+  return { lufs: row.measured_lufs, shortOfTarget: short };
+}
+
 /** 推定ファイルサイズ（bytes）。 */
 export function estimateExportBytes(preset: ExportPreset, durationSmp: number): number {
   const sec = durationSmp / preset.sampleRate;
@@ -107,7 +187,8 @@ export class ExportService {
       id: exportId,
       episodeId,
       format: preset.format,
-      preset,
+      // 書き出し時のラウドネス設定も残す（結果の表示で目標と比べる。DATA_MODEL.md §4.13）
+      preset: { ...preset, loudness: doc.loudness },
       durationSmp: doc.totalFrames,
       now: this.deps.now(),
     });

@@ -38,11 +38,13 @@ class TimelinePlayer(private val emit: (String, Map<String, Any?>) -> Unit) {
     val d = doc ?: throw IllegalStateException("no timeline loaded")
     if (atFrame != null) position = atFrame.coerceIn(0, d.totalFrames)
     if (playing) return
-    val minBuf = AudioTrack.getMinBufferSize(d.sampleRate, AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_16BIT)
+    val ch = mixer?.channels ?: 1
+    val mask = if (ch == 2) AudioFormat.CHANNEL_OUT_STEREO else AudioFormat.CHANNEL_OUT_MONO
+    val minBuf = AudioTrack.getMinBufferSize(d.sampleRate, mask, AudioFormat.ENCODING_PCM_16BIT)
     val t = AudioTrack.Builder()
       .setAudioAttributes(AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA).setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build())
-      .setAudioFormat(AudioFormat.Builder().setEncoding(AudioFormat.ENCODING_PCM_16BIT).setSampleRate(d.sampleRate).setChannelMask(AudioFormat.CHANNEL_OUT_MONO).build())
-      .setBufferSizeInBytes(maxOf(minBuf, block * 2 * 4))
+      .setAudioFormat(AudioFormat.Builder().setEncoding(AudioFormat.ENCODING_PCM_16BIT).setSampleRate(d.sampleRate).setChannelMask(mask).build())
+      .setBufferSizeInBytes(maxOf(minBuf, block * ch * 2 * 4))
       .setTransferMode(AudioTrack.MODE_STREAM)
       .build()
     track = t
@@ -85,8 +87,9 @@ class TimelinePlayer(private val emit: (String, Map<String, Any?>) -> Unit) {
   private fun loop(t: AudioTrack, d: RenderDocument) {
     Process.setThreadPriority(Process.THREAD_PRIORITY_URGENT_AUDIO)
     val m = mixer ?: return
-    val buf = FloatArray(block)
-    val pcm = ShortArray(block)
+    val ch = m.channels
+    val buf = FloatArray(block * ch)
+    val pcm = ShortArray(block * ch)
     var sincePos = 0
     while (playing) {
       val s = seekTo
@@ -98,11 +101,13 @@ class TimelinePlayer(private val emit: (String, Map<String, Any?>) -> Unit) {
       }
       val n = minOf(block.toLong(), d.totalFrames - position).toInt()
       m.render(position, n, buf)
-      for (i in 0 until n) pcm[i] = (buf[i].coerceIn(-1f, 1f) * 32767f).roundToInt().toShort()
-      val written = t.write(pcm, 0, n, AudioTrack.WRITE_BLOCKING)
+      for (i in 0 until n * ch) pcm[i] = (buf[i].coerceIn(-1f, 1f) * 32767f).roundToInt().toShort()
+      // write は short 単位の数を返す。位置はフレームで進める
+      val written = t.write(pcm, 0, n * ch, AudioTrack.WRITE_BLOCKING)
       if (written < 0) { emit("onError", mapOf("message" to "AudioTrack write $written")); playing = false; break }
-      position += written
-      sincePos += written
+      val frames = written / ch
+      position += frames
+      sincePos += frames
       if (sincePos >= d.sampleRate / 10) { sincePos = 0; emit("onPosition", mapOf("frame" to position)) }
     }
   }

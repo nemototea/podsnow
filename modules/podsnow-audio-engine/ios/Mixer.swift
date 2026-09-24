@@ -65,9 +65,11 @@ struct RenderDocument {
 }
 
 /// ストリーミングミキサー。render(frame, count) を昇順に呼ぶとダッキングの状態が連続する。シークしたら reset()。
-/// 出力はモノラル Float32（ステレオ出力は呼び出し側で複製）。
+/// 出力は doc.channels チャンネルのインターリーブ Float32。モノラル素材はステレオ出力で左右に複製し、
+/// ステレオ素材はモノラル出力で平均する（ステレオ録音の左右は書き出しまで保つ）。
 final class Mixer {
   private let doc: RenderDocument
+  let channels: Int
   private var readers: [String: WavReader] = [:]
   private var duckGain: Float = 1
   private let attackCoef: Float
@@ -79,10 +81,12 @@ final class Mixer {
   private var voiceBuf: UnsafeMutablePointer<Float>
   private var duckCurve: UnsafeMutablePointer<Float>
   private var tmp: UnsafeMutablePointer<Float>
+  /// フレーム数での容量（バッファ実長は capacity * channels）。
   private var capacity: Int
 
   init(doc: RenderDocument) {
     self.doc = doc
+    channels = max(1, min(2, doc.channels))
     func coef(_ ms: Double) -> Float { ms <= 0 ? 0 : Float(exp(-1.0 / (Double(doc.sampleRate) * ms / 1000))) }
     attackCoef = coef(doc.duckAttackMs)
     releaseCoef = coef(doc.duckReleaseMs)
@@ -90,9 +94,9 @@ final class Mixer {
     duckFloor = dbToLinear(doc.duckDepthDb)
     threshold = dbToLinear(doc.duckThresholdDb)
     capacity = 8192
-    voiceBuf = .allocate(capacity: capacity)
+    voiceBuf = .allocate(capacity: capacity * channels)
     duckCurve = .allocate(capacity: capacity)
-    tmp = .allocate(capacity: capacity)
+    tmp = .allocate(capacity: capacity * channels)
   }
 
   deinit {
@@ -112,19 +116,23 @@ final class Mixer {
     if n > capacity {
       voiceBuf.deallocate(); duckCurve.deallocate(); tmp.deallocate()
       capacity = n
-      voiceBuf = .allocate(capacity: n); duckCurve = .allocate(capacity: n); tmp = .allocate(capacity: n)
+      voiceBuf = .allocate(capacity: n * channels); duckCurve = .allocate(capacity: n); tmp = .allocate(capacity: n * channels)
     }
   }
 
-  /// out[0, count) にミックス結果（モノラル）を書く。
+  /// out[0, count * channels) にミックス結果（インターリーブ）を書く。
   func render(frame: Int64, count: Int, into out: UnsafeMutablePointer<Float>) throws {
     ensure(count)
-    voiceBuf.update(repeating: 0, count: count)
+    let ch = channels
+    let len = count * ch
+    voiceBuf.update(repeating: 0, count: len)
     for c in doc.voice { try mixClip(c, frame: frame, count: count, out: voiceBuf) }
-    out.update(repeating: 0, count: count)
+    out.update(repeating: 0, count: len)
     if !doc.overlays.isEmpty {
       for i in 0..<count {
-        let v = abs(voiceBuf[i])
+        // 左右どちらかで話していれば声ありとみなす
+        var v: Float = 0
+        for c in 0..<ch { v = max(v, abs(voiceBuf[i * ch + c])) }
         voiceEnv = v > voiceEnv ? v : voiceEnv * envCoef + v * (1 - envCoef)
         let target: Float = (doc.duckEnabled && voiceEnv > threshold) ? duckFloor : 1
         duckGain = target < duckGain ? duckGain * attackCoef + target * (1 - attackCoef)
@@ -133,7 +141,7 @@ final class Mixer {
       }
       for o in doc.overlays { try mixOverlay(o, frame: frame, count: count, out: out) }
     }
-    for i in 0..<count { out[i] += voiceBuf[i] }
+    for i in 0..<len { out[i] += voiceBuf[i] }
   }
 
   private func fade(_ pos: Int64, _ length: Int64, _ fadeIn: Int64, _ fadeOut: Int64) -> Float {
@@ -148,11 +156,13 @@ final class Mixer {
     let end = min(frame + Int64(count), c.tlEnd)
     if end <= start { return }
     let n = Int(end - start)
-    try reader(c.path).readMono(frame: c.fileStart + (start - c.tlStart), count: n, into: tmp)
+    let ch = channels
+    try reader(c.path).read(frame: c.fileStart + (start - c.tlStart), count: n, into: tmp, outChannels: ch)
     let oi = Int(start - frame)
     for i in 0..<n {
       let pos = start - c.tlStart + Int64(i)
-      out[oi + i] += tmp[i] * c.gain * fade(pos, c.fileLength, c.fadeIn, c.fadeOut)
+      let g = c.gain * fade(pos, c.fileLength, c.fadeIn, c.fadeOut)
+      for k in 0..<ch { out[(oi + i) * ch + k] += tmp[i * ch + k] * g }
     }
   }
 
@@ -161,177 +171,24 @@ final class Mixer {
     let end = min(frame + Int64(count), c.tlEnd)
     if end <= start || c.fileLength <= 0 { return }
     let n = Int(end - start)
+    let ch = channels
     let total = c.tlEnd - c.tlStart
     let r = try reader(c.path)
-    tmp.update(repeating: 0, count: n)
+    tmp.update(repeating: 0, count: n * ch)
     var i = 0
     while i < n {
       let pos = start - c.tlStart + Int64(i)
       let srcPos = c.loop ? pos % c.fileLength : pos
       if srcPos >= c.fileLength { break }
       let run = Int(min(Int64(n - i), c.fileLength - srcPos))
-      r.readMono(frame: c.fileStart + srcPos, count: run, into: tmp, outOffset: i)
+      r.read(frame: c.fileStart + srcPos, count: run, into: tmp, outOffset: i, outChannels: ch)
       i += run
     }
     let oi = Int(start - frame)
-    for k in 0..<n {
-      let pos = start - c.tlStart + Int64(k)
-      let g = c.gain * fade(pos, total, c.fadeIn, c.fadeOut) * (c.duck ? duckCurve[oi + k] : 1)
-      out[oi + k] += tmp[k] * g
-    }
-  }
-}
-
-/// 2 次 IIR。
-struct Biquad {
-  let b0, b1, b2, a1, a2: Double
-  var z1 = 0.0, z2 = 0.0
-  mutating func process(_ x: Double) -> Double {
-    let y = b0 * x + z1
-    z1 = b1 * x - a1 * y + z2
-    z2 = b2 * x - a2 * y
-    return y
-  }
-
-  static func highShelf(fs: Int, f0: Double, gainDb: Double, q: Double) -> Biquad {
-    let a = pow(10.0, gainDb / 40), w0 = 2 * Double.pi * f0 / Double(fs)
-    let cw = cos(w0), sw = sin(w0), alpha = sw / (2 * q), sa = sqrt(a)
-    let b0 = a * ((a + 1) + (a - 1) * cw + 2 * sa * alpha)
-    let b1 = -2 * a * ((a - 1) + (a + 1) * cw)
-    let b2 = a * ((a + 1) + (a - 1) * cw - 2 * sa * alpha)
-    let a0 = (a + 1) - (a - 1) * cw + 2 * sa * alpha
-    let a1 = 2 * ((a - 1) - (a + 1) * cw)
-    let a2 = (a + 1) - (a - 1) * cw - 2 * sa * alpha
-    return Biquad(b0: b0 / a0, b1: b1 / a0, b2: b2 / a0, a1: a1 / a0, a2: a2 / a0)
-  }
-
-  static func highPass(fs: Int, f0: Double, q: Double) -> Biquad {
-    let w0 = 2 * Double.pi * f0 / Double(fs), cw = cos(w0), sw = sin(w0), alpha = sw / (2 * q)
-    let b0 = (1 + cw) / 2, b1 = -(1 + cw), b2 = (1 + cw) / 2
-    let a0 = 1 + alpha, a1 = -2 * cw, a2 = 1 - alpha
-    return Biquad(b0: b0 / a0, b1: b1 / a0, b2: b2 / a0, a1: a1 / a0, a2: a2 / a0)
-  }
-}
-
-/// ITU-R BS.1770-4 の統合ラウドネス（モノラル入力、K 特性 + ゲーティング）。
-final class LoudnessMeter {
-  private var shelf: Biquad
-  private var hp: Biquad
-  private let blockLen: Int
-  private let hop: Int
-  private var hopSums = [Double](repeating: 0, count: 4)
-  private var hopIdx = 0
-  private var hopsDone = 0
-  private var hopSum = 0.0
-  private var inHop = 0
-  private var blocks: [Double] = []
-
-  init(sampleRate: Int) {
-    shelf = .highShelf(fs: sampleRate, f0: 1681.974450955533, gainDb: 3.999843853973347, q: 0.7071752369554196)
-    hp = .highPass(fs: sampleRate, f0: 38.13547087602444, q: 0.5003270373238773)
-    blockLen = Int(Double(sampleRate) * 0.4)
-    hop = blockLen / 4
-  }
-
-  func process(_ buf: UnsafeMutablePointer<Float>, count: Int) {
-    for i in 0..<count {
-      let y = hp.process(shelf.process(Double(buf[i])))
-      hopSum += y * y
-      inHop += 1
-      if inHop == hop {
-        hopSums[hopIdx] = hopSum
-        hopIdx = (hopIdx + 1) % 4
-        hopsDone += 1
-        hopSum = 0
-        inHop = 0
-        if hopsDone >= 4 { blocks.append((hopSums[0] + hopSums[1] + hopSums[2] + hopSums[3]) / Double(blockLen)) }
-      }
-    }
-  }
-
-  func integrated() -> Double {
-    if blocks.isEmpty { return -120 }
-    let absGate = pow(10.0, (-70.0 + 0.691) / 10)
-    let pass1 = blocks.filter { $0 >= absGate }
-    if pass1.isEmpty { return -120 }
-    let mean1 = pass1.reduce(0, +) / Double(pass1.count)
-    let relGate = mean1 * pow(10.0, -10.0 / 10)
-    let pass2 = pass1.filter { $0 >= relGate }
-    if pass2.isEmpty { return -120 }
-    return -0.691 + 10 * log10(pass2.reduce(0, +) / Double(pass2.count))
-  }
-}
-
-/// 4 倍オーバーサンプリングの簡易トゥルーピーク計（4 相の窓付き sinc）。【仮説】
-final class TruePeakMeter {
-  private let taps = 4
-  private var phases: [[Double]] = []
-  private var hist: [Float]
-  private(set) var peak: Float = 0
-
-  init() {
-    hist = [Float](repeating: 0, count: taps * 2)
-    let n = taps * 2
-    for p in 0..<4 {
-      phases.append((0..<n).map { k in
-        let x = Double(k - taps + 1) - Double(p) / 4
-        let s = x == 0 ? 1 : sin(Double.pi * x) / (Double.pi * x)
-        return s * (0.5 - 0.5 * cos(2 * Double.pi * (Double(k) + 0.5) / Double(n)))
-      })
-    }
-  }
-
-  func process(_ buf: UnsafeMutablePointer<Float>, count: Int) {
-    for i in 0..<count {
-      hist.removeFirst()
-      hist.append(buf[i])
-      for h in phases {
-        var acc = 0.0
-        for k in 0..<hist.count { acc += Double(hist[k]) * h[k] }
-        let v = Float(abs(acc))
-        if v > peak { peak = v }
-      }
-    }
-  }
-}
-
-/// 先読みピークリミッター（AUDIO_DESIGN.md §8）。ブロック単位の先読みで O(n)。出力は latency サンプル遅れる。
-final class Limiter {
-  private let ceiling: Float
-  let latency: Int
-  private let release: Float
-  private var prev: [Float]
-  private var prevMax: Float = 0
-  private var cur: [Float]
-  private var curLen = 0
-  private var curMax: Float = 0
-  private var gain: Float = 1
-
-  init(sampleRate: Int, ceilingDb: Double, lookaheadMs: Double = 5, releaseMs: Double = 50) {
-    ceiling = dbToLinear(ceilingDb)
-    latency = max(1, Int(Double(sampleRate) * lookaheadMs / 1000))
-    release = Float(exp(-1.0 / (Double(sampleRate) * releaseMs / 1000)))
-    prev = [Float](repeating: 0, count: latency)
-    cur = [Float](repeating: 0, count: latency)
-  }
-
-  func process(_ buf: UnsafeMutablePointer<Float>, count: Int) {
-    for i in 0..<count {
-      let x = buf[i]
-      let ax = abs(x)
-      if ax > curMax { curMax = ax }
-      cur[curLen] = x
-      curLen += 1
-      let mx = max(prevMax, curMax)
-      let target: Float = mx > ceiling ? ceiling / mx : 1
-      gain = target < gain ? target : gain * release + target * (1 - release)
-      buf[i] = max(-ceiling, min(ceiling, prev[curLen - 1] * gain))
-      if curLen == latency {
-        swap(&prev, &cur)
-        prevMax = curMax
-        curLen = 0
-        curMax = 0
-      }
+    for j in 0..<n {
+      let pos = start - c.tlStart + Int64(j)
+      let g = c.gain * fade(pos, total, c.fadeIn, c.fadeOut) * (c.duck ? duckCurve[oi + j] : 1)
+      for k in 0..<ch { out[(oi + j) * ch + k] += tmp[j * ch + k] * g }
     }
   }
 }
