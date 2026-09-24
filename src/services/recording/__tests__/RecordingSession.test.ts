@@ -253,14 +253,14 @@ describe('RecordingSession', () => {
     expect(session.currentSourcePosition()).toEqual({ takeId, srcSmp: 123 });
   });
 
-  it('heartbeat updates the journal', async () => {
-    const { db, recorder, session, tick } = await setup();
+  it.each([1, 2] as const)('heartbeat updates the journal (%i ch)', async (channels) => {
+    const { db, recorder, session, tick } = await setup({ channels });
     await session.start('e');
     recorder.frames = 48000;
     tick();
     await flush();
     const j = (await listOpenJournals(db))[0]!;
-    expect(j.last_known_bytes).toBe(44 + 48000 * 2);
+    expect(j.last_known_bytes).toBe(44 + 48000 * channels * 2);
   });
 
   it('a take with zero frames is marked failed and not added to the voice track', async () => {

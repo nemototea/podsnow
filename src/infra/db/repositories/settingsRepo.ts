@@ -26,7 +26,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   theme: 'dark',
   recording: {
     sampleRate: 48000,
-    channels: 1,
+    channels: 2,
     preferredInputUid: null,
     autoResumeAfterInterruption: false,
     expectedMinutes: 60,

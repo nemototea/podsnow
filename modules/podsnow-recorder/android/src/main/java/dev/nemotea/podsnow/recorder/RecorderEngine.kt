@@ -321,9 +321,23 @@ class RecorderEngine(private val context: Context, private val emit: (String, Ma
     return audioManager.getDevices(AudioManager.GET_DEVICES_INPUTS).firstOrNull { it.id.toString() == uid }
   }
 
+  /**
+   * 選べる入力の一覧。GET_DEVICES_INPUTS は通話（TYPE_TELEPHONY）、エコー参照、リモートサブミックス、
+   * FM チューナーなどアプリから録れない内部デバイスも返し、名前はどれも端末名になる。さらに内蔵マイクは
+   * 位置（下・背面など）ごとに複数返る。どれを使うかは録音ソースで端末が決めるので、内蔵は 1 件にまとめる。
+   */
   fun availableInputs(): List<Map<String, Any?>> {
     if (Build.VERSION.SDK_INT < 23) return emptyList()
-    return audioManager.getDevices(AudioManager.GET_DEVICES_INPUTS).map { describe(it) }
+    var builtin = false
+    return audioManager.getDevices(AudioManager.GET_DEVICES_INPUTS)
+      .filter { it.type in SELECTABLE_INPUT_TYPES }
+      .filter {
+        if (it.type != AudioDeviceInfo.TYPE_BUILTIN_MIC) return@filter true
+        val first = !builtin
+        builtin = true
+        first
+      }
+      .map { describe(it) }
   }
 
   fun currentInput(): Map<String, Any?>? {
@@ -351,6 +365,8 @@ class RecorderEngine(private val context: Context, private val emit: (String, Ma
       AudioDeviceInfo.TYPE_BUILTIN_MIC -> "builtin" to false
       AudioDeviceInfo.TYPE_WIRED_HEADSET -> "wired" to false
       AudioDeviceInfo.TYPE_BLUETOOTH_SCO -> "bluetooth" to true
+      // LE Audio も録音時は双方向（通話用）の帯域になる【仮説】
+      AudioDeviceInfo.TYPE_BLE_HEADSET -> "bluetooth" to true
       AudioDeviceInfo.TYPE_USB_DEVICE, AudioDeviceInfo.TYPE_USB_HEADSET, AudioDeviceInfo.TYPE_USB_ACCESSORY -> "usb" to false
       else -> "other" to false
     }
@@ -381,6 +397,17 @@ class RecorderEngine(private val context: Context, private val emit: (String, Ma
   private fun db(linear: Float): Double = if (linear <= 0f) -120.0 else max(-120.0, 20 * log10(linear.toDouble()))
 
   companion object {
+    /** 録音の入力として選べる種類。これ以外（通話・内部ルーティング用）は一覧に出さない。 */
+    private val SELECTABLE_INPUT_TYPES = setOf(
+      AudioDeviceInfo.TYPE_BUILTIN_MIC,
+      AudioDeviceInfo.TYPE_WIRED_HEADSET,
+      AudioDeviceInfo.TYPE_BLUETOOTH_SCO,
+      AudioDeviceInfo.TYPE_BLE_HEADSET,
+      AudioDeviceInfo.TYPE_USB_DEVICE,
+      AudioDeviceInfo.TYPE_USB_HEADSET,
+      AudioDeviceInfo.TYPE_USB_ACCESSORY,
+    )
+
     fun availableBytes(path: String): Long = try {
       val dir = File(path).parentFile ?: File(path)
       StatFs(dir.absolutePath).availableBytes

@@ -700,6 +700,8 @@ export function Field({
 }) {
   const c = useAppTheme();
   const [focused, setFocused] = useState(false);
+  // 呼び出し側の書体スタイル（typography.mono など）に含まれる lineHeight も入力欄には渡さない（s.input）。
+  const { lineHeight: _lineHeight, ...inputStyle } = StyleSheet.flatten(style) ?? {};
   return (
     <View style={s.field}>
       <Text style={[typography.label, { color: c.textSecondary }]}>{label}</Text>
@@ -721,13 +723,14 @@ export function Field({
         style={[
           s.input,
           multiline ? s.multiline : null,
+          multiline && Platform.OS === 'ios' ? s.multilineLeading : null,
           {
             color: c.textPrimary,
             backgroundColor: c.bg,
             borderColor: error ? c.dangerBorder : focused ? c.focusRing : c.borderStrong,
             borderWidth: focused || error ? stroke.selected : stroke.hairline,
           },
-          style,
+          inputStyle,
         ]}
       />
       {error ? (
@@ -846,14 +849,19 @@ const s = StyleSheet.create({
     alignItems: 'flex-start',
   },
   field: { gap: space.sm, marginBottom: space.lg },
+  // 入力欄には lineHeight を渡さない。Android の TextInput は lineHeight を字の上に積むので、
+  // 字が上に寄り、カーソルが字より大きく伸びる（iOS の 1 行入力でも字が下にずれる）。
+  // 行間は複数行の iOS だけ `multilineLeading` で付ける。
   input: {
-    ...typography.body,
+    fontSize: typography.body.fontSize,
+    fontWeight: typography.body.fontWeight,
     minHeight: hit.button,
     borderRadius: radius.md,
     paddingHorizontal: space.lg,
     paddingVertical: space.md,
   },
   multiline: { minHeight: 128 },
+  multilineLeading: { lineHeight: typography.body.lineHeight },
 });
 
 export type { TextStyle, ViewStyle };

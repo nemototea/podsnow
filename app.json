@@ -42,7 +42,10 @@
         {
           "backgroundColor": "#111416",
           "image": "./assets/images/splash-icon.png",
-          "imageWidth": 240
+          "imageWidth": 240,
+          "android": {
+            "imageWidth": 176
+          }
         }
       ],
       [
