@@ -36,7 +36,8 @@ interface Loaded {
 }
 
 /** 選択肢は「値の並び」だけ持ち、ラベルは i18n から引く（Issue #80）。 */
-const LANGUAGES: readonly AppSettings['language'][] = ['system', 'ja', 'en'];
+/** 表示テーマと同じく「システム」を最後に置く。 */
+const LANGUAGES: readonly AppSettings['language'][] = ['ja', 'en', 'system'];
 const THEMES: readonly AppSettings['theme'][] = ['dark', 'light', 'system'];
 const MINUTES = [30, 60, 90, 120];
 const SILENCE_LEN = [1000, 1500, 2000, 3000];
@@ -94,9 +95,17 @@ export default function SettingsScreen() {
   const setSilence = (p: Partial<AppSettings['silence']>) =>
     set('silence', { ...settings.silence, ...p });
 
+  // 内蔵マイクは端末名（例: Pixel 9a）ではなく「内蔵マイク」と出し、端末名は補足に回す。
+  const inputName = (i: AudioInput) => (i.type === 'builtin' ? t.record.builtInMic : i.name);
+  const inputSub = (i: AudioInput) =>
+    `${i.type === 'builtin' ? i.name : t.settings.inputTypes[i.type]}${
+      i.lowQuality ? t.settings.lowQualitySuffix : ''
+    }`;
   const currentInput = data.inputs.find((i) => i.uid === settings.recording.preferredInputUid);
   const inputLabel = settings.recording.preferredInputUid
-    ? (currentInput?.name ?? t.settings.inputLastUsed)
+    ? currentInput
+      ? inputName(currentInput)
+      : t.settings.inputLastUsed
     : t.settings.inputOsDefault;
 
   return (
@@ -141,14 +150,14 @@ export default function SettingsScreen() {
           below={
             <>
               <Chip
-                label={t.settings.mono}
-                active={settings.recording.channels === 1}
-                onPress={() => setRec({ channels: 1 })}
-              />
-              <Chip
                 label={t.settings.stereo}
                 active={settings.recording.channels === 2}
                 onPress={() => setRec({ channels: 2 })}
+              />
+              <Chip
+                label={t.settings.mono}
+                active={settings.recording.channels === 1}
+                onPress={() => setRec({ channels: 1 })}
               />
             </>
           }
@@ -162,8 +171,8 @@ export default function SettingsScreen() {
             { value: '', label: t.settings.inputOsDefault, sub: t.settings.inputOsDefaultSub },
             ...data.inputs.map((i) => ({
               value: i.uid,
-              label: i.name,
-              sub: `${i.type}${i.lowQuality ? t.settings.lowQualitySuffix : ''}`,
+              label: inputName(i),
+              sub: inputSub(i),
             })),
           ]}
           onChange={(uid) => void setRec({ preferredInputUid: uid || null })}

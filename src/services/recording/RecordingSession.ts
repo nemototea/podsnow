@@ -50,7 +50,7 @@ export interface RecordingSettings {
 
 export const DEFAULT_RECORDING_SETTINGS: RecordingSettings = {
   sampleRate: 48000,
-  channels: 1,
+  channels: 2,
   inputUid: null,
   autoResumeAfterInterruption: false,
   expectedMinutes: 60,

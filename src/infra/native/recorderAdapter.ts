@@ -1,4 +1,5 @@
 import { PodsnowRecorder } from '../../../modules/podsnow-recorder';
+import { selectableInputs } from '@/services/recording/inputs';
 import type { RecorderPort } from '@/services/recording/RecorderPort';
 
 /** ネイティブモジュールを RecorderPort に適合させる。 */
@@ -14,7 +15,7 @@ export function createNativeRecorder(): RecorderPort {
     release: () => PodsnowRecorder.releaseAsync(),
     getState: () => PodsnowRecorder.getState(),
     getFrames: () => PodsnowRecorder.getFrames(),
-    getInputs: () => PodsnowRecorder.getInputsAsync(),
+    getInputs: async () => selectableInputs(await PodsnowRecorder.getInputsAsync()),
     setInput: (uid) => PodsnowRecorder.setInputAsync(uid),
     getCurrentInput: () => PodsnowRecorder.getCurrentInputAsync(),
     isSpeakerOutput: () => PodsnowRecorder.isSpeakerOutputAsync(),
