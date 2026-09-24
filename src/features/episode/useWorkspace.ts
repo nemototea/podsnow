@@ -70,7 +70,7 @@ export interface WorkspaceState {
 export function useWorkspace(episodeId: string) {
   const services = useServices();
   const t = useT();
-  const { db, root, recording, playback, engine, settings } = services;
+  const { db, root, recording, playback, engine, settings, haptics } = services;
   const editingRef = useRef<EditingService | null>(null);
   const undoTopRef = useRef<string | null>(null);
   const [state, setState] = useState<WorkspaceState>({
@@ -278,15 +278,28 @@ export function useWorkspace(episodeId: string) {
           voice: deleteRange(d.voice, opts.punchIn!.start, opts.punchIn!.end),
         }));
         patch({ selection: null });
-        return recording.start(episodeId, { insertAtSmp: opts.punchIn.start });
+        await recording.start(episodeId, { insertAtSmp: opts.punchIn.start });
+        haptics.play('impact');
+        return;
       }
-      return recording.start(episodeId, { insertAtSmp: null });
+      await recording.start(episodeId, { insertAtSmp: null });
+      haptics.play('impact');
     },
-    [apply, episodeId, patch, playback, recording, services.recorder, t],
+    [apply, episodeId, haptics, patch, playback, recording, services.recorder, t],
   );
-  const stopRecording = useCallback(() => recording.stop(), [recording]);
-  const pauseRecording = useCallback(() => recording.pause(), [recording]);
-  const resumeRecording = useCallback(() => recording.resume(), [recording]);
+  const stopRecording = useCallback(async () => {
+    const r = await recording.stop();
+    haptics.play('impact');
+    return r;
+  }, [haptics, recording]);
+  const pauseRecording = useCallback(async () => {
+    await recording.pause();
+    haptics.play('light');
+  }, [haptics, recording]);
+  const resumeRecording = useCallback(async () => {
+    await recording.resume();
+    haptics.play('light');
+  }, [haptics, recording]);
   const resumeAfterInterruption = useCallback(
     () => recording.resumeAfterInterruption(),
     [recording],
@@ -310,9 +323,11 @@ export function useWorkspace(episodeId: string) {
             ? item.recordedSrcSmp
             : ZERO_SMP;
       }
-      return recording.retake(from);
+      const dropped = recording.retake(from);
+      if (dropped !== null) haptics.play('warning');
+      return dropped;
     },
-    [recording, state.outline],
+    [haptics, recording, state.outline],
   );
 
   const undoRetake = useCallback(() => recording.undoRetake(), [recording]);
@@ -410,9 +425,10 @@ export function useWorkspace(episodeId: string) {
     (at: Smp) => {
       const b = blocks.find((x) => at >= x.start && at < x.end) ?? null;
       patch({ selection: b, selectedOverlay: null });
+      if (b) haptics.play('selection');
       return b;
     },
-    [blocks, patch],
+    [blocks, haptics, patch],
   );
 
   /** ハンドルのドラッグ後に確定する。隣の塊の境界へ吸い付かせる。 */
@@ -579,8 +595,9 @@ export function useWorkspace(episodeId: string) {
   const advanceOutline = useCallback(async () => {
     const item = await services.outline.advance(episodeId, recording.currentSourcePosition());
     await loadOutline();
+    if (item) haptics.play('selection');
     return item;
-  }, [episodeId, loadOutline, recording, services.outline]);
+  }, [episodeId, haptics, loadOutline, recording, services.outline]);
 
   const outlineCurrent = useMemo(() => currentIndex(state.outline), [state.outline]);
   const outlineNext = useMemo(() => nextIndex(state.outline), [state.outline]);

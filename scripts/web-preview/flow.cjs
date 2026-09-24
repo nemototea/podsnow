@@ -12,6 +12,7 @@ const ONLY = process.env.ONLY;
   const errors = [];
   p.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
   p.on('console', (m) => { if (m.type() === 'error') errors.push('console: ' + m.text()); });
+  p.on('dialog', (d) => { console.log('dialog: ' + d.message().replace(/\n/g, ' / ')); void d.dismiss(); });
   const shot = async (name) => { await p.waitForTimeout(400); await p.screenshot({ path: `${OUT}/${TAG}-${name}.png` }); console.log('shot', name); };
   const tap = async (text, opts = {}) => { const l = p.getByText(text, { exact: opts.exact ?? true }).first(); await l.click(); await p.waitForTimeout(opts.wait ?? 500); };
   const tapLabel = async (label) => { await p.getByLabel(label, { exact: true }).first().click(); await p.waitForTimeout(500); };
@@ -22,7 +23,7 @@ const ONLY = process.env.ONLY;
   if (SCHEME === 'light') {
     await tapLabel(T('設定', 'Settings'));
     await tap(T('ライト', 'Light'), { wait: 800 });
-    await tapLabel(T('戻る', 'Back'));
+    await p.locator('[aria-label$="back"]').first().click(); await p.waitForTimeout(500);
     await p.waitForTimeout(800);
   }
   await shot('01-home-empty');

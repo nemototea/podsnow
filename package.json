@@ -16,6 +16,9 @@
     "test:watch": "jest --watch"
   },
   "dependencies": {
+    "@expo/ui": "~57.0.19",
+    "@react-native-community/datetimepicker": "9.1.0",
+    "@react-native-segmented-control/segmented-control": "2.5.7",
     "expo": "~57.0.24",
     "expo-audio": "~57.0.5",
     "expo-clipboard": "~57.0.2",
@@ -33,6 +36,7 @@
     "expo-splash-screen": "~57.0.9",
     "expo-sqlite": "~57.0.3",
     "expo-status-bar": "~57.0.1",
+    "expo-symbols": "~57.0.3",
     "expo-system-ui": "~57.0.4",
     "fflate": "^0.8.3",
     "react": "19.2.3",

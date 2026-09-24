@@ -10,7 +10,7 @@ import {
 import { useLocale } from '@/i18n';
 
 import { loadedFonts, resolveFamily, type LoadedFonts } from './fonts';
-import { family } from './tokens';
+import { family, type FamilyRole } from './tokens';
 
 const FontsCtx = createContext<LoadedFonts>([]);
 
@@ -28,6 +28,16 @@ function useFamilyStyle(style: TextProps['style']) {
     const resolved = resolveFamily(requested === family.mono ? 'mono' : 'ui', locale, loaded);
     return { fontFamily: resolved };
   }, [loaded, locale, requested]);
+}
+
+/**
+ * ネイティブ部品（ナビゲーションバー、セグメント、日付ピッカー）に渡す書体名。
+ * 読み込めていなければ undefined（OS の書体）を返す。
+ */
+export function useFontFamily(role: FamilyRole = 'ui'): string | undefined {
+  const locale = useLocale();
+  const loaded = useContext(FontsCtx);
+  return useMemo(() => resolveFamily(role, locale, loaded), [loaded, locale, role]);
 }
 
 export function Text({ style, ...rest }: TextProps) {

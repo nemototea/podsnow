@@ -195,3 +195,40 @@ safe area とホームインジケータ、キーボード、VoiceOver / TalkBac
 - Impeccable: 角丸の片側の線（`border-accent-on-rounded`）は 0 件になった。残りは無効ボタンの文字の
   コントラスト（WCAG 1.4.3 は無効な部品を対象外とする）、波形の切り抜き（意図どおり）、
   react-native-safe-area-context の Web 版が使う `padding` の transition（Web 描画だけ）。
+
+## 10. OS の標準部品へ寄せた（Issue #98）【事実】
+
+「iPhone の利用者が違和感を持たない操作感」と「既存の資産を使い、デザインは色・形・配置・太さで当てる」
+という方針で、自作していた部品を置き換えた。方針と対応表は DESIGN_SYSTEM.md §6.2。
+
+| 以前（#94 の自作） | #98 |
+|---|---|
+| `Header`（自作のバー） | expo-router のネイティブスタックヘッダー（`ScreenHeader`）。収録中は `usePreventRemove` と `gestureEnabled: false` で戻る操作を止める |
+| 「…」→ 下からのシート | iOS: `Stack.Toolbar.Menu`（ヘッダー）と `@expo/ui` の `Menu`（行）。他: 従来のシート |
+| 設定の選択 → シート | iOS: `@expo/ui` の `Picker`（menu）。他: シート（選択中にチェック） |
+| 権限・エラー・無音の確認 → シート | `Alert`（Web 検証は confirm / alert） |
+| 言い直す → シート | iOS: `ActionSheetIOS`。他: シート |
+| 名前の変更 → シート | iOS: `Alert.prompt`。他: シート |
+| 入力・一覧のシート | iOS: `Modal` の `pageSheet`（下スワイプで閉じる）。他: 従来のシート |
+| 自作トグル | `Switch` |
+| 自作タブ | iOS: `UISegmentedControl`。他: 従来の `Segmented` |
+| SVG アイコン | iOS: SF Symbols（`expo-symbols`、無いときは SVG）。他: SVG |
+| 収録日の文字入力 | iOS: `@react-native-community/datetimepicker`（compact）。他: 文字入力 |
+| RN の `Animated` / `PanResponder` のトースト、瞬時に縮むボタン | Reanimated の出入り・ばね、Gesture Handler のスワイプ、押下の縮小を 120ms で補間 |
+| 設定の「ハプティクス」が何もしない（不具合） | `services.haptics`（`expo-haptics`）。録音の開始・停止、一時停止・再開、言い直し、タブ・選択・話題の切り替え、コピー、書き出し完了 |
+
+### 10.1 この作業で見つけて直した不具合【事実】
+
+- **設定の選択肢が表示されていなかった。** `Row` が `below` を受け取りながら描いておらず、録音品質・チャンネル・
+  想定時間・無音の 3 項目の選択肢が見えず変更できなかった。#94 で入れた退行。
+- **Home の題が無く、戻るボタンの読み上げが「index」になっていた。** Home の `title` をアプリ名にした。
+- **行の右の操作（「…」）が行の押下と入れ子だった。** ネイティブのメニューを押すと行の移動も起きうるので、
+  右の操作を行の押下の外へ出した。
+
+### 10.2 検証と未検証【事実】
+
+- `npm run lint` / `typecheck` / `test` / `format:check`、Web 描画の全フロー（Android / Web 側の実装）。
+- `expo export -p ios` と `-p android` でバンドルが作れること、`expo prebuild -p ios` が通り、
+  追加したライブラリの最低 iOS（16.4）がアプリの設定と一致すること。
+- **iOS の実機・シミュレータでは確かめていない**（この環境は Linux）。iOS 専用の実装（`*.ios.tsx`）は
+  Web 描画に出ないため、見た目・動き・読み上げは未確認。確認手順は Issue #98 に残した。

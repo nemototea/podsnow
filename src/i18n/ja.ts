@@ -42,6 +42,8 @@ export const ja = {
     select: '選ぶ',
     selected: '選択中',
     cancelRun: '中止',
+    cancel: 'キャンセル',
+    ok: 'OK',
     shareUnavailable: 'この端末では共有できません',
     openSettings: '設定を開く',
     later: 'あとで',

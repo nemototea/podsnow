@@ -17,6 +17,7 @@ import {
   Toggle,
   useCompact,
 } from '@/ui/components';
+import { ask } from '@/ui/alerts';
 import { useAppTheme } from '@/ui/ThemeContext';
 
 import { parseSeconds, validateRange } from './selectionInput';
@@ -47,11 +48,9 @@ export function EditTab({
   const compact = useCompact();
   const { state } = ws;
   const [pps, setPps] = useState(24);
-  const [sheet, setSheet] = useState<null | 'overlay' | 'silence' | 'insert'>(null);
+  const [sheet, setSheet] = useState<null | 'overlay' | 'insert'>(null);
   const [insertSide, setInsertSide] = useState<'before' | 'after'>('after');
-  const [silencePlan, setSilencePlan] = useState<{ ranges: Range[]; totalRemoved: Smp } | null>(
-    null,
-  );
+  const [analyzing, setAnalyzing] = useState(false);
   const [fields, setFields] = useState<{ key: string; start: string; end: string } | null>(null);
   const [rangeError, setRangeError] = useState<string | null>(null);
 
@@ -68,16 +67,39 @@ export function EditTab({
     ? state.assets.find((a) => a.id === selectedOverlay.assetId)
     : null;
 
+  const applySilence = useCallback(
+    (ranges: Range[]) =>
+      void ws
+        .applySilencePlan(ranges)
+        .then(() => onShowToast(t.edit.silenceApplied(ranges.length), () => void ws.undo())),
+    [onShowToast, t, ws],
+  );
+
+  /** 調べた結果をアラートで確かめてから詰める（DESIGN_SYSTEM.md §6.2）。 */
   const openSilence = useCallback(async () => {
-    setSheet('silence');
-    setSilencePlan(null);
+    setAnalyzing(true);
     try {
-      setSilencePlan(await ws.planSilence());
+      const plan = await ws.planSilence();
+      if (plan.ranges.length === 0) {
+        onShowToast(t.edit.silenceNone);
+        return;
+      }
+      ask({
+        title: t.edit.silenceTitle,
+        message: `${t.edit.silencePlan(
+          plan.ranges.length,
+          formatSmp(plan.totalRemoved, { tenths: true }),
+        )}\n${t.edit.silenceSubtitle}`,
+        confirmLabel: t.edit.silenceApply,
+        cancelLabel: t.common.cancel,
+        onConfirm: () => applySilence(plan.ranges),
+      });
     } catch (e) {
       onError(String(e));
-      setSheet(null);
+    } finally {
+      setAnalyzing(false);
     }
-  }, [onError, ws]);
+  }, [applySilence, onError, onShowToast, t, ws]);
 
   const doCut = useCallback(async () => {
     if (!sel) return;
@@ -298,6 +320,7 @@ export function EditTab({
             label={t.edit.removeSilence}
             kind="secondary"
             style={st.cell}
+            busy={analyzing}
             onPress={() => void openSilence()}
           />
           <Button
@@ -311,42 +334,6 @@ export function EditTab({
       )}
 
       <Button label={t.edit.toExport} style={st.next} onPress={onGoExport} />
-
-      <Sheet
-        visible={sheet === 'silence'}
-        onClose={() => setSheet(null)}
-        title={t.edit.silenceTitle}
-        subtitle={t.edit.silenceSubtitle}
-      >
-        {!silencePlan ? (
-          <Text style={[typography.body, { color: c.textSecondary }]}>
-            {t.edit.silenceAnalyzing}
-          </Text>
-        ) : silencePlan.ranges.length === 0 ? (
-          <Text style={[typography.body, { color: c.textSecondary }]}>{t.edit.silenceNone}</Text>
-        ) : (
-          <>
-            <Text style={[typography.body, { color: c.textPrimary, marginBottom: space.lg }]}>
-              {t.edit.silencePlan(
-                silencePlan.ranges.length,
-                formatSmp(silencePlan.totalRemoved, { tenths: true }),
-              )}
-            </Text>
-            <Button
-              label={t.edit.silenceApply}
-              onPress={() => {
-                const ranges = silencePlan.ranges;
-                setSheet(null);
-                void ws
-                  .applySilencePlan(ranges)
-                  .then(() =>
-                    onShowToast(t.edit.silenceApplied(ranges.length), () => void ws.undo()),
-                  );
-              }}
-            />
-          </>
-        )}
-      </Sheet>
 
       <Sheet
         visible={sheet === 'insert'}

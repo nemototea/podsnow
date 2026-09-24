@@ -16,12 +16,14 @@ import {
   Row,
   Screen,
   SectionHeader,
-  Sheet,
   Text,
   Toast,
 } from '@/ui/components';
 import { useAppTheme } from '@/ui/ThemeContext';
 import { useToast } from '@/ui/useToast';
+import { confirmDestructive } from '@/ui/alerts';
+import type { MenuAction } from '@/ui/menuTypes';
+import { MoreMenu } from '@/ui/MoreMenu';
 import { Wordmark } from '@/ui/Wordmark';
 
 function nextActionLabel(t: Messages, e: EpisodeListItem): string {
@@ -43,7 +45,6 @@ export default function HomeScreen() {
   const { show, episodes, recovered } = useServices();
   const { list, cont, loading, reload } = useHome();
   const { toast, show: showToast, act, dismiss } = useToast();
-  const [menu, setMenu] = useState<EpisodeListItem | null>(null);
   const [creating, setCreating] = useState(false);
   const [recoveredOpen, setRecoveredOpen] = useState(recovered.length > 0);
 
@@ -65,7 +66,6 @@ export default function HomeScreen() {
   };
 
   const remove = async (e: EpisodeListItem) => {
-    setMenu(null);
     await episodes.remove(e.id);
     await reload();
     showToast({
@@ -84,24 +84,77 @@ export default function HomeScreen() {
   };
 
   const purgeAudio = async (e: EpisodeListItem) => {
-    setMenu(null);
     await episodes.purgeAudio(e.id);
     await reload();
     showToast({ text: t.home.audioPurged(e.episode_number) });
   };
 
   const duplicate = async (e: EpisodeListItem) => {
-    setMenu(null);
     const d = await episodes.duplicate(e.id);
     await reload();
     showToast({ text: t.home.duplicated(d.episode_number) });
   };
+
+  const episodeActions = (e: EpisodeListItem): MenuAction[] => [
+    {
+      key: 'duplicate',
+      icon: 'copy',
+      label: t.home.menu.duplicate,
+      onPress: () => void duplicate(e),
+    },
+    {
+      key: 'backup',
+      icon: 'archive',
+      label: t.home.menu.backup,
+      sub: t.home.menu.backupSub,
+      onPress: () => router.push(`/episode/${e.id}/backup`),
+    },
+    ...(e.audio_purged_at
+      ? []
+      : [
+          {
+            key: 'purge',
+            icon: 'volume' as const,
+            label: t.home.menu.purgeAudio,
+            sub: t.home.menu.purgeAudioSub,
+            onPress: () =>
+              confirmDestructive({
+                title: t.home.menu.purgeAudio,
+                message: t.home.menu.purgeAudioSub,
+                confirmLabel: t.common.delete,
+                cancelLabel: t.common.cancel,
+                onConfirm: () => void purgeAudio(e),
+              }),
+          },
+        ]),
+    {
+      key: 'remove',
+      icon: 'trash',
+      label: t.home.menu.remove,
+      sub:
+        e.status === 'exported'
+          ? t.home.menu.removeExportedNote(e.episode_number)
+          : t.home.menu.removeSub,
+      destructive: true,
+      onPress: () =>
+        e.status === 'exported'
+          ? confirmDestructive({
+              title: t.home.menu.remove,
+              message: t.home.menu.removeExportedNote(e.episode_number),
+              confirmLabel: t.common.delete,
+              cancelLabel: t.common.cancel,
+              onConfirm: () => void remove(e),
+            })
+          : void remove(e),
+    },
+  ];
 
   const rec = recovered[0];
   const others = cont ? list.filter((e) => e.id !== cont.id) : list;
 
   return (
     <Screen
+      edgeTop
       overlay={<Toast toast={toast} onAction={act} onDismiss={dismiss} />}
       bottomBar={
         <Button
@@ -212,10 +265,10 @@ export default function HomeScreen() {
               last={i === others.length - 1}
               onPress={() => router.push(`/episode/${e.id}`)}
               right={
-                <IconButton
-                  name="more"
+                <MoreMenu
                   label={t.home.a11yEpisodeMenu(e.episode_number)}
-                  onPress={() => setMenu(e)}
+                  title={`${t.home.episodeCode(e.episode_number)} ${e.title || t.home.untitled}`}
+                  actions={episodeActions(e)}
                 />
               }
             />
@@ -239,49 +292,6 @@ export default function HomeScreen() {
           last
         />
       </Card>
-
-      <Sheet
-        visible={!!menu}
-        onClose={() => setMenu(null)}
-        title={
-          menu ? `${t.home.episodeCode(menu.episode_number)} ${menu.title || t.home.untitled}` : ''
-        }
-      >
-        {menu ? (
-          <>
-            <Row icon="copy" label={t.home.menu.duplicate} onPress={() => void duplicate(menu)} />
-            <Row
-              icon="archive"
-              label={t.home.menu.backup}
-              sub={t.home.menu.backupSub}
-              onPress={() => {
-                setMenu(null);
-                router.push(`/episode/${menu.id}/backup`);
-              }}
-            />
-            {menu.audio_purged_at ? null : (
-              <Row
-                icon="volume"
-                label={t.home.menu.purgeAudio}
-                sub={t.home.menu.purgeAudioSub}
-                onPress={() => void purgeAudio(menu)}
-              />
-            )}
-            <Row
-              icon="trash"
-              label={t.home.menu.remove}
-              sub={
-                menu.status === 'exported'
-                  ? t.home.menu.removeExportedNote(menu.episode_number)
-                  : t.home.menu.removeSub
-              }
-              danger
-              last
-              onPress={() => void remove(menu)}
-            />
-          </>
-        ) : null}
-      </Sheet>
     </Screen>
   );
 }

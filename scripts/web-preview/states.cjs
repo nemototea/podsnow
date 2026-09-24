@@ -8,6 +8,8 @@ const OUT = process.env.OUT || '.';
     const p = await ctx.newPage();
     p.on('pageerror', (e) => errors.push(name + ' pageerror: ' + e.message));
     p.on('console', (m) => { if (m.type() === 'error') errors.push(name + ' console: ' + m.text()); });
+    // 確認・エラー・権限は OS のアラート（Web では confirm / alert）。内容を記録して閉じる。
+    p.on('dialog', (d) => { console.log(`dialog[${name}]: ${d.message().replace(/\n/g, ' / ')}`); void d.dismiss(); });
     await p.goto(`http://localhost:8765/?speed=60${q}`); await p.waitForTimeout(2500);
     const shot = async (n) => { await p.waitForTimeout(500); await p.screenshot({ path: `${OUT}/state-${n}.png` }); console.log('shot', n); };
     await fn(p, shot);
@@ -45,9 +47,9 @@ const OUT = process.env.OUT || '.';
   });
   await run('menu', '', async (p, shot) => {
     await newEp(p); await lab(p, '録音を開始').click(); await p.waitForTimeout(1200); await lab(p, '収録を終える').click(); await p.waitForTimeout(1200);
-    await lab(p, '戻る').click(); await p.waitForTimeout(1200);
+    await p.locator('[aria-label$="back"]').first().click(); await p.waitForTimeout(1200);
     await shot('home-continue-card');
-    await p.getByText('新しいエピソードを録る').click(); await p.waitForTimeout(1200); await lab(p, '戻る').click(); await p.waitForTimeout(1200);
+    await p.getByText('新しいエピソードを録る').click(); await p.waitForTimeout(1200); await p.locator('[aria-label$="back"]').first().click(); await p.waitForTimeout(1200);
     await p.getByLabel(/の操作$/).first().click(); await shot('episode-menu-sheet');
   });
   console.log('ERRORS:\n' + errors.join('\n'));

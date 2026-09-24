@@ -1,4 +1,4 @@
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 import * as Sharing from 'expo-sharing';
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
@@ -13,7 +13,8 @@ import {
   type BackupProgress,
 } from '@/services/backup/BackupService';
 import { space, typography } from '@/ui/tokens';
-import { Button, Card, Header, Notice, ProgressBar, Screen, Text, Toast } from '@/ui/components';
+import { Button, Card, Notice, ProgressBar, Screen, Text, Toast } from '@/ui/components';
+import { ScreenHeader } from '@/ui/ScreenHeader';
 import { useAppTheme } from '@/ui/ThemeContext';
 import { useToast } from '@/ui/useToast';
 
@@ -22,7 +23,6 @@ type Phase = 'idle' | 'running' | 'done' | 'error';
 /** エピソードのバックアップ（.podsnow）を作成して共有する（Issue #48）。 */
 export default function BackupScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const router = useRouter();
   const c = useAppTheme();
   const t = useT();
   const services = useServices();
@@ -82,7 +82,7 @@ export default function BackupScreen() {
 
   return (
     <Screen overlay={<Toast toast={toast} onAction={act} onDismiss={dismiss} />}>
-      <Header title={t.backup.title} onBack={() => router.back()} />
+      <ScreenHeader title={t.backup.title} />
       <Card>
         <Text style={[st.body, { color: c.textSecondary }]}>{t.backup.lead}</Text>
         {phase === 'idle' || phase === 'error' ? (

@@ -14,7 +14,8 @@ import { listExports, type ExportRow } from '@/infra/db/repositories/exportsRepo
 import { fileExists } from '@/infra/files/fileSystem';
 import { joinRoot } from '@/infra/files/layout';
 import { space, tabularNums, typography } from '@/ui/tokens';
-import { Button, Card, Header, Loading, Notice, Screen, Text, Toast } from '@/ui/components';
+import { Button, Card, Loading, Notice, Screen, Text, Toast } from '@/ui/components';
+import { ScreenHeader } from '@/ui/ScreenHeader';
 import { useAppTheme } from '@/ui/ThemeContext';
 import { useToast } from '@/ui/useToast';
 
@@ -128,10 +129,9 @@ export default function DistributionPackScreen() {
 
   return (
     <Screen overlay={<Toast toast={toast} onAction={act} onDismiss={dismiss} />}>
-      <Header
+      <ScreenHeader
         title={t.pack.title}
         subtitle={`${t.episode.number(episode.episode_number)} · ${episode.title || t.episode.untitled}`}
-        onBack={() => router.back()}
       />
 
       <View style={st.top} />

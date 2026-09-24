@@ -13,17 +13,17 @@ import { space, tabularNums, typography } from '@/ui/tokens';
 import {
   Card,
   Chip,
-  Header,
   Notice,
   Row,
   Screen,
   SectionHeader,
   Segmented,
-  Sheet,
   Text,
   Toast,
   Toggle,
 } from '@/ui/components';
+import { ChoiceMenu } from '@/ui/ChoiceMenu';
+import { ScreenHeader } from '@/ui/ScreenHeader';
 import { useAppTheme } from '@/ui/ThemeContext';
 import { useToast } from '@/ui/useToast';
 
@@ -64,7 +64,6 @@ export default function SettingsScreen() {
   const { db, recorder, updateSettings } = services;
   const { toast, show: showToast, act, dismiss } = useToast();
   const [settings, setSettings] = useState<AppSettings>(services.settings);
-  const [sheet, setSheet] = useState<'input' | 'source' | 'preset' | 'monitor' | null>(null);
 
   const loader = useCallback(async (): Promise<Loaded> => {
     const [storage, inputs] = await Promise.all([
@@ -102,7 +101,7 @@ export default function SettingsScreen() {
 
   return (
     <Screen overlay={<Toast toast={toast} onAction={act} onDismiss={dismiss} />}>
-      <Header title={t.settings.title} onBack={() => router.back()} />
+      <ScreenHeader title={t.settings.title} />
 
       <SectionHeader title={t.settings.languageEyebrow} />
       <Segmented
@@ -154,7 +153,21 @@ export default function SettingsScreen() {
             </>
           }
         />
-        <Row label={t.settings.inputDefault} sub={inputLabel} onPress={() => setSheet('input')} />
+        <ChoiceMenu
+          label={t.settings.inputDefault}
+          sub={inputLabel}
+          title={t.settings.inputDefault}
+          value={settings.recording.preferredInputUid ?? ''}
+          options={[
+            { value: '', label: t.settings.inputOsDefault, sub: t.settings.inputOsDefaultSub },
+            ...data.inputs.map((i) => ({
+              value: i.uid,
+              label: i.name,
+              sub: `${i.type}${i.lowQuality ? t.settings.lowQualitySuffix : ''}`,
+            })),
+          ]}
+          onChange={(uid) => void setRec({ preferredInputUid: uid || null })}
+        />
         {currentInput?.lowQuality ? (
           <Notice
             kind="warning"
@@ -189,10 +202,17 @@ export default function SettingsScreen() {
           }
         />
         {Platform.OS === 'android' ? (
-          <Row
+          <ChoiceMenu
             label={t.settings.androidSource}
             sub={t.settings.sources[settings.recording.androidAudioSource].label}
-            onPress={() => setSheet('source')}
+            title={t.settings.androidSource}
+            value={settings.recording.androidAudioSource}
+            options={SOURCES.map((v) => ({
+              value: v,
+              label: t.settings.sources[v].label,
+              sub: t.settings.sources[v].sub,
+            }))}
+            onChange={(v) => void setRec({ androidAudioSource: v })}
           />
         ) : null}
       </Card>
@@ -262,19 +282,33 @@ export default function SettingsScreen() {
           sub={t.settings.hapticsSub}
           right={<Toggle value={settings.haptics} onChange={(v) => set('haptics', v)} />}
         />
-        <Row
+        <ChoiceMenu
           label={t.settings.monitorRow}
           sub={t.settings.monitor[settings.monitor.jinglePlayback].label}
-          onPress={() => setSheet('monitor')}
+          title={t.settings.monitorRow}
+          value={settings.monitor.jinglePlayback}
+          options={MONITOR.map((v) => ({
+            value: v,
+            label: t.settings.monitor[v].label,
+            sub: t.settings.monitor[v].sub,
+          }))}
+          onChange={(v) => void set('monitor', { jinglePlayback: v })}
         />
       </Card>
 
       <SectionHeader title={t.settings.exportEyebrow} />
       <Card style={{ paddingVertical: space.xs }}>
-        <Row
+        <ChoiceMenu
           label={t.settings.defaultPreset}
           sub={t.settings.presets[settings.export.defaultPreset].sub}
-          onPress={() => setSheet('preset')}
+          title={t.settings.defaultPresetSheet}
+          value={settings.export.defaultPreset}
+          options={PRESETS.map((v) => ({
+            value: v,
+            label: t.settings.presets[v].label,
+            sub: t.settings.presets[v].sub,
+          }))}
+          onChange={(v) => void set('export', { defaultPreset: v })}
         />
       </Card>
 
@@ -331,91 +365,6 @@ export default function SettingsScreen() {
         {'\n'}
         {t.app.nonDestructiveNote}
       </Text>
-
-      <Sheet
-        visible={sheet === 'input'}
-        onClose={() => setSheet(null)}
-        title={t.settings.inputDefault}
-      >
-        <Row
-          label={t.settings.inputOsDefault}
-          sub={t.settings.inputOsDefaultSub}
-          onPress={() => {
-            setSheet(null);
-            void setRec({ preferredInputUid: null });
-          }}
-        />
-        {data.inputs.map((i) => (
-          <Row
-            key={i.uid}
-            label={i.name}
-            sub={`${i.type}${i.lowQuality ? t.settings.lowQualitySuffix : ''}`}
-            onPress={() => {
-              setSheet(null);
-              void setRec({ preferredInputUid: i.uid });
-            }}
-          />
-        ))}
-        {data.inputs.length === 0 ? (
-          <Text style={[typography.body, { color: c.textSecondary, paddingVertical: space.md }]}>
-            {t.settings.noInputs}
-          </Text>
-        ) : null}
-      </Sheet>
-
-      <Sheet
-        visible={sheet === 'source'}
-        onClose={() => setSheet(null)}
-        title={t.settings.androidSource}
-      >
-        {SOURCES.map((v) => (
-          <Row
-            key={v}
-            label={t.settings.sources[v].label}
-            sub={t.settings.sources[v].sub}
-            onPress={() => {
-              setSheet(null);
-              void setRec({ androidAudioSource: v });
-            }}
-          />
-        ))}
-      </Sheet>
-
-      <Sheet
-        visible={sheet === 'preset'}
-        onClose={() => setSheet(null)}
-        title={t.settings.defaultPresetSheet}
-      >
-        {PRESETS.map((v) => (
-          <Row
-            key={v}
-            label={t.settings.presets[v].label}
-            sub={t.settings.presets[v].sub}
-            onPress={() => {
-              setSheet(null);
-              void set('export', { defaultPreset: v });
-            }}
-          />
-        ))}
-      </Sheet>
-
-      <Sheet
-        visible={sheet === 'monitor'}
-        onClose={() => setSheet(null)}
-        title={t.settings.monitorRow}
-      >
-        {MONITOR.map((v) => (
-          <Row
-            key={v}
-            label={t.settings.monitor[v].label}
-            sub={t.settings.monitor[v].sub}
-            onPress={() => {
-              setSheet(null);
-              void set('monitor', { jinglePlayback: v });
-            }}
-          />
-        ))}
-      </Sheet>
     </Screen>
   );
 }

@@ -13,29 +13,18 @@ import { useRecordingContext } from '@/features/episode/useRecordingContext';
 import { useWorkspace } from '@/features/episode/useWorkspace';
 import { errorCodeText, errorText, useT } from '@/i18n';
 import type { AssetRow } from '@/infra/db/repositories/assetsRepo';
-import { space, typography } from '@/ui/tokens';
-import {
-  Button,
-  Header,
-  IconButton,
-  Loading,
-  Row,
-  Screen,
-  Segmented,
-  Sheet,
-  Text,
-  Toast,
-} from '@/ui/components';
-import { useAppTheme } from '@/ui/ThemeContext';
+import { space } from '@/ui/tokens';
+import { ask, confirmDestructive, iosActionSheet, notify } from '@/ui/alerts';
+import { Loading, Row, Screen, Segmented, Sheet, Toast } from '@/ui/components';
+import { HeaderMenu } from '@/ui/HeaderMenu';
+import { ScreenHeader } from '@/ui/ScreenHeader';
 import { useToast } from '@/ui/useToast';
 
 type Tab = 'record' | 'edit' | 'export';
-type Permission = null | 'ask' | 'denied';
 
 export default function EpisodeScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const episodeId = id ?? '';
-  const c = useAppTheme();
   const t = useT();
   const router = useRouter();
   const services = useServices();
@@ -44,16 +33,18 @@ export default function EpisodeScreen() {
   const recCtx = useRecordingContext(state.recording);
   const { toast, show: showToast, act, dismiss } = useToast();
   const [tab, setTab] = useState<Tab>('record');
-  const [menu, setMenu] = useState(false);
   const [retake, setRetake] = useState(false);
-  const [permission, setPermission] = useState<Permission>(null);
-  const [error, setError] = useState<string | null>(null);
   const undoToastFor = useRef<string | null>(null);
 
   const isRec = state.recording === 'recording' || state.recording === 'paused';
   const interrupted = state.recording === 'interrupted';
   const busy = state.recording === 'preparing' || state.recording === 'stopping';
   const live = isRec || interrupted || busy;
+
+  const showError = useCallback(
+    (message: string) => notify({ title: t.common.error, message, okLabel: t.common.close }),
+    [t],
+  );
 
   const toast1 = useCallback(
     (text: string, undo?: () => void) => {
@@ -85,7 +76,7 @@ export default function EpisodeScreen() {
   useEffect(() => {
     const subs = [
       services.recording.on('error', (e) =>
-        setError(e.code ? errorCodeText(t, e.code) : e.message),
+        showError(e.code ? errorCodeText(t, e.code) : e.message),
       ),
       services.recording.on('diskLow', () => showToast({ text: t.record.diskLow, persist: true })),
       services.recording.on('interruption', (e) => {
@@ -100,23 +91,34 @@ export default function EpisodeScreen() {
       }),
     ];
     return () => subs.forEach((s) => s.remove());
-  }, [services.recording, showToast, t]);
+  }, [services.recording, showError, showToast, t]);
 
   const start = useCallback(async () => {
     try {
       setTab('record');
       await ws.startRecording();
     } catch (e) {
-      setError(errorText(t, e));
+      showError(errorText(t, e));
     }
-  }, [t, ws]);
+  }, [showError, t, ws]);
+
+  const askOpenSettings = useCallback(
+    () =>
+      ask({
+        title: t.record.permDeniedTitle,
+        message: t.record.permDeniedBody,
+        confirmLabel: t.common.openSettings,
+        cancelLabel: t.common.later,
+        onConfirm: () => void Linking.openSettings(),
+      }),
+    [t],
+  );
 
   const requestAndStart = useCallback(async () => {
-    setPermission(null);
     const r = await services.recorder.requestPermissions().catch(() => null);
     if (r?.microphone === 'granted') await start();
-    else setPermission('denied');
-  }, [services.recorder, start]);
+    else askOpenSettings();
+  }, [askOpenSettings, services.recorder, start]);
 
   const toggleRec = useCallback(async () => {
     try {
@@ -132,28 +134,45 @@ export default function EpisodeScreen() {
       const perm = await services.recorder.getPermissions().catch(() => null);
       const mic = perm?.microphone ?? 'granted';
       if (mic === 'undetermined') {
-        setPermission('ask');
+        ask({
+          title: t.record.permTitle,
+          message: t.record.permBody,
+          confirmLabel: t.record.permAllow,
+          cancelLabel: t.common.later,
+          onConfirm: () => void requestAndStart(),
+        });
         return;
       }
       if (mic === 'denied') {
         if (Platform.OS === 'android') void requestAndStart();
-        else setPermission('denied');
+        else askOpenSettings();
         return;
       }
       await start();
     } catch (e) {
-      setError(errorText(t, e));
+      showError(errorText(t, e));
     }
-  }, [interrupted, isRec, requestAndStart, services.recorder, showToast, start, t, ws]);
+  }, [
+    askOpenSettings,
+    interrupted,
+    isRec,
+    requestAndStart,
+    services.recorder,
+    showError,
+    showToast,
+    start,
+    t,
+    ws,
+  ]);
 
   const finishFromInterruption = useCallback(async () => {
     try {
       const r = await ws.stopRecording();
       if (r) showToast({ text: t.record.takeAdded(formatSmp(smp(r.durationSmp))) });
     } catch (e) {
-      setError(errorText(t, e));
+      showError(errorText(t, e));
     }
-  }, [showToast, t, ws]);
+  }, [showError, showToast, t, ws]);
 
   const applyRetake = useCallback(
     (mode: 'chapter' | 'last10') => {
@@ -171,6 +190,19 @@ export default function EpisodeScreen() {
     },
     [showToast, t, ws],
   );
+
+  const openRetake = () => {
+    const shown = iosActionSheet({
+      title: t.record.retakeTitle,
+      message: t.record.retakeSubtitle,
+      cancelLabel: t.common.cancel,
+      options: [
+        { label: t.record.retakeFromChapter, onPress: () => applyRetake('chapter') },
+        { label: t.record.retakeLast10, onPress: () => applyRetake('last10') },
+      ],
+    });
+    if (!shown) setRetake(true);
+  };
 
   const insertAsset = useCallback(
     async (a: AssetRow, at?: Smp) => {
@@ -202,6 +234,7 @@ export default function EpisodeScreen() {
       showToast({ text: t.record.finishFirst });
       return;
     }
+    if (next !== tab) services.haptics.play('selection');
     setTab(next);
   };
 
@@ -222,23 +255,63 @@ export default function EpisodeScreen() {
                 recCtx={recCtx}
                 onToggleRec={() => void toggleRec()}
                 onFinishInterrupted={() => void finishFromInterruption()}
-                onRetake={() => setRetake(true)}
+                onRetake={openRetake}
               />
             ),
           })}
     >
-      <Header
+      <ScreenHeader
         title={t.episode.number(episode.episode_number)}
         subtitle={episode.title || t.episode.untitled}
-        onBack={() => (live ? showToast({ text: t.record.cannotLeave }) : router.back())}
-        right={
-          <IconButton
-            name="more"
-            label={t.episode.a11yMenu}
-            onPress={() => setMenu(true)}
-            disabled={live}
-          />
-        }
+        lockBack={live}
+        onLockedBack={() => showToast({ text: t.record.cannotLeave })}
+      />
+      <HeaderMenu
+        label={t.episode.a11yMenu}
+        title={episode.title || t.episode.untitled}
+        disabled={live}
+        actions={[
+          {
+            key: 'backup',
+            icon: 'archive',
+            label: t.episode.menu.backup,
+            onPress: () => router.push(`/episode/${episodeId}/backup` as never),
+          },
+          {
+            key: 'duplicate',
+            icon: 'copy',
+            label: t.episode.menu.duplicate,
+            onPress: () =>
+              void services.episodes.duplicate(episodeId).then((d) =>
+                showToast({
+                  text: t.episode.duplicated(d.episode_number),
+                  action: t.common.open,
+                  onAction: () => router.push(`/episode/${d.id}` as never),
+                }),
+              ),
+          },
+          {
+            key: 'remove',
+            icon: 'trash',
+            label: t.episode.menu.remove,
+            sub:
+              episode.status === 'exported'
+                ? t.episode.menu.removeExportedNote(episode.episode_number)
+                : t.episode.menu.removeSub,
+            destructive: true,
+            onPress: () => {
+              const run = () => void services.episodes.remove(episodeId).then(() => router.back());
+              if (episode.status !== 'exported') return run();
+              confirmDestructive({
+                title: t.episode.menu.remove,
+                message: t.episode.menu.removeExportedNote(episode.episode_number),
+                confirmLabel: t.common.delete,
+                cancelLabel: t.common.cancel,
+                onConfirm: run,
+              });
+            },
+          },
+        ]}
       />
 
       <View style={st.tabs}>
@@ -268,7 +341,7 @@ export default function EpisodeScreen() {
           onInsertAsset={(a, at) => void insertAsset(a, at)}
           onOpenAssets={() => router.push('/show')}
           onShowToast={toast1}
-          onError={setError}
+          onError={showError}
           onGoExport={() => setTab('export')}
         />
       ) : (
@@ -304,84 +377,6 @@ export default function EpisodeScreen() {
             setRetake(false);
             applyRetake('last10');
           }}
-        />
-      </Sheet>
-
-      <Sheet
-        visible={permission !== null}
-        onClose={() => setPermission(null)}
-        title={permission === 'denied' ? t.record.permDeniedTitle : t.record.permTitle}
-      >
-        <Text style={[typography.body, { color: c.textPrimary, marginBottom: space.lg }]}>
-          {permission === 'denied' ? t.record.permDeniedBody : t.record.permBody}
-        </Text>
-        <View style={st.sheetActions}>
-          {permission === 'denied' ? (
-            <Button
-              label={t.common.openSettings}
-              onPress={() => {
-                setPermission(null);
-                void Linking.openSettings();
-              }}
-            />
-          ) : (
-            <Button label={t.record.permAllow} icon="mic" onPress={() => void requestAndStart()} />
-          )}
-          <Button label={t.common.later} kind="ghost" onPress={() => setPermission(null)} />
-        </View>
-      </Sheet>
-
-      <Sheet
-        visible={menu}
-        onClose={() => setMenu(false)}
-        title={episode.title || t.episode.untitled}
-      >
-        <Row
-          icon="archive"
-          label={t.episode.menu.backup}
-          onPress={() => {
-            setMenu(false);
-            router.push(`/episode/${episodeId}/backup` as never);
-          }}
-        />
-        <Row
-          icon="copy"
-          label={t.episode.menu.duplicate}
-          onPress={() => {
-            setMenu(false);
-            void services.episodes.duplicate(episodeId).then((d) =>
-              showToast({
-                text: t.episode.duplicated(d.episode_number),
-                action: t.common.open,
-                onAction: () => router.push(`/episode/${d.id}` as never),
-              }),
-            );
-          }}
-        />
-        <Row
-          icon="trash"
-          label={t.episode.menu.remove}
-          sub={
-            episode.status === 'exported'
-              ? t.episode.menu.removeExportedNote(episode.episode_number)
-              : t.episode.menu.removeSub
-          }
-          danger
-          last
-          onPress={() => {
-            setMenu(false);
-            void services.episodes.remove(episodeId).then(() => router.back());
-          }}
-        />
-      </Sheet>
-
-      <Sheet visible={!!error} onClose={() => setError(null)} title={t.common.error}>
-        <Text style={[typography.body, { color: c.textPrimary }]}>{error}</Text>
-        <Button
-          label={t.common.close}
-          kind="secondary"
-          onPress={() => setError(null)}
-          style={{ marginTop: space.lg }}
         />
       </Sheet>
     </Screen>
