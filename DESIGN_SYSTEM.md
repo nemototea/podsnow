@@ -47,7 +47,7 @@ PodsNow は「スマートフォンの小さな DAW」ではなく、ポッド�
 
 【事実】Issue #105: ライトは温かい白とグラファイトの輪郭、シトロンの主操作を使う。
 主操作・副操作ボタンに短いぼかし無しの影を付け、ネオブルータリズムの押せる形を取り入れる。
-ダークは従来の配色を維持し、太い白枠や硬い影は追加しない。両テーマのボタンは同じ角丸・寸法と押し込み動作を持つ。
+ダークは従来の背景・アクセントを維持する。#110 で主ボタンに濃い輪郭と硬い影、副ボタンに明確な面と2pxの輪郭を追加した。両テーマのボタンは同じ角丸・寸法と押し込み動作を持つ。
 リストの全面カード化、傾いたカード、多色の装飾は行わない。
 
 
@@ -148,18 +148,24 @@ python3 scripts/brand/extract_glyphs.py path/to/Manrope[wght].ttf   # 字形を�
 
 ## 4. タイポグラフィ
 
+【事実】#110 で数字専用の IBM Plex Mono を廃止。点付きゼロを避け、ロゴと同系統の Manrope へ揃えた。
+タイマー・時間・容量・目盛りは `numeric` の役割として日英共通の Manrope 500 と `tabular-nums` を使用する。
+数字以外の日本語本文は Noto Sans JP、英語本文は Manrope。本文中の数字だけを分割して別の書体にはしない。
+ロゴの輪郭・字間・寸法は維持する。調査・選定根拠は `docs/design-refresh/dark-typography/README.md`。
+
+
 ### 4.1 書体【事実】
 
 | 用途 | 書体 | 同梱するウェイト |
 |---|---|---|
 | 欧文 UI（英語表示） | Manrope | 400 / 500 / 600 / 700 |
 | 和文 UI（日本語表示） | Noto Sans JP | 400 / 500 / 600 / 700 |
-| 時間・計測値 | IBM Plex Mono | 400 |
+| 時間・計測値 | Manrope（等幅数字） | 500 |
 | ロゴ輪郭 | Manrope 800（輪郭として焼き込み。書体としては同梱しない） | — |
 
 - すべて SIL OFL 1.1。原本・出典・ライセンス文は `assets/fonts/README.md` と `assets/fonts/*-OFL.txt`。
 - React Native は可変フォントの軸を指定できないので、**使う太さだけを静的 TTF に切り出して同梱**する
-  （`scripts/fonts/generate.py`、fontTools が必要）。疑似太字に頼らない。等幅は 400 だけを使う（テストで確認）。
+  （`scripts/fonts/generate.py`、fontTools が必要）。疑似太字に頼らない。数値の役割は Manrope 500 と等幅数字を使う（テストで確認）。
 - 起動時に外部 CDN から取得しない。ビルド時に `expo-font` の config plugin で埋め込む（`app.json`）。
 
 ### 4.2 役割尺度【事実】
@@ -168,8 +174,8 @@ python3 scripts/brand/extract_glyphs.py path/to/Manrope[wght].ttf   # 字形を�
 
 | 役割 | サイズ / 行高 | 太さ | 用途 |
 |---|---|---:|---|
-| `timer` | 48 / 58 | 400 mono | 収録中の時間。幅 360 未満では `timerCompact` 40 / 48 |
-| `clock` | 32 / 40 | 400 mono | 編集の再生位置。狭い画面では `clockCompact` 24 / 32 |
+| `timer` | 48 / 58 | 500 Manrope / tabular | 収録中の時間。幅 360 未満では `timerCompact` 40 / 48 |
+| `clock` | 32 / 40 | 500 Manrope / tabular | 編集の再生位置。狭い画面では `clockCompact` 24 / 32 |
 | `display` | 32 / 40 | 700 | 番組名 |
 | `title` | 24 / 34 | 700 | 画面の大見出し |
 | `heading` | 20 / 28 | 600 | セクション見出し（#96 で 18 から上げ、本文との段差を広げた） |
@@ -177,8 +183,8 @@ python3 scripts/brand/extract_glyphs.py path/to/Manrope[wght].ttf   # 字形を�
 | `label` | 14 / 21 | 600 | ボタン、設定項目 |
 | `caption` | 13 / 20 | 500 | 日時、補助情報 |
 | `overline` | 12 / 18 | 600 | 波形のレーン名など、図の中の短い名札。見出しの上には置かない（§2.1） |
-| `mono` | 14 / 20 | 400 mono | 行の中の時間・サイズ |
-| `tick` | 11 / 14 | 400 mono | 波形の目盛りだけ |
+| `numeric` | 14 / 20 | 500 Manrope / tabular | 行の中の時間・サイズ |
+| `tick` | 11 / 14 | 500 Manrope / tabular | 波形の目盛りだけ |
 
 - 動く時間は tabular numbers。収録中は `mm:ss`、1 時間以上は `h:mm:ss`（`formatClock`）。小数は出さない。
 - 操作ラベルは折り返せる（Button は 1 行に固定しない）。
@@ -190,7 +196,7 @@ python3 scripts/brand/extract_glyphs.py path/to/Manrope[wght].ttf   # 字形を�
 - 画面・`features/`・`ui/` は `react-native` の Text / TextInput を直接使わず、`@/ui/components` の
   `Text` / `TextInput` を使う（ESLint で強制）。これがロケールに応じて `fontFamily` を足す。
 - **書体の読込失敗で起動・収録を止めない。** `expo-font` の `getLoadedFonts()` に書体が無ければ
-  `fontFamily` を付けず OS 書体に退避する（等幅は Menlo / monospace）。判定は `src/ui/fonts.ts`（テストあり）。
+  `fontFamily` を付けず OS 書体に退避する（数字も OS の通常書体 + tabular-nums）。判定は `src/ui/fonts.ts`（テストあり）。
 - 【事実】Noto Sans JP は 1 ウェイト約 5.8 MB、4 ウェイトで約 23 MB がアプリに加わる。和文の実ウェイトを
   揃えるための代償として受け入れた。縮める案（例: Android では OS の Noto Sans CJK を使う）は
   `docs/design-refresh/README.md` §7 の残件。
@@ -217,6 +223,7 @@ python3 scripts/brand/extract_glyphs.py path/to/Manrope[wght].ttf   # 字形を�
 | `accentBorder` | `#BBD44F` | `#5A711E` | 選択・トグル・再生ヘッドの輪郭 |
 | `focusRing` | `#D8F36A` | `#4A6110` | 入力中の輪郭 |
 | `brandAccent` | `#D8F36A` | `#819500` | ロゴの点（本文には使わない） |
+| `controlShadow` | `#040607` | `#202221` | ボタンの硬い影・ダーク主操作の濃い枠 |
 | `controlBorder` | `#849096` | `#202221` | ライトの主・副ボタンの輪郭と硬い影 |
 
 ライトではシトロンの塗りが白地に 3:1 を持てないので、主操作ボタンは `controlBorder`、
@@ -247,7 +254,7 @@ python3 scripts/brand/extract_glyphs.py path/to/Manrope[wght].ttf   # 字形を�
 - **面と塗り**は OKLCh（明度・彩度・色相）を決め打ちする。設計の hex をそのまま再現する値。
 - **文字と境界**は彩度と色相だけを決め、明度を**目標コントラスト比から逆算**する。目標比は設計値が
   実際に持っていた比（小数第 2 位で切り捨て）。面を動かせば文字が追従し、読めない組み合わせが残らない。
-- `generate.py` は書き出す前に 256 組を測り、ひとつでも落ちたら何も書かない。`src/ui/__tests__/tokens.test.ts`
+- `generate.py` は書き出す前に 258 組を測り、ひとつでも落ちたら何も書かない。`src/ui/__tests__/tokens.test.ts`
   が生成物を測り直す（生成を忘れて `colors.ts` を手で直したときに CI で落とす）。
 
 基準【確認済み】:
@@ -288,9 +295,9 @@ python3 scripts/brand/extract_glyphs.py path/to/Manrope[wght].ttf   # 字形を�
 
 ## 6. 空間・部品・動き【事実】
 
-Issue #105: 共通 Button の primary / secondary は押下時に 2px 下へ沈む（120ms）。
+Issue #105 / #110: 共通 Button の primary / secondary は押下時に 2px 下へ沈む（120ms）。
 ライトは 2px の `controlBorder`、白い副操作面、右 2px・下 3px の硬い影。
-影は押下時に右 0px・下 1px へ縮む。ダークは既存の境界色と影無しの面を維持する。
+影は押下時に右 0px・下 1px へ縮む。ダークも #110 から同じ硬い影・2pxの輪郭を使う。主操作の濃い境界は `controlShadow`、副操作は `controlBorder`。副操作面は `surfaceRaised`。
 無効・処理中は影と移動をなくし、「動きを減らす」では位置と影を固定して色だけで反応する。
 入力欄はライトの通常時も 2px。録音・破壊・ghost 操作やネイティブ部品には装飾を広げない。
 【確認済み】硬い影には React Native の boxShadow を使用する。Android 9 未満では影を省き、輪郭を維持する。

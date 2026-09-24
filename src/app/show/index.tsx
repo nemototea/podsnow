@@ -349,6 +349,6 @@ const st = StyleSheet.create({
   },
   slotLabel: typography.bodyStrong,
   stepper: { flexDirection: 'row', alignItems: 'center' },
-  stepValue: { ...typography.mono, ...tabularNums, minWidth: 64, textAlign: 'center' },
+  stepValue: { ...typography.numeric, ...tabularNums, minWidth: 64, textAlign: 'center' },
   helpWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
 });

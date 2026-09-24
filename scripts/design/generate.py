@@ -62,6 +62,8 @@ def checks(t: dict[str, str], theme: str) -> list[tuple[str, str, float, str]]:
         ('dangerSolid', 'bg', 3.0, 'WCAG 1.4.11 塗りだけで形が分かる'),
     ]
     if theme == 'dark':
+        for s in ('accentSolid', 'accentSolidPressed'):
+            out.append(('controlShadow', s, 3.0, 'ダークの主操作の濃い輪郭'))
         out.append(('accentSolid', 'bg', 3.0, 'WCAG 1.4.11 塗りだけで形が分かる'))
     else:
         # ライトではシトロンの塗りが白地に 3:1 を持てない。形は輪郭 accentBorder が運ぶ。

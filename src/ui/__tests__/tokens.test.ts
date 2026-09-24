@@ -219,10 +219,11 @@ describe('書体', () => {
     }
   });
 
-  it('等幅の役割は同梱した太さ（400）だけを使う。ほかの太さは疑似太字になる', () => {
+  it('数値の役割に等幅数字を組み込み、同梱済みの Manrope 500 を使う', () => {
     for (const role of Object.values(typography)) {
-      if ('fontFamily' in role && role.fontFamily === family.mono) {
-        expect(role.fontWeight).toBe('400');
+      if ('fontFamily' in role && role.fontFamily === family.numeric) {
+        expect(role.fontWeight).toBe('500');
+        expect(role.fontVariant).toContain('tabular-nums');
       }
     }
   });
@@ -253,6 +254,16 @@ describe('ライトのボタン', () => {
     const c = colors.light;
     for (const surface of [...TEXT_SURFACES, 'accentSolid', 'accentSolidPressed'] as const) {
       expect(contrast(c.controlBorder, c[surface])).toBeGreaterThanOrEqual(3);
+    }
+  });
+});
+
+describe('ダークの主操作', () => {
+  it('濃い枠がライムの塗りから区別でき、塗りは背景から区別できる', () => {
+    const c = colors.dark;
+    for (const surface of ['accentSolid', 'accentSolidPressed'] as const) {
+      expect(contrast(c.controlShadow, c[surface])).toBeGreaterThanOrEqual(3);
+      expect(contrast(c[surface], c.bg)).toBeGreaterThanOrEqual(3);
     }
   });
 });

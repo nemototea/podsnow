@@ -157,7 +157,7 @@ export function EditTab({
           >
             {formatSmp(state.playhead)}
           </Text>
-          <Text style={[typography.mono, tabularNums, { color: c.textSecondary }]}>
+          <Text style={[typography.numeric, tabularNums, { color: c.textSecondary }]}>
             / {formatSmp(state.total)}
           </Text>
         </View>
@@ -242,7 +242,7 @@ export function EditTab({
                 keyboardType="decimal-pad"
                 onChangeText={(v) => setFields({ ...f, start: v })}
                 onEndEditing={commitFields}
-                style={[typography.mono, tabularNums]}
+                style={[typography.numeric, tabularNums]}
               />
             </View>
             <View style={st.field}>
@@ -253,7 +253,7 @@ export function EditTab({
                 onChangeText={(v) => setFields({ ...f, end: v })}
                 onEndEditing={commitFields}
                 error={rangeError}
-                style={[typography.mono, tabularNums]}
+                style={[typography.numeric, tabularNums]}
               />
             </View>
           </View>
@@ -383,7 +383,9 @@ export function EditTab({
                   )
                 }
               />
-              <Text style={[typography.mono, tabularNums, st.gainValue, { color: c.textPrimary }]}>
+              <Text
+                style={[typography.numeric, tabularNums, st.gainValue, { color: c.textPrimary }]}
+              >
                 {selectedOverlay.gainDb.toFixed(1)} dB
               </Text>
               <IconButton

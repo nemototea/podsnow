@@ -41,6 +41,7 @@ NEAR_NEUTRAL = ('voice',)
 
 FIXED = {
     'dark': {
+        'controlShadow': (0.12, 0.0062, 236.9),
         'bg': (0.1889, 0.0062, 236.9),
         'surface': (0.2397, 0.0094, 234.1),
         'surfaceRaised': (0.2848, 0.0112, 237.0),
@@ -78,6 +79,7 @@ FIXED = {
         'successSubtle': (0.3155, 0.0316, 169.4),
     },
     'light': {
+        'controlShadow': (0.2500, 0.0040, 150.0),
         'bg': (0.9730, 0.0040, 95.0),
         'surface': (1.0000, 0.0000, 89.9),
         'surfaceRaised': (0.9410, 0.0040, 95.0),

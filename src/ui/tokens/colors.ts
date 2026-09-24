@@ -5,6 +5,7 @@
 
 export const colors = {
   dark: {
+    controlShadow: '#040607',
     bg: '#111416',
     surface: '#1B2023',
     surfaceRaised: '#252B2F',
@@ -66,6 +67,7 @@ export const colors = {
     recordingOverlay: '#FF896A33',
   },
   light: {
+    controlShadow: '#202221',
     bg: '#F7F6F3',
     surface: '#FFFFFF',
     surfaceRaised: '#ECEBE8',

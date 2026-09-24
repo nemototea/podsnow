@@ -96,7 +96,7 @@ export default function RestoreScreen() {
               {phaseLabel}
             </Text>
             <ProgressBar value={progress ? progress.progress : null} label={phaseLabel} />
-            <Text style={[typography.mono, { color: c.textSecondary }]}>{pct}%</Text>
+            <Text style={[typography.numeric, { color: c.textSecondary }]}>{pct}%</Text>
           </View>
         ) : null}
         {phase === 'done' && result ? (

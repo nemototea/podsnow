@@ -225,7 +225,7 @@ export default function HomeScreen() {
           </Text>
           <View style={st.contMeta} accessibilityLabel={statusText(t, cont)}>
             <Icon name={statusIcon(cont)} color={c.textSecondary} size={icon.sm} />
-            <Text style={[typography.mono, tabularNums, { color: c.textSecondary }]}>
+            <Text style={[typography.numeric, tabularNums, { color: c.textSecondary }]}>
               {t.home.episodeCode(cont.episode_number)} · {formatClock(smp(cont.duration_smp))}
             </Text>
           </View>
@@ -242,7 +242,7 @@ export default function HomeScreen() {
           <SectionHeader
             title={t.home.sectionEpisodes}
             right={
-              <Text style={[typography.mono, tabularNums, { color: c.textSecondary }]}>
+              <Text style={[typography.numeric, tabularNums, { color: c.textSecondary }]}>
                 {list.length}
               </Text>
             }

@@ -71,8 +71,7 @@
               "./assets/fonts/NotoSansJP-Regular.ttf",
               "./assets/fonts/NotoSansJP-Medium.ttf",
               "./assets/fonts/NotoSansJP-SemiBold.ttf",
-              "./assets/fonts/NotoSansJP-Bold.ttf",
-              "./assets/fonts/IBMPlexMono-Regular.ttf"
+              "./assets/fonts/NotoSansJP-Bold.ttf"
             ]
           },
           "android": {
@@ -116,15 +115,6 @@
                   {
                     "path": "./assets/fonts/NotoSansJP-Bold.ttf",
                     "weight": 700
-                  }
-                ]
-              },
-              {
-                "fontFamily": "IBM Plex Mono",
-                "fontDefinitions": [
-                  {
-                    "path": "./assets/fonts/IBMPlexMono-Regular.ttf",
-                    "weight": 400
                   }
                 ]
               }

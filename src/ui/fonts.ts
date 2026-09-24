@@ -1,5 +1,4 @@
 import { getLoadedFonts } from 'expo-font';
-import { Platform } from 'react-native';
 
 import type { Locale } from '@/i18n';
 
@@ -19,16 +18,13 @@ export function hasFamily(loaded: LoadedFonts, name: string): boolean {
   });
 }
 
-const MONO_FALLBACK = Platform.select({ ios: 'Menlo', default: 'monospace' });
-
 export function resolveFamily(
   role: FamilyRole,
   locale: Locale,
   loaded: LoadedFonts,
 ): string | undefined {
-  if (role === 'mono') {
-    return hasFamily(loaded, family.mono) ? family.mono : MONO_FALLBACK;
-  }
+  if (role === 'numeric' && hasFamily(loaded, family.numeric)) return family.numeric;
+  // 数字の書体が無ければ、その言語の通常書体へ退避。コード用等幅には戻さない。
   const name = locale === 'ja' ? family.ja : family.latin;
   return hasFamily(loaded, name) ? name : undefined;
 }

@@ -42,13 +42,6 @@ SOURCES = [
         'NotoSansJP',
         (400, 500, 600, 700),
     ),
-    (
-        'IBMPlexMono-Regular.ttf',
-        f'{BASE}/ibmplexmono/IBMPlexMono-Regular.ttf',
-        '6a3412f058c7d8dfd9170c41e85ade48e5156ecb89356110ca57a0a27734af46',
-        'IBMPlexMono',
-        None,
-    ),
 ]
 
 STYLE = {400: 'Regular', 500: 'Medium', 600: 'SemiBold', 700: 'Bold'}
