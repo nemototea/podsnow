@@ -100,7 +100,7 @@ export default function BackupScreen() {
               value={progress ? progress.progress : null}
               label={progress?.phase === 'zip' ? t.backup.phaseWriting : t.backup.phasePreparing}
             />
-            <Text style={[typography.mono, { color: c.textSecondary }]}>{pct}%</Text>
+            <Text style={[typography.numeric, { color: c.textSecondary }]}>{pct}%</Text>
             {progress?.detail ? (
               <Text style={[typography.caption, { color: c.textSecondary }]} numberOfLines={1}>
                 {progress.detail}

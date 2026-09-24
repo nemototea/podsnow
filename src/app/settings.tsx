@@ -324,7 +324,7 @@ export default function SettingsScreen() {
         <Row
           label={t.settings.recordingsSize}
           right={
-            <Text style={[typography.mono, tabularNums, { color: c.textPrimary }]}>
+            <Text style={[typography.numeric, tabularNums, { color: c.textPrimary }]}>
               {formatBytes(data.storage.recordingsBytes)}
             </Text>
           }
@@ -332,7 +332,7 @@ export default function SettingsScreen() {
         <Row
           label={t.settings.exportsSize}
           right={
-            <Text style={[typography.mono, tabularNums, { color: c.textPrimary }]}>
+            <Text style={[typography.numeric, tabularNums, { color: c.textPrimary }]}>
               {formatBytes(data.storage.exportsBytes)}
             </Text>
           }
@@ -341,7 +341,7 @@ export default function SettingsScreen() {
           label={t.settings.freeSpace}
           last
           right={
-            <Text style={[typography.mono, tabularNums, { color: c.textPrimary }]}>
+            <Text style={[typography.numeric, tabularNums, { color: c.textPrimary }]}>
               {formatBytes(data.freeBytes)}
             </Text>
           }

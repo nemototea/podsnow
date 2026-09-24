@@ -49,10 +49,13 @@ export function concentric(outer: number, pad: number): number {
 export const family = {
   latin: 'Manrope',
   ja: 'Noto Sans JP',
-  mono: 'IBM Plex Mono',
+  numeric: 'Manrope',
 } as const;
 
-export type FamilyRole = 'ui' | 'mono';
+export type FamilyRole = 'ui' | 'numeric';
+
+/** 数字だけ幅を揃える。本文全体を等幅書体にはしない。 */
+export const tabularNums = { fontVariant: ['tabular-nums' as const] };
 
 /**
  * 役割ごとの書体。大きさ・行間・太さをひとまとめにして、役割の選択ひとつで決まるようにする。
@@ -63,10 +66,34 @@ export type FamilyRole = 'ui' | 'mono';
  */
 export const typography = {
   /** 収録中の時間。幅 320 では `timerCompact`。 */
-  timer: { fontSize: 48, lineHeight: 58, fontWeight: '400', fontFamily: family.mono },
-  timerCompact: { fontSize: 40, lineHeight: 48, fontWeight: '400', fontFamily: family.mono },
-  clock: { fontSize: 32, lineHeight: 40, fontWeight: '400', fontFamily: family.mono },
-  clockCompact: { fontSize: 24, lineHeight: 32, fontWeight: '400', fontFamily: family.mono },
+  timer: {
+    fontSize: 48,
+    lineHeight: 58,
+    fontWeight: '500',
+    fontFamily: family.numeric,
+    ...tabularNums,
+  },
+  timerCompact: {
+    fontSize: 40,
+    lineHeight: 48,
+    fontWeight: '500',
+    fontFamily: family.numeric,
+    ...tabularNums,
+  },
+  clock: {
+    fontSize: 32,
+    lineHeight: 40,
+    fontWeight: '500',
+    fontFamily: family.numeric,
+    ...tabularNums,
+  },
+  clockCompact: {
+    fontSize: 24,
+    lineHeight: 32,
+    fontWeight: '500',
+    fontFamily: family.numeric,
+    ...tabularNums,
+  },
   /** 番組名、短い主要見出し。 */
   display: { fontSize: 32, lineHeight: 40, fontWeight: '700' },
   /** 画面タイトル。 */
@@ -83,17 +110,23 @@ export const typography = {
   caption: { fontSize: 13, lineHeight: 20, fontWeight: '500' },
   /** 小見出し、分類。 */
   overline: { fontSize: 12, lineHeight: 18, fontWeight: '600' },
-  mono: { fontSize: 14, lineHeight: 20, fontWeight: '400', fontFamily: family.mono },
-  tick: { fontSize: 11, lineHeight: 14, fontWeight: '400', fontFamily: family.mono },
+  numeric: {
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: '500',
+    fontFamily: family.numeric,
+    ...tabularNums,
+  },
+  tick: {
+    fontSize: 11,
+    lineHeight: 14,
+    fontWeight: '500',
+    fontFamily: family.numeric,
+    ...tabularNums,
+  },
 } as const;
 
 export type TypeRole = keyof typeof typography;
-
-/**
- * 変わり続ける数値（タイムコード、カウンタ、残り時間）に付ける。
- * 等幅数字にしないと、桁が変わるたびに右の要素が揺れる（better-typography）。
- */
-export const tabularNums = { fontVariant: ['tabular-nums' as const] };
 
 /** アイコンの大きさ。24 を基準に線幅 2 で描く（`src/ui/Icon.tsx`）。 */
 export const icon = {

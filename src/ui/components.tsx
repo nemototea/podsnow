@@ -280,7 +280,7 @@ export function Button({
   }));
   // Android 7/8 では boxShadow が未対応。形は不透明な輪郭で伝える。
   const hardShadow =
-    tactile && !off && !c.isDark && (Platform.OS !== 'android' || Number(Platform.Version) >= 28);
+    tactile && !off && (Platform.OS !== 'android' || Number(Platform.Version) >= 28);
   const look = (pressed: boolean): { bg: string; border: string; fg: string } => {
     if (off) {
       return {
@@ -293,7 +293,7 @@ export function Button({
       case 'primary':
         return {
           bg: pressed ? c.accentSolidPressed : c.accentSolid,
-          border: c.isDark ? (pressed ? c.accentSolidPressed : c.accentSolid) : c.controlBorder,
+          border: c.isDark ? c.controlShadow : c.controlBorder,
           fg: c.accentOnSolid,
         };
       case 'danger':
@@ -304,7 +304,7 @@ export function Button({
         };
       case 'secondary':
         return {
-          bg: pressed ? c.surfaceHover : c.isDark ? 'transparent' : c.surface,
+          bg: pressed ? c.surfaceHover : c.isDark ? c.surfaceRaised : c.surface,
           border: c.isDark ? c.borderStrong : c.controlBorder,
           fg: c.textPrimary,
         };
@@ -336,14 +336,14 @@ export function Button({
         {
           backgroundColor: l.bg,
           borderColor: l.border,
-          borderWidth: tactile && !c.isDark ? stroke.selected : stroke.hairline,
+          borderWidth: tactile ? stroke.selected : stroke.hairline,
           boxShadow: hardShadow
             ? [
                 {
                   offsetX: depressed ? 0 : buttonDepth.offsetX,
                   offsetY: depressed ? buttonDepth.pressedOffsetY : buttonDepth.offsetY,
                   blurRadius: 0,
-                  color: c.controlBorder,
+                  color: c.controlShadow,
                 },
               ]
             : [],
@@ -389,7 +389,7 @@ export function Row({
   const content = (
     <>
       {mono ? (
-        <Text style={[typography.mono, tabularNums, s.rowMono, { color: c.textTertiary }]}>
+        <Text style={[typography.numeric, tabularNums, s.rowMono, { color: c.textTertiary }]}>
           {mono}
         </Text>
       ) : null}
@@ -733,7 +733,7 @@ export function Field({
 }) {
   const c = useAppTheme();
   const [focused, setFocused] = useState(false);
-  // 呼び出し側の書体スタイル（typography.mono など）に含まれる lineHeight も入力欄には渡さない（s.input）。
+  // 呼び出し側の書体スタイル（typography.numeric など）に含まれる lineHeight も入力欄には渡さない（s.input）。
   const { lineHeight: _lineHeight, ...inputStyle } = StyleSheet.flatten(style) ?? {};
   return (
     <View style={s.field}>

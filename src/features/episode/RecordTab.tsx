@@ -145,7 +145,7 @@ export function RecordTab({
         right={
           <View style={st.headRight}>
             {state.outline.length ? (
-              <Text style={[typography.mono, tabularNums, { color: c.textSecondary }]}>
+              <Text style={[typography.numeric, tabularNums, { color: c.textSecondary }]}>
                 {t.record.progress(done, state.outline.length)}
               </Text>
             ) : null}

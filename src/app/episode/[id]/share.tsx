@@ -164,7 +164,7 @@ export default function DistributionPackScreen() {
           <Card>
             <View style={st.file}>
               <Text style={[typography.bodyStrong, { color: c.textPrimary }]}>{fileName}</Text>
-              <Text style={[typography.mono, tabularNums, { color: c.textSecondary }]}>
+              <Text style={[typography.numeric, tabularNums, { color: c.textSecondary }]}>
                 {[durationLabel, formatBytes(row.bytes ?? 0), loudnessText(t, row)]
                   .filter(Boolean)
                   .join(' · ')}

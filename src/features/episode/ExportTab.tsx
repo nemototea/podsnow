@@ -111,7 +111,7 @@ function Stepper({
         disabled={value <= min}
         onPress={() => onChange(Math.max(min, +(value - step).toFixed(2)))}
       />
-      <Text style={[typography.mono, tabularNums, st.stepVal, { color: c.textPrimary }]}>
+      <Text style={[typography.numeric, tabularNums, st.stepVal, { color: c.textPrimary }]}>
         {value} {unit}
       </Text>
       <IconButton
@@ -331,7 +331,7 @@ export function ExportTab({ ws, onShowToast, onDone, onGoEdit }: ExportTabProps)
       <Card>
         <View style={st.kv}>
           <Text style={[typography.body, { color: c.textSecondary }]}>{t.export.duration}</Text>
-          <Text style={[typography.mono, tabularNums, { color: c.textPrimary }]}>
+          <Text style={[typography.numeric, tabularNums, { color: c.textPrimary }]}>
             {formatSmp(state.total)}
           </Text>
         </View>
@@ -694,7 +694,7 @@ export function ExportTab({ ws, onShowToast, onDone, onGoEdit }: ExportTabProps)
           <Text style={[typography.body, { color: c.textSecondary }]}>
             {t.export.estimatedSize}
           </Text>
-          <Text style={[typography.mono, tabularNums, { color: c.textPrimary }]}>
+          <Text style={[typography.numeric, tabularNums, { color: c.textPrimary }]}>
             {formatBytes(estimateExportBytes(p, state.total))}
           </Text>
         </View>
@@ -717,7 +717,7 @@ export function ExportTab({ ws, onShowToast, onDone, onGoEdit }: ExportTabProps)
             >
               {phaseLabel}
             </Text>
-            <Text style={[typography.mono, tabularNums, { color: c.textSecondary }]}>
+            <Text style={[typography.numeric, tabularNums, { color: c.textSecondary }]}>
               {Math.round(job.progress * 100)}%
             </Text>
           </View>
