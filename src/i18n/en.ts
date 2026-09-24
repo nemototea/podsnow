@@ -448,6 +448,9 @@ Tag #PodsNow to share your thoughts`,
       channelsNote:
         'Stereo keeps the left and right of stereo recordings (such as binaural mics) and music. Mono recordings sound the same on both sides',
     },
+    lufs: (value: string) => `${value} LUFS`,
+    lufsBelowTarget: (value: string, target: number) =>
+      `${value} LUFS (below the ${target} LUFS target)`,
     estimatedSize: 'Estimated size',
     duration: 'Duration',
     phaseMeasuring: 'Balancing the sound',
@@ -488,6 +491,8 @@ Tag #PodsNow to share your thoughts`,
       'It may have been removed from this device. You can still copy the title and description.',
     exportAgain: 'Export again',
     notPublished: 'Not published yet. Upload the file in your podcast service to publish it',
+    belowTargetNote: (target: number) =>
+      `The recording was too quiet to reach the ${target} LUFS target (it can be raised by up to +20 dB). Move closer to the mic or raise the input level and record again`,
     copyFailed: 'Could not copy',
   },
 

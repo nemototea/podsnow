@@ -11,6 +11,7 @@ import {
   CUSTOM_BITRATES,
   DEFAULT_CUSTOM_EXPORT,
   estimateExportBytes,
+  exportLoudness,
   EXPORT_PRESETS,
   ExportService,
   normalizeCustomExport,
@@ -163,7 +164,44 @@ describe('ExportService', () => {
       bitrate: 256_000,
       channels: 1,
       sampleRate: 48000,
+      loudness: { enabled: true, targetLufs: -16, truePeakDbtp: -1 },
     });
+  });
+});
+
+describe('exportLoudness', () => {
+  const preset = (loudness?: object) =>
+    JSON.stringify({ format: 'm4a', bitrate: 128000, channels: 1, sampleRate: 48000, loudness });
+  const on = { enabled: true, targetLufs: -16, truePeakDbtp: -1 };
+
+  it('shows the measured output loudness', () => {
+    expect(exportLoudness({ preset: preset(on), measured_lufs: -16.04 })).toEqual({
+      lufs: -16.04,
+      shortOfTarget: null,
+    });
+  });
+
+  it('flags outputs more than 1 LU below the target (recording too quiet)', () => {
+    expect(exportLoudness({ preset: preset(on), measured_lufs: -23.8 })?.shortOfTarget).toBe(-16);
+    expect(exportLoudness({ preset: preset(on), measured_lufs: -16.9 })?.shortOfTarget).toBeNull();
+  });
+
+  it('does not flag when loudness adjustment was off', () => {
+    const off = { ...on, enabled: false };
+    expect(exportLoudness({ preset: preset(off), measured_lufs: -30 })).toEqual({
+      lufs: -30,
+      shortOfTarget: null,
+    });
+  });
+
+  it('hides values from older rows that stored the pre-adjustment loudness', () => {
+    expect(exportLoudness({ preset: preset(), measured_lufs: -23.4 })).toBeNull();
+    expect(exportLoudness({ preset: 'broken', measured_lufs: -16 })).toBeNull();
+  });
+
+  it('hides silence and missing values', () => {
+    expect(exportLoudness({ preset: preset(on), measured_lufs: -120 })).toBeNull();
+    expect(exportLoudness({ preset: preset(on), measured_lufs: null })).toBeNull();
   });
 });
 

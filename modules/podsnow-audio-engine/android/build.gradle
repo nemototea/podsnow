@@ -16,3 +16,9 @@ android {
     abortOnError false
   }
 }
+
+dependencies {
+  // DSP（Mixer / Loudness）の JVM 単体テスト。org.json は Android の実装が JVM に無いので本物を入れる
+  testImplementation 'junit:junit:4.13.2'
+  testImplementation 'org.json:json:20240303'
+}

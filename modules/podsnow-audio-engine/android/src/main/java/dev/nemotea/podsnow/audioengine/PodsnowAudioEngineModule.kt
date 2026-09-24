@@ -98,6 +98,7 @@ class PodsnowAudioEngineModule : Module() {
           sendEvent("onRenderDone", mapOf(
             "jobId" to id, "path" to r.path, "frames" to r.frames,
             "measuredLufs" to r.measuredLufs, "measuredTruePeakDb" to r.measuredTruePeakDb, "appliedGainDb" to r.appliedGainDb,
+            "inputLufs" to r.inputLufs,
           ))
         } catch (e: InterruptedException) {
           sendEvent("onRenderError", mapOf("jobId" to id, "message" to "cancelled", "cancelled" to true))

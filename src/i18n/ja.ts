@@ -440,6 +440,9 @@ Podcast: {{show_name}}
       channelsNote:
         'ステレオはステレオ録音（バイノーラルマイク等）や BGM の左右をそのまま残します。モノラル録音は左右同じ音になります',
     },
+    lufs: (value: string) => `${value} LUFS`,
+    lufsBelowTarget: (value: string, target: number) =>
+      `${value} LUFS（目標 ${target} LUFS に届いていません）`,
     estimatedSize: '推定サイズ',
     duration: '長さ',
     phaseMeasuring: '音を整えています',
@@ -479,6 +482,8 @@ Podcast: {{show_name}}
     missingFileBody: '端末から削除された可能性があります。タイトルと概要は引き続きコピーできます。',
     exportAgain: 'もう一度書き出す',
     notPublished: 'まだ公開されていません。公開は配信サービスでアップロードして行います',
+    belowTargetNote: (target: number) =>
+      `録音の音が小さいため、目標の ${target} LUFS まで上げられませんでした（持ち上げは +20 dB まで）。マイクに近づくか、入力の音量を上げて録り直すと届きます`,
     copyFailed: 'コピーできませんでした',
   },
 

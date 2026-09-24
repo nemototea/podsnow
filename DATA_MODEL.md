@@ -293,7 +293,7 @@ Take の「時間軸」は Segment を `seq` 順に連結したもの。割り�
 | path | TEXT nullable | |
 | bytes | INTEGER nullable | |
 | duration_smp | INTEGER | |
-| measured_lufs / measured_true_peak | REAL nullable | 正規化前後の測定値 |
+| measured_lufs / measured_true_peak | REAL nullable | **書き出したファイル（出力）**の統合ラウドネス（LUFS）とトゥルーピーク（dBTP）。`preset.loudness` が無い古い行は調整前の値なので表示しない |
 | error | TEXT nullable | |
 | created_at / finished_at | INTEGER | |
 

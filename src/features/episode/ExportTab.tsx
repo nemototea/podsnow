@@ -6,7 +6,7 @@ import { insertTopics, renderTemplate } from '@/domain/metadata/template';
 import { headings } from '@/domain/outline';
 import { formatSmp, smp } from '@/domain/time';
 import { useServices } from '@/features/app/ServicesProvider';
-import { errorText, storedErrorText, useT } from '@/i18n';
+import { errorText, storedErrorText, useT, type Messages } from '@/i18n';
 import { listExports, type ExportRow } from '@/infra/db/repositories/exportsRepo';
 import { getDefaultTemplate } from '@/infra/db/repositories/showsRepo';
 import { joinRoot } from '@/infra/files/layout';
@@ -15,6 +15,7 @@ import {
   CUSTOM_BITRATES,
   estimateExportBytes,
   EXPORT_PRESETS,
+  exportLoudness,
   normalizeCustomExport,
   resolveExportPreset,
   type CustomExportSettings,
@@ -46,6 +47,14 @@ const PRESET_KEYS: readonly ExportPresetKey[] = [
   ...(Object.keys(EXPORT_PRESETS) as (keyof typeof EXPORT_PRESETS)[]),
   'custom',
 ];
+
+/** 書き出したファイルの音量の表示（例: 「-16.0 LUFS」）。出せる値が無ければ null。 */
+export function loudnessText(t: Messages, row: ExportRow): string | null {
+  const l = exportLoudness(row);
+  if (!l) return null;
+  const v = l.lufs.toFixed(1);
+  return l.shortOfTarget != null ? t.export.lufsBelowTarget(v, l.shortOfTarget) : t.export.lufs(v);
+}
 
 export function formatBytes(b: number): string {
   const mb = b / 1048576;
@@ -757,7 +766,9 @@ export function ExportTab({ ws, onShowToast, onDone, onGoEdit }: ExportTabProps)
           label={`${formatWhen(h.created_at)} · ${h.format.toUpperCase()}`}
           sub={
             h.status === 'done'
-              ? `${formatSmp(smp(h.duration_smp))} · ${formatBytes(h.bytes ?? 0)}${h.measured_lufs != null ? ` · ${h.measured_lufs.toFixed(1)} LUFS` : ''}`
+              ? [formatSmp(smp(h.duration_smp)), formatBytes(h.bytes ?? 0), loudnessText(t, h)]
+                  .filter(Boolean)
+                  .join(' · ')
               : h.status === 'failed'
                 ? t.export.historyFailed(storedErrorText(t, h.error))
                 : h.status === 'cancelled'

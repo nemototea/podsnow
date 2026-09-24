@@ -108,15 +108,19 @@ final class AacSink: PcmSink {
   }
 }
 
+/// measuredLufs / measuredTruePeakDb は書き出したファイル（出力）の測定値。
+/// inputLufs は調整前のミックス（ラウドネス調整が無効なら測らないので -120）。
 struct RenderResult {
   let path: String
   let frames: Int64
   let measuredLufs: Double
   let measuredTruePeakDb: Double
   let appliedGainDb: Double
+  let inputLufs: Double
 }
 
-/// オフラインレンダリング（AUDIO_DESIGN.md §8）。pass 1: 測定 → pass 2: ゲイン + リミッター + エンコード。
+/// オフラインレンダリング（AUDIO_DESIGN.md §8）。ラウドネス制御は LoudnessRenderer（§8.2）。
+/// 測定パス → （必要ならリミッター込みの測り直し）→ ミックス → ゲイン → リミッター → エンコード
 final class RenderJob {
   private let doc: RenderDocument
   private let outPath: String
@@ -131,72 +135,26 @@ final class RenderJob {
   }
 
   func run() throws -> RenderResult {
-    let total = doc.totalFrames
-    var gainDb = 0.0, lufs = -120.0, tp = -120.0
     let mixer = Mixer(doc: doc)
-    let ch = mixer.channels
-    let buf = UnsafeMutablePointer<Float>.allocate(capacity: block * ch)
-    defer { buf.deallocate() }
-    if doc.loudnessEnabled {
-      let meter = LoudnessMeter(sampleRate: doc.sampleRate, channels: ch)
-      let tpm = TruePeakMeter(channels: ch)
-      var f: Int64 = 0
-      var blocks = 0
-      while f < total {
-        if cancelled { throw AudioEngineError.cancelled }
-        let n = Int(min(Int64(block), total - f))
-        try mixer.render(frame: f, count: n, into: buf)
-        meter.process(buf, count: n)
-        tpm.process(buf, count: n)
-        f += Int64(n)
-        blocks += 1
-        if blocks % 50 == 0 { onProgress(0.5 * Double(f) / Double(max(1, total)), "measuring") }
-      }
-      lufs = meter.integrated()
-      tp = linearToDb(Double(tpm.peak))
-      if lufs > -100 { gainDb = max(-40, min(20, doc.targetLufs - lufs)) }
-      mixer.reset()
-    }
-    let gain = dbToLinear(gainDb)
-    let limiter = doc.loudnessEnabled ? Limiter(sampleRate: doc.sampleRate, ceilingDb: doc.truePeakDbtp, channels: ch) : nil
-    let latency = limiter?.latency ?? 0
+    let r = LoudnessRenderer(doc: doc, mixer: mixer, block: block, isCancelled: { [unowned self] in self.cancelled }, onProgress: onProgress)
+    let ch = r.channels
+    let gainDb = try r.solveGain()
     let sink: PcmSink = format == "wav"
       ? try WavSink(path: outPath, sampleRate: doc.sampleRate, channels: ch)
       : try AacSink(path: outPath, sampleRate: doc.sampleRate, channels: ch, bitrate: bitrate)
     let pcm = UnsafeMutablePointer<Int16>.allocate(capacity: block * ch)
     defer { pcm.deallocate() }
-    var f: Int64 = 0
-    var emitted: Int64 = 0
-    let renderEnd = total + Int64(latency)
-    var blocks = 0
-    while f < renderEnd {
-      if cancelled { throw AudioEngineError.cancelled }
-      let n = Int(min(Int64(block), renderEnd - f))
-      try mixer.render(frame: f, count: n, into: buf)
-      for i in 0..<(n * ch) { buf[i] *= gain }
-      limiter?.process(buf, count: n)
-      var outStart = 0
-      if f < Int64(latency) { outStart = min(n, Int(Int64(latency) - f)) }
-      var outCount = n - outStart
-      if emitted + Int64(outCount) > total { outCount = Int(total - emitted) }
-      if outCount > 0 {
-        var k = 0
-        for i in (outStart * ch)..<((outStart + outCount) * ch) {
-          pcm[k] = Int16((max(-1, min(1, buf[i])) * 32767).rounded())
-          k += 1
-        }
-        try sink.write(pcm, frames: outCount)
-        emitted += Int64(outCount)
+    let out = try r.render(gainDb: gainDb) { buf, offset, frames in
+      var k = 0
+      for i in (offset * ch)..<((offset + frames) * ch) {
+        pcm[k] = Int16((max(-1, min(1, buf[i])) * 32767).rounded())
+        k += 1
       }
-      f += Int64(n)
-      blocks += 1
-      if blocks % 50 == 0 {
-        let base = doc.loudnessEnabled ? 0.5 : 0.0
-        onProgress(base + (1 - base) * Double(f) / Double(max(1, renderEnd)), "encoding")
-      }
+      try sink.write(pcm, frames: frames)
     }
     try sink.finish()
     onProgress(1, "done")
-    return RenderResult(path: outPath, frames: total, measuredLufs: lufs, measuredTruePeakDb: tp, appliedGainDb: gainDb)
+    return RenderResult(path: outPath, frames: doc.totalFrames, measuredLufs: out.lufs, measuredTruePeakDb: out.truePeakDb,
+                        appliedGainDb: gainDb, inputLufs: r.inputLufs)
   }
 }

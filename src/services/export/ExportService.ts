@@ -77,6 +77,36 @@ export function resolveExportPreset(key: ExportPresetKey, custom: unknown): Expo
   };
 }
 
+/** 書き出したファイルの音量（履歴・配信の準備での表示用）。 */
+export interface ExportLoudness {
+  /** 出力の統合ラウドネス（LUFS）。 */
+  lufs: number;
+  /** 音量調整が有効で、出力が目標より 1 LU 以上小さいときの目標値。録音が小さすぎて上げきれなかった。 */
+  shortOfTarget: number | null;
+}
+
+/**
+ * exports の行から、書き出したファイルの音量を取り出す。
+ * preset に loudness が無い行は、measured_lufs が調整前の値だった頃の記録なので出さない。
+ */
+export function exportLoudness(row: {
+  preset: string;
+  measured_lufs: number | null;
+}): ExportLoudness | null {
+  if (row.measured_lufs == null || row.measured_lufs <= -70) return null;
+  let loudness: { enabled?: unknown; targetLufs?: unknown } | undefined;
+  try {
+    loudness = (JSON.parse(row.preset) as { loudness?: typeof loudness }).loudness;
+  } catch {
+    return null;
+  }
+  if (!loudness) return null;
+  const target = typeof loudness.targetLufs === 'number' ? loudness.targetLufs : null;
+  const short =
+    loudness.enabled === true && target != null && row.measured_lufs < target - 1 ? target : null;
+  return { lufs: row.measured_lufs, shortOfTarget: short };
+}
+
 /** 推定ファイルサイズ（bytes）。 */
 export function estimateExportBytes(preset: ExportPreset, durationSmp: number): number {
   const sec = durationSmp / preset.sampleRate;
@@ -157,7 +187,8 @@ export class ExportService {
       id: exportId,
       episodeId,
       format: preset.format,
-      preset,
+      // 書き出し時のラウドネス設定も残す（結果の表示で目標と比べる。DATA_MODEL.md §4.13）
+      preset: { ...preset, loudness: doc.loudness },
       durationSmp: doc.totalFrames,
       now: this.deps.now(),
     });
