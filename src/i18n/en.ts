@@ -40,6 +40,8 @@ export const en: Messages = {
     next: 'Next',
     select: 'Select',
     selected: 'Selected',
+    cancel: 'Cancel',
+    ok: 'OK',
     cancelRun: 'Cancel',
     shareUnavailable: 'Sharing is not available on this device',
     openSettings: 'Open Settings',

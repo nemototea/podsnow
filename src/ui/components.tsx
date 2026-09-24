@@ -2,13 +2,11 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
   ActivityIndicator,
   Animated,
-  KeyboardAvoidingView,
-  Modal,
-  PanResponder,
   Platform,
   Pressable,
   ScrollView,
   StyleSheet,
+  Switch,
   useWindowDimensions,
   View,
   type StyleProp,
@@ -16,6 +14,16 @@ import {
   type TextStyle,
   type ViewStyle,
 } from 'react-native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import Reanimated, {
+  FadeInDown,
+  FadeOutDown,
+  runOnJS,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+  withTiming,
+} from 'react-native-reanimated';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useT } from '@/i18n';
@@ -61,6 +69,8 @@ interface ScreenProps {
   style?: StyleProp<ViewStyle>;
   overlay?: ReactNode;
   bottomBar?: ReactNode;
+  /** 画面上端の安全域を自分で取る（ネイティブのヘッダーを出さない Home だけ）。 */
+  edgeTop?: boolean;
 }
 
 export function Screen(props: ScreenProps) {
@@ -78,6 +88,7 @@ function ScreenBody({
   style,
   overlay,
   bottomBar,
+  edgeTop,
 }: ScreenProps) {
   const c = useAppTheme();
   const insets = useSafeAreaInsets();
@@ -86,13 +97,17 @@ function ScreenBody({
   const inner = padded ? [{ paddingHorizontal: g, paddingTop: space.sm }, style] : style;
   const bottomPad = space.xxxl + (bottomBar ? 0 : insets.bottom) + toastHeight;
   return (
-    <SafeAreaView style={[s.root, { backgroundColor: c.bg }]} edges={['top', 'left', 'right']}>
-      <KeyboardAvoidingView style={s.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <SafeAreaView
+      style={[s.root, { backgroundColor: c.bg }]}
+      edges={edgeTop ? ['top', 'left', 'right'] : ['left', 'right']}
+    >
+      <View style={s.root}>
         {scroll ? (
           <ScrollView
             contentContainerStyle={[inner, { paddingBottom: bottomPad }]}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="interactive"
+            automaticallyAdjustKeyboardInsets
           >
             {children}
           </ScrollView>
@@ -117,7 +132,7 @@ function ScreenBody({
         ) : barHeight ? (
           <ResetBar onReset={() => setBarHeight(0)} />
         ) : null}
-      </KeyboardAvoidingView>
+      </View>
       {overlay}
     </SafeAreaView>
   );
@@ -166,47 +181,6 @@ export function IconButton({
         </Text>
       ) : null}
     </Pressable>
-  );
-}
-
-export function Header({
-  title,
-  subtitle,
-  onBack,
-  right,
-  large,
-}: {
-  title: string;
-  subtitle?: string;
-  onBack?: () => void;
-  right?: ReactNode;
-  large?: boolean;
-}) {
-  const c = useAppTheme();
-  const t = useT();
-  return (
-    <View style={s.header}>
-      {onBack ? (
-        <View style={s.headerBack}>
-          <IconButton name="back" label={t.a11y.back} onPress={onBack} />
-        </View>
-      ) : null}
-      <View style={s.flex}>
-        <Text
-          style={[large ? typography.title : typography.bodyStrong, { color: c.textPrimary }]}
-          numberOfLines={2}
-          accessibilityRole="header"
-        >
-          {title}
-        </Text>
-        {subtitle ? (
-          <Text style={[typography.caption, { color: c.textSecondary }]} numberOfLines={2}>
-            {subtitle}
-          </Text>
-        ) : null}
-      </View>
-      {right}
-    </View>
   );
 }
 
@@ -284,6 +258,12 @@ export function Button({
   const c = useAppTheme();
   const reduced = useReducedMotion();
   const off = disabled || busy;
+  const scale = useSharedValue(1);
+  const [pressed, setPressed] = useState(false);
+  const pressStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.get() }] }));
+  const press = (to: number) => {
+    if (!reduced) scale.set(withTiming(to, { duration: motion.instant }));
+  };
   const look = (pressed: boolean): { bg: string; border: string; fg: string } => {
     if (off) {
       return {
@@ -319,41 +299,37 @@ export function Button({
         };
     }
   };
+  const l = look(pressed);
   return (
-    <Pressable
+    <AnimatedPressable
       onPress={onPress}
+      onPressIn={() => {
+        setPressed(true);
+        press(pressScale);
+      }}
+      onPressOut={() => {
+        setPressed(false);
+        press(1);
+      }}
       disabled={off}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel ?? label}
       accessibilityState={{ disabled: !!off, busy: !!busy }}
-      style={({ pressed }) => {
-        const l = look(pressed);
-        return [
-          s.button,
-          compact ? s.buttonCompact : null,
-          {
-            backgroundColor: l.bg,
-            borderColor: l.border,
-            transform: [{ scale: pressed && !reduced ? pressScale : 1 }],
-          },
-          style,
-        ];
-      }}
+      style={[
+        s.button,
+        compact ? s.buttonCompact : null,
+        { backgroundColor: l.bg, borderColor: l.border },
+        pressStyle,
+        style,
+      ]}
     >
-      {({ pressed }) => {
-        const l = look(pressed);
-        return (
-          <>
-            {busy ? (
-              <ActivityIndicator color={l.fg} />
-            ) : iconName ? (
-              <Icon name={iconName} color={l.fg} size={icon.sm} />
-            ) : null}
-            <Text style={[typography.label, s.buttonLabel, { color: l.fg }]}>{label}</Text>
-          </>
-        );
-      }}
-    </Pressable>
+      {busy ? (
+        <ActivityIndicator color={l.fg} />
+      ) : iconName ? (
+        <Icon name={iconName} color={l.fg} size={icon.sm} />
+      ) : null}
+      <Text style={[typography.label, s.buttonLabel, { color: l.fg }]}>{label}</Text>
+    </AnimatedPressable>
   );
 }
 
@@ -381,17 +357,8 @@ export function Row({
   mono?: string;
 }) {
   const c = useAppTheme();
-  const body = (pressed: boolean) => (
-    <View
-      style={[
-        s.row,
-        {
-          borderBottomColor: c.border,
-          borderBottomWidth: last ? 0 : StyleSheet.hairlineWidth,
-          backgroundColor: pressed ? c.surfaceHover : 'transparent',
-        },
-      ]}
-    >
+  const content = (
+    <>
       {mono ? (
         <Text style={[typography.mono, tabularNums, s.rowMono, { color: c.textTertiary }]}>
           {mono}
@@ -405,20 +372,55 @@ export function Row({
           {label}
         </Text>
         {sub ? <Text style={[typography.caption, { color: c.textSecondary }]}>{sub}</Text> : null}
+        {below ? <View style={s.rowBelow}>{below}</View> : null}
       </View>
-      {right ?? (onPress ? <Icon name="arrow" color={c.textTertiary} size={icon.sm} /> : null)}
-    </View>
+    </>
   );
-  return onPress ? (
-    <Pressable
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityLabel={accessibilityLabel ?? (sub ? `${label}, ${sub}` : label)}
-    >
-      {({ pressed }) => body(pressed)}
+  const divider = {
+    borderBottomColor: c.border,
+    borderBottomWidth: last ? 0 : StyleSheet.hairlineWidth,
+  };
+  if (!onPress) {
+    return (
+      <View style={[s.row, divider]}>
+        {content}
+        {right}
+      </View>
+    );
+  }
+  const a11y = accessibilityLabel ?? (sub ? `${label}, ${sub}` : label);
+  if (right) {
+    // 右の操作（メニュー・ボタン・ネイティブのピッカー）は行の押下の外に置く。
+    // 入れ子にすると、右を押したときに行の移動も同時に起きうる。
+    return (
+      <View style={[s.rowOuter, divider]}>
+        <Pressable
+          onPress={onPress}
+          accessibilityRole="button"
+          accessibilityLabel={a11y}
+          style={s.flex}
+        >
+          {({ pressed }) => (
+            <View style={[s.row, { backgroundColor: pressed ? c.surfaceHover : 'transparent' }]}>
+              {content}
+            </View>
+          )}
+        </Pressable>
+        {right}
+      </View>
+    );
+  }
+  return (
+    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={a11y}>
+      {({ pressed }) => (
+        <View
+          style={[s.row, divider, { backgroundColor: pressed ? c.surfaceHover : 'transparent' }]}
+        >
+          {content}
+          <Icon name="arrow" color={c.textTertiary} size={icon.sm} />
+        </View>
+      )}
     </Pressable>
-  ) : (
-    body(false)
   );
 }
 
@@ -433,106 +435,14 @@ export function Toggle({
 }) {
   const c = useAppTheme();
   return (
-    <Pressable
-      onPress={() => onChange(!value)}
-      accessibilityRole="switch"
-      accessibilityState={{ checked: value }}
+    <Switch
+      value={value}
+      onValueChange={onChange}
+      trackColor={{ false: c.surfaceHover, true: c.accentSolid }}
+      ios_backgroundColor={c.surfaceHover}
+      {...(Platform.OS === 'ios' ? {} : { thumbColor: value ? c.accentOnSolid : c.textSecondary })}
       {...(accessibilityLabel ? { accessibilityLabel } : {})}
-      hitSlop={{
-        top: hitSlop(TOGGLE_H),
-        bottom: hitSlop(TOGGLE_H),
-        left: space.sm,
-        right: space.sm,
-      }}
-      style={[
-        s.toggle,
-        {
-          backgroundColor: value ? c.accentSolid : c.surfaceRaised,
-          borderColor: value ? (c.isDark ? c.accentSolid : c.accentBorder) : c.borderStrong,
-        },
-      ]}
-    >
-      <View
-        style={[
-          s.knob,
-          {
-            backgroundColor: value ? c.accentOnSolid : c.textSecondary,
-            transform: [{ translateX: value ? KNOB_TRAVEL : 0 }],
-          },
-        ]}
-      />
-    </Pressable>
-  );
-}
-
-export function Sheet({
-  visible,
-  onClose,
-  title,
-  subtitle,
-  children,
-}: {
-  visible: boolean;
-  onClose: () => void;
-  title?: string;
-  subtitle?: string;
-  children: ReactNode;
-}) {
-  const c = useAppTheme();
-  const t = useT();
-  const insets = useSafeAreaInsets();
-  const g = useGutter();
-  const { height } = useWindowDimensions();
-  return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="slide"
-      onRequestClose={onClose}
-      statusBarTranslucent
-      navigationBarTranslucent
-    >
-      <KeyboardAvoidingView style={s.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <Pressable
-          style={[s.backdrop, { backgroundColor: c.overlayScrim }]}
-          onPress={onClose}
-          accessibilityRole="button"
-          accessibilityLabel={t.a11y.close}
-        />
-        <View
-          style={[
-            s.sheet,
-            {
-              backgroundColor: c.surfaceRaised,
-              paddingHorizontal: g,
-              paddingBottom: insets.bottom + space.lg,
-              maxHeight: height * 0.88,
-            },
-          ]}
-          accessibilityViewIsModal
-        >
-          <View style={s.sheetHead}>
-            <View style={s.flex}>
-              {title ? (
-                <Text
-                  style={[typography.heading, { color: c.textPrimary }]}
-                  accessibilityRole="header"
-                >
-                  {title}
-                </Text>
-              ) : null}
-              {subtitle ? (
-                <Text style={[typography.caption, { color: c.textSecondary }]}>{subtitle}</Text>
-              ) : null}
-            </View>
-            <View style={s.sheetClose}>
-              <IconButton name="close" label={t.a11y.close} onPress={onClose} />
-            </View>
-          </View>
-          <ScrollView keyboardShouldPersistTaps="handled">{children}</ScrollView>
-        </View>
-      </KeyboardAvoidingView>
-    </Modal>
+    />
   );
 }
 
@@ -551,71 +461,72 @@ export function Toast({
   const reduced = useReducedMotion();
   const g = useGutter();
   const { barHeight, setToastHeight } = useBottomInset();
-  const [anim] = useState(() => new Animated.Value(0));
-  const [drag] = useState(() => new Animated.Value(0));
-
-  useEffect(() => {
-    Animated.timing(anim, {
-      toValue: toast ? 1 : 0,
-      duration: reduced ? 0 : motion.quick,
-      useNativeDriver: true,
-    }).start();
-    if (!toast) drag.setValue(0);
-  }, [toast, anim, drag, reduced]);
+  const drag = useSharedValue(0);
 
   useEffect(() => {
     if (!toast) setToastHeight(0);
-  }, [toast, setToastHeight]);
+    drag.set(0);
+  }, [toast, setToastHeight, drag]);
 
   const pan = useMemo(
     () =>
-      PanResponder.create({
-        onMoveShouldSetPanResponder: (_e, gs) => gs.dy > 4 && Math.abs(gs.dy) > Math.abs(gs.dx),
-        onPanResponderMove: (_e, gs) => drag.setValue(Math.max(0, gs.dy)),
-        onPanResponderRelease: (_e, gs) => {
-          if (gs.dy > DISMISS_DRAG) onDismiss?.();
-          else Animated.spring(drag, { toValue: 0, useNativeDriver: true }).start();
-        },
-      }),
+      Gesture.Pan()
+        .activeOffsetY(DRAG_START)
+        .failOffsetX([-DRAG_START, DRAG_START])
+        .onUpdate((e) => {
+          drag.set(Math.max(0, e.translationY));
+        })
+        .onEnd((e) => {
+          if (e.translationY > DISMISS_DRAG && onDismiss) runOnJS(onDismiss)();
+          else drag.set(withSpring(0, SPRING));
+        }),
     [drag, onDismiss],
   );
+  const dragStyle = useAnimatedStyle(() => ({ transform: [{ translateY: drag.get() }] }));
 
   if (!toast) return null;
   return (
-    <Animated.View
-      {...pan.panHandlers}
-      onLayout={(e) => setToastHeight(e.nativeEvent.layout.height + BOTTOM_GAP)}
-      style={[
-        s.toast,
-        {
-          left: g,
-          right: g,
-          backgroundColor: c.surfaceRaised,
-          borderColor: c.borderStrong,
-          opacity: anim,
-          bottom: (barHeight || insets.bottom) + BOTTOM_GAP,
-          transform: reduced ? [] : [{ translateY: drag }],
-        },
-      ]}
-      accessibilityLiveRegion="polite"
-      accessibilityRole="alert"
-    >
-      <Text style={[typography.body, s.flex, { color: c.textPrimary }]}>{toast.text}</Text>
-      {toast.action && onAction ? (
-        <Pressable
-          onPress={onAction}
-          accessibilityRole="button"
-          accessibilityLabel={toast.action}
-          style={({ pressed }) => [
-            s.toastAction,
-            { backgroundColor: pressed ? c.surfaceHover : 'transparent' },
-          ]}
-        >
-          <Text style={[typography.label, { color: c.accentText }]}>{toast.action}</Text>
-        </Pressable>
-      ) : null}
-      {onDismiss ? <IconButton name="close" label={t.a11y.dismiss} onPress={onDismiss} /> : null}
-    </Animated.View>
+    <GestureDetector gesture={pan}>
+      <Reanimated.View
+        key={toast.text}
+        {...(reduced
+          ? {}
+          : {
+              entering: FadeInDown.springify().damping(SPRING.damping),
+              exiting: FadeOutDown.duration(motion.quick),
+            })}
+        onLayout={(e) => setToastHeight(e.nativeEvent.layout.height + BOTTOM_GAP)}
+        style={[
+          s.toast,
+          {
+            left: g,
+            right: g,
+            backgroundColor: c.surfaceRaised,
+            borderColor: c.borderStrong,
+            bottom: (barHeight || insets.bottom) + BOTTOM_GAP,
+          },
+          reduced ? null : dragStyle,
+        ]}
+        accessibilityLiveRegion="polite"
+        accessibilityRole="alert"
+      >
+        <Text style={[typography.body, s.flex, { color: c.textPrimary }]}>{toast.text}</Text>
+        {toast.action && onAction ? (
+          <Pressable
+            onPress={onAction}
+            accessibilityRole="button"
+            accessibilityLabel={toast.action}
+            style={({ pressed }) => [
+              s.toastAction,
+              { backgroundColor: pressed ? c.surfaceHover : 'transparent' },
+            ]}
+          >
+            <Text style={[typography.label, { color: c.accentText }]}>{toast.action}</Text>
+          </Pressable>
+        ) : null}
+        {onDismiss ? <IconButton name="close" label={t.a11y.dismiss} onPress={onDismiss} /> : null}
+      </Reanimated.View>
+    </GestureDetector>
   );
 }
 
@@ -676,60 +587,6 @@ export function Chip({
       {iconName ? <Icon name={iconName} color={fg} size={icon.sm} /> : null}
       <Text style={[typography.label, { color: fg }]}>{label}</Text>
     </Pressable>
-  );
-}
-
-export function Segmented<T extends string>({
-  value,
-  options,
-  onChange,
-  disabled,
-}: {
-  value: T;
-  options: readonly { value: T; label: string }[];
-  onChange: (v: T) => void;
-  disabled?: (v: T) => boolean;
-}) {
-  const c = useAppTheme();
-  return (
-    <View
-      style={[s.segmented, { backgroundColor: c.surface, borderColor: c.border }]}
-      accessibilityRole="tablist"
-    >
-      {options.map((o) => {
-        const active = o.value === value;
-        const off = !active && !!disabled?.(o.value);
-        return (
-          <Pressable
-            key={o.value}
-            onPress={() => onChange(o.value)}
-            accessibilityRole="tab"
-            accessibilityState={{ selected: active, disabled: off }}
-            style={({ pressed }) => [
-              s.segment,
-              {
-                backgroundColor: active
-                  ? c.surfaceHover
-                  : pressed
-                    ? c.surfaceRaised
-                    : 'transparent',
-                borderColor: active ? c.borderStrong : 'transparent',
-              },
-            ]}
-          >
-            <Text
-              style={[
-                typography.label,
-                s.center,
-                { color: active ? c.textPrimary : off ? c.textDisabled : c.textSecondary },
-              ]}
-            >
-              {o.label}
-            </Text>
-          </Pressable>
-        );
-      })}
-    </View>
   );
 }
 
@@ -887,27 +744,17 @@ export function Field({
   );
 }
 
-const TOGGLE_W = 52;
-const TOGGLE_H = 32;
-const TOGGLE_PAD = 4;
-const KNOB = 22;
-const KNOB_TRAVEL = TOGGLE_W - 2 - TOGGLE_PAD * 2 - KNOB;
 const CHIP_H = 40;
+const AnimatedPressable = Reanimated.createAnimatedComponent(Pressable);
 const DISMISS_DRAG = 24;
+const DRAG_START = 4;
+const SPRING = { damping: 20, stiffness: 240, mass: 0.8 } as const;
 
 const s = StyleSheet.create({
   root: { flex: 1 },
   flex: { flex: 1 },
   center: { alignItems: 'center', justifyContent: 'center', textAlign: 'center' },
   bottomBar: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: space.md },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    minHeight: hit.min + space.sm,
-    paddingVertical: space.xs,
-    gap: space.sm,
-  },
-  headerBack: { marginLeft: -space.md },
   iconButton: {
     minWidth: hit.min,
     minHeight: hit.min,
@@ -956,31 +803,9 @@ const s = StyleSheet.create({
     paddingVertical: space.md,
     gap: space.md,
   },
+  rowOuter: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
   rowMono: { minWidth: space.xxl },
   rowBelow: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm, marginTop: space.sm },
-  toggle: {
-    width: TOGGLE_W,
-    height: TOGGLE_H,
-    borderRadius: radius.pill,
-    borderWidth: 1,
-    padding: TOGGLE_PAD,
-    justifyContent: 'center',
-  },
-  knob: { width: KNOB, height: KNOB, borderRadius: radius.pill },
-  backdrop: { flex: 1 },
-  sheet: {
-    borderTopLeftRadius: radius.xl,
-    borderTopRightRadius: radius.xl,
-    paddingTop: space.md,
-    gap: space.xs,
-  },
-  sheetHead: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: space.sm,
-    paddingTop: space.xs,
-  },
-  sheetClose: { marginRight: -space.md, marginTop: -space.sm },
   toast: {
     position: 'absolute',
     borderRadius: radius.md,
@@ -1008,21 +833,6 @@ const s = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  segmented: {
-    flexDirection: 'row',
-    borderRadius: radius.md,
-    borderWidth: 1,
-    padding: space.xs,
-    gap: space.xs,
-  },
-  segment: {
-    flex: 1,
-    minHeight: hit.min,
-    justifyContent: 'center',
-    borderRadius: concentric(radius.md, space.xs),
-    borderWidth: stroke.hairline,
-    paddingHorizontal: space.sm,
-  },
   track: { height: space.sm, borderRadius: radius.pill, overflow: 'hidden' },
   trackFill: { height: space.sm, borderRadius: radius.pill },
   indeterminate: { position: 'absolute', width: '40%' },
@@ -1048,5 +858,7 @@ const s = StyleSheet.create({
 
 export type { TextStyle, ViewStyle };
 export { Icon, type IconName } from './Icon';
+export { Segmented, type SegmentedProps } from './Segmented';
+export { Sheet, type SheetProps } from './Sheet';
 export { Text, TextInput } from './Text';
 export { concentric, gutter, hit, hitSlop, icon, radius, space, typography };

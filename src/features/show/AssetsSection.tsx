@@ -22,6 +22,8 @@ import {
   Sheet,
   Text,
 } from '@/ui/components';
+import { iosPrompt } from '@/ui/alerts';
+import { MoreMenu } from '@/ui/MoreMenu';
 import { useAppTheme } from '@/ui/ThemeContext';
 
 function stripScheme(uri: string): string {
@@ -43,7 +45,6 @@ export function AssetsSection({ onToast }: AssetsSectionProps) {
   const { assets, show, root, engine, db, now } = useServices();
   const loader = useCallback(() => assets.list(show.id), [assets, show.id]);
   const { data: list, reload } = useAsyncData<AssetRow[]>(loader, []);
-  const [menu, setMenu] = useState<AssetRow | null>(null);
   const [renaming, setRenaming] = useState<AssetRow | null>(null);
   const [renameText, setRenameText] = useState('');
   const [importing, setImporting] = useState<{ kind: AssetKind; progress: number } | null>(null);
@@ -97,7 +98,6 @@ export function AssetsSection({ onToast }: AssetsSectionProps) {
   };
 
   const move = async (a: AssetRow, dir: -1 | 1) => {
-    setMenu(null);
     const group = list.filter((x) => x.kind === a.kind);
     const i = group.findIndex((x) => x.id === a.id);
     const j = i + dir;
@@ -109,7 +109,6 @@ export function AssetsSection({ onToast }: AssetsSectionProps) {
   };
 
   const remove = async (a: AssetRow) => {
-    setMenu(null);
     if (playingId === a.id) {
       player.pause();
       setPlayingId(null);
@@ -126,7 +125,17 @@ export function AssetsSection({ onToast }: AssetsSectionProps) {
   };
 
   const startRename = (a: AssetRow) => {
-    setMenu(null);
+    const shown = iosPrompt({
+      title: t.common.rename,
+      defaultValue: a.name,
+      confirmLabel: t.common.save,
+      cancelLabel: t.common.cancel,
+      onConfirm: (text) => {
+        const name = text.trim();
+        if (name) void assets.rename(a.id, name).then(reload);
+      },
+    });
+    if (shown) return;
     setRenameText(a.name);
     setRenaming(a);
   };
@@ -200,10 +209,37 @@ export function AssetsSection({ onToast }: AssetsSectionProps) {
                       selected={!!a.is_favorite}
                       onPress={() => void toggleFavorite(a)}
                     />
-                    <IconButton
-                      name="more"
+                    <MoreMenu
                       label={t.showAssets.a11yMenu(a.name)}
-                      onPress={() => setMenu(a)}
+                      title={`${a.name} · ${kindLabel(t, a.kind)}`}
+                      actions={[
+                        {
+                          key: 'rename',
+                          icon: 'edit',
+                          label: t.common.rename,
+                          onPress: () => startRename(a),
+                        },
+                        {
+                          key: 'up',
+                          icon: 'up',
+                          label: t.common.moveUp,
+                          onPress: () => void move(a, -1),
+                        },
+                        {
+                          key: 'down',
+                          icon: 'down',
+                          label: t.common.moveDown,
+                          onPress: () => void move(a, 1),
+                        },
+                        {
+                          key: 'remove',
+                          icon: 'trash',
+                          label: t.common.delete,
+                          sub: t.showAssets.removeSub,
+                          destructive: true,
+                          onPress: () => void remove(a),
+                        },
+                      ]}
                     />
                   </View>
                 }
@@ -212,37 +248,6 @@ export function AssetsSection({ onToast }: AssetsSectionProps) {
           </Card>
         );
       })}
-
-      <Sheet
-        visible={!!menu}
-        onClose={() => setMenu(null)}
-        title={menu?.name ?? ''}
-        subtitle={menu ? kindLabel(t, menu.kind) : ''}
-      >
-        {menu ? (
-          <>
-            <Row icon="edit" label={t.common.rename} onPress={() => startRename(menu)} />
-            <Row icon="up" label={t.common.moveUp} onPress={() => void move(menu, -1)} />
-            <Row icon="down" label={t.common.moveDown} onPress={() => void move(menu, 1)} />
-            <Row
-              icon={menu.is_favorite ? 'star' : 'starFilled'}
-              label={menu.is_favorite ? t.showAssets.unfavorite : t.showAssets.favorite}
-              onPress={() => {
-                setMenu(null);
-                void toggleFavorite(menu);
-              }}
-            />
-            <Row
-              icon="trash"
-              label={t.common.delete}
-              sub={t.showAssets.removeSub}
-              danger
-              last
-              onPress={() => void remove(menu)}
-            />
-          </>
-        ) : null}
-      </Sheet>
 
       <Sheet visible={!!renaming} onClose={() => setRenaming(null)} title={t.common.rename}>
         <Field

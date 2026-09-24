@@ -1,4 +1,3 @@
-import { useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
@@ -27,7 +26,6 @@ import {
   Card,
   Chip,
   Field,
-  Header,
   IconButton,
   Row,
   Screen,
@@ -36,6 +34,7 @@ import {
   Text,
   Toast,
 } from '@/ui/components';
+import { ScreenHeader } from '@/ui/ScreenHeader';
 import { useAppTheme } from '@/ui/ThemeContext';
 import { useToast } from '@/ui/useToast';
 
@@ -77,7 +76,6 @@ const PLACEHOLDER_KEYS = [
 export default function ShowScreen() {
   const c = useAppTheme();
   const t = useT();
-  const router = useRouter();
   const services = useServices();
   const slotLabel = (slot: LayoutSlot) => kindLabel(t, slot);
   const { db, now, assets } = services;
@@ -184,11 +182,7 @@ export default function ShowScreen() {
 
   return (
     <Screen overlay={<Toast toast={toast} onAction={act} onDismiss={dismiss} />}>
-      <Header
-        title={t.showSettings.title}
-        subtitle={services.show.name}
-        onBack={() => router.back()}
-      />
+      <ScreenHeader title={t.showSettings.title} subtitle={services.show.name} />
 
       <SectionHeader title={t.showSettings.showEyebrow} />
       <Card>

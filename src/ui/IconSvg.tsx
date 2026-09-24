@@ -77,7 +77,8 @@ const SHAPES = {
 
 export type IconName = keyof typeof SHAPES;
 
-export const Icon = memo(function Icon({
+/** 線幅 2 の SVG アイコン。Android と Web の既定、iOS では SF Symbols が無いときの代わり。 */
+export const IconSvg = memo(function IconSvg({
   name,
   color,
   size = iconSize.md,

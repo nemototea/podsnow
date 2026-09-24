@@ -12,7 +12,8 @@ import {
   type RestoreResult,
 } from '@/services/backup/BackupService';
 import { space, typography } from '@/ui/tokens';
-import { Button, Card, Header, Notice, ProgressBar, Screen, Text } from '@/ui/components';
+import { Button, Card, Notice, ProgressBar, Screen, Text } from '@/ui/components';
+import { ScreenHeader } from '@/ui/ScreenHeader';
 import { useAppTheme } from '@/ui/ThemeContext';
 
 type Phase = 'idle' | 'running' | 'done' | 'error';
@@ -80,7 +81,7 @@ export default function RestoreScreen() {
 
   return (
     <Screen>
-      <Header title={t.restore.title} onBack={() => router.back()} />
+      <ScreenHeader title={t.restore.title} />
       <Card>
         <Text style={[st.body, { color: c.textSecondary }]}>{t.restore.lead}</Text>
         {phase === 'idle' || phase === 'error' ? (

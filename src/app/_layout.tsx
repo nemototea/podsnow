@@ -6,11 +6,14 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { ServiceLabelsSync, ServicesProvider, useServices } from '@/features/app/ServicesProvider';
 import { LocaleProvider, useT } from '@/i18n';
 import { Loading } from '@/ui/components';
-import { FontProvider } from '@/ui/Text';
+import { FontProvider, useFontFamily } from '@/ui/Text';
+import { typography } from '@/ui/tokens';
 import { ThemeProvider, useAppTheme } from '@/ui/ThemeContext';
 
 function Navigation() {
   const c = useAppTheme();
+  const t = useT();
+  const fontFamily = useFontFamily();
   const nav = c.isDark ? DarkTheme : DefaultTheme;
   return (
     <NavThemeProvider
@@ -26,7 +29,24 @@ function Navigation() {
         },
       }}
     >
-      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: c.bg } }} />
+      <Stack
+        screenOptions={{
+          headerShown: true,
+          headerStyle: { backgroundColor: c.bg },
+          headerShadowVisible: false,
+          headerTintColor: c.accentText,
+          headerTitleStyle: {
+            color: c.textPrimary,
+            fontSize: typography.bodyStrong.fontSize,
+            fontWeight: typography.bodyStrong.fontWeight,
+            ...(fontFamily ? { fontFamily } : {}),
+          },
+          headerBackButtonDisplayMode: 'minimal',
+          contentStyle: { backgroundColor: c.bg },
+        }}
+      >
+        <Stack.Screen name="index" options={{ headerShown: false, title: t.app.name }} />
+      </Stack>
       <StatusBar style={c.isDark ? 'light' : 'dark'} />
     </NavThemeProvider>
   );
