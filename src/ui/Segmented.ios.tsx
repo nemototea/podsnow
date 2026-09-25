@@ -39,8 +39,8 @@ export function Segmented<T extends string>({
         if (next.value !== value && disabled?.(next.value)) setNonce((n) => n + 1);
       }}
       appearance={c.isDark ? 'dark' : 'light'}
-      backgroundColor={c.surface}
-      tintColor={c.surfaceRaised}
+      backgroundColor={c.well}
+      tintColor={c.key}
       fontStyle={{
         color: c.textSecondary,
         fontSize: typography.label.fontSize,

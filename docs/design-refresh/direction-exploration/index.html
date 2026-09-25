@@ -1,505 +1,1941 @@
 <title>PodsNow 次の方向性</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=Noto+Sans+JP:wght@400;500;700;900&family=DotGothic16&display=swap">
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link
+  rel="stylesheet"
+  href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=Noto+Sans+JP:wght@400;500;700;900&family=DotGothic16&display=swap"
+/>
 <style>
-:root{
-  --bg:#F7F6F3; --surface:#FFFFFF; --raised:#ECEBE8; --ink:#202221; --ink2:#474948; --ink3:#555756;
-  --line:#C1C1BE; --accent:#D8F36A; --accentText:#3D4F0A; --on:#172007;
-  --good:#1F7A52; --mid:#8A5A12; --bad:#A33B2A;
-  --font:"Manrope","Noto Sans JP",system-ui,sans-serif;
-  --jp:"Noto Sans JP","Manrope",system-ui,sans-serif;
-}
-@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
-  color-scheme:dark;
-  --bg:#111416; --surface:#1B2023; --raised:#252B2F; --ink:#F1F3EF; --ink2:#BEC7CB; --ink3:#A6B1B7;
-  --line:#3D454A; --accent:#D8F36A; --accentText:#D8F36A; --on:#172007;
-  --good:#8ED8B4; --mid:#F4C087; --bad:#FF896A;
-}}
-:root[data-theme="dark"]{
-  color-scheme:dark;
-  --bg:#111416; --surface:#1B2023; --raised:#252B2F; --ink:#F1F3EF; --ink2:#BEC7CB; --ink3:#A6B1B7;
-  --line:#3D454A; --accent:#D8F36A; --accentText:#D8F36A; --on:#172007;
-  --good:#8ED8B4; --mid:#F4C087; --bad:#FF896A;
-}
-*{box-sizing:border-box}
-body{background:var(--bg);color:var(--ink);font-family:var(--jp);font-size:15px;line-height:1.75;padding-inline:20px;padding-block:40px 80px}
-.wrap{max-width:1180px;margin:0 auto;display:flex;flex-direction:column;gap:56px}
-h1,h2,h3{font-family:var(--font);text-wrap:balance;margin:0;line-height:1.3}
-h1{font-size:clamp(28px,4.4vw,44px);font-weight:800;letter-spacing:-.01em}
-h1 .dot{display:inline-block;width:.22em;height:.22em;background:var(--accent);border-radius:.04em;margin-left:.04em;outline:1.5px solid var(--ink)}
-h2{font-size:24px;font-weight:700}
-h3{font-size:18px;font-weight:700}
-p{margin:0;max-width:68ch}
-.lead{display:flex;flex-direction:column;gap:14px}
-.lead p{color:var(--ink2)}
-.tag{font-size:12px;font-weight:700;padding:1px 8px;border-radius:6px;border:1.5px solid var(--ink);margin-right:6px;white-space:nowrap}
-section{display:flex;flex-direction:column;gap:20px}
-.fixed{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}
-.fixed div{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 16px;font-size:14px;line-height:1.65}
-.fixed b{display:block;font-family:var(--font);margin-bottom:4px}
+  :root {
+    --bg: #f7f6f3;
+    --surface: #ffffff;
+    --raised: #ecebe8;
+    --ink: #202221;
+    --ink2: #474948;
+    --ink3: #555756;
+    --line: #c1c1be;
+    --accent: #d8f36a;
+    --accentText: #3d4f0a;
+    --on: #172007;
+    --good: #1f7a52;
+    --mid: #8a5a12;
+    --bad: #a33b2a;
+    --font: 'Manrope', 'Noto Sans JP', system-ui, sans-serif;
+    --jp: 'Noto Sans JP', 'Manrope', system-ui, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme='light']) {
+      color-scheme: dark;
+      --bg: #111416;
+      --surface: #1b2023;
+      --raised: #252b2f;
+      --ink: #f1f3ef;
+      --ink2: #bec7cb;
+      --ink3: #a6b1b7;
+      --line: #3d454a;
+      --accent: #d8f36a;
+      --accentText: #d8f36a;
+      --on: #172007;
+      --good: #8ed8b4;
+      --mid: #f4c087;
+      --bad: #ff896a;
+    }
+  }
+  :root[data-theme='dark'] {
+    color-scheme: dark;
+    --bg: #111416;
+    --surface: #1b2023;
+    --raised: #252b2f;
+    --ink: #f1f3ef;
+    --ink2: #bec7cb;
+    --ink3: #a6b1b7;
+    --line: #3d454a;
+    --accent: #d8f36a;
+    --accentText: #d8f36a;
+    --on: #172007;
+    --good: #8ed8b4;
+    --mid: #f4c087;
+    --bad: #ff896a;
+  }
+  * {
+    box-sizing: border-box;
+  }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--jp);
+    font-size: 15px;
+    line-height: 1.75;
+    padding-inline: 20px;
+    padding-block: 40px 80px;
+  }
+  .wrap {
+    max-width: 1180px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 56px;
+  }
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font);
+    text-wrap: balance;
+    margin: 0;
+    line-height: 1.3;
+  }
+  h1 {
+    font-size: clamp(28px, 4.4vw, 44px);
+    font-weight: 800;
+    letter-spacing: -0.01em;
+  }
+  h1 .dot {
+    display: inline-block;
+    width: 0.22em;
+    height: 0.22em;
+    background: var(--accent);
+    border-radius: 0.04em;
+    margin-left: 0.04em;
+    outline: 1.5px solid var(--ink);
+  }
+  h2 {
+    font-size: 24px;
+    font-weight: 700;
+  }
+  h3 {
+    font-size: 18px;
+    font-weight: 700;
+  }
+  p {
+    margin: 0;
+    max-width: 68ch;
+  }
+  .lead {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .lead p {
+    color: var(--ink2);
+  }
+  .tag {
+    font-size: 12px;
+    font-weight: 700;
+    padding: 1px 8px;
+    border-radius: 6px;
+    border: 1.5px solid var(--ink);
+    margin-right: 6px;
+    white-space: nowrap;
+  }
+  section {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+  .fixed {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 12px;
+  }
+  .fixed div {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 14px 16px;
+    font-size: 14px;
+    line-height: 1.65;
+  }
+  .fixed b {
+    display: block;
+    font-family: var(--font);
+    margin-bottom: 4px;
+  }
 
-/* ===== phones ===== */
-.dirs{display:grid;grid-template-columns:repeat(auto-fit,minmax(310px,1fr));gap:32px 24px;align-items:start}
-.dir{display:flex;flex-direction:column;gap:14px}
-.dir header{display:flex;flex-direction:column;gap:4px;min-height:120px}
-.dir header .k{font-family:var(--font);font-weight:800;font-size:13px;color:var(--ink3)}
-.dir header p{font-size:14px;color:var(--ink2)}
-.phone{width:100%;max-width:340px;aspect-ratio:9/18.5;border-radius:34px;overflow:hidden;position:relative;border:6px solid #0b0d0e;box-shadow:0 0 0 1px var(--line);display:flex;flex-direction:column;font-family:var(--jp)}
-.phone .body{flex:1;display:flex;flex-direction:column;gap:12px;padding:14px 16px;overflow:hidden}
-.phone .nav{display:flex;align-items:center;gap:10px;font-weight:700;font-size:13px;padding:30px 16px 0}
-.phone .nav small{display:block;font-weight:500;font-size:11px;opacity:.75}
-.num{font-family:"Manrope",sans-serif;font-variant-numeric:tabular-nums}
-.notes{font-size:13.5px;line-height:1.7;display:flex;flex-direction:column;gap:6px;padding-left:1.1em;margin:0}
+  /* ===== phones ===== */
+  .dirs {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(310px, 1fr));
+    gap: 32px 24px;
+    align-items: start;
+  }
+  .dir {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .dir header {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-height: 120px;
+  }
+  .dir header .k {
+    font-family: var(--font);
+    font-weight: 800;
+    font-size: 13px;
+    color: var(--ink3);
+  }
+  .dir header p {
+    font-size: 14px;
+    color: var(--ink2);
+  }
+  .phone {
+    width: 100%;
+    max-width: 340px;
+    aspect-ratio: 9/18.5;
+    border-radius: 34px;
+    overflow: hidden;
+    position: relative;
+    border: 6px solid #0b0d0e;
+    box-shadow: 0 0 0 1px var(--line);
+    display: flex;
+    flex-direction: column;
+    font-family: var(--jp);
+  }
+  .phone .body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 14px 16px;
+    overflow: hidden;
+  }
+  .phone .nav {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 700;
+    font-size: 13px;
+    padding: 30px 16px 0;
+  }
+  .phone .nav small {
+    display: block;
+    font-weight: 500;
+    font-size: 11px;
+    opacity: 0.75;
+  }
+  .num {
+    font-family: 'Manrope', sans-serif;
+    font-variant-numeric: tabular-nums;
+  }
+  .notes {
+    font-size: 13.5px;
+    line-height: 1.7;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding-left: 1.1em;
+    margin: 0;
+  }
 
-/* --- A: pop neo-brutal (light) --- */
-.A{--k:#161616;background:#FFF3C9;color:var(--k)}
-.A .nav{color:var(--k)}
-.A .seg{display:flex;border:2.5px solid var(--k);border-radius:12px;overflow:hidden;background:#fff;box-shadow:3px 3px 0 var(--k)}
-.A .seg span{flex:1;text-align:center;font-weight:800;font-size:12px;padding:7px 0;border-left:2.5px solid var(--k)}
-.A .seg span:first-child{border-left:0;background:#D8F36A}
-.A .timer{background:#B9B1FA;border:2.5px solid var(--k);border-radius:16px;box-shadow:4px 4px 0 var(--k);padding:10px 12px 12px;display:flex;flex-direction:column;gap:6px}
-.A .timer .st{display:flex;justify-content:space-between;font-weight:800;font-size:11px}
-.A .timer .st i{display:inline-block;width:9px;height:9px;border-radius:50%;background:#FF5A36;border:2px solid var(--k);margin-right:5px;vertical-align:-1px}
-.A .timer .t{font-size:46px;font-weight:800;line-height:1;letter-spacing:-.02em}
-.A .meter{display:flex;gap:3px;height:16px}
-.A .meter b{flex:1;border:2px solid var(--k);border-radius:3px;background:#fff}
-.A .meter b.g{background:#3FD48A}.A .meter b.y{background:#FFC53D}.A .meter b.r{background:#FF5A36}
-.A .card{background:#88D0F4;border:2.5px solid var(--k);border-radius:14px;box-shadow:3px 3px 0 var(--k);padding:9px 12px;font-size:12px;line-height:1.55}
-.A .card b{display:block;font-size:13px;font-weight:900}
-.A .chips{display:flex;gap:6px;flex-wrap:wrap}
-.A .chips span{font-size:11px;font-weight:800;padding:5px 10px;border:2.5px solid var(--k);border-radius:999px;box-shadow:2px 2px 0 var(--k)}
-.A .transport{margin-top:auto;display:flex;align-items:flex-end;justify-content:space-around;padding:12px 8px 22px;border-top:2.5px solid var(--k);background:#fff}
-.A .transport div{display:flex;flex-direction:column;align-items:center;gap:5px;font-size:10.5px;font-weight:800}
-.A .btn{width:48px;height:48px;border:2.5px solid var(--k);border-radius:14px;background:#fff;box-shadow:3px 3px 0 var(--k);display:grid;place-items:center}
-.A .btn.big{width:64px;height:64px;border-radius:18px;background:#FF7A5C}
-.A .btn .sq{width:18px;height:18px;background:var(--k);border-radius:3px}
-.A .btn .pz{width:14px;height:16px;border-left:5px solid var(--k);border-right:5px solid var(--k)}
-.A .btn .rd{width:18px;height:18px;border:3px solid var(--k);border-radius:50%;border-top-color:transparent}
+  /* --- A: pop neo-brutal (light) --- */
+  .A {
+    --k: #161616;
+    background: #fff3c9;
+    color: var(--k);
+  }
+  .A .nav {
+    color: var(--k);
+  }
+  .A .seg {
+    display: flex;
+    border: 2.5px solid var(--k);
+    border-radius: 12px;
+    overflow: hidden;
+    background: #fff;
+    box-shadow: 3px 3px 0 var(--k);
+  }
+  .A .seg span {
+    flex: 1;
+    text-align: center;
+    font-weight: 800;
+    font-size: 12px;
+    padding: 7px 0;
+    border-left: 2.5px solid var(--k);
+  }
+  .A .seg span:first-child {
+    border-left: 0;
+    background: #d8f36a;
+  }
+  .A .timer {
+    background: #b9b1fa;
+    border: 2.5px solid var(--k);
+    border-radius: 16px;
+    box-shadow: 4px 4px 0 var(--k);
+    padding: 10px 12px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .A .timer .st {
+    display: flex;
+    justify-content: space-between;
+    font-weight: 800;
+    font-size: 11px;
+  }
+  .A .timer .st i {
+    display: inline-block;
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: #ff5a36;
+    border: 2px solid var(--k);
+    margin-right: 5px;
+    vertical-align: -1px;
+  }
+  .A .timer .t {
+    font-size: 46px;
+    font-weight: 800;
+    line-height: 1;
+    letter-spacing: -0.02em;
+  }
+  .A .meter {
+    display: flex;
+    gap: 3px;
+    height: 16px;
+  }
+  .A .meter b {
+    flex: 1;
+    border: 2px solid var(--k);
+    border-radius: 3px;
+    background: #fff;
+  }
+  .A .meter b.g {
+    background: #3fd48a;
+  }
+  .A .meter b.y {
+    background: #ffc53d;
+  }
+  .A .meter b.r {
+    background: #ff5a36;
+  }
+  .A .card {
+    background: #88d0f4;
+    border: 2.5px solid var(--k);
+    border-radius: 14px;
+    box-shadow: 3px 3px 0 var(--k);
+    padding: 9px 12px;
+    font-size: 12px;
+    line-height: 1.55;
+  }
+  .A .card b {
+    display: block;
+    font-size: 13px;
+    font-weight: 900;
+  }
+  .A .chips {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .A .chips span {
+    font-size: 11px;
+    font-weight: 800;
+    padding: 5px 10px;
+    border: 2.5px solid var(--k);
+    border-radius: 999px;
+    box-shadow: 2px 2px 0 var(--k);
+  }
+  .A .transport {
+    margin-top: auto;
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-around;
+    padding: 12px 8px 22px;
+    border-top: 2.5px solid var(--k);
+    background: #fff;
+  }
+  .A .transport div {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+    font-size: 10.5px;
+    font-weight: 800;
+  }
+  .A .btn {
+    width: 48px;
+    height: 48px;
+    border: 2.5px solid var(--k);
+    border-radius: 14px;
+    background: #fff;
+    box-shadow: 3px 3px 0 var(--k);
+    display: grid;
+    place-items: center;
+  }
+  .A .btn.big {
+    width: 64px;
+    height: 64px;
+    border-radius: 18px;
+    background: #ff7a5c;
+  }
+  .A .btn .sq {
+    width: 18px;
+    height: 18px;
+    background: var(--k);
+    border-radius: 3px;
+  }
+  .A .btn .pz {
+    width: 14px;
+    height: 16px;
+    border-left: 5px solid var(--k);
+    border-right: 5px solid var(--k);
+  }
+  .A .btn .rd {
+    width: 18px;
+    height: 18px;
+    border: 3px solid var(--k);
+    border-radius: 50%;
+    border-top-color: transparent;
+  }
 
-/* --- B: skeuomorphic recorder (dark) --- */
-.B{background:linear-gradient(180deg,#2A2E31 0%,#1C1F21 100%);color:#E9ECE6}
-.B .nav{color:#E9ECE6}
-.B .seg{display:flex;padding:3px;gap:3px;border-radius:12px;background:#121416;box-shadow:inset 0 2px 4px #000,0 1px 0 #3a4044}
-.B .seg span{flex:1;text-align:center;font-weight:700;font-size:12px;padding:6px 0;border-radius:9px;color:#9AA4A9}
-.B .seg span:first-child{background:linear-gradient(180deg,#4A5256,#353B3F);color:#fff;box-shadow:0 1px 0 #5d676c inset,0 2px 3px #000}
-.B .lcd{border-radius:14px;padding:5px;background:linear-gradient(180deg,#0E1011,#23272A);box-shadow:0 1px 0 #3e4549}
-.B .lcd .glass{border-radius:10px;padding:8px 12px 10px;background:linear-gradient(180deg,#CBE36A 0%,#B7CF55 100%);color:#1C2608;box-shadow:inset 0 3px 6px rgba(0,0,0,.35),inset 0 -1px 0 rgba(255,255,255,.35);display:flex;flex-direction:column;gap:2px}
-.B .lcd .st{display:flex;justify-content:space-between;font-weight:700;font-size:10.5px;font-family:"Manrope",sans-serif}
-.B .lcd .t{font-size:48px;font-weight:600;line-height:1;letter-spacing:.02em}
-.B .lamp{display:inline-block;width:9px;height:9px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#FFD2C4,#FF5A36 55%,#8a1e0c);box-shadow:0 0 6px #FF5A36;margin-right:6px;vertical-align:-1px}
-.B .ladder{display:flex;gap:3px;height:14px;padding:4px;border-radius:8px;background:#0c0e0f;box-shadow:inset 0 2px 3px #000}
-.B .ladder b{flex:1;border-radius:2px;background:#2b3133}
-.B .ladder b.g{background:#9BE38A;box-shadow:0 0 4px #9BE38A}
-.B .ladder b.y{background:#F4C087;box-shadow:0 0 4px #F4C087}
-.B .knobrow{display:flex;align-items:center;gap:12px;font-size:12px}
-.B .knob{width:38px;height:38px;border-radius:50%;background:conic-gradient(from 0deg,#5b6468,#2a2f32,#5b6468,#2a2f32,#5b6468);box-shadow:0 3px 5px #000,inset 0 1px 0 #8d979b;position:relative}
-.B .knob:after{content:"";position:absolute;left:50%;top:5px;width:3px;height:10px;margin-left:-1.5px;background:#D8F36A;border-radius:2px;transform-origin:50% 14px;transform:rotate(-35deg)}
-.B .card{border-radius:12px;padding:9px 12px;font-size:12px;line-height:1.55;background:#23282B;box-shadow:inset 0 1px 0 #333a3e,0 1px 2px #000;color:#C7CFD2}
-.B .card b{display:block;color:#fff;font-size:13px}
-.B .pads{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
-.B .pads span{font-size:10.5px;font-weight:700;text-align:center;padding:9px 0;border-radius:8px;background:linear-gradient(180deg,#3E4549,#2C3134);box-shadow:inset 0 1px 0 #566064,0 2px 0 #0d0f10,0 3px 4px #000}
-.B .transport{margin-top:auto;padding:14px 10px 22px;background:linear-gradient(180deg,#34393C,#22272A);box-shadow:inset 0 1px 0 #4b5357;display:flex;justify-content:space-around;align-items:flex-end}
-.B .transport div{display:flex;flex-direction:column;align-items:center;gap:6px;font-size:10.5px;color:#C7CFD2}
-.B .key{width:50px;height:44px;border-radius:9px;background:linear-gradient(180deg,#4B5357,#30363A);box-shadow:inset 0 1px 0 #6a7479,0 3px 0 #111416,0 5px 6px #000;display:grid;place-items:center}
-.B .key.rec{width:66px;height:66px;border-radius:50%;background:radial-gradient(circle at 40% 30%,#FFB39E,#FF6E4E 45%,#C23A1E);box-shadow:0 0 0 4px #1a1d1f,0 0 0 6px #4b5357,0 6px 8px #000}
-.B .key .sq{width:18px;height:18px;background:#2A0B04;border-radius:3px}
-.B .key .pz{width:13px;height:15px;border-left:4px solid #E9ECE6;border-right:4px solid #E9ECE6}
-.B .key .rd{width:17px;height:17px;border:3px solid #E9ECE6;border-radius:50%;border-top-color:transparent}
+  /* --- B: skeuomorphic recorder (dark) --- */
+  .B {
+    background: linear-gradient(180deg, #2a2e31 0%, #1c1f21 100%);
+    color: #e9ece6;
+  }
+  .B .nav {
+    color: #e9ece6;
+  }
+  .B .seg {
+    display: flex;
+    padding: 3px;
+    gap: 3px;
+    border-radius: 12px;
+    background: #121416;
+    box-shadow:
+      inset 0 2px 4px #000,
+      0 1px 0 #3a4044;
+  }
+  .B .seg span {
+    flex: 1;
+    text-align: center;
+    font-weight: 700;
+    font-size: 12px;
+    padding: 6px 0;
+    border-radius: 9px;
+    color: #9aa4a9;
+  }
+  .B .seg span:first-child {
+    background: linear-gradient(180deg, #4a5256, #353b3f);
+    color: #fff;
+    box-shadow:
+      0 1px 0 #5d676c inset,
+      0 2px 3px #000;
+  }
+  .B .lcd {
+    border-radius: 14px;
+    padding: 5px;
+    background: linear-gradient(180deg, #0e1011, #23272a);
+    box-shadow: 0 1px 0 #3e4549;
+  }
+  .B .lcd .glass {
+    border-radius: 10px;
+    padding: 8px 12px 10px;
+    background: linear-gradient(180deg, #cbe36a 0%, #b7cf55 100%);
+    color: #1c2608;
+    box-shadow:
+      inset 0 3px 6px rgba(0, 0, 0, 0.35),
+      inset 0 -1px 0 rgba(255, 255, 255, 0.35);
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .B .lcd .st {
+    display: flex;
+    justify-content: space-between;
+    font-weight: 700;
+    font-size: 10.5px;
+    font-family: 'Manrope', sans-serif;
+  }
+  .B .lcd .t {
+    font-size: 48px;
+    font-weight: 600;
+    line-height: 1;
+    letter-spacing: 0.02em;
+  }
+  .B .lamp {
+    display: inline-block;
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 35%, #ffd2c4, #ff5a36 55%, #8a1e0c);
+    box-shadow: 0 0 6px #ff5a36;
+    margin-right: 6px;
+    vertical-align: -1px;
+  }
+  .B .ladder {
+    display: flex;
+    gap: 3px;
+    height: 14px;
+    padding: 4px;
+    border-radius: 8px;
+    background: #0c0e0f;
+    box-shadow: inset 0 2px 3px #000;
+  }
+  .B .ladder b {
+    flex: 1;
+    border-radius: 2px;
+    background: #2b3133;
+  }
+  .B .ladder b.g {
+    background: #9be38a;
+    box-shadow: 0 0 4px #9be38a;
+  }
+  .B .ladder b.y {
+    background: #f4c087;
+    box-shadow: 0 0 4px #f4c087;
+  }
+  .B .knobrow {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 12px;
+  }
+  .B .knob {
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    background: conic-gradient(from 0deg, #5b6468, #2a2f32, #5b6468, #2a2f32, #5b6468);
+    box-shadow:
+      0 3px 5px #000,
+      inset 0 1px 0 #8d979b;
+    position: relative;
+  }
+  .B .knob:after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 5px;
+    width: 3px;
+    height: 10px;
+    margin-left: -1.5px;
+    background: #d8f36a;
+    border-radius: 2px;
+    transform-origin: 50% 14px;
+    transform: rotate(-35deg);
+  }
+  .B .card {
+    border-radius: 12px;
+    padding: 9px 12px;
+    font-size: 12px;
+    line-height: 1.55;
+    background: #23282b;
+    box-shadow:
+      inset 0 1px 0 #333a3e,
+      0 1px 2px #000;
+    color: #c7cfd2;
+  }
+  .B .card b {
+    display: block;
+    color: #fff;
+    font-size: 13px;
+  }
+  .B .pads {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+  }
+  .B .pads span {
+    font-size: 10.5px;
+    font-weight: 700;
+    text-align: center;
+    padding: 9px 0;
+    border-radius: 8px;
+    background: linear-gradient(180deg, #3e4549, #2c3134);
+    box-shadow:
+      inset 0 1px 0 #566064,
+      0 2px 0 #0d0f10,
+      0 3px 4px #000;
+  }
+  .B .transport {
+    margin-top: auto;
+    padding: 14px 10px 22px;
+    background: linear-gradient(180deg, #34393c, #22272a);
+    box-shadow: inset 0 1px 0 #4b5357;
+    display: flex;
+    justify-content: space-around;
+    align-items: flex-end;
+  }
+  .B .transport div {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    font-size: 10.5px;
+    color: #c7cfd2;
+  }
+  .B .key {
+    width: 50px;
+    height: 44px;
+    border-radius: 9px;
+    background: linear-gradient(180deg, #4b5357, #30363a);
+    box-shadow:
+      inset 0 1px 0 #6a7479,
+      0 3px 0 #111416,
+      0 5px 6px #000;
+    display: grid;
+    place-items: center;
+  }
+  .B .key.rec {
+    width: 66px;
+    height: 66px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 40% 30%, #ffb39e, #ff6e4e 45%, #c23a1e);
+    box-shadow:
+      0 0 0 4px #1a1d1f,
+      0 0 0 6px #4b5357,
+      0 6px 8px #000;
+  }
+  .B .key .sq {
+    width: 18px;
+    height: 18px;
+    background: #2a0b04;
+    border-radius: 3px;
+  }
+  .B .key .pz {
+    width: 13px;
+    height: 15px;
+    border-left: 4px solid #e9ece6;
+    border-right: 4px solid #e9ece6;
+  }
+  .B .key .rd {
+    width: 17px;
+    height: 17px;
+    border: 3px solid #e9ece6;
+    border-radius: 50%;
+    border-top-color: transparent;
+  }
 
-/* --- C: hybrid --- */
-.C{background:#111416;color:#F1F3EF}
-.C .nav{color:#F1F3EF}
-.C .seg{display:flex;border:1px solid #3D454A;border-radius:12px;padding:3px;background:#1B2023}
-.C .seg span{flex:1;text-align:center;font-weight:700;font-size:12px;padding:6px 0;border-radius:9px;color:#BEC7CB}
-.C .seg span:first-child{background:#30373B;color:#fff;outline:1px solid #849096}
-.C .card{background:#1B2023;border-radius:12px;padding:9px 12px;font-size:12px;line-height:1.55;color:#BEC7CB}
-.C .card b{display:block;color:#F1F3EF;font-size:13px}
-.C .h{font-weight:700;font-size:14px}
-.C .deck{margin-top:auto;background:linear-gradient(180deg,#2B3134,#1E2326);box-shadow:inset 0 1px 0 #454d51,0 -1px 0 #000;border-radius:22px 22px 0 0;padding:12px 14px 20px;display:flex;flex-direction:column;gap:10px}
-.C .lcd{border-radius:10px;padding:7px 10px 8px;background:#0B0D0E;box-shadow:inset 0 2px 5px #000,0 1px 0 #454d51;display:flex;flex-direction:column;gap:6px}
-.C .lcd .st{display:flex;justify-content:space-between;font-size:10.5px;font-weight:700;color:#BEC7CB}
-.C .lcd .st em{font-style:normal;color:#FF896A}
-.C .lcd .t{font-size:40px;font-weight:600;line-height:1;color:#D8F36A}
-.C .ladder{display:flex;gap:2px;height:9px}
-.C .ladder b{flex:1;border-radius:1.5px;background:#252B2F}
-.C .ladder b.g{background:#D7E0E4}.C .ladder b.y{background:#F4C087}
-.C .row{display:flex;justify-content:space-around;align-items:flex-end}
-.C .row div{display:flex;flex-direction:column;align-items:center;gap:5px;font-size:10.5px;color:#BEC7CB}
-.C .key{width:48px;height:42px;border-radius:10px;background:linear-gradient(180deg,#434B4F,#30363A);box-shadow:inset 0 1px 0 #626c71,0 3px 0 #0b0d0e;display:grid;place-items:center}
-.C .key.rec{width:62px;height:62px;border-radius:50%;background:radial-gradient(circle at 40% 32%,#FFB9A6,#FF896A 50%,#D25A3C);box-shadow:0 0 0 4px #15191b,0 0 0 6px #4b5357,0 4px 0 #0b0d0e}
-.C .key .sq{width:17px;height:17px;background:#2A0B04;border-radius:3px}
-.C .key .pz{width:13px;height:15px;border-left:4px solid #F1F3EF;border-right:4px solid #F1F3EF}
-.C .key .rd{width:16px;height:16px;border:3px solid #F1F3EF;border-radius:50%;border-top-color:transparent}
+  /* --- C: hybrid --- */
+  .C {
+    background: #111416;
+    color: #f1f3ef;
+  }
+  .C .nav {
+    color: #f1f3ef;
+  }
+  .C .seg {
+    display: flex;
+    border: 1px solid #3d454a;
+    border-radius: 12px;
+    padding: 3px;
+    background: #1b2023;
+  }
+  .C .seg span {
+    flex: 1;
+    text-align: center;
+    font-weight: 700;
+    font-size: 12px;
+    padding: 6px 0;
+    border-radius: 9px;
+    color: #bec7cb;
+  }
+  .C .seg span:first-child {
+    background: #30373b;
+    color: #fff;
+    outline: 1px solid #849096;
+  }
+  .C .card {
+    background: #1b2023;
+    border-radius: 12px;
+    padding: 9px 12px;
+    font-size: 12px;
+    line-height: 1.55;
+    color: #bec7cb;
+  }
+  .C .card b {
+    display: block;
+    color: #f1f3ef;
+    font-size: 13px;
+  }
+  .C .h {
+    font-weight: 700;
+    font-size: 14px;
+  }
+  .C .deck {
+    margin-top: auto;
+    background: linear-gradient(180deg, #2b3134, #1e2326);
+    box-shadow:
+      inset 0 1px 0 #454d51,
+      0 -1px 0 #000;
+    border-radius: 22px 22px 0 0;
+    padding: 12px 14px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .C .lcd {
+    border-radius: 10px;
+    padding: 7px 10px 8px;
+    background: #0b0d0e;
+    box-shadow:
+      inset 0 2px 5px #000,
+      0 1px 0 #454d51;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .C .lcd .st {
+    display: flex;
+    justify-content: space-between;
+    font-size: 10.5px;
+    font-weight: 700;
+    color: #bec7cb;
+  }
+  .C .lcd .st em {
+    font-style: normal;
+    color: #ff896a;
+  }
+  .C .lcd .t {
+    font-size: 40px;
+    font-weight: 600;
+    line-height: 1;
+    color: #d8f36a;
+  }
+  .C .ladder {
+    display: flex;
+    gap: 2px;
+    height: 9px;
+  }
+  .C .ladder b {
+    flex: 1;
+    border-radius: 1.5px;
+    background: #252b2f;
+  }
+  .C .ladder b.g {
+    background: #d7e0e4;
+  }
+  .C .ladder b.y {
+    background: #f4c087;
+  }
+  .C .row {
+    display: flex;
+    justify-content: space-around;
+    align-items: flex-end;
+  }
+  .C .row div {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+    font-size: 10.5px;
+    color: #bec7cb;
+  }
+  .C .key {
+    width: 48px;
+    height: 42px;
+    border-radius: 10px;
+    background: linear-gradient(180deg, #434b4f, #30363a);
+    box-shadow:
+      inset 0 1px 0 #626c71,
+      0 3px 0 #0b0d0e;
+    display: grid;
+    place-items: center;
+  }
+  .C .key.rec {
+    width: 62px;
+    height: 62px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 40% 32%, #ffb9a6, #ff896a 50%, #d25a3c);
+    box-shadow:
+      0 0 0 4px #15191b,
+      0 0 0 6px #4b5357,
+      0 4px 0 #0b0d0e;
+  }
+  .C .key .sq {
+    width: 17px;
+    height: 17px;
+    background: #2a0b04;
+    border-radius: 3px;
+  }
+  .C .key .pz {
+    width: 13px;
+    height: 15px;
+    border-left: 4px solid #f1f3ef;
+    border-right: 4px solid #f1f3ef;
+  }
+  .C .key .rd {
+    width: 16px;
+    height: 16px;
+    border: 3px solid #f1f3ef;
+    border-radius: 50%;
+    border-top-color: transparent;
+  }
 
-/* ===== table ===== */
-.tbl{overflow-x:auto;border:1px solid var(--line);border-radius:14px;background:var(--surface)}
-table{border-collapse:collapse;width:100%;min-width:760px;font-size:13.5px;line-height:1.6}
-th,td{padding:12px 14px;text-align:left;vertical-align:top;border-bottom:1px solid var(--line)}
-tr:last-child td{border-bottom:0}
-thead th{font-family:var(--font);font-size:13px;background:var(--raised)}
-tbody th{font-weight:700;width:19%}
-.s{font-family:var(--font);font-weight:800;margin-right:4px}
-.s.hi{color:var(--good)}.s.md{color:var(--mid)}.s.lo{color:var(--bad)}
+  /* ===== table ===== */
+  .tbl {
+    overflow-x: auto;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    background: var(--surface);
+  }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    min-width: 760px;
+    font-size: 13.5px;
+    line-height: 1.6;
+  }
+  th,
+  td {
+    padding: 12px 14px;
+    text-align: left;
+    vertical-align: top;
+    border-bottom: 1px solid var(--line);
+  }
+  tr:last-child td {
+    border-bottom: 0;
+  }
+  thead th {
+    font-family: var(--font);
+    font-size: 13px;
+    background: var(--raised);
+  }
+  tbody th {
+    font-weight: 700;
+    width: 19%;
+  }
+  .s {
+    font-family: var(--font);
+    font-weight: 800;
+    margin-right: 4px;
+  }
+  .s.hi {
+    color: var(--good);
+  }
+  .s.md {
+    color: var(--mid);
+  }
+  .s.lo {
+    color: var(--bad);
+  }
 
-.rec{background:var(--surface);border:2px solid var(--ink);border-radius:16px;box-shadow:3px 4px 0 var(--ink);padding:22px 24px;display:flex;flex-direction:column;gap:14px}
-.rec ol,.rec ul{margin:0;padding-left:1.3em;display:flex;flex-direction:column;gap:8px;max-width:78ch}
-code{font-family:ui-monospace,Menlo,monospace;font-size:.9em;background:var(--raised);padding:1px 5px;border-radius:4px}
-.foot{font-size:13px;color:var(--ink3)}
-/* --- D: colored-plastic recorder (moodboard) --- */
-.mood{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
-.mood div{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 16px;font-size:14px;line-height:1.65;display:flex;flex-direction:column;gap:6px}
-.mood b{font-family:var(--font)}
-.mood .sw{display:flex;gap:5px}
-.mood .sw i{width:22px;height:22px;border-radius:6px;border:1.5px solid var(--ink)}
-.dot16{font-family:"DotGothic16","Noto Sans JP",monospace}
-.D{--shell:#F6C63A;--shellDeep:#D9A817;--print:#2B2410;--lcd:#B9D98A;--lcdInk:#1D2A0E;background:var(--shell);color:var(--print)}
-.D.mint{--shell:#8FE0CF;--shellDeep:#5FC3AE;--print:#0F2E28;--lcd:#FFB25C;--lcdInk:#3A1A00}
-.D.navy{--shell:#1F3F8F;--shellDeep:#162E6A;--print:#E8EEFF;--lcd:#FF9E45;--lcdInk:#2A1200}
-.D .nav{color:var(--print)}
-.D .onair{display:inline-flex;align-items:center;gap:6px;align-self:flex-start;font-family:"Manrope",sans-serif;font-weight:800;font-size:11px;letter-spacing:.06em;padding:4px 10px;border-radius:999px;background:#3A0E06;color:#FFD9CE;box-shadow:inset 0 0 0 2px #FF7A5C}
-.D .onair i{width:8px;height:8px;border-radius:50%;background:#FF7A5C}
-.D .seg{display:flex;gap:4px}
-.D .seg span{flex:1;text-align:center;font-weight:800;font-size:11.5px;padding:6px 0;border-radius:8px;background:var(--shellDeep);box-shadow:inset 0 -3px 0 rgba(0,0,0,.18)}
-.D .seg span:first-child{background:#FFFDF4;color:#1a1a1a;box-shadow:inset 0 -3px 0 #d8d2bd}
-.D .bezel{border-radius:16px;padding:7px;background:#1B1B1B;box-shadow:inset 0 0 0 2px #000,0 2px 0 var(--shellDeep)}
-.D .screen{border-radius:10px;background:var(--lcd);color:var(--lcdInk);padding:8px 10px 10px;display:flex;flex-direction:column;gap:4px;background-image:repeating-linear-gradient(0deg,transparent 0 2px,rgba(0,0,0,.05) 2px 3px)}
-.D .screen .st{display:flex;justify-content:space-between;font-size:11px}
-.D .screen .t{font-size:52px;line-height:1}
-.D .screen .bars{display:flex;gap:2px;height:10px;align-items:flex-end}
-.D .screen .bars b{flex:1;background:var(--lcdInk);opacity:.18}
-.D .screen .bars b.on{opacity:1}
-.D .silk{display:flex;justify-content:space-between;font-family:"Manrope",sans-serif;font-weight:800;font-size:9px;letter-spacing:.12em;opacity:.8}
-.D .row2{display:flex;gap:8px;align-items:center;font-size:12px;font-weight:600}
-.D .dial{width:34px;height:34px;border-radius:50%;background:#FFFDF4;box-shadow:inset 0 -3px 0 #d8d2bd,0 0 0 3px var(--shellDeep);position:relative;flex:none}
-.D .dial:after{content:"";position:absolute;left:50%;top:4px;width:3px;height:9px;margin-left:-1.5px;border-radius:2px;background:#FF7A5C}
-.D .caps{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
-.D .caps span{text-align:center;font-size:10.5px;font-weight:800;padding:8px 0 10px;border-radius:8px;color:#1a1a1a;box-shadow:inset 0 -4px 0 rgba(0,0,0,.2)}
-.D .deck{margin-top:auto;padding:12px 12px 20px;display:flex;justify-content:space-around;align-items:flex-end;background:var(--shellDeep)}
-.D .deck div{display:flex;flex-direction:column;align-items:center;gap:5px;font-size:10.5px;font-weight:800}
-.D .key{width:50px;height:42px;border-radius:12px;background:#FFFDF4;box-shadow:inset 0 -5px 0 #d8d2bd,0 2px 0 rgba(0,0,0,.25);display:grid;place-items:center}
-.D .key.rec{width:64px;height:64px;border-radius:50%;background:#FF7A5C;box-shadow:inset 0 -6px 0 #D2502F,0 0 0 4px #FFFDF4,0 3px 0 4px rgba(0,0,0,.2)}
-.D .key .sq{width:17px;height:17px;background:#2A0B04;border-radius:3px}
-.D .key .pz{width:13px;height:15px;border-left:4px solid #1a1a1a;border-right:4px solid #1a1a1a}
-.D .key .rd{width:16px;height:16px;border:3px solid #1a1a1a;border-radius:50%;border-top-color:transparent}
-/* Home: MD rack */
-.D.home{background:#EFEAE0;color:#1f1f1f}
-.D.home .nav{color:#1f1f1f}
-.D .logo{font-family:"Manrope",sans-serif;font-weight:800;font-size:16px}
-.D .logo i{display:inline-block;width:5px;height:5px;background:#819500;border-radius:1px;margin-left:1px}
-.D .show{font-weight:900;font-size:22px;line-height:1.3}
-.D .md{display:flex;gap:10px;align-items:stretch;border-radius:10px;padding:8px;box-shadow:inset 0 -4px 0 rgba(0,0,0,.18)}
-.D .md .lbl{flex:1;background:#FFFDF4;border-radius:5px;padding:6px 8px;display:flex;flex-direction:column;gap:1px;color:#1a1a1a}
-.D .md .lbl small{font-family:"Manrope",sans-serif;font-weight:800;font-size:9.5px;letter-spacing:.08em;opacity:.65}
-.D .md .lbl b{font-size:12.5px;line-height:1.35}
-.D .md .shut{width:36px;border-radius:5px;background:#9aa0a3;box-shadow:inset 0 0 0 2px #7d8386;display:grid;place-items:center;font-family:"Manrope",sans-serif;font-weight:800;font-size:10px;color:#2d3133}
-.D .newbtn{margin-top:auto;margin-inline:-16px;margin-bottom:-14px;padding:12px 16px 22px;background:#1a1a1a}
-.D .newbtn span{display:block;text-align:center;font-weight:800;font-size:13px;padding:12px 0;border-radius:12px;background:#D8F36A;color:#172007;box-shadow:inset 0 -4px 0 #A9C23F}
-/* brand strip */
-.brand{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:16px;align-items:end}
-.icon{--shell:#F6C63A;--shellDeep:#D9A817;--lcd:#B9D98A;--lcdInk:#1D2A0E;width:150px;height:150px;border-radius:34px;background:var(--shell);padding:18px;display:flex;flex-direction:column;gap:12px;box-shadow:inset 0 -6px 0 var(--shellDeep)}
-.icon .win{height:84px;border-radius:14px;background:#1B1B1B;padding:6px}
-.icon .win div{height:100%;border-radius:9px;background:var(--lcd);color:var(--lcdInk);font-family:"Manrope",sans-serif;font-weight:800;font-size:25px;line-height:1;letter-spacing:-.01em;padding:0 10px;display:flex;flex-direction:column;justify-content:center}
-.icon .btns{display:flex;justify-content:center;gap:12px}
-.icon .btns i{width:14px;height:14px;border-radius:50%;background:#FFFDF4;box-shadow:inset 0 -2px 0 #d8d2bd}
-.icon .btns i.r{background:#FF7A5C;box-shadow:inset 0 -2px 0 #D2502F}
-.brand figure{margin:0;display:flex;flex-direction:column;gap:8px;font-size:13px;color:var(--ink2)}
-.lp{border-radius:18px;padding:28px 24px;background:#FFE14D;color:#161616;border:2.5px solid #161616;box-shadow:5px 6px 0 #161616;display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:20px;align-items:center}
-.lp h3{font-size:clamp(24px,3.6vw,34px);font-weight:800;line-height:1.25}
-.lp p{font-size:14px;color:#3a3a3a}
-.lp .devs{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
-.lp .dev{width:74px;height:128px;border-radius:14px;background:var(--shell);border:2.5px solid #161616;box-shadow:3px 4px 0 #161616;padding:8px;display:flex;flex-direction:column;gap:8px}
-.lp .dev .w{height:42%;border-radius:6px;background:var(--lcd);border:3px solid #1b1b1b}
-.lp .dev .k{margin-top:auto;display:flex;justify-content:center;gap:6px}
-.lp .dev .k i{width:16px;height:16px;border-radius:50%;background:#FFFDF4;border:2px solid #161616}
-.lp .dev .k i.r{background:#FF7A5C}
-@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+  .rec {
+    background: var(--surface);
+    border: 2px solid var(--ink);
+    border-radius: 16px;
+    box-shadow: 3px 4px 0 var(--ink);
+    padding: 22px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .rec ol,
+  .rec ul {
+    margin: 0;
+    padding-left: 1.3em;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-width: 78ch;
+  }
+  code {
+    font-family: ui-monospace, Menlo, monospace;
+    font-size: 0.9em;
+    background: var(--raised);
+    padding: 1px 5px;
+    border-radius: 4px;
+  }
+  .foot {
+    font-size: 13px;
+    color: var(--ink3);
+  }
+  /* --- D: colored-plastic recorder (moodboard) --- */
+  .mood {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 12px;
+  }
+  .mood div {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 14px 16px;
+    font-size: 14px;
+    line-height: 1.65;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .mood b {
+    font-family: var(--font);
+  }
+  .mood .sw {
+    display: flex;
+    gap: 5px;
+  }
+  .mood .sw i {
+    width: 22px;
+    height: 22px;
+    border-radius: 6px;
+    border: 1.5px solid var(--ink);
+  }
+  .dot16 {
+    font-family: 'DotGothic16', 'Noto Sans JP', monospace;
+  }
+  .D {
+    --shell: #f6c63a;
+    --shellDeep: #d9a817;
+    --print: #2b2410;
+    --lcd: #b9d98a;
+    --lcdInk: #1d2a0e;
+    background: var(--shell);
+    color: var(--print);
+  }
+  .D.mint {
+    --shell: #8fe0cf;
+    --shellDeep: #5fc3ae;
+    --print: #0f2e28;
+    --lcd: #ffb25c;
+    --lcdInk: #3a1a00;
+  }
+  .D.navy {
+    --shell: #1f3f8f;
+    --shellDeep: #162e6a;
+    --print: #e8eeff;
+    --lcd: #ff9e45;
+    --lcdInk: #2a1200;
+  }
+  .D .nav {
+    color: var(--print);
+  }
+  .D .onair {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    align-self: flex-start;
+    font-family: 'Manrope', sans-serif;
+    font-weight: 800;
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: #3a0e06;
+    color: #ffd9ce;
+    box-shadow: inset 0 0 0 2px #ff7a5c;
+  }
+  .D .onair i {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #ff7a5c;
+  }
+  .D .seg {
+    display: flex;
+    gap: 4px;
+  }
+  .D .seg span {
+    flex: 1;
+    text-align: center;
+    font-weight: 800;
+    font-size: 11.5px;
+    padding: 6px 0;
+    border-radius: 8px;
+    background: var(--shellDeep);
+    box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.18);
+  }
+  .D .seg span:first-child {
+    background: #fffdf4;
+    color: #1a1a1a;
+    box-shadow: inset 0 -3px 0 #d8d2bd;
+  }
+  .D .bezel {
+    border-radius: 16px;
+    padding: 7px;
+    background: #1b1b1b;
+    box-shadow:
+      inset 0 0 0 2px #000,
+      0 2px 0 var(--shellDeep);
+  }
+  .D .screen {
+    border-radius: 10px;
+    background: var(--lcd);
+    color: var(--lcdInk);
+    padding: 8px 10px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    background-image: repeating-linear-gradient(
+      0deg,
+      transparent 0 2px,
+      rgba(0, 0, 0, 0.05) 2px 3px
+    );
+  }
+  .D .screen .st {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+  }
+  .D .screen .t {
+    font-size: 52px;
+    line-height: 1;
+  }
+  .D .screen .bars {
+    display: flex;
+    gap: 2px;
+    height: 10px;
+    align-items: flex-end;
+  }
+  .D .screen .bars b {
+    flex: 1;
+    background: var(--lcdInk);
+    opacity: 0.18;
+  }
+  .D .screen .bars b.on {
+    opacity: 1;
+  }
+  .D .silk {
+    display: flex;
+    justify-content: space-between;
+    font-family: 'Manrope', sans-serif;
+    font-weight: 800;
+    font-size: 9px;
+    letter-spacing: 0.12em;
+    opacity: 0.8;
+  }
+  .D .row2 {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .D .dial {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: #fffdf4;
+    box-shadow:
+      inset 0 -3px 0 #d8d2bd,
+      0 0 0 3px var(--shellDeep);
+    position: relative;
+    flex: none;
+  }
+  .D .dial:after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 4px;
+    width: 3px;
+    height: 9px;
+    margin-left: -1.5px;
+    border-radius: 2px;
+    background: #ff7a5c;
+  }
+  .D .caps {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+  }
+  .D .caps span {
+    text-align: center;
+    font-size: 10.5px;
+    font-weight: 800;
+    padding: 8px 0 10px;
+    border-radius: 8px;
+    color: #1a1a1a;
+    box-shadow: inset 0 -4px 0 rgba(0, 0, 0, 0.2);
+  }
+  .D .deck {
+    margin-top: auto;
+    padding: 12px 12px 20px;
+    display: flex;
+    justify-content: space-around;
+    align-items: flex-end;
+    background: var(--shellDeep);
+  }
+  .D .deck div {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+    font-size: 10.5px;
+    font-weight: 800;
+  }
+  .D .key {
+    width: 50px;
+    height: 42px;
+    border-radius: 12px;
+    background: #fffdf4;
+    box-shadow:
+      inset 0 -5px 0 #d8d2bd,
+      0 2px 0 rgba(0, 0, 0, 0.25);
+    display: grid;
+    place-items: center;
+  }
+  .D .key.rec {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    background: #ff7a5c;
+    box-shadow:
+      inset 0 -6px 0 #d2502f,
+      0 0 0 4px #fffdf4,
+      0 3px 0 4px rgba(0, 0, 0, 0.2);
+  }
+  .D .key .sq {
+    width: 17px;
+    height: 17px;
+    background: #2a0b04;
+    border-radius: 3px;
+  }
+  .D .key .pz {
+    width: 13px;
+    height: 15px;
+    border-left: 4px solid #1a1a1a;
+    border-right: 4px solid #1a1a1a;
+  }
+  .D .key .rd {
+    width: 16px;
+    height: 16px;
+    border: 3px solid #1a1a1a;
+    border-radius: 50%;
+    border-top-color: transparent;
+  }
+  /* Home: MD rack */
+  .D.home {
+    background: #efeae0;
+    color: #1f1f1f;
+  }
+  .D.home .nav {
+    color: #1f1f1f;
+  }
+  .D .logo {
+    font-family: 'Manrope', sans-serif;
+    font-weight: 800;
+    font-size: 16px;
+  }
+  .D .logo i {
+    display: inline-block;
+    width: 5px;
+    height: 5px;
+    background: #819500;
+    border-radius: 1px;
+    margin-left: 1px;
+  }
+  .D .show {
+    font-weight: 900;
+    font-size: 22px;
+    line-height: 1.3;
+  }
+  .D .md {
+    display: flex;
+    gap: 10px;
+    align-items: stretch;
+    border-radius: 10px;
+    padding: 8px;
+    box-shadow: inset 0 -4px 0 rgba(0, 0, 0, 0.18);
+  }
+  .D .md .lbl {
+    flex: 1;
+    background: #fffdf4;
+    border-radius: 5px;
+    padding: 6px 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    color: #1a1a1a;
+  }
+  .D .md .lbl small {
+    font-family: 'Manrope', sans-serif;
+    font-weight: 800;
+    font-size: 9.5px;
+    letter-spacing: 0.08em;
+    opacity: 0.65;
+  }
+  .D .md .lbl b {
+    font-size: 12.5px;
+    line-height: 1.35;
+  }
+  .D .md .shut {
+    width: 36px;
+    border-radius: 5px;
+    background: #9aa0a3;
+    box-shadow: inset 0 0 0 2px #7d8386;
+    display: grid;
+    place-items: center;
+    font-family: 'Manrope', sans-serif;
+    font-weight: 800;
+    font-size: 10px;
+    color: #2d3133;
+  }
+  .D .newbtn {
+    margin-top: auto;
+    margin-inline: -16px;
+    margin-bottom: -14px;
+    padding: 12px 16px 22px;
+    background: #1a1a1a;
+  }
+  .D .newbtn span {
+    display: block;
+    text-align: center;
+    font-weight: 800;
+    font-size: 13px;
+    padding: 12px 0;
+    border-radius: 12px;
+    background: #d8f36a;
+    color: #172007;
+    box-shadow: inset 0 -4px 0 #a9c23f;
+  }
+  /* brand strip */
+  .brand {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 16px;
+    align-items: end;
+  }
+  .icon {
+    --shell: #f6c63a;
+    --shellDeep: #d9a817;
+    --lcd: #b9d98a;
+    --lcdInk: #1d2a0e;
+    width: 150px;
+    height: 150px;
+    border-radius: 34px;
+    background: var(--shell);
+    padding: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    box-shadow: inset 0 -6px 0 var(--shellDeep);
+  }
+  .icon .win {
+    height: 84px;
+    border-radius: 14px;
+    background: #1b1b1b;
+    padding: 6px;
+  }
+  .icon .win div {
+    height: 100%;
+    border-radius: 9px;
+    background: var(--lcd);
+    color: var(--lcdInk);
+    font-family: 'Manrope', sans-serif;
+    font-weight: 800;
+    font-size: 25px;
+    line-height: 1;
+    letter-spacing: -0.01em;
+    padding: 0 10px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+  .icon .btns {
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+  }
+  .icon .btns i {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #fffdf4;
+    box-shadow: inset 0 -2px 0 #d8d2bd;
+  }
+  .icon .btns i.r {
+    background: #ff7a5c;
+    box-shadow: inset 0 -2px 0 #d2502f;
+  }
+  .brand figure {
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--ink2);
+  }
+  .lp {
+    border-radius: 18px;
+    padding: 28px 24px;
+    background: #ffe14d;
+    color: #161616;
+    border: 2.5px solid #161616;
+    box-shadow: 5px 6px 0 #161616;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 20px;
+    align-items: center;
+  }
+  .lp h3 {
+    font-size: clamp(24px, 3.6vw, 34px);
+    font-weight: 800;
+    line-height: 1.25;
+  }
+  .lp p {
+    font-size: 14px;
+    color: #3a3a3a;
+  }
+  .lp .devs {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  .lp .dev {
+    width: 74px;
+    height: 128px;
+    border-radius: 14px;
+    background: var(--shell);
+    border: 2.5px solid #161616;
+    box-shadow: 3px 4px 0 #161616;
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .lp .dev .w {
+    height: 42%;
+    border-radius: 6px;
+    background: var(--lcd);
+    border: 3px solid #1b1b1b;
+  }
+  .lp .dev .k {
+    margin-top: auto;
+    display: flex;
+    justify-content: center;
+    gap: 6px;
+  }
+  .lp .dev .k i {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #fffdf4;
+    border: 2px solid #161616;
+  }
+  .lp .dev .k i.r {
+    background: #ff7a5c;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * {
+      transition: none !important;
+      animation: none !important;
+    }
+  }
 </style>
 
 <div class="wrap">
-
-<div class="lead">
-  <h1>PodsNow<span class="dot"></span> の次のデザインをどちらへ進めるか</h1>
-  <p>今のデザインは「グラファイトの面、明るい文字、ひとつのシトロン」を基本に、ボタンにだけ硬い影を付けたネオブルータリズムを加えています（#105 / #110）。ここからさらに進める道として、次の 2 つを比べました。</p>
-  <p><span class="tag">A</span>ネオブルータリズムを強めて、カラフルでフラットなポップさを押し出す　<span class="tag">B</span>録音機材としての楽しさを、スキューモーフィズムで作り込む</p>
-  <p>どちらも、実際の録音タブの情報構造（状態 → 時間 → レベル → 入力 → 話すこと → ジングル → 操作バー）は変えずにモックにしています。3 つ目の案は、両方を部分的に組み合わせた案です。その後、共有してもらったムードボードをもとに、4 つ目の案 D を足しました。いまの推奨は D です。</p>
-</div>
-
-<section>
-  <h2>ムードボードから：D「カラー成形のレコーダー」</h2>
-  <p>共有してもらった 9 枚には、A と B の両方が入っていました。たまごっち、ポケットピカチュウ、スポーツ系のカセットプレーヤー、色とりどりの MD。どれも<b>色はポップで平ら、形は触れる道具</b>です。つまり A か B かではなく、「金属と光沢のリアルな機材」でもなく、<b>色つきプラスチックで成形された、おもちゃ寄りの録音機</b>という第 4 の道が見えます。</p>
-  <div class="mood">
-    <div><b>成形色の本体</b>イエロー、ミント、クリアブルー。塗装や金属ではなく、プラスチックそのものの色<span class="sw"><i style="background:#F6C63A"></i><i style="background:#8FE0CF"></i><i style="background:#1F3F8F"></i><i style="background:#FF7A5C"></i></span></div>
-    <div><b>バックライトの液晶窓</b>緑やオレンジの地にドットの文字。黒いベゼルで囲む（たまごっち、オシロスコープ、FIELD COM）</div>
-    <div><b>本体に印刷された小さなラベル</b>HOLD、INPUT、PLAY/PAUSE。操作の名前がそのまま装飾になる</div>
-    <div><b>ラベルを貼るメディア</b>カセットや MD のラベル。エピソード 1 本を「1 枚のディスク」として扱える</div>
-    <div><b>ラジオ局のスタジオ</b>ON AIR ランプ、スタジオ時計、色つきのフェーダーキャップ。これから話すという緊張感を作る</div>
+  <div class="lead">
+    <h1>PodsNow<span class="dot"></span> の次のデザインをどちらへ進めるか</h1>
+    <p>
+      今のデザインは「グラファイトの面、明るい文字、ひとつのシトロン」を基本に、ボタンにだけ硬い影を付けたネオブルータリズムを加えています（#105
+      / #110）。ここからさらに進める道として、次の 2 つを比べました。
+    </p>
+    <p>
+      <span class="tag">A</span
+      >ネオブルータリズムを強めて、カラフルでフラットなポップさを押し出す　<span class="tag">B</span
+      >録音機材としての楽しさを、スキューモーフィズムで作り込む
+    </p>
+    <p>
+      どちらも、実際の録音タブの情報構造（状態 → 時間 → レベル → 入力 → 話すこと → ジングル →
+      操作バー）は変えずにモックにしています。3
+      つ目の案は、両方を部分的に組み合わせた案です。その後、共有してもらったムードボードをもとに、4
+      つ目の案 D を足しました。いまの推奨は D です。
+    </p>
   </div>
-  <div class="dirs">
-    <div class="dir">
-      <header><span class="k">D-1 ・ 録音タブ（イエロー本体）</span><h3>液晶の時計と ON AIR ランプ</h3><p>時間は液晶窓の中にドット文字で表示し、状態はランプで示す。キーは本体と別の色の成形キャップ</p></header>
-      <div class="phone D" role="img" aria-label="案 D の録音タブ、イエロー本体のモック">
-        <div class="nav">←<div>エピソード 001<small>（タイトル未設定）</small></div></div>
-        <div class="body">
-          <div class="seg"><span>録音</span><span>編集</span><span>書き出し</span></div>
-          <span class="onair"><i></i>ON AIR ・ 収録中</span>
-          <div class="bezel"><div class="screen dot16">
-            <div class="st"><span>REC 01</span><span>48kHz MONO</span></div>
-            <div class="t">03:30</div>
-            <div class="bars"><b class="on" style="height:30%"></b><b class="on" style="height:45%"></b><b class="on" style="height:60%"></b><b class="on" style="height:75%"></b><b class="on" style="height:90%"></b><b class="on" style="height:70%"></b><b class="on" style="height:55%"></b><b style="height:80%"></b><b style="height:100%"></b><b style="height:100%"></b></div>
-          </div></div>
-          <div class="silk"><span>LEVEL</span><span>INPUT</span><span>HOLD</span></div>
-          <div class="row2"><span class="dial" aria-hidden="true"></span>内蔵マイク ・ モノラル</div>
-          <div class="caps"><span style="background:#8FE0CF">ジングル</span><span style="background:#B9B1FA">拍手</span><span style="background:#FFFDF4">転換音</span></div>
-        </div>
-        <div class="deck">
-          <div><span class="key"><span class="rd"></span></span>言い直す</div>
-          <div><span class="key"><span class="pz"></span></span>一時停止</div>
-          <div><span class="key rec"><span class="sq"></span></span>収録を終える</div>
-        </div>
+
+  <section>
+    <h2>ムードボードから：D「カラー成形のレコーダー」</h2>
+    <p>
+      共有してもらった 9 枚には、A と B
+      の両方が入っていました。たまごっち、ポケットピカチュウ、スポーツ系のカセットプレーヤー、色とりどりの
+      MD。どれも<b>色はポップで平ら、形は触れる道具</b>です。つまり A か B
+      かではなく、「金属と光沢のリアルな機材」でもなく、<b>色つきプラスチックで成形された、おもちゃ寄りの録音機</b>という第
+      4 の道が見えます。
+    </p>
+    <div class="mood">
+      <div>
+        <b>成形色の本体</b
+        >イエロー、ミント、クリアブルー。塗装や金属ではなく、プラスチックそのものの色<span
+          class="sw"
+          ><i style="background: #f6c63a"></i><i style="background: #8fe0cf"></i
+          ><i style="background: #1f3f8f"></i><i style="background: #ff7a5c"></i
+        ></span>
+      </div>
+      <div>
+        <b>バックライトの液晶窓</b
+        >緑やオレンジの地にドットの文字。黒いベゼルで囲む（たまごっち、オシロスコープ、FIELD COM）
+      </div>
+      <div>
+        <b>本体に印刷された小さなラベル</b>HOLD、INPUT、PLAY/PAUSE。操作の名前がそのまま装飾になる
+      </div>
+      <div>
+        <b>ラベルを貼るメディア</b>カセットや MD のラベル。エピソード 1 本を「1
+        枚のディスク」として扱える
+      </div>
+      <div>
+        <b>ラジオ局のスタジオ</b>ON AIR
+        ランプ、スタジオ時計、色つきのフェーダーキャップ。これから話すという緊張感を作る
       </div>
     </div>
-    <div class="dir">
-      <header><span class="k">D-2 ・ Home（MD ラック）</span><h3>エピソードは 1 枚ずつのディスク</h3><p>回ごとにディスクの色を変え、白いラベルにタイトルを書く。棚に並んでいく楽しさを出す</p></header>
-      <div class="phone D home" role="img" aria-label="案 D の Home、エピソードを MD のように並べたモック">
-        <div class="nav"><span class="logo">PodsNow<i></i></span></div>
-        <div class="body">
-          <div class="show">よるのはなし</div>
-          <div class="md" style="background:#F6C63A"><div class="lbl"><small>EP 012 ・ 編集中</small><b>春の散歩と、駅前の新しいパン屋</b></div><div class="shut">18:42</div></div>
-          <div class="md" style="background:#8FE0CF"><div class="lbl"><small>EP 011</small><b>おたより特集</b></div><div class="shut">24:05</div></div>
-          <div class="md" style="background:#B9B1FA"><div class="lbl"><small>EP 010</small><b>ゲストと雑談</b></div><div class="shut">31:10</div></div>
-          <div class="md" style="background:#88D0F4"><div class="lbl"><small>EP 009</small><b>10 回目の振り返り</b></div><div class="shut">15:27</div></div>
-          <div class="newbtn"><span>＋ 新しいエピソードを録る</span></div>
-        </div>
-      </div>
-    </div>
-    <div class="dir">
-      <header><span class="k">D-3 ・ 録音タブ（ネイビー本体・ダーク）</span><h3>本体の色がテーマになる</h3><p>ダークは紺の本体とオレンジの液晶。本体の色は設定で選べる「着せ替え」にする</p></header>
-      <div class="phone D navy" role="img" aria-label="案 D の録音タブ、ネイビー本体のモック">
-        <div class="nav">←<div>エピソード 001<small>（タイトル未設定）</small></div></div>
-        <div class="body">
-          <div class="seg"><span>録音</span><span>編集</span><span>書き出し</span></div>
-          <span class="onair"><i></i>ON AIR ・ 収録中</span>
-          <div class="bezel"><div class="screen dot16">
-            <div class="st"><span>REC 01</span><span>残り 約 37 時間</span></div>
-            <div class="t">03:30</div>
-            <div class="bars"><b class="on" style="height:40%"></b><b class="on" style="height:55%"></b><b class="on" style="height:70%"></b><b class="on" style="height:85%"></b><b class="on" style="height:65%"></b><b class="on" style="height:50%"></b><b style="height:70%"></b><b style="height:90%"></b><b style="height:100%"></b><b style="height:100%"></b></div>
-          </div></div>
-          <div class="silk"><span>LEVEL</span><span>INPUT</span><span>HOLD</span></div>
-          <div class="row2"><span class="dial" aria-hidden="true"></span>内蔵マイク ・ モノラル</div>
-          <div class="caps"><span style="background:#F6C63A">ジングル</span><span style="background:#8FE0CF">拍手</span><span style="background:#FFFDF4">転換音</span></div>
-        </div>
-        <div class="deck">
-          <div><span class="key"><span class="rd"></span></span>言い直す</div>
-          <div><span class="key"><span class="pz"></span></span>一時停止</div>
-          <div><span class="key rec"><span class="sq"></span></span>収録を終える</div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <h3>アイコンと LP にも同じ本体を使う</h3>
-  <div class="brand">
-    <figure><div class="icon"><div class="win"><div>Pods<br>Now.</div></div><div class="btns"><i></i><i class="r"></i><i></i></div></div>イエロー</figure>
-    <figure><div class="icon" style="--shell:#8FE0CF;--shellDeep:#5FC3AE;--lcd:#FFB25C;--lcdInk:#3A1A00"><div class="win"><div>Pods<br>Now.</div></div><div class="btns"><i></i><i class="r"></i><i></i></div></div>ミント</figure>
-    <figure><div class="icon" style="--shell:#1F3F8F;--shellDeep:#162E6A;--lcd:#FF9E45;--lcdInk:#2A1200"><div class="win"><div>Pods<br>Now.</div></div><div class="btns"><i></i><i class="r"></i><i></i></div></div>ネイビー（iOS の代替アイコン）</figure>
-  </div>
-  <p>アイコンは、今の「2 段の全文 <code>Pods</code> / <code>Now.</code>」という規則を守ったまま、その文字を液晶窓の中に表示します。マイクや単体の赤い丸を使わない規則（<code>assets/brand/README.md</code>）にも触れません。</p>
-  <div class="lp">
-    <div style="display:flex;flex-direction:column;gap:10px"><h3>ポケットに、1 台の録音スタジオ</h3><p>LP やアイキャッチは A のネオブルータリズム（太い輪郭、硬い影、原色）で組み、主役として D の本体を並べます。平らなグラフィックの中に置くと、本体の色がそのまま商品写真の役割を果たします。</p></div>
-    <div class="devs" aria-hidden="true">
-      <div class="dev" style="--shell:#F6C63A;--lcd:#B9D98A"><div class="w"></div><div class="k"><i></i><i class="r"></i></div></div>
-      <div class="dev" style="--shell:#8FE0CF;--lcd:#FFB25C"><div class="w"></div><div class="k"><i></i><i class="r"></i></div></div>
-      <div class="dev" style="--shell:#1F3F8F;--lcd:#FF9E45"><div class="w"></div><div class="k"><i></i><i class="r"></i></div></div>
-    </div>
-  </div>
-</section>
-
-<section>
-  <h2>最初の比較（A / B / C）</h2>
-  <p>ムードボードをもらう前に作った 3 案です。D は、C の「機材感は録音デッキに集中させる」を広げ、A の色を本体色として取り込んだ案になっています。</p>
-</section>
-
-
-<section>
-  <h2>どちらの案でも変えないこと</h2>
-  <div class="fixed">
-    <div><b>意味の色（§5.2）</b>録音はコーラル、削除はローズ、BGM はライラック、差し込みは青。飾りに使えば意味が薄れる</div>
-    <div><b>判断の優先順位（§1.3）</b>音声が守られていることと状態を正しく伝えることが先、装飾は最後</div>
-    <div><b>OS の標準部品（§6.2）</b>ナビゲーション・メニュー・シート・スイッチは OS の部品。自前で描くのは Transport・波形・メーター・ボタン・カード</div>
-    <div><b>測れる色（§5.3 / §5.5）</b>275 組のコントラストを生成時と CI で測る。透過や背面が決まらない色は使わない</div>
-  </div>
-</section>
-
-<section>
-  <h2>録音タブで 3 案を並べる</h2>
-  <div class="dirs">
-
-    <div class="dir">
-      <header>
-        <span class="k">A ・ ポップ ネオブルータリズム</span>
-        <h3>太い墨の輪郭、平らな原色、硬い影</h3>
-        <p>ライト前提。面ごとに色を塗り分け、すべての部品を「押せる板」にする</p>
-      </header>
-      <div class="phone A" role="img" aria-label="案 A の録音タブのモック">
-        <div class="nav">←<div>エピソード 001<small>（タイトル未設定）</small></div></div>
-        <div class="body">
-          <div class="seg"><span>録音</span><span>編集</span><span>書き出し</span></div>
-          <div class="timer">
-            <div class="st"><span><i></i>収録中</span><span>録音 01</span></div>
-            <div class="t num">03:30</div>
-            <div class="meter"><b class="g"></b><b class="g"></b><b class="g"></b><b class="g"></b><b class="g"></b><b class="g"></b><b class="g"></b><b class="y"></b><b class="y"></b><b class="r"></b><b></b><b></b></div>
+    <div class="dirs">
+      <div class="dir">
+        <header>
+          <span class="k">D-1 ・ 録音タブ（イエロー本体）</span>
+          <h3>液晶の時計と ON AIR ランプ</h3>
+          <p>
+            時間は液晶窓の中にドット文字で表示し、状態はランプで示す。キーは本体と別の色の成形キャップ
+          </p>
+        </header>
+        <div class="phone D" role="img" aria-label="案 D の録音タブ、イエロー本体のモック">
+          <div class="nav">
+            ←
+            <div>エピソード 001<small>（タイトル未設定）</small></div>
           </div>
-          <div class="card"><b>話すこと</b>オープニング / 今週のニュース / おたより</div>
-          <div class="chips"><span style="background:#FFC53D">ジングル</span><span style="background:#B9B1FA">拍手</span><span style="background:#3FD48A">転換音</span></div>
+          <div class="body">
+            <div class="seg"><span>録音</span><span>編集</span><span>書き出し</span></div>
+            <span class="onair"><i></i>ON AIR ・ 収録中</span>
+            <div class="bezel">
+              <div class="screen dot16">
+                <div class="st"><span>REC 01</span><span>48kHz MONO</span></div>
+                <div class="t">03:30</div>
+                <div class="bars">
+                  <b class="on" style="height: 30%"></b><b class="on" style="height: 45%"></b
+                  ><b class="on" style="height: 60%"></b><b class="on" style="height: 75%"></b
+                  ><b class="on" style="height: 90%"></b><b class="on" style="height: 70%"></b
+                  ><b class="on" style="height: 55%"></b><b style="height: 80%"></b
+                  ><b style="height: 100%"></b><b style="height: 100%"></b>
+                </div>
+              </div>
+            </div>
+            <div class="silk"><span>LEVEL</span><span>INPUT</span><span>HOLD</span></div>
+            <div class="row2">
+              <span class="dial" aria-hidden="true"></span>内蔵マイク ・ モノラル
+            </div>
+            <div class="caps">
+              <span style="background: #8fe0cf">ジングル</span
+              ><span style="background: #b9b1fa">拍手</span
+              ><span style="background: #fffdf4">転換音</span>
+            </div>
+          </div>
+          <div class="deck">
+            <div>
+              <span class="key"><span class="rd"></span></span>言い直す
+            </div>
+            <div>
+              <span class="key"><span class="pz"></span></span>一時停止
+            </div>
+            <div>
+              <span class="key rec"><span class="sq"></span></span>収録を終える
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="dir">
+        <header>
+          <span class="k">D-2 ・ Home（MD ラック）</span>
+          <h3>エピソードは 1 枚ずつのディスク</h3>
+          <p>回ごとにディスクの色を変え、白いラベルにタイトルを書く。棚に並んでいく楽しさを出す</p>
+        </header>
+        <div
+          class="phone D home"
+          role="img"
+          aria-label="案 D の Home、エピソードを MD のように並べたモック"
+        >
+          <div class="nav">
+            <span class="logo">PodsNow<i></i></span>
+          </div>
+          <div class="body">
+            <div class="show">よるのはなし</div>
+            <div class="md" style="background: #f6c63a">
+              <div class="lbl">
+                <small>EP 012 ・ 編集中</small><b>春の散歩と、駅前の新しいパン屋</b>
+              </div>
+              <div class="shut">18:42</div>
+            </div>
+            <div class="md" style="background: #8fe0cf">
+              <div class="lbl"><small>EP 011</small><b>おたより特集</b></div>
+              <div class="shut">24:05</div>
+            </div>
+            <div class="md" style="background: #b9b1fa">
+              <div class="lbl"><small>EP 010</small><b>ゲストと雑談</b></div>
+              <div class="shut">31:10</div>
+            </div>
+            <div class="md" style="background: #88d0f4">
+              <div class="lbl"><small>EP 009</small><b>10 回目の振り返り</b></div>
+              <div class="shut">15:27</div>
+            </div>
+            <div class="newbtn"><span>＋ 新しいエピソードを録る</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="dir">
+        <header>
+          <span class="k">D-3 ・ 録音タブ（ネイビー本体・ダーク）</span>
+          <h3>本体の色がテーマになる</h3>
+          <p>ダークは紺の本体とオレンジの液晶。本体の色は設定で選べる「着せ替え」にする</p>
+        </header>
+        <div class="phone D navy" role="img" aria-label="案 D の録音タブ、ネイビー本体のモック">
+          <div class="nav">
+            ←
+            <div>エピソード 001<small>（タイトル未設定）</small></div>
+          </div>
+          <div class="body">
+            <div class="seg"><span>録音</span><span>編集</span><span>書き出し</span></div>
+            <span class="onair"><i></i>ON AIR ・ 収録中</span>
+            <div class="bezel">
+              <div class="screen dot16">
+                <div class="st"><span>REC 01</span><span>残り 約 37 時間</span></div>
+                <div class="t">03:30</div>
+                <div class="bars">
+                  <b class="on" style="height: 40%"></b><b class="on" style="height: 55%"></b
+                  ><b class="on" style="height: 70%"></b><b class="on" style="height: 85%"></b
+                  ><b class="on" style="height: 65%"></b><b class="on" style="height: 50%"></b
+                  ><b style="height: 70%"></b><b style="height: 90%"></b><b style="height: 100%"></b
+                  ><b style="height: 100%"></b>
+                </div>
+              </div>
+            </div>
+            <div class="silk"><span>LEVEL</span><span>INPUT</span><span>HOLD</span></div>
+            <div class="row2">
+              <span class="dial" aria-hidden="true"></span>内蔵マイク ・ モノラル
+            </div>
+            <div class="caps">
+              <span style="background: #f6c63a">ジングル</span
+              ><span style="background: #8fe0cf">拍手</span
+              ><span style="background: #fffdf4">転換音</span>
+            </div>
+          </div>
+          <div class="deck">
+            <div>
+              <span class="key"><span class="rd"></span></span>言い直す
+            </div>
+            <div>
+              <span class="key"><span class="pz"></span></span>一時停止
+            </div>
+            <div>
+              <span class="key rec"><span class="sq"></span></span>収録を終える
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <h3>アイコンと LP にも同じ本体を使う</h3>
+    <div class="brand">
+      <figure>
+        <div class="icon">
+          <div class="win">
+            <div>Pods<br />Now.</div>
+          </div>
+          <div class="btns"><i></i><i class="r"></i><i></i></div>
+        </div>
+        イエロー
+      </figure>
+      <figure>
+        <div
+          class="icon"
+          style="--shell: #8fe0cf; --shellDeep: #5fc3ae; --lcd: #ffb25c; --lcdInk: #3a1a00"
+        >
+          <div class="win">
+            <div>Pods<br />Now.</div>
+          </div>
+          <div class="btns"><i></i><i class="r"></i><i></i></div>
+        </div>
+        ミント
+      </figure>
+      <figure>
+        <div
+          class="icon"
+          style="--shell: #1f3f8f; --shellDeep: #162e6a; --lcd: #ff9e45; --lcdInk: #2a1200"
+        >
+          <div class="win">
+            <div>Pods<br />Now.</div>
+          </div>
+          <div class="btns"><i></i><i class="r"></i><i></i></div>
+        </div>
+        ネイビー（iOS の代替アイコン）
+      </figure>
+    </div>
+    <p>
+      アイコンは、今の「2 段の全文 <code>Pods</code> /
+      <code>Now.</code
+      >」という規則を守ったまま、その文字を液晶窓の中に表示します。マイクや単体の赤い丸を使わない規則（<code>assets/brand/README.md</code>）にも触れません。
+    </p>
+    <div class="lp">
+      <div style="display: flex; flex-direction: column; gap: 10px">
+        <h3>ポケットに、1 台の録音スタジオ</h3>
+        <p>
+          LP やアイキャッチは A のネオブルータリズム（太い輪郭、硬い影、原色）で組み、主役として D
+          の本体を並べます。平らなグラフィックの中に置くと、本体の色がそのまま商品写真の役割を果たします。
+        </p>
+      </div>
+      <div class="devs" aria-hidden="true">
+        <div class="dev" style="--shell: #f6c63a; --lcd: #b9d98a">
+          <div class="w"></div>
+          <div class="k"><i></i><i class="r"></i></div>
+        </div>
+        <div class="dev" style="--shell: #8fe0cf; --lcd: #ffb25c">
+          <div class="w"></div>
+          <div class="k"><i></i><i class="r"></i></div>
+        </div>
+        <div class="dev" style="--shell: #1f3f8f; --lcd: #ff9e45">
+          <div class="w"></div>
+          <div class="k"><i></i><i class="r"></i></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>最初の比較（A / B / C）</h2>
+    <p>
+      ムードボードをもらう前に作った 3 案です。D は、C の「機材感は録音デッキに集中させる」を広げ、A
+      の色を本体色として取り込んだ案になっています。
+    </p>
+  </section>
+
+  <section>
+    <h2>どちらの案でも変えないこと</h2>
+    <div class="fixed">
+      <div>
+        <b>意味の色（§5.2）</b>録音はコーラル、削除はローズ、BGM
+        はライラック、差し込みは青。飾りに使えば意味が薄れる
+      </div>
+      <div>
+        <b>判断の優先順位（§1.3）</b>音声が守られていることと状態を正しく伝えることが先、装飾は最後
+      </div>
+      <div>
+        <b>OS の標準部品（§6.2）</b>ナビゲーション・メニュー・シート・スイッチは OS
+        の部品。自前で描くのは Transport・波形・メーター・ボタン・カード
+      </div>
+      <div>
+        <b>測れる色（§5.3 / §5.5）</b>275 組のコントラストを生成時と CI
+        で測る。透過や背面が決まらない色は使わない
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>録音タブで 3 案を並べる</h2>
+    <div class="dirs">
+      <div class="dir">
+        <header>
+          <span class="k">A ・ ポップ ネオブルータリズム</span>
+          <h3>太い墨の輪郭、平らな原色、硬い影</h3>
+          <p>ライト前提。面ごとに色を塗り分け、すべての部品を「押せる板」にする</p>
+        </header>
+        <div class="phone A" role="img" aria-label="案 A の録音タブのモック">
+          <div class="nav">
+            ←
+            <div>エピソード 001<small>（タイトル未設定）</small></div>
+          </div>
+          <div class="body">
+            <div class="seg"><span>録音</span><span>編集</span><span>書き出し</span></div>
+            <div class="timer">
+              <div class="st">
+                <span><i></i>収録中</span><span>録音 01</span>
+              </div>
+              <div class="t num">03:30</div>
+              <div class="meter">
+                <b class="g"></b><b class="g"></b><b class="g"></b><b class="g"></b><b class="g"></b
+                ><b class="g"></b><b class="g"></b><b class="y"></b><b class="y"></b
+                ><b class="r"></b><b></b><b></b>
+              </div>
+            </div>
+            <div class="card"><b>話すこと</b>オープニング / 今週のニュース / おたより</div>
+            <div class="chips">
+              <span style="background: #ffc53d">ジングル</span
+              ><span style="background: #b9b1fa">拍手</span
+              ><span style="background: #3fd48a">転換音</span>
+            </div>
+            <div class="transport">
+              <div>
+                <span class="btn"><span class="rd"></span></span>言い直す
+              </div>
+              <div>
+                <span class="btn"><span class="pz"></span></span>一時停止
+              </div>
+              <div>
+                <span class="btn big"><span class="sq"></span></span>収録を終える
+              </div>
+            </div>
+          </div>
+        </div>
+        <ul class="notes">
+          <li>現行の実装（Button の硬い影、2px 輪郭）の延長で作れる。追加の描画技術は要らない</li>
+          <li>色数が増えるほど、録音のコーラルや削除のローズが「色の一つ」に埋もれる</li>
+          <li>ダークでは墨の輪郭が明るい線になり、別物に見えやすい（#113 の課題の拡大）</li>
+        </ul>
+      </div>
+
+      <div class="dir">
+        <header>
+          <span class="k">B ・ スキューモーフィズム</span>
+          <h3>液晶窓、LED の段、押し込むキー</h3>
+          <p>ポータブルレコーダーを手に持つ感覚。時間は液晶、レベルは LED、操作は物理キー</p>
+        </header>
+        <div class="phone B" role="img" aria-label="案 B の録音タブのモック">
+          <div class="nav">
+            ←
+            <div>エピソード 001<small>（タイトル未設定）</small></div>
+          </div>
+          <div class="body">
+            <div class="seg"><span>録音</span><span>編集</span><span>書き出し</span></div>
+            <div class="lcd">
+              <div class="glass">
+                <div class="st">
+                  <span><span class="lamp"></span>REC 収録中</span><span>48kHz ・ 録音 01</span>
+                </div>
+                <div class="t num">03:30</div>
+              </div>
+            </div>
+            <div class="ladder">
+              <b class="g"></b><b class="g"></b><b class="g"></b><b class="g"></b><b class="g"></b
+              ><b class="g"></b><b class="g"></b><b class="g"></b><b class="y"></b><b></b><b></b
+              ><b></b><b></b><b></b>
+            </div>
+            <div class="knobrow">
+              <span class="knob" aria-hidden="true"></span><span>入力　内蔵マイク ・ モノラル</span>
+            </div>
+            <div class="card"><b>話すこと</b>オープニング / 今週のニュース / おたより</div>
+            <div class="pads"><span>ジングル</span><span>拍手</span><span>転換音</span></div>
+          </div>
           <div class="transport">
-            <div><span class="btn"><span class="rd"></span></span>言い直す</div>
-            <div><span class="btn"><span class="pz"></span></span>一時停止</div>
-            <div><span class="btn big"><span class="sq"></span></span>収録を終える</div>
+            <div>
+              <span class="key"><span class="rd"></span></span>言い直す
+            </div>
+            <div>
+              <span class="key"><span class="pz"></span></span>一時停止
+            </div>
+            <div>
+              <span class="key rec"><span class="sq"></span></span>収録を終える
+            </div>
           </div>
         </div>
+        <ul class="notes">
+          <li>
+            「毎日触るスタジオ機材」（§2）という既存の方針に最も近い。触覚（expo-haptics）とも噛み合う
+          </li>
+          <li>
+            グラデーション・内側の影・光る LED は、§2 と §5.5 が避けてきた表現。規則の書き直しが要る
+          </li>
+          <li>全画面に広げると、OS 標準部品（§6.2）の画面と質感が食い違う</li>
+        </ul>
       </div>
-      <ul class="notes">
-        <li>現行の実装（Button の硬い影、2px 輪郭）の延長で作れる。追加の描画技術は要らない</li>
-        <li>色数が増えるほど、録音のコーラルや削除のローズが「色の一つ」に埋もれる</li>
-        <li>ダークでは墨の輪郭が明るい線になり、別物に見えやすい（#113 の課題の拡大）</li>
-      </ul>
-    </div>
 
-    <div class="dir">
-      <header>
-        <span class="k">B ・ スキューモーフィズム</span>
-        <h3>液晶窓、LED の段、押し込むキー</h3>
-        <p>ポータブルレコーダーを手に持つ感覚。時間は液晶、レベルは LED、操作は物理キー</p>
-      </header>
-      <div class="phone B" role="img" aria-label="案 B の録音タブのモック">
-        <div class="nav">←<div>エピソード 001<small>（タイトル未設定）</small></div></div>
-        <div class="body">
-          <div class="seg"><span>録音</span><span>編集</span><span>書き出し</span></div>
-          <div class="lcd"><div class="glass">
-            <div class="st"><span><span class="lamp"></span>REC 収録中</span><span>48kHz ・ 録音 01</span></div>
-            <div class="t num">03:30</div>
-          </div></div>
-          <div class="ladder"><b class="g"></b><b class="g"></b><b class="g"></b><b class="g"></b><b class="g"></b><b class="g"></b><b class="g"></b><b class="g"></b><b class="y"></b><b></b><b></b><b></b><b></b><b></b></div>
-          <div class="knobrow"><span class="knob" aria-hidden="true"></span><span>入力　内蔵マイク ・ モノラル</span></div>
-          <div class="card"><b>話すこと</b>オープニング / 今週のニュース / おたより</div>
-          <div class="pads"><span>ジングル</span><span>拍手</span><span>転換音</span></div>
-        </div>
-        <div class="transport">
-          <div><span class="key"><span class="rd"></span></span>言い直す</div>
-          <div><span class="key"><span class="pz"></span></span>一時停止</div>
-          <div><span class="key rec"><span class="sq"></span></span>収録を終える</div>
-        </div>
-      </div>
-      <ul class="notes">
-        <li>「毎日触るスタジオ機材」（§2）という既存の方針に最も近い。触覚（expo-haptics）とも噛み合う</li>
-        <li>グラデーション・内側の影・光る LED は、§2 と §5.5 が避けてきた表現。規則の書き直しが要る</li>
-        <li>全画面に広げると、OS 標準部品（§6.2）の画面と質感が食い違う</li>
-      </ul>
-    </div>
-
-    <div class="dir">
-      <header>
-        <span class="k">C ・ 推奨：画面はフラット、機材は録音デッキだけ</span>
-        <h3>作り込むのは Transport・時間・メーターの 1 か所</h3>
-        <p>現行のグラファイトの画面はそのまま。下部を「録音デッキ」という 1 つの物にまとめ、ここだけ立体にする</p>
-      </header>
-      <div class="phone C" role="img" aria-label="案 C の録音タブのモック">
-        <div class="nav">←<div>エピソード 001<small>（タイトル未設定）</small></div></div>
-        <div class="body">
-          <div class="seg"><span>録音</span><span>編集</span><span>書き出し</span></div>
-          <div class="h">話すこと</div>
-          <div class="card"><b>オープニング</b>今週のニュース / おたより</div>
-          <div class="h">ジングル・効果音</div>
-          <div class="card"><b>ジングル</b>拍手 / 転換音</div>
-        </div>
-        <div class="deck">
-          <div class="lcd">
-            <div class="st"><em>● 収録中</em><span>内蔵マイク ・ 録音 01</span></div>
-            <div class="t num">03:30</div>
-            <div class="ladder"><b class="g"></b><b class="g"></b><b class="g"></b><b class="g"></b><b class="g"></b><b class="g"></b><b class="g"></b><b class="g"></b><b class="g"></b><b class="g"></b><b class="y"></b><b></b><b></b><b></b><b></b><b></b></div>
+      <div class="dir">
+        <header>
+          <span class="k">C ・ 推奨：画面はフラット、機材は録音デッキだけ</span>
+          <h3>作り込むのは Transport・時間・メーターの 1 か所</h3>
+          <p>
+            現行のグラファイトの画面はそのまま。下部を「録音デッキ」という 1
+            つの物にまとめ、ここだけ立体にする
+          </p>
+        </header>
+        <div class="phone C" role="img" aria-label="案 C の録音タブのモック">
+          <div class="nav">
+            ←
+            <div>エピソード 001<small>（タイトル未設定）</small></div>
           </div>
-          <div class="row">
-            <div><span class="key"><span class="rd"></span></span>言い直す</div>
-            <div><span class="key"><span class="pz"></span></span>一時停止</div>
-            <div><span class="key rec"><span class="sq"></span></span>収録を終える</div>
+          <div class="body">
+            <div class="seg"><span>録音</span><span>編集</span><span>書き出し</span></div>
+            <div class="h">話すこと</div>
+            <div class="card"><b>オープニング</b>今週のニュース / おたより</div>
+            <div class="h">ジングル・効果音</div>
+            <div class="card"><b>ジングル</b>拍手 / 転換音</div>
+          </div>
+          <div class="deck">
+            <div class="lcd">
+              <div class="st"><em>● 収録中</em><span>内蔵マイク ・ 録音 01</span></div>
+              <div class="t num">03:30</div>
+              <div class="ladder">
+                <b class="g"></b><b class="g"></b><b class="g"></b><b class="g"></b><b class="g"></b
+                ><b class="g"></b><b class="g"></b><b class="g"></b><b class="g"></b
+                ><b class="g"></b><b class="y"></b><b></b><b></b><b></b><b></b><b></b>
+              </div>
+            </div>
+            <div class="row">
+              <div>
+                <span class="key"><span class="rd"></span></span>言い直す
+              </div>
+              <div>
+                <span class="key"><span class="pz"></span></span>一時停止
+              </div>
+              <div>
+                <span class="key rec"><span class="sq"></span></span>収録を終える
+              </div>
+            </div>
           </div>
         </div>
+        <ul class="notes">
+          <li>「独自のまま残すもの」（§6.2）とちょうど重なる範囲だけを変える</li>
+          <li>録音中に見るもの（時間・レベル・操作）が親指の届く下部に集まる</li>
+          <li>
+            編集タブでは、A の平らな色を声・BGM・差し込みのレーンに使う（意味の色なので破綻しない）
+          </li>
+        </ul>
       </div>
-      <ul class="notes">
-        <li>「独自のまま残すもの」（§6.2）とちょうど重なる範囲だけを変える</li>
-        <li>録音中に見るもの（時間・レベル・操作）が親指の届く下部に集まる</li>
-        <li>編集タブでは、A の平らな色を声・BGM・差し込みのレーンに使う（意味の色なので破綻しない）</li>
-      </ul>
     </div>
+  </section>
 
-  </div>
-</section>
+  <section>
+    <h2>評価</h2>
+    <div class="tbl">
+      <table>
+        <thead>
+          <tr>
+            <th>観点</th>
+            <th>A ポップ ネオブルータリズム</th>
+            <th>B スキューモーフィズム</th>
+            <th>C 推奨（デッキだけ立体）</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <th>状態が正しく伝わるか（§1.3 の 1 番目）</th>
+            <td><span class="s lo">△</span>色面が多く、収録中のコーラルが目立たなくなる</td>
+            <td>
+              <span class="s hi">◎</span>REC ランプ・液晶・点いた LED は、見ただけで意味が分かる
+            </td>
+            <td><span class="s hi">◎</span>状態を持つ部品が 1 か所に集まり、ほかは静か</td>
+          </tr>
+          <tr>
+            <th>意味の色と両立するか（§5.2）</th>
+            <td><span class="s lo">△</span>飾りの色と意味の色を分ける規則が新たに必要</td>
+            <td>
+              <span class="s md">○</span>素材の質感で見せるので色数は増えない。LED の緑は
+              <code>success</code> と別の色にする必要がある
+            </td>
+            <td>
+              <span class="s hi">◎</span>色は今のまま。レベルは <code>voice</code> と
+              <code>mistake</code> で表す
+            </td>
+          </tr>
+          <tr>
+            <th>ライトとダーク</th>
+            <td><span class="s md">○</span>ライトは強い。ダークは作り直しに近い</td>
+            <td>
+              <span class="s lo">△</span>素材 2 種（明るい機体・暗い機体）を作る必要があり、工数は約
+              2 倍
+            </td>
+            <td><span class="s md">○</span>デッキだけ 2 種類作ればよい</td>
+          </tr>
+          <tr>
+            <th>コントラストを自動で測れるか（§5.3）</th>
+            <td><span class="s hi">◎</span>不透明な平らな色だけなので、今の生成の仕組みに乗る</td>
+            <td>
+              <span class="s lo">△</span
+              >グラデーション上の文字は、最も不利な色の位置で測る仕組みを新たに作る必要がある
+            </td>
+            <td>
+              <span class="s md">○</span
+              >文字は液晶の平らな地に置き、グラデーションは文字のない機体だけに使う
+            </td>
+          </tr>
+          <tr>
+            <th>大きい文字・英語表示</th>
+            <td><span class="s md">○</span>板は伸びる。影の重なりを確認する</td>
+            <td>
+              <span class="s lo">△</span
+              >キーや液晶は大きさが決まった物なので、ラベルがはみ出しやすい
+            </td>
+            <td>
+              <span class="s md">○</span>キーは固定し、ラベルはキーの外に出す（今の Transport
+              と同じ）
+            </td>
+          </tr>
+          <tr>
+            <th>React Native での実装</th>
+            <td>
+              <span class="s hi">◎</span>今の <code>boxShadow</code> と
+              <code>borderWidth</code> で足りる
+            </td>
+            <td>
+              <span class="s md">○</span>内側の影・グラデーション・発光が要る。RN の新しい
+              style（<code>boxShadow</code> の inset、<code>experimental_backgroundImage</code>）が
+              0.86 で使えるかは【仮説・要確認】。無理なら SVG か Skia
+            </td>
+            <td>
+              <span class="s md">○</span>B と同じ技術を、Transport とメーターの 2 部品に限定して使う
+            </td>
+          </tr>
+          <tr>
+            <th>他のアプリと区別できるか</th>
+            <td><span class="s md">○</span>2024 年以降、同じ見た目の Web サービスやアプリが多い</td>
+            <td>
+              <span class="s hi">◎</span
+              >ポッドキャストアプリでは少ない。「録る道具」であることが一目で分かる
+            </td>
+            <td><span class="s hi">◎</span>いちばん大事な場面で、B の特徴が出る</td>
+          </tr>
+          <tr>
+            <th>既存の規則との衝突</th>
+            <td><span class="s md">○</span>#105 の「多色の装飾はしない」を撤回することになる</td>
+            <td>
+              <span class="s lo">△</span>§2
+              の「説明のつかない発光」「ノイズテクスチャ」を避ける規則、§5.5、§6.2
+              に手を入れる必要がある
+            </td>
+            <td><span class="s md">○</span>§2 に「デッキ」という例外を 1 つ足す</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
 
-<section>
-  <h2>評価</h2>
-  <div class="tbl">
-    <table>
-      <thead><tr><th>観点</th><th>A ポップ ネオブルータリズム</th><th>B スキューモーフィズム</th><th>C 推奨（デッキだけ立体）</th></tr></thead>
-      <tbody>
-        <tr><th>状態が正しく伝わるか（§1.3 の 1 番目）</th>
-          <td><span class="s lo">△</span>色面が多く、収録中のコーラルが目立たなくなる</td>
-          <td><span class="s hi">◎</span>REC ランプ・液晶・点いた LED は、見ただけで意味が分かる</td>
-          <td><span class="s hi">◎</span>状態を持つ部品が 1 か所に集まり、ほかは静か</td></tr>
-        <tr><th>意味の色と両立するか（§5.2）</th>
-          <td><span class="s lo">△</span>飾りの色と意味の色を分ける規則が新たに必要</td>
-          <td><span class="s md">○</span>素材の質感で見せるので色数は増えない。LED の緑は <code>success</code> と別の色にする必要がある</td>
-          <td><span class="s hi">◎</span>色は今のまま。レベルは <code>voice</code> と <code>mistake</code> で表す</td></tr>
-        <tr><th>ライトとダーク</th>
-          <td><span class="s md">○</span>ライトは強い。ダークは作り直しに近い</td>
-          <td><span class="s lo">△</span>素材 2 種（明るい機体・暗い機体）を作る必要があり、工数は約 2 倍</td>
-          <td><span class="s md">○</span>デッキだけ 2 種類作ればよい</td></tr>
-        <tr><th>コントラストを自動で測れるか（§5.3）</th>
-          <td><span class="s hi">◎</span>不透明な平らな色だけなので、今の生成の仕組みに乗る</td>
-          <td><span class="s lo">△</span>グラデーション上の文字は、最も不利な色の位置で測る仕組みを新たに作る必要がある</td>
-          <td><span class="s md">○</span>文字は液晶の平らな地に置き、グラデーションは文字のない機体だけに使う</td></tr>
-        <tr><th>大きい文字・英語表示</th>
-          <td><span class="s md">○</span>板は伸びる。影の重なりを確認する</td>
-          <td><span class="s lo">△</span>キーや液晶は大きさが決まった物なので、ラベルがはみ出しやすい</td>
-          <td><span class="s md">○</span>キーは固定し、ラベルはキーの外に出す（今の Transport と同じ）</td></tr>
-        <tr><th>React Native での実装</th>
-          <td><span class="s hi">◎</span>今の <code>boxShadow</code> と <code>borderWidth</code> で足りる</td>
-          <td><span class="s md">○</span>内側の影・グラデーション・発光が要る。RN の新しい style（<code>boxShadow</code> の inset、<code>experimental_backgroundImage</code>）が 0.86 で使えるかは【仮説・要確認】。無理なら SVG か Skia</td>
-          <td><span class="s md">○</span>B と同じ技術を、Transport とメーターの 2 部品に限定して使う</td></tr>
-        <tr><th>他のアプリと区別できるか</th>
-          <td><span class="s md">○</span>2024 年以降、同じ見た目の Web サービスやアプリが多い</td>
-          <td><span class="s hi">◎</span>ポッドキャストアプリでは少ない。「録る道具」であることが一目で分かる</td>
-          <td><span class="s hi">◎</span>いちばん大事な場面で、B の特徴が出る</td></tr>
-        <tr><th>既存の規則との衝突</th>
-          <td><span class="s md">○</span>#105 の「多色の装飾はしない」を撤回することになる</td>
-          <td><span class="s lo">△</span>§2 の「説明のつかない発光」「ノイズテクスチャ」を避ける規則、§5.5、§6.2 に手を入れる必要がある</td>
-          <td><span class="s md">○</span>§2 に「デッキ」という例外を 1 つ足す</td></tr>
-      </tbody>
-    </table>
-  </div>
-</section>
+  <section class="rec">
+    <h2>推奨と次の一歩（ムードボードを受けて更新）</h2>
+    <p>
+      <b>D を推します。</b>A と B
+      のどちらかを選ぶ必要はありません。ムードボードの物は、色はポップで平ら（A）、形は触れる道具（B）です。この組み合わせなら、アプリの中では録音への期待感を
+      B で作り、LP・アイキャッチ・ストア画像では A
+      の強いグラフィックに本体を並べる、という役割分担ができます。
+    </p>
+    <p>
+      「男の子には B、女の子には
+      A」という見立てについて。ムードボードのたまごっちやポケットピカチュウ、色とりどりの MD
+      は、性別を問わずに愛された物です。ターゲットを分ける軸は性別よりも「おもちゃ寄りか、本格機材寄りか」のほうが扱いやすく、D
+      はこの軸を本体色で調整できます。イエローやミントはおもちゃ寄り、ネイビーやグラファイトは機材寄りです。
+    </p>
+    <p>今の規則との関係は次のとおりです。</p>
+    <ul>
+      <li>
+        <b>意味の色と本体色を分ける。</b
+        >本体色は「素材の色」という別の系統にし、状態を表すのには使わない。録音のコーラルと削除のローズの色相には本体色を置かない（真っ赤な本体は作らない）
+      </li>
+      <li>
+        <b>透明なスケルトンは透過で作らない。</b
+        >中の基板は不透明な絵として描く（§5.5）。液晶の走査線も、同じ理由でトークン化した不透明な模様にする
+      </li>
+      <li>
+        <b>本体色ごとにコントラストを測る。</b><code>ramps.py</code> に本体色を 1
+        本ずつのランプとして足し、印刷ラベル・液晶の文字・キーの輪郭を測る。本体色を増やすほど、検査する組み合わせも増える
+      </li>
+      <li>
+        <b>数字の書体を決め直す。</b>液晶のドット書体（例：DotGothic16、SIL
+        OFL）を時間の表示にだけ使うかどうかを決める。#110 で数字を Manrope
+        に揃えた判断を、液晶窓の中だけ例外にするかどうか【仮説】
+      </li>
+    </ul>
+    <ol>
+      <li>
+        <b>Issue を立てる</b>：「D：カラー成形のレコーダーをブランドとアプリの方向にする」。まず
+        DESIGN_SYSTEM.md の §2（アートディレクション）と、<code>assets/brand/README.md</code>
+        の変更案を書く
+      </li>
+      <li>
+        <b>録音タブ 1 画面だけ試作する</b>：液晶窓・ON AIR ランプ・成形キーを、Development Build で
+        iOS と Android の両方に描く。<code>boxShadow</code> の inset が 0.86
+        で使えるか【仮説・要確認】もここで確かめる
+      </li>
+      <li>
+        <b>本体色は 2 色から始める</b>：ライトはイエロー、ダークはネイビー。着せ替えは 3
+        色目を足すときに設定へ出す
+      </li>
+      <li>
+        <b>アイコンと LP のラフを作る</b>：<code>scripts/brand/geometry.py</code> に液晶窓の中の 2
+        段ロゴを足す案として検討する
+      </li>
+      <li>
+        <b>既存のブランドに似せない</b
+        >：参考画像にはソニーや任天堂の製品が含まれる。ロゴの位置、ボタンの配置、特徴的な形はまねず、「色つきプラスチック＋液晶＋印刷ラベル」という要素だけを借りる
+      </li>
+    </ol>
+  </section>
 
-<section class="rec">
-  <h2>推奨と次の一歩（ムードボードを受けて更新）</h2>
-  <p><b>D を推します。</b>A と B のどちらかを選ぶ必要はありません。ムードボードの物は、色はポップで平ら（A）、形は触れる道具（B）です。この組み合わせなら、アプリの中では録音への期待感を B で作り、LP・アイキャッチ・ストア画像では A の強いグラフィックに本体を並べる、という役割分担ができます。</p>
-  <p>「男の子には B、女の子には A」という見立てについて。ムードボードのたまごっちやポケットピカチュウ、色とりどりの MD は、性別を問わずに愛された物です。ターゲットを分ける軸は性別よりも「おもちゃ寄りか、本格機材寄りか」のほうが扱いやすく、D はこの軸を本体色で調整できます。イエローやミントはおもちゃ寄り、ネイビーやグラファイトは機材寄りです。</p>
-  <p>今の規則との関係は次のとおりです。</p>
-  <ul>
-    <li><b>意味の色と本体色を分ける。</b>本体色は「素材の色」という別の系統にし、状態を表すのには使わない。録音のコーラルと削除のローズの色相には本体色を置かない（真っ赤な本体は作らない）</li>
-    <li><b>透明なスケルトンは透過で作らない。</b>中の基板は不透明な絵として描く（§5.5）。液晶の走査線も、同じ理由でトークン化した不透明な模様にする</li>
-    <li><b>本体色ごとにコントラストを測る。</b><code>ramps.py</code> に本体色を 1 本ずつのランプとして足し、印刷ラベル・液晶の文字・キーの輪郭を測る。本体色を増やすほど、検査する組み合わせも増える</li>
-    <li><b>数字の書体を決め直す。</b>液晶のドット書体（例：DotGothic16、SIL OFL）を時間の表示にだけ使うかどうかを決める。#110 で数字を Manrope に揃えた判断を、液晶窓の中だけ例外にするかどうか【仮説】</li>
-  </ul>
-  <ol>
-    <li><b>Issue を立てる</b>：「D：カラー成形のレコーダーをブランドとアプリの方向にする」。まず DESIGN_SYSTEM.md の §2（アートディレクション）と、<code>assets/brand/README.md</code> の変更案を書く</li>
-    <li><b>録音タブ 1 画面だけ試作する</b>：液晶窓・ON AIR ランプ・成形キーを、Development Build で iOS と Android の両方に描く。<code>boxShadow</code> の inset が 0.86 で使えるか【仮説・要確認】もここで確かめる</li>
-    <li><b>本体色は 2 色から始める</b>：ライトはイエロー、ダークはネイビー。着せ替えは 3 色目を足すときに設定へ出す</li>
-    <li><b>アイコンと LP のラフを作る</b>：<code>scripts/brand/geometry.py</code> に液晶窓の中の 2 段ロゴを足す案として検討する</li>
-    <li><b>既存のブランドに似せない</b>：参考画像にはソニーや任天堂の製品が含まれる。ロゴの位置、ボタンの配置、特徴的な形はまねず、「色つきプラスチック＋液晶＋印刷ラベル」という要素だけを借りる</li>
-  </ol>
-</section>
-
-
-<p class="foot">モックは方向性を比べるための HTML/CSS のスケッチです。色はトークン生成（<code>ramps.py</code>）を通していないため、コントラストは測っていません。実装する画面の値ではありません。</p>
-
+  <p class="foot">
+    モックは方向性を比べるための HTML/CSS
+    のスケッチです。色はトークン生成（<code>ramps.py</code>）を通していないため、コントラストは測っていません。実装する画面の値ではありません。
+  </p>
 </div>

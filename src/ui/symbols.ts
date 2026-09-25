@@ -39,6 +39,7 @@ export const SYMBOLS: Record<IconName, SFSymbol> = {
   volume: 'speaker.wave.2',
   refresh: 'arrow.clockwise',
   warning: 'exclamationmark.triangle',
+  lock: 'lock.fill',
   trash: 'trash',
   star: 'star',
   starFilled: 'star.fill',
