@@ -9,7 +9,7 @@
 | フレームワーク | Expo SDK 57 / React Native 0.86 / TypeScript | 【確認済み】 | https://expo.dev/changelog/sdk-57 |
 | ビルド | Expo Development Build（`npx expo run:ios` / `run:android`、`expo prebuild`） | 【事実】 | Expo Go は使わない（ローカルネイティブモジュールがあるため） |
 | ナビゲーション | expo-router | 【仮説】 | ファイルベース。画面数が少なく Stack + Sheet 中心 |
-| 状態管理 | Zustand（UI/セッション状態）+ SQLite（永続の唯一の真実） | 【仮説】 | Redux 等は過剰。TanStack Query は不要（ローカル DB のみ） |
+| 状態管理 | React の state / Context + サービスのイベント購読、SQLite（永続の唯一の真実） | 【事実】 | Issue #112: 初期案の Zustand は実装で使われていないため依存から外す。状態共有の具体的な課題が生じた時点で再評価する |
 | DB | expo-sqlite（WAL、`PRAGMA user_version` で移行） | 【確認済み】 | https://docs.expo.dev/versions/latest/sdk/sqlite/ |
 | ORM / クエリビルダ | Drizzle ORM + drizzle-kit（expo-sqlite 公式統合あり） | 【仮説】 | 統合の存在は【確認済み】（同上）。採用可否は Phase 0 で判断 |
 | ファイル | expo-file-system（`File` / `Directory` / `Paths` / `FileHandle`） | 【確認済み】 | https://docs.expo.dev/versions/latest/sdk/filesystem/ |
@@ -27,7 +27,7 @@
 ┌─────────────────────────────────────────────────────────┐
 │ src/app/ (expo-router screens)  ─ UI / 画面遷移           │
 ├─────────────────────────────────────────────────────────┤
-│ src/features/*  ─ 画面単位のフック・ストア（Zustand）        │
+│ src/features/*  ─ 画面単位のフック・React state             │
 │   recording / editor / episode / export / assets / ...   │
 ├─────────────────────────────────────────────────────────┤
 │ src/i18n/  ─ 文言カタログ（ja / en）とロケール解決           │
