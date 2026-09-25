@@ -97,17 +97,20 @@ export function RecordTab({
 
   return (
     <View>
-      {label ? (
-        <View style={st.statusRow}>
-          <View style={st.stateLabel} accessibilityLiveRegion="polite">
-            {label.icon ? <Icon name={label.icon} color={stateColor} size={icon.sm} /> : null}
+      {/* 待機中も行の高さは取っておく。録音を始めた瞬間にタイマーやメーターが下へずれないように。 */}
+      <View style={st.statusRow}>
+        <View style={st.stateLabel} accessibilityLiveRegion="polite">
+          {label?.icon ? <Icon name={label.icon} color={stateColor} size={icon.sm} /> : null}
+          {label ? (
             <Text style={[typography.label, { color: stateColor }]}>{label.text}</Text>
-          </View>
-          <Text style={[typography.caption, { color: c.textSecondary }]}>
-            {live ? t.record.takeLabel(state.takes.length + 1) : ''}
-          </Text>
+          ) : null}
         </View>
-      ) : null}
+        {live ? (
+          <Text style={[typography.caption, { color: c.textSecondary }]}>
+            {t.record.takeLabel(state.takes.length + 1)}
+          </Text>
+        ) : null}
+      </View>
 
       <Text
         style={[
@@ -389,6 +392,7 @@ const st = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: space.sm,
+    minHeight: typography.label.lineHeight,
   },
   stateLabel: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
   inputRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm, marginTop: space.md },

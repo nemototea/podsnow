@@ -70,7 +70,12 @@ export interface WaveformProps {
   onSelectionChange?: (range: Range) => void;
 }
 
-const HANDLE_W = 28;
+/**
+ * 選択ハンドルの的。幅は `hit.min`（48）で、境界から選択の内側へは `HANDLE_IN` だけ、残りは外側へ張り出す。
+ * 左右のハンドルが向き合う側を短くしてあるので、選択が 24px 未満にならない限り的どうしが重ならない。
+ */
+const HANDLE_W = hit.min;
+const HANDLE_IN = space.md;
 const EMPTY_BLOCKS: readonly Range[] = [];
 const FULL_HEIGHT = 96;
 const COMPACT_HEIGHT = 44;
@@ -184,10 +189,10 @@ export const Waveform = memo(function Waveform(p: WaveformProps) {
     width: Math.max(2, ((selEnd.value - selStart.value) / SAMPLE_RATE) * pps),
   }));
   const startStyle = useAnimatedStyle(() => ({
-    left: (selStart.value / SAMPLE_RATE) * pps - HANDLE_W / 2,
+    left: (selStart.value / SAMPLE_RATE) * pps - (HANDLE_W - HANDLE_IN),
   }));
   const endStyle = useAnimatedStyle(() => ({
-    left: (selEnd.value / SAMPLE_RATE) * pps - HANDLE_W / 2,
+    left: (selEnd.value / SAMPLE_RATE) * pps - HANDLE_IN,
   }));
 
   return (
@@ -285,12 +290,12 @@ export const Waveform = memo(function Waveform(p: WaveformProps) {
           {p.selection && p.onSelectionChange ? (
             <>
               <GestureDetector gesture={startPan}>
-                <Animated.View style={[styles.handle, startStyle]}>
+                <Animated.View style={[styles.handle, styles.handleStart, startStyle]}>
                   <View style={[styles.grip, { backgroundColor: mark }]} />
                 </Animated.View>
               </GestureDetector>
               <GestureDetector gesture={endPan}>
-                <Animated.View style={[styles.handle, endStyle]}>
+                <Animated.View style={[styles.handle, styles.handleEnd, endStyle]}>
                   <View style={[styles.grip, { backgroundColor: mark }]} />
                 </Animated.View>
               </GestureDetector>
@@ -426,9 +431,11 @@ const styles = StyleSheet.create({
     top: 16,
     width: HANDLE_W,
     height: hit.min,
-    alignItems: 'center',
     justifyContent: 'center',
   },
+  // つまみ（幅 space.xs）の中心を選択の境界に合わせる
+  handleStart: { alignItems: 'flex-end', paddingRight: HANDLE_IN - space.xs / 2 },
+  handleEnd: { alignItems: 'flex-start', paddingLeft: HANDLE_IN - space.xs / 2 },
   grip: { width: space.xs, height: space.xxl, borderRadius: radius.pill },
   overlayTrack: {
     position: 'absolute',

@@ -183,6 +183,7 @@ export default function HomeScreen() {
           style={[typography.display, { color: c.textPrimary }]}
           accessibilityRole="header"
           numberOfLines={2}
+          textBreakStrategy="balanced"
         >
           {show.name}
         </Text>

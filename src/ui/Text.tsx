@@ -40,9 +40,17 @@ export function useFontFamily(role: FamilyRole = 'ui'): string | undefined {
   return useMemo(() => resolveFamily(role, locale, loaded), [loaded, locale, role]);
 }
 
-export function Text({ style, ...rest }: TextProps) {
+export function Text({ style, lineBreakStrategyIOS = 'standard', ...rest }: TextProps) {
   const fam = useFamilyStyle(style);
-  return <RNText {...rest} style={fam ? [style, fam] : style} />;
+  // iOS の既定（'none'）は最終行に 1 語だけ残す折り返しをする。'standard' は UILabel と同じく
+  // 最終行が短くなりすぎないよう押し出す（Web の text-wrap: pretty に相当）。
+  return (
+    <RNText
+      {...rest}
+      lineBreakStrategyIOS={lineBreakStrategyIOS}
+      style={fam ? [style, fam] : style}
+    />
+  );
 }
 
 export const TextInput = forwardRef<RNTextInput, TextInputProps>(function TextInput(

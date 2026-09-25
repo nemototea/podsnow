@@ -112,7 +112,8 @@ function Stepper({
         onPress={() => onChange(Math.max(min, +(value - step).toFixed(2)))}
       />
       <Text style={[typography.numeric, tabularNums, st.stepVal, { color: c.textPrimary }]}>
-        {value} {unit}
+        {/* 刻みが小数なら -1.0 / -1.5 のように桁を揃え、押すたびに字数が変わらないようにする */}
+        {value.toFixed(Number.isInteger(step) && Number.isInteger(value) ? 0 : 1)} {unit}
       </Text>
       <IconButton
         name="plus"
