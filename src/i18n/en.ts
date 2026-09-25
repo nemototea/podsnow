@@ -68,8 +68,6 @@ export const en: Messages = {
     decrease: (label: string) => `Decrease ${label}`,
     increase: (label: string) => `Increase ${label}`,
     dismiss: 'Dismiss notification',
-    back5: 'Back 5 seconds',
-    forward5: 'Forward 5 seconds',
   },
 
   status: {

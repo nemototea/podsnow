@@ -72,8 +72,6 @@ const SHAPES = {
   starFilled: [p('m12 3 2.8 5.8 6.2.9-4.5 4.4 1 6.2-5.5-2.9-5.5 2.9 1-6.2L3 9.7l6.2-.9Z', true)],
   archive: [{ k: 'rect', x: 3, y: 4, w: 18, h: 5, r: 1 }, p('M5 9v11h14V9M10 13h4')],
   edit: [p('M4 20h4L19 9l-4-4L4 16Z')],
-  rewind: [p('M11 7 6 12l5 5M18 7l-5 5 5 5')],
-  forward: [p('m13 7 5 5-5 5M6 7l5 5-5 5')],
 } satisfies Record<string, Shape[]>;
 
 export type IconName = keyof typeof SHAPES;

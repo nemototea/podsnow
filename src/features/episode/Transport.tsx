@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { ActivityIndicator, Platform, Pressable, StyleSheet, View } from 'react-native';
 import Animated, { useAnimatedStyle, withTiming } from 'react-native-reanimated';
 
-import { secToSmp, smp } from '@/domain/time';
 import { useT, type Messages } from '@/i18n';
 import {
   hit,
@@ -15,14 +14,12 @@ import {
   tabularNums,
   typography,
 } from '@/ui/tokens';
-import { Icon, IconButton, Text, type IconName } from '@/ui/components';
+import { Icon, Text, type IconName } from '@/ui/components';
 import { useAppTheme } from '@/ui/ThemeContext';
 import { useReducedMotion } from '@/ui/useReducedMotion';
 
 import type { RecordingContext } from './useRecordingContext';
 import type { Workspace } from './useWorkspace';
-
-const SKIP = secToSmp(5);
 
 function storageLine(t: Messages, ctx: RecordingContext, active: boolean): string {
   if (active && !ctx.writerOk) return t.record.savingStopped;
@@ -36,7 +33,6 @@ function storageLine(t: Messages, ctx: RecordingContext, active: boolean): strin
 }
 
 function RoundButton({
-  size,
   label,
   iconName,
   onPress,
@@ -45,7 +41,6 @@ function RoundButton({
   busy,
   showLabel = true,
 }: {
-  size: number;
   label: string;
   iconName: IconName;
   onPress: () => void;
@@ -68,63 +63,64 @@ function RoundButton({
     ],
   }));
   return (
-    <Pressable
-      onPress={onPress}
-      onPressIn={() => setHeld(true)}
-      onPressOut={() => setHeld(false)}
-      disabled={off}
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      accessibilityState={{ disabled: !!off, busy: !!busy }}
-      style={st.round}
-    >
-      {({ pressed }) => (
-        <>
-          <Animated.View
-            style={[
-              pressStyle,
-              st.circle,
-              {
-                width: size,
-                height: size,
-                borderColor: off ? c.border : filled ? c.recSolid : c.borderStrong,
-                backgroundColor: off
-                  ? c.surfaceRaised
-                  : filled
-                    ? c.recSolid
-                    : pressed
-                      ? c.surfaceHover
-                      : 'transparent',
-              },
-            ]}
-          >
-            {busy ? (
-              <ActivityIndicator color={c.textSecondary} />
-            ) : (
-              <View style={iconName === 'play' ? st.playNudge : null}>
-                <Icon name={iconName} color={fg} size={size > hit.secondary ? icon.lg : icon.md} />
-              </View>
-            )}
-          </Animated.View>
-          {showLabel ? (
-            <Text
+    <View style={st.slot}>
+      <Pressable
+        onPress={onPress}
+        onPressIn={() => setHeld(true)}
+        onPressOut={() => setHeld(false)}
+        disabled={off}
+        accessibilityRole="button"
+        accessibilityLabel={label}
+        accessibilityState={{ disabled: !!off, busy: !!busy }}
+        style={st.round}
+      >
+        {({ pressed }) => (
+          <>
+            <Animated.View
               style={[
-                typography.caption,
-                st.roundLabel,
-                { color: off ? c.textDisabled : c.textSecondary },
+                pressStyle,
+                st.circle,
+                {
+                  borderColor: off ? c.border : filled ? c.recSolid : c.borderStrong,
+                  backgroundColor: off
+                    ? c.surfaceRaised
+                    : filled
+                      ? c.recSolid
+                      : pressed
+                        ? c.surfaceHover
+                        : 'transparent',
+                },
               ]}
             >
-              {label}
-            </Text>
-          ) : null}
-        </>
-      )}
-    </Pressable>
+              {busy ? (
+                <ActivityIndicator color={c.textSecondary} />
+              ) : (
+                <View style={iconName === 'play' ? st.playNudge : null}>
+                  <Icon name={iconName} color={fg} size={icon.lg} />
+                </View>
+              )}
+            </Animated.View>
+            {showLabel ? (
+              <Text
+                style={[
+                  typography.caption,
+                  st.roundLabel,
+                  { color: off ? c.textDisabled : c.textSecondary },
+                ]}
+              >
+                {label}
+              </Text>
+            ) : null}
+          </>
+        )}
+      </Pressable>
+    </View>
   );
 }
 
 /**
- * 収録タブの下部。待機中は再生の操作と録音、録音中は一時停止と停止（Issue #122）。
+ * 収録タブの下部。左に再生系、右に録音系の 2 つを同じ大きさで置く（Issue #122、#128）。
+ * 待機中は再生と録音、録音中は一時停止と停止。録音ボタンの位置は状態で動かさない。
  * 録音は再生位置から始まる。途中なら差し込み、末尾なら足す（FR-REC-1）。
  */
 export function Transport({
@@ -155,41 +151,16 @@ export function Transport({
     <View>
       <View style={st.row}>
         {idle ? (
-          <>
-            <View style={st.side}>
-              <IconButton
-                name="rewind"
-                label={t.a11y.back5}
-                disabled={empty}
-                onPress={() => void ws.seek(smp(Math.max(0, state.playhead - SKIP)))}
-              />
-            </View>
-            <RoundButton
-              size={hit.secondary}
-              label={state.playing ? t.a11y.pause : t.a11y.play}
-              iconName={state.playing ? 'pause' : 'play'}
-              disabled={empty}
-              onPress={() => void ws.togglePlay()}
-            />
-            <View style={st.side}>
-              <IconButton
-                name="forward"
-                label={t.a11y.forward5}
-                disabled={empty}
-                onPress={() => void ws.seek(smp(Math.min(state.total, state.playhead + SKIP)))}
-              />
-            </View>
-          </>
-        ) : interrupted ? (
           <RoundButton
-            size={hit.secondary}
-            label={t.record.resume}
-            iconName="record"
-            onPress={onToggleRec}
+            label={state.playing ? t.a11y.pause : t.a11y.play}
+            iconName={state.playing ? 'pause' : 'play'}
+            disabled={empty}
+            onPress={() => void ws.togglePlay()}
           />
+        ) : interrupted ? (
+          <RoundButton label={t.record.resume} iconName="record" onPress={onToggleRec} />
         ) : (
           <RoundButton
-            size={hit.secondary}
             label={s === 'paused' ? t.record.resume : t.record.pause}
             iconName={s === 'paused' ? 'play' : 'pause'}
             disabled={!active}
@@ -197,7 +168,6 @@ export function Transport({
           />
         )}
         <RoundButton
-          size={hit.record}
           filled
           busy={busy}
           label={
@@ -236,9 +206,12 @@ const st = StyleSheet.create({
     justifyContent: 'space-evenly',
     gap: space.md,
   },
-  side: { minHeight: hit.record, justifyContent: 'center' },
+  // ラベルの長さが違っても丸の位置が動かないように、2 つの枠の幅を揃える
+  slot: { flex: 1, alignItems: 'center' },
   round: { alignItems: 'center', minWidth: hit.record, gap: space.xs },
   circle: {
+    width: hit.record,
+    height: hit.record,
     borderRadius: radius.pill,
     borderWidth: stroke.selected,
     alignItems: 'center',

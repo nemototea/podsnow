@@ -142,8 +142,8 @@ export const hit = {
   /** すべての操作。これを下回らない。 */
   min: 48,
   button: 52,
+  /** 収録の丸ボタン。再生系と録音系で同じ大きさ（#128）。 */
   record: 72,
-  secondary: 56,
 } as const;
 
 /** 見た目の大きさ `size` の要素を `hit.min` まで広げるための hitSlop。 */
