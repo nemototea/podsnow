@@ -6,6 +6,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { ServiceLabelsSync, ServicesProvider, useServices } from '@/features/app/ServicesProvider';
 import { LocaleProvider, useT } from '@/i18n';
 import { Loading } from '@/ui/components';
+import { DialogHost } from '@/ui/Dialog';
 import { FontProvider, useFontFamily } from '@/ui/Text';
 import { typography } from '@/ui/tokens';
 import { ThemeProvider, useAppTheme } from '@/ui/ThemeContext';
@@ -47,6 +48,7 @@ function Navigation() {
       >
         <Stack.Screen name="index" options={{ headerShown: false, title: t.app.name }} />
       </Stack>
+      <DialogHost />
       <StatusBar style={c.isDark ? 'light' : 'dark'} />
     </NavThemeProvider>
   );

@@ -206,9 +206,9 @@ safe area とホームインジケータ、キーボード、VoiceOver / TalkBac
 | `Header`（自作のバー） | expo-router のネイティブスタックヘッダー（`ScreenHeader`）。収録中は `usePreventRemove` と `gestureEnabled: false` で戻る操作を止める |
 | 「…」→ 下からのシート | iOS: `Stack.Toolbar.Menu`（ヘッダー）と `@expo/ui` の `Menu`（行）。他: 従来のシート |
 | 設定の選択 → シート | iOS: `@expo/ui` の `Picker`（menu）。他: シート（選択中にチェック） |
-| 権限・エラー・無音の確認 → シート | `Alert`（Web 検証は confirm / alert） |
+| 権限・エラー・無音の確認 → シート | `Alert`（Web 検証は confirm / alert）。#124 で自作の `Dialog` に置き換え（DESIGN_SYSTEM.md §6.3） |
 | 言い直す → シート | iOS: `ActionSheetIOS`。他: シート |
-| 名前の変更 → シート | iOS: `Alert.prompt`。他: シート |
+| 名前の変更 → シート | iOS: `Alert.prompt`。他: シート。#124 で iOS もシートに揃えた |
 | 入力・一覧のシート | iOS: `Modal` の `pageSheet`（下スワイプで閉じる）。他: 従来のシート |
 | 自作トグル | `Switch` |
 | 自作タブ | iOS: `UISegmentedControl`。他: 従来の `Segmented` |

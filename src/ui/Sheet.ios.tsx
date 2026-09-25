@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useT } from '@/i18n';
 
 import { IconButton, useGutter } from './components';
+import { DialogHost } from './Dialog';
 import type { SheetProps } from './Sheet';
 import { Text } from './Text';
 import { useAppTheme } from './ThemeContext';
@@ -58,6 +59,8 @@ export function Sheet({ visible, onClose, title, subtitle, children }: SheetProp
         >
           {children}
         </ScrollView>
+        {/* シートの中から出す確認は、ページシートの上に出す（DESIGN_SYSTEM.md §6.3）。 */}
+        <DialogHost />
       </GestureHandlerRootView>
     </Modal>
   );

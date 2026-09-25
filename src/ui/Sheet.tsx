@@ -14,6 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useT } from '@/i18n';
 
 import { IconButton, useGutter } from './components';
+import { DialogHost } from './Dialog';
 import { Text } from './Text';
 import { useAppTheme } from './ThemeContext';
 import { radius, space, typography } from './tokens';
@@ -94,6 +95,8 @@ export function Sheet({ visible, onClose, title, subtitle, children }: SheetProp
             <ScrollView keyboardShouldPersistTaps="handled">{children}</ScrollView>
           </View>
         </KeyboardAvoidingView>
+        {/* シートの中から出す確認は、シートの上に出す（DESIGN_SYSTEM.md §6.3）。 */}
+        <DialogHost />
       </GestureHandlerRootView>
     </Modal>
   );

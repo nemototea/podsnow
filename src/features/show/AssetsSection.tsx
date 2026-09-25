@@ -23,7 +23,7 @@ import {
   SectionHeader,
   Sheet,
 } from '@/ui/components';
-import { confirmDestructive, iosPrompt } from '@/ui/alerts';
+import { confirmDestructive } from '@/ui/alerts';
 import { ReorderList } from '@/ui/ReorderList';
 import { MoreMenu } from '@/ui/MoreMenu';
 import { useAppTheme } from '@/ui/ThemeContext';
@@ -132,17 +132,6 @@ export function AssetsSection({ onToast }: AssetsSectionProps) {
   };
 
   const startRename = (a: AssetRow) => {
-    const shown = iosPrompt({
-      title: t.common.rename,
-      defaultValue: a.name,
-      confirmLabel: t.common.save,
-      cancelLabel: t.common.cancel,
-      onConfirm: (text) => {
-        const name = text.trim();
-        if (name) void assets.rename(a.id, name).then(reload);
-      },
-    });
-    if (shown) return;
     setRenameText(a.name);
     setRenaming(a);
   };
