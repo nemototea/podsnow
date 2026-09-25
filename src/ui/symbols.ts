@@ -15,6 +15,7 @@ export const SYMBOLS: Record<IconName, SFSymbol> = {
   chevronUp: 'chevron.up',
   up: 'arrow.up',
   down: 'arrow.down',
+  grip: 'line.3.horizontal',
   play: 'play.fill',
   pause: 'pause.fill',
   stop: 'stop.fill',

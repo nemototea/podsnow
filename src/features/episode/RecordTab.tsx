@@ -25,6 +25,7 @@ import { useAppTheme } from '@/ui/ThemeContext';
 
 import { LevelMeter } from './LevelMeter';
 import type { RecordingContext } from './useRecordingContext';
+import { TopicList } from './TopicList';
 import type { Workspace } from './useWorkspace';
 
 export interface RecordTabProps {
@@ -295,37 +296,14 @@ export function RecordTab({
         visible={sheet === 'topics'}
         onClose={() => setSheet(null)}
         title={t.record.topicsTitle}
+        {...(state.outline.length > 1 ? { subtitle: t.record.reorderHint } : {})}
       >
-        {state.outline.map((item, i) => (
-          <Row
-            key={item.id}
-            label={item.heading}
-            sub={item.body.trim() ? item.body.trim() : t.record.addScript}
-            onPress={() => openBody(item.id, item.body)}
-            right={
-              <View style={st.rowActions}>
-                <IconButton
-                  name="up"
-                  label={t.common.moveUp}
-                  disabled={i === 0}
-                  onPress={() => void ws.saveOutline(moveItem(state.outline, i, i - 1))}
-                />
-                <IconButton
-                  name="down"
-                  label={t.common.moveDown}
-                  disabled={i === state.outline.length - 1}
-                  onPress={() => void ws.saveOutline(moveItem(state.outline, i, i + 1))}
-                />
-                <IconButton
-                  name="trash"
-                  label={t.record.a11yDeleteTopic(item.heading)}
-                  color={c.dangerText}
-                  onPress={() => void ws.saveOutline(state.outline.filter((x) => x.id !== item.id))}
-                />
-              </View>
-            }
-          />
-        ))}
+        <TopicList
+          items={state.outline}
+          onOpen={(item) => openBody(item.id, item.body)}
+          onMove={(from, to) => ws.saveOutline(moveItem(state.outline, from, to))}
+          onDelete={(item) => void ws.saveOutline(state.outline.filter((x) => x.id !== item.id))}
+        />
         <View style={{ marginTop: space.md }}>
           <Field
             label={t.record.addTopics}

@@ -1,3 +1,4 @@
+import { moveItem } from '@/domain/outline';
 import { smp } from '@/domain/time';
 import { createNodeSqliteExecutor } from '@/infra/db/__tests__/nodeSqliteExecutor';
 import { migrate } from '@/infra/db/migrate';
@@ -76,6 +77,28 @@ describe('OutlineService', () => {
     const items = await svc.list('e1');
     await svc.remove('e1', items[1]!.id);
     expect((await svc.list('e1')).map((i) => i.heading)).toEqual(['C', 'B']);
+  });
+
+  it('ドラッグの並べ替え（並びごと保存）は、本文とチャプターの位置を連れて動く', async () => {
+    const { svc } = await setup();
+    await svc.addFromText('e1', 'A\nB\nC');
+    const [a] = await svc.list('e1');
+    await svc.update('e1', a!.id, { body: 'Aの台本' });
+    await svc.advance('e1', { takeId: 't1', srcSmp: smp(4800) });
+
+    // 画面は moveItem で並べ替えた列を save に渡す
+    const items = await svc.list('e1');
+    await svc.save('e1', moveItem(items, 0, 2));
+
+    const saved = await svc.list('e1');
+    expect(saved.map((i) => i.heading)).toEqual(['B', 'C', 'A']);
+    expect(saved[2]).toMatchObject({
+      id: a!.id,
+      body: 'Aの台本',
+      recordedTakeId: 't1',
+      recordedSrcSmp: 4800,
+      doneAt: 5000,
+    });
   });
 
   it('番組のひな形をエピソードへ写す。写した後は独立したデータ', async () => {

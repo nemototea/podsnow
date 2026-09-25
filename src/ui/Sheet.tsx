@@ -4,11 +4,11 @@ import {
   Modal,
   Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
   useWindowDimensions,
   View,
 } from 'react-native';
+import { GestureHandlerRootView, ScrollView } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useT } from '@/i18n';
@@ -26,7 +26,14 @@ export interface SheetProps {
   children: ReactNode;
 }
 
-/** 下から出るシート（Android と Web）。iOS は `Sheet.ios.tsx` のページシート。 */
+/**
+ * 下から出るシート（Android と Web）。iOS は `Sheet.ios.tsx` のページシート。
+ *
+ * Android の Modal は別のルートに描かれるので、中身を `GestureHandlerRootView` で包まないと
+ * ジェスチャー（トークテーマのドラッグなど）が届かない。ScrollView も Gesture Handler のものにして、
+ * 中のドラッグが先に始まったらスクロールを止められるようにする。
+ * 出典: https://docs.swmansion.com/react-native-gesture-handler/docs/fundamentals/installation
+ */
 export function Sheet({ visible, onClose, title, subtitle, children }: SheetProps) {
   const c = useAppTheme();
   const t = useT();
@@ -42,50 +49,52 @@ export function Sheet({ visible, onClose, title, subtitle, children }: SheetProp
       statusBarTranslucent
       navigationBarTranslucent
     >
-      <KeyboardAvoidingView
-        style={st.root}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
-        <Pressable
-          style={[st.backdrop, { backgroundColor: c.overlayScrim }]}
-          onPress={onClose}
-          accessibilityRole="button"
-          accessibilityLabel={t.a11y.close}
-        />
-        <View
-          style={[
-            st.sheet,
-            {
-              backgroundColor: c.surfaceRaised,
-              paddingHorizontal: g,
-              paddingBottom: insets.bottom + space.lg,
-              maxHeight: height * 0.88,
-            },
-          ]}
-          accessibilityViewIsModal
+      <GestureHandlerRootView style={st.root}>
+        <KeyboardAvoidingView
+          style={st.root}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
-          <View style={st.sheetHead}>
-            <View style={st.flex}>
-              {title ? (
-                <Text
-                  style={[typography.heading, { color: c.textPrimary }]}
-                  accessibilityRole="header"
-                  textBreakStrategy="balanced"
-                >
-                  {title}
-                </Text>
-              ) : null}
-              {subtitle ? (
-                <Text style={[typography.caption, { color: c.textSecondary }]}>{subtitle}</Text>
-              ) : null}
+          <Pressable
+            style={[st.backdrop, { backgroundColor: c.overlayScrim }]}
+            onPress={onClose}
+            accessibilityRole="button"
+            accessibilityLabel={t.a11y.close}
+          />
+          <View
+            style={[
+              st.sheet,
+              {
+                backgroundColor: c.surfaceRaised,
+                paddingHorizontal: g,
+                paddingBottom: insets.bottom + space.lg,
+                maxHeight: height * 0.88,
+              },
+            ]}
+            accessibilityViewIsModal
+          >
+            <View style={st.sheetHead}>
+              <View style={st.flex}>
+                {title ? (
+                  <Text
+                    style={[typography.heading, { color: c.textPrimary }]}
+                    accessibilityRole="header"
+                    textBreakStrategy="balanced"
+                  >
+                    {title}
+                  </Text>
+                ) : null}
+                {subtitle ? (
+                  <Text style={[typography.caption, { color: c.textSecondary }]}>{subtitle}</Text>
+                ) : null}
+              </View>
+              <View style={st.sheetClose}>
+                <IconButton name="close" label={t.a11y.close} onPress={onClose} />
+              </View>
             </View>
-            <View style={st.sheetClose}>
-              <IconButton name="close" label={t.a11y.close} onPress={onClose} />
-            </View>
+            <ScrollView keyboardShouldPersistTaps="handled">{children}</ScrollView>
           </View>
-          <ScrollView keyboardShouldPersistTaps="handled">{children}</ScrollView>
-        </View>
-      </KeyboardAvoidingView>
+        </KeyboardAvoidingView>
+      </GestureHandlerRootView>
     </Modal>
   );
 }
