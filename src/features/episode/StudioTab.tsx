@@ -1,31 +1,42 @@
 import { useCallback, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
-import { formatSmp, secToSmp, smp, type Smp } from '@/domain/time';
+import { formatClock, formatSmp, secToSmp, smp, type Smp } from '@/domain/time';
 import type { Range } from '@/domain/timeline/types';
-import { useT } from '@/i18n';
+import { useT, type Messages } from '@/i18n';
 import type { AssetRow } from '@/infra/db/repositories/assetsRepo';
-import { radius, space, tabularNums, typography } from '@/ui/tokens';
+import type { SessionState } from '@/services/recording/RecordingSession';
+import { icon, radius, space, tabularNums, typography } from '@/ui/tokens';
 import {
   Button,
   Card,
+  Chip,
   Field,
+  Icon,
   IconButton,
+  Notice,
   Row,
+  SectionHeader,
   Sheet,
   Text,
   Toggle,
   useCompact,
+  type IconName,
 } from '@/ui/components';
 import { ask, confirmDestructive } from '@/ui/alerts';
 import { useAppTheme } from '@/ui/ThemeContext';
 
+import { LevelMeter } from './LevelMeter';
 import { parseSeconds, validateRange } from './selectionInput';
+import { TopicsSection } from './TopicsSection';
 import { Waveform } from './Waveform';
+import type { RecordingContext } from './useRecordingContext';
 import type { Workspace } from './useWorkspace';
 
-export interface EditTabProps {
+export interface StudioTabProps {
   ws: Workspace;
+  recCtx: RecordingContext;
+  /** `at` を省くと、録音中は発言位置、待機中は再生位置に入る。 */
   onInsertAsset: (a: AssetRow, at?: Smp) => void;
   onOpenAssets: () => void;
   onShowToast: (text: string, undo?: () => void) => void;
@@ -34,19 +45,59 @@ export interface EditTabProps {
 }
 
 const toSec = (s: number) => (s / 48000).toFixed(1);
+const noop = () => {};
 
-export function EditTab({
+/** 待機中は何も出さない。録音ボタン・タイマー・メーターで分かる（DESIGN_SYSTEM.md §2.3）。 */
+function stateLabel(t: Messages, s: SessionState): { text: string; icon: IconName | null } | null {
+  switch (s) {
+    case 'recording':
+      return { text: t.record.stateRecording, icon: 'record' };
+    case 'paused':
+      return { text: t.record.statePaused, icon: 'pause' };
+    case 'interrupted':
+      return { text: t.record.stateInterrupted, icon: 'warning' };
+    case 'preparing':
+      return { text: t.record.statePreparing, icon: null };
+    case 'stopping':
+      return { text: t.record.stateStopping, icon: null };
+    default:
+      return null;
+  }
+}
+
+/**
+ * 収録タブ（Issue #122）。録音と編集を 1 つの画面で行う。
+ * 上に波形、下に再生と録音（Transport）。録音は再生位置から始まり、途中なら差し込む。
+ * 録音中は波形に触れず、レベル・入力・話すこと・素材ボタンを出す。
+ * 待機中は塊の選択と削除・無音を詰める・素材を足す操作を出す。
+ */
+export function StudioTab({
   ws,
+  recCtx,
   onInsertAsset,
   onOpenAssets,
   onShowToast,
   onError,
   onGoExport,
-}: EditTabProps) {
+}: StudioTabProps) {
   const c = useAppTheme();
   const t = useT();
   const compact = useCompact();
   const { state } = ws;
+  const s = state.recording;
+  const live = s !== 'idle';
+  // 素材は、割り込みで止まっている間も録音中のテイクの位置に入る
+  const isRec = s === 'recording' || s === 'paused' || s === 'interrupted';
+  const label = stateLabel(t, s);
+  const stateColor =
+    s === 'recording' ? c.recText : s === 'interrupted' ? c.mistakeText : c.textSecondary;
+  const favorites = state.assets.filter(
+    (a) => a.is_favorite && (a.kind === 'jingle' || a.kind === 'sfx'),
+  );
+  const inputName = recCtx.inputKnown
+    ? (recCtx.input?.name ?? t.record.builtInMic)
+    : t.record.inputUnknown;
+  const channels = recCtx.channels === 2 ? t.settings.stereo : t.settings.mono;
   const [pps, setPps] = useState(24);
   const [sheet, setSheet] = useState<null | 'overlay' | 'insert'>(null);
   const [insertSide, setInsertSide] = useState<'before' | 'after'>('after');
@@ -54,7 +105,7 @@ export function EditTab({
   const [fields, setFields] = useState<{ key: string; start: string; end: string } | null>(null);
   const [rangeError, setRangeError] = useState<string | null>(null);
 
-  const sel = state.selection;
+  const sel = live ? null : state.selection;
   const selKey = sel ? `${sel.start}-${sel.end}` : '';
   const f =
     fields && fields.key === selKey
@@ -134,20 +185,35 @@ export function EditTab({
     if (!state.playing) await ws.togglePlay();
   };
 
-  if (state.total === 0) {
-    return (
-      <Card>
-        <Text style={[typography.heading, { color: c.textPrimary }]}>{t.edit.emptyTitle}</Text>
-        <Text style={[typography.body, { color: c.textSecondary, marginTop: space.xs }]}>
-          {t.edit.emptySub}
-        </Text>
-      </Card>
-    );
-  }
-
   return (
     <View>
-      <View style={st.clockRow}>
+      {/* 待機中も行の高さは取っておく。録音を始めた瞬間に下がずれないように。 */}
+      <View style={st.statusRow}>
+        <View style={st.stateLabel} accessibilityLiveRegion="polite">
+          {label?.icon ? <Icon name={label.icon} color={stateColor} size={icon.sm} /> : null}
+          {label ? (
+            <Text style={[typography.label, { color: stateColor }]}>{label.text}</Text>
+          ) : null}
+        </View>
+        {live ? (
+          <Text style={[typography.caption, { color: c.textSecondary }]}>
+            {t.record.takeLabel(state.takes.length + 1)}
+          </Text>
+        ) : null}
+      </View>
+
+      {live ? (
+        <Text
+          style={[
+            compact ? typography.timerCompact : typography.timer,
+            tabularNums,
+            { color: c.textPrimary },
+          ]}
+          accessibilityLabel={t.record.a11yElapsed(formatClock(smp(state.recFrames)))}
+        >
+          {formatClock(smp(state.recFrames))}
+        </Text>
+      ) : (
         <View style={st.clock}>
           <Text
             style={[
@@ -166,21 +232,7 @@ export function EditTab({
             / {formatSmp(state.total)}
           </Text>
         </View>
-        <View style={st.tools}>
-          <IconButton
-            name="undo"
-            label={state.undoLabel ? t.edit.a11yUndo(state.undoLabel) : t.common.undo}
-            disabled={!state.canUndo}
-            onPress={() => void ws.undo().then((op) => op && onShowToast(t.undo.undid(op.label)))}
-          />
-          <IconButton
-            name="redo"
-            label={state.redoLabel ? t.edit.a11yRedo(state.redoLabel) : t.common.redo}
-            disabled={!state.canRedo}
-            onPress={() => void ws.redo().then((op) => op && onShowToast(t.undo.redid(op.label)))}
-          />
-        </View>
-      </View>
+      )}
 
       <View style={[st.panel, { backgroundColor: c.surface }]}>
         <Waveform
@@ -193,29 +245,39 @@ export function EditTab({
           total={state.total}
           playhead={state.playhead}
           selection={sel}
-          selectedOverlay={state.selectedOverlay}
+          selectedOverlay={live ? null : state.selectedOverlay}
           pps={pps}
-          recording={false}
-          recFrames={0}
+          recording={live}
+          recFrames={state.recFrames}
+          recordAt={state.recAt}
           blocks={ws.blocks}
-          onSelectBlock={(at) => {
-            const b = ws.selectBlockAt(at);
-            void ws.seek(b ? b.start : at);
-          }}
-          onSelectionChange={(range) => ws.setSelection(range)}
-          onSeek={(to) => void ws.seek(to)}
-          onSelectOverlay={(oid) => {
-            ws.selectOverlay(oid);
-            if (oid) setSheet('overlay');
-          }}
-          onChapterPress={(item) => {
-            const at = ws.chaptersOnTimeline.find((ch) => ch.item.id === item.id)?.at;
-            if (at !== undefined) void ws.seek(at);
-          }}
-          onChapterLongPress={(item) => {
-            const range = ws.chapterRange(item.id);
-            if (range) ws.setSelection(range);
-          }}
+          // 録音中・一時停止中は位置を動かせない。位置を変えるときは止める（Issue #122）
+          {...(live
+            ? {
+                onSeek: noop,
+                onSelectOverlay: noop,
+                onChapterPress: noop,
+              }
+            : {
+                onSelectBlock: (at: Smp) => {
+                  const b = ws.selectBlockAt(at);
+                  void ws.seek(b ? b.start : at);
+                },
+                onSelectionChange: (range: Range) => ws.setSelection(range),
+                onSeek: (to: Smp) => void ws.seek(to),
+                onSelectOverlay: (oid: string | null) => {
+                  ws.selectOverlay(oid);
+                  if (oid) setSheet('overlay');
+                },
+                onChapterPress: (item: { id: string }) => {
+                  const at = ws.chaptersOnTimeline.find((ch) => ch.item.id === item.id)?.at;
+                  if (at !== undefined) void ws.seek(at);
+                },
+                onChapterLongPress: (item: { id: string }) => {
+                  const range = ws.chapterRange(item.id);
+                  if (range) ws.setSelection(range);
+                },
+              })}
         />
         <View style={st.zoom}>
           <IconButton
@@ -230,6 +292,31 @@ export function EditTab({
           />
         </View>
       </View>
+
+      {live ? (
+        <LevelMeter level={s === 'recording' ? state.level : null} />
+      ) : state.total === 0 ? (
+        <Card style={st.empty}>
+          <Text style={[typography.heading, { color: c.textPrimary }]}>{t.edit.emptyTitle}</Text>
+          <Text style={[typography.body, { color: c.textSecondary, marginTop: space.xs }]}>
+            {t.edit.emptySub}
+          </Text>
+        </Card>
+      ) : null}
+
+      <View style={st.inputRow}>
+        <Icon
+          name={recCtx.input?.type === 'builtin' ? 'mic' : 'headphones'}
+          color={c.textSecondary}
+          size={icon.sm}
+        />
+        <Text style={[typography.caption, { color: c.textSecondary, flex: 1 }]}>
+          {t.record.inputLine(inputName, channels)}
+        </Text>
+      </View>
+      {recCtx.input?.lowQuality ? (
+        <Notice kind="warning" title={t.record.bluetoothTitle} body={t.settings.bluetoothWarning} />
+      ) : null}
 
       {sel ? (
         <Text
@@ -280,18 +367,6 @@ export function EditTab({
               onPress={() => void playSelection()}
             />
             <Button
-              label={t.edit.punchIn}
-              kind="secondary"
-              icon="mic"
-              style={st.cell}
-              onPress={() => {
-                void ws
-                  .startRecording({ punchIn: sel })
-                  .then(() => onShowToast(t.edit.punchInStarted))
-                  .catch((e: unknown) => onError(String(e)));
-              }}
-            />
-            <Button
               label={t.edit.insertBefore}
               kind="secondary"
               icon="music"
@@ -319,7 +394,7 @@ export function EditTab({
             />
           </View>
         </>
-      ) : (
+      ) : live || state.total === 0 ? null : (
         <View style={st.grid}>
           <Button
             label={t.edit.removeSilence}
@@ -338,13 +413,44 @@ export function EditTab({
         </View>
       )}
 
-      <Button label={t.edit.toExport} style={st.next} onPress={onGoExport} />
+      <TopicsSection ws={ws} onShowToast={(text) => onShowToast(text)} />
+
+      <SectionHeader title={t.record.assetsTitle} />
+      {favorites.length === 0 ? (
+        <Button
+          label={t.record.registerAssets}
+          icon="plus"
+          kind="secondary"
+          onPress={onOpenAssets}
+        />
+      ) : (
+        <View style={st.assets}>
+          {favorites.slice(0, 4).map((a) => (
+            <Chip
+              key={a.id}
+              icon="music"
+              label={a.name}
+              accessibilityLabel={
+                isRec ? t.record.a11yInsertNow(a.name) : t.record.a11yInsertAt(a.name)
+              }
+              onPress={() => onInsertAsset(a)}
+            />
+          ))}
+          <Chip label={t.record.moreAssets} onPress={() => setSheet('insert')} />
+        </View>
+      )}
+
+      {live || state.total === 0 ? null : (
+        <Button label={t.edit.toExport} style={st.next} onPress={onGoExport} />
+      )}
 
       <Sheet
         visible={sheet === 'insert'}
         onClose={() => setSheet(null)}
         title={t.edit.insertTitle}
-        subtitle={t.edit.insertSubtitle(formatSmp(insertPosition))}
+        subtitle={
+          isRec ? t.record.insertSubRecording : t.edit.insertSubtitle(formatSmp(insertPosition))
+        }
       >
         {state.assets.length === 0 ? (
           <Row label={t.record.registerAssets} onPress={onOpenAssets} last />
@@ -358,7 +464,8 @@ export function EditTab({
             last={i === state.assets.length - 1}
             onPress={() => {
               setSheet(null);
-              onInsertAsset(a, insertPosition);
+              if (isRec) onInsertAsset(a);
+              else onInsertAsset(a, insertPosition);
             }}
           />
         ))}
@@ -493,9 +600,18 @@ export function EditTab({
 }
 
 const st = StyleSheet.create({
-  clockRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  statusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: space.sm,
+    minHeight: typography.label.lineHeight,
+  },
+  stateLabel: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
   clock: { flexDirection: 'row', alignItems: 'baseline', gap: space.sm, flexShrink: 1 },
-  tools: { flexDirection: 'row', marginRight: -space.md },
+  empty: { marginTop: space.md },
+  inputRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm, marginTop: space.md },
+  assets: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
   panel: { borderRadius: radius.lg, paddingTop: space.md, marginTop: space.sm, overflow: 'hidden' },
   zoom: { flexDirection: 'row', justifyContent: 'flex-end' },
   fields: { flexDirection: 'row', gap: space.md, marginTop: space.lg },

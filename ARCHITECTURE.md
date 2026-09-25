@@ -184,7 +184,7 @@ interface AudioEngineModule {
 ### 7.1 データ保全（詳細は AUDIO_DESIGN.md §5、DATA_MODEL.md §6）
 - 録音は Segment 単位の WAV。ヘッダ定期更新 + fsync。
 - 録音開始で `takes.status = 'recording'` を書き、停止で `'ready'`。起動時に `'recording'` のまま残っている Take を復旧。
-- 編集は操作ログ（`edit_ops`）として永続化。Undo/Redo は操作ログのポインタ移動。
+- 編集は操作ログ（`edit_ops`、操作前後のスナップショット）として永続化。Undo/Redo は操作ログのポインタ移動。履歴はエピソード画面を開いている間だけ持つ。録音の確定も Take の確定と同じトランザクションで履歴に積む（DATA_MODEL.md §4.12）。
 
 ### 7.2 時間と ID
 - 時間はすべて **ミリ秒整数**（`ms`）ではなく **サンプル数（48 kHz 基準）** を内部表現にする【仮説】。理由: 切り貼りの累積誤差をゼロにし、両 OS の書き出し結果を一致させるため。UI 表示時のみ ms に変換。

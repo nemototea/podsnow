@@ -198,9 +198,8 @@ Take の「時間軸」は Segment を `seq` 順に連結したもの。割り�
 
 - 声トラック上の時刻は `position` 順に長さを累積して求める（`domain/timeline`）。
 - 範囲削除 = 対象 `voice_segments` の分割・削除。Take ファイルは触らない。【事実: 非破壊】
-- 録音停止時に `[0, duration)` を指す 1 行を末尾（または再生位置）に追加。
-- パンチイン = 範囲を除去 → その `position` に新 Take の行を挿入。
-- **不変条件（重要）**: 同一 Take の同一ソース範囲は声トラック上に **高々 1 回** しか現れない（範囲同士が重ならない）。マーカー（§4.10）と `source` アンカーのオーバーレイ（§4.9）は `(take_id, src_smp)` → 声トラック上の位置 1 点 に解決される前提で設計されている。MVP の編集操作（範囲削除 / 並び替え / パンチイン / 無音カット）はこの不変条件を保つ。将来「声クリップの複製」を追加する場合は、`resolveTimeline` が複数位置を返せるように変更し、マーカー・オーバーレイの解決規則を決め直す必要がある。
+- 録音停止時に `[0, duration)` を指す 1 行を末尾（または再生位置に差し込み）に追加する。この追加は取り消しの履歴に 1 つの操作として積む（§4.12）。
+- **不変条件（重要）**: 同一 Take の同一ソース範囲は声トラック上に **高々 1 回** しか現れない（範囲同士が重ならない）。マーカー（§4.10）と `source` アンカーのオーバーレイ（§4.9）は `(take_id, src_smp)` → 声トラック上の位置 1 点 に解決される前提で設計されている。MVP の編集操作（範囲削除 / 位置を選んだ差し込み / 無音カット）はこの不変条件を保つ。将来「声クリップの複製」を追加する場合は、`resolveTimeline` が複数位置を返せるように変更し、マーカー・オーバーレイの解決規則を決め直す必要がある。
 
 ### 4.9 `overlay_clips`（素材レイヤー）
 | 列 | 型 | 説明 |
@@ -237,7 +236,7 @@ Take の「時間軸」は Segment を `seq` 順に連結したもの。割り�
 | created_at | INTEGER | |
 
 **ユーザーが打つマーカーは持たない【事実】。** 旧 `markers` の `edit_point` / `mistake` は廃止し、
-収録中の「言い直す」（FR-REC-4）と、編集タブの塊の選択（FR-EDIT-2）で置き換える。
+収録タブの塊の選択と削除（FR-EDIT-2）、位置を選んだ録音（FR-REC-1）で置き換える（「言い直す」も #122 で廃止）。
 旧 `topic` は `outline_items.recorded_take_id / recorded_src_smp`（§4.11）に吸収した。
 
 理由: マーカーは押した時点では何も解決せず、あとで「戻る → 次へ → 範囲選択 → 削除」の作業が残る。
@@ -272,14 +271,20 @@ Take の「時間軸」は Segment を `seq` 順に連結したもの。割り�
 | episode_id | TEXT FK | |
 | seq | INTEGER | 単調増加 |
 | label | TEXT | 「範囲を削除」など |
-| op | TEXT | JSON。`{ type, forward: [...row changes], inverse: [...row changes] }` |
+| op | TEXT | JSON。`{ before, after }`。声の並びと重ねた素材（`EditableDoc`）の操作前後のスナップショット |
 | group_key | TEXT nullable | 連続操作のまとめ（スライダー） |
 | created_at | INTEGER | |
 
-`episodes.undo_cursor` に「現在位置の seq」を持つ。Undo = cursor を 1 つ戻し `inverse` を適用、Redo = `forward` を適用。新規操作で cursor より後の行を削除。**アプリ再起動後も Undo 可能**。【事実】上限は既定 200 件【仮説】。
+`episodes.undo_cursor` に「適用済みの最後の op の seq」を持つ（0 = なし）。Undo = cursor を 1 つ戻し `before` を書き戻す、Redo = `after` を書き戻す。新規操作で cursor より後の行を削除する。上限は既定 200 件【仮説】。
 
-対象テーブル: `voice_segments`, `overlay_clips`, `outline_items`, `episodes.sound_settings`。
-`recording_events` はアプリが記録した事実なので Undo の対象にしない。Take 自体（録音）は Undo 対象外（削除は論理削除 + ゴミ箱）。
+【事実】スナップショットにする理由: 逆操作の実装ミスで録音データの参照が壊れるのを避ける（エピソードのセグメント数は高々数百で、JSON にしても小さい）。
+その代わり、**声の並びと素材を書き換える処理は、すべてこの履歴を通す**。履歴の外で書くと、古い `before` を書き戻したときにその変更が消える（Issue #122 で、録音の追加が履歴の外にあり、録音後に取り消すとテイクが外れた）。
+
+- **履歴の寿命**: エピソード画面を開いたときと抜けたときに空にする（FR-EDIT-7）。再起動をまたいで持たない。doc（声の並びと素材）は常に保存済み（FR-SAFE-8）。
+- **対象**: `voice_segments`、`overlay_clips`。
+- **録音の追加**: 停止時に、録音を始めたときの doc を `before`、テイクを足した doc を `after` として積む（Take の確定と同じトランザクション）。録音中に重ねた素材も `after` に含まれ、取り消せばテイクと一緒に外れる。Take の行と録音ファイルは消さない（FR-SAFE-7）。
+- **対象外**: `outline_items`（削除の確認で守る、FR-UI-2）、`episodes.sound_settings`、`recording_events`（アプリが記録した事実）、Take の行そのもの（削除は論理削除 + ゴミ箱）。
+- 復旧（`RecoveryService`）が足すテイクは履歴に積まない。復旧は起動時に走り、次に画面を開いた時点で履歴は空から始まる。
 
 ### 4.13 `exports`
 | 列 | 型 | 説明 |

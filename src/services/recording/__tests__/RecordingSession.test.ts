@@ -11,6 +11,7 @@ import {
   type RecordingSettings,
 } from '../RecordingSession';
 import { TEST_LABELS } from '@/services/app/__tests__/labels';
+import { EditingService } from '@/services/editing/EditingService';
 import { recoverUnfinishedTakes } from '../RecoveryService';
 import { FakeRecorder } from './FakeRecorder';
 
@@ -184,63 +185,196 @@ describe('RecordingSession', () => {
     expect((await listSegments(db, takeId))[0]?.reason_closed).toBe('disk_low');
   });
 
-  it('punch-in inserts the new take at the requested position', async () => {
+  it('recording at a position inserts the new take there (later voice shifts back)', async () => {
     const { db, recorder, session } = await setup();
-    await session.start('e');
+    const t1 = await session.start('e');
     recorder.frames = 1000;
     await session.stop();
-    await session.start('e', { insertAtSmp: smp(400) });
+    const t2 = await session.start('e', { insertAtSmp: smp(400) });
     recorder.frames = 50;
     await session.stop();
     const doc = await loadDoc(db, 'e');
     expect(doc.voice.map((v) => [v.takeId, v.srcStart, v.srcEnd])).toEqual([
-      ['id1', 0, 400],
-      ['id5', 0, 50],
-      ['id1', 400, 1000],
+      [t1, 0, 400],
+      [t2, 0, 50],
+      [t1, 400, 1000],
     ]);
   });
 
-  it('retake drops the last stretch from the voice track but keeps the recording', async () => {
-    const { db, recorder, session } = await setup();
-    const takeId = await session.start('e');
-    // 0..300 を話し、300..500 で噛んで、そこを言い直す
-    recorder.frames = 500;
-    expect(session.retake(smp(300))).toBe(200);
-    recorder.frames = 900;
-    await session.stop();
+  describe('取り消しの履歴（Issue #122）', () => {
+    const editing = (db: Awaited<ReturnType<typeof setup>>['db']) => {
+      let n = 0;
+      return { db, newId: () => `op${++n}`, now: () => 50_000 + n };
+    };
+    const takeIds = async (db: Awaited<ReturnType<typeof setup>>['db']) =>
+      (await loadDoc(db, 'e')).voice.map((v) => v.takeId);
 
-    // 録音ファイルの長さは変わらない（非破壊）
-    expect((await getTake(db, takeId))?.duration_smp).toBe(900);
-    // 声の並びからは捨てた範囲だけが抜ける
-    const doc = await loadDoc(db, 'e');
-    expect(doc.voice.map((v) => [v.srcStart, v.srcEnd])).toEqual([
-      [0, 300],
-      [500, 900],
-    ]);
-  });
+    it('録る → 編集 → 録る → 取り消すで、外れるのは最後に録ったテイクだけ。やり直すと戻る', async () => {
+      const { db, recorder, session } = await setup();
+      const deps = editing(db);
+      await EditingService.open(deps, 'e');
+      const t1 = await session.start('e');
+      recorder.frames = 1000;
+      await session.stop();
 
-  it('retake can be undone before the take is finalized', async () => {
-    const { db, recorder, session } = await setup();
-    await session.start('e');
-    recorder.frames = 500;
-    session.retake(smp(300));
-    expect(session.undoRetake()).toBe(true);
-    expect(session.undoRetake()).toBe(false);
-    recorder.frames = 900;
-    await session.stop();
+      let svc = await EditingService.resume(deps, 'e');
+      expect(svc.undoLabel).toBe('Add Recording 1');
+      await svc.apply('音量', (d) => ({ ...d, voice: d.voice.map((v) => ({ ...v, gainDb: -3 })) }));
 
-    expect((await loadDoc(db, 'e')).voice.map((v) => [v.srcStart, v.srcEnd])).toEqual([[0, 900]]);
-  });
+      const t2 = await session.start('e');
+      recorder.frames = 500;
+      await session.stop();
+      expect(await takeIds(db)).toEqual([t1, t2]);
 
-  it('retake returns null when there is nothing to drop', async () => {
-    const { recorder, session } = await setup();
-    await session.start('e');
-    recorder.frames = 100;
-    // 現在位置より後ろは捨てられない
-    expect(session.retake(smp(500))).toBeNull();
-    await session.stop();
-    // 録音していなければ何もしない
-    expect(session.retake(smp(0))).toBeNull();
+      svc = await EditingService.resume(deps, 'e');
+      expect(svc.undoLabel).toBe('Add Recording 2');
+      await svc.undo();
+      expect(svc.current.voice.map((v) => [v.takeId, v.gainDb])).toEqual([[t1, -3]]);
+      await svc.undo();
+      expect(svc.current.voice.map((v) => [v.takeId, v.gainDb])).toEqual([[t1, 0]]);
+      await svc.redo();
+      await svc.redo();
+      expect(svc.current.voice.map((v) => [v.takeId, v.gainDb])).toEqual([
+        [t1, -3],
+        [t2, 0],
+      ]);
+      expect(await takeIds(db)).toEqual([t1, t2]);
+      // 取り消しても録音ファイル（Take）は残る
+      await svc.undo();
+      expect((await getTake(db, t2))?.status).toBe('ready');
+    });
+
+    it('録音中に重ねた素材は、録音の追加と一緒に取り消され、一緒に戻る', async () => {
+      const { db, recorder, session } = await setup();
+      await db.run(
+        'INSERT INTO assets (id, show_id, kind, name, path, duration_smp, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)',
+        ['J', 's', 'jingle', 'Jingle', 'x.wav', 100, 1, 1],
+      );
+      const deps = editing(db);
+      const svc0 = await EditingService.open(deps, 'e');
+      const t1 = await session.start('e');
+      recorder.frames = 300;
+      await svc0.writeWithoutHistory((d) => ({
+        ...d,
+        overlays: [
+          {
+            id: 'o1',
+            assetId: 'J',
+            kind: 'jingle',
+            anchor: { type: 'source', takeId: t1, srcSmp: smp(300) },
+            srcStart: smp(0),
+            srcEnd: null,
+            gainDb: 0,
+            fadeIn: smp(0),
+            fadeOut: smp(0),
+            duck: false,
+            loop: false,
+            endMode: 'asset_end',
+          },
+        ],
+      }));
+      recorder.frames = 1000;
+      await session.stop();
+
+      const svc = await EditingService.resume(deps, 'e');
+      expect(svc.current.overlays).toHaveLength(1);
+      await svc.undo();
+      expect(svc.current).toEqual({ voice: [], overlays: [] });
+      expect(svc.canUndo).toBe(false);
+      await svc.redo();
+      expect(svc.current.voice.map((v) => v.takeId)).toEqual([t1]);
+      expect(svc.current.overlays.map((o) => o.id)).toEqual(['o1']);
+    });
+
+    it('割り込みで止まっている間に入れた素材も、録音の追加と一緒に 1 回の取り消しで外れる', async () => {
+      const { db, recorder, session } = await setup();
+      await db.run(
+        'INSERT INTO assets (id, show_id, kind, name, path, duration_smp, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)',
+        ['J', 's', 'jingle', 'Jingle', 'x.wav', 100, 1, 1],
+      );
+      const deps = editing(db);
+      const svc0 = await EditingService.open(deps, 'e');
+      const t1 = await session.start('e');
+      recorder.frames = 400;
+      recorder.interrupt();
+      await flush();
+      expect(session.current).toBe('interrupted');
+      // 画面は割り込み中も録音中と同じく、テイクの位置に履歴の外で付ける
+      const pos = session.currentSourcePosition();
+      expect(pos).toEqual({ takeId: t1, srcSmp: 400 });
+      await svc0.writeWithoutHistory((d) => ({
+        ...d,
+        overlays: [
+          {
+            id: 'o1',
+            assetId: 'J',
+            kind: 'jingle',
+            anchor: { type: 'source', takeId: pos!.takeId, srcSmp: pos!.srcSmp },
+            srcStart: smp(0),
+            srcEnd: null,
+            gainDb: 0,
+            fadeIn: smp(0),
+            fadeOut: smp(0),
+            duck: false,
+            loop: false,
+            endMode: 'asset_end',
+          },
+        ],
+      }));
+      await session.stop();
+
+      const svc = await EditingService.resume(deps, 'e');
+      expect(svc.undoLabel).toBe('Add Recording 1');
+      await svc.undo();
+      expect(svc.current).toEqual({ voice: [], overlays: [] });
+      expect(svc.canUndo).toBe(false);
+    });
+
+    it('取り消したあとに録ると、やり直し側は捨てられる', async () => {
+      const { db, recorder, session } = await setup();
+      const deps = editing(db);
+      await EditingService.open(deps, 'e');
+      const t1 = await session.start('e');
+      recorder.frames = 1000;
+      await session.stop();
+      await session.start('e');
+      recorder.frames = 500;
+      await session.stop();
+      let svc = await EditingService.resume(deps, 'e');
+      await svc.undo();
+      const t3 = await session.start('e');
+      recorder.frames = 200;
+      await session.stop();
+      svc = await EditingService.resume(deps, 'e');
+      expect(svc.canRedo).toBe(false);
+      expect(svc.current.voice.map((v) => v.takeId)).toEqual([t1, t3]);
+      expect(svc.undoLabel).toBe('Add Recording 3');
+    });
+
+    it('途中の位置で録ると挿入し、今録った部分の終わりを知らせる', async () => {
+      const { recorder, session } = await setup();
+      const ends: number[] = [];
+      session.on('takeFinalized', (e) => ends.push(e.endSmp));
+      await session.start('e');
+      recorder.frames = 1000;
+      await session.stop();
+      await session.start('e', { insertAtSmp: smp(400) });
+      recorder.frames = 50;
+      await session.stop();
+      expect(ends).toEqual([1000, 450]);
+    });
+
+    it('長さ 0 の録音は声の並びにも履歴にも何も足さない', async () => {
+      const { db, recorder, session } = await setup();
+      const deps = editing(db);
+      await EditingService.open(deps, 'e');
+      await session.start('e');
+      recorder.frames = 0;
+      await session.stop();
+      const svc = await EditingService.resume(deps, 'e');
+      expect(svc.canUndo).toBe(false);
+      expect(svc.current.voice).toEqual([]);
+    });
   });
 
   it('recordEvent records the current take position', async () => {

@@ -1,26 +1,26 @@
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Linking, Platform, StyleSheet, View } from 'react-native';
 
 import { formatSmp, smp, type Smp } from '@/domain/time';
 import { useServices } from '@/features/app/ServicesProvider';
-import { EditTab } from '@/features/episode/EditTab';
 import { ExportTab } from '@/features/episode/ExportTab';
 import { playMonitor } from '@/features/episode/monitor';
-import { RecordTab } from '@/features/episode/RecordTab';
+import { StudioTab } from '@/features/episode/StudioTab';
 import { Transport } from '@/features/episode/Transport';
 import { useRecordingContext } from '@/features/episode/useRecordingContext';
 import { useWorkspace } from '@/features/episode/useWorkspace';
 import { errorCodeText, errorText, useT } from '@/i18n';
 import type { AssetRow } from '@/infra/db/repositories/assetsRepo';
 import { space } from '@/ui/tokens';
-import { ask, confirmDestructive, iosActionSheet, notify } from '@/ui/alerts';
-import { Loading, Row, Screen, Segmented, Sheet, Toast } from '@/ui/components';
+import { ask, confirmDestructive, notify } from '@/ui/alerts';
+import { Loading, Screen, Segmented, Toast } from '@/ui/components';
 import { HeaderMenu } from '@/ui/HeaderMenu';
 import { ScreenHeader } from '@/ui/ScreenHeader';
 import { useToast } from '@/ui/useToast';
 
-type Tab = 'record' | 'edit' | 'export';
+/** 収録（録音と編集）と書き出しの 2 タブ（Issue #122）。 */
+type Tab = 'studio' | 'export';
 
 export default function EpisodeScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -32,9 +32,16 @@ export default function EpisodeScreen() {
   const { state } = ws;
   const recCtx = useRecordingContext(state.recording);
   const { toast, show: showToast, act, dismiss } = useToast();
-  const [tab, setTab] = useState<Tab>('record');
-  const [retake, setRetake] = useState(false);
+  const [tab, setTab] = useState<Tab>('studio');
   const undoToastFor = useRef<string | null>(null);
+
+  // 複製を「開く」と、この画面の上に別の回の画面が積まれる。戻ってきたらこの回を読み込み直す
+  const { refocus } = ws;
+  useFocusEffect(
+    useCallback(() => {
+      void refocus();
+    }, [refocus]),
+  );
 
   const isRec = state.recording === 'recording' || state.recording === 'paused';
   const interrupted = state.recording === 'interrupted';
@@ -95,7 +102,7 @@ export default function EpisodeScreen() {
 
   const start = useCallback(async () => {
     try {
-      setTab('record');
+      setTab('studio');
       await ws.startRecording();
     } catch (e) {
       showError(errorText(t, e));
@@ -120,11 +127,22 @@ export default function EpisodeScreen() {
     else askOpenSettings();
   }, [askOpenSettings, services.recorder, start]);
 
+  /** 録音を止める。途中に差し込んだときは、その位置を伝える。 */
+  const finish = useCallback(async () => {
+    const at = state.recAt;
+    const r = await ws.stopRecording();
+    if (!r || r.durationSmp === 0) return;
+    const duration = formatSmp(smp(r.durationSmp));
+    showToast({
+      text:
+        at === null ? t.record.takeAdded(duration) : t.record.takeInserted(duration, formatSmp(at)),
+    });
+  }, [showToast, state.recAt, t, ws]);
+
   const toggleRec = useCallback(async () => {
     try {
       if (isRec) {
-        const r = await ws.stopRecording();
-        if (r) showToast({ text: t.record.takeAdded(formatSmp(smp(r.durationSmp))) });
+        await finish();
         return;
       }
       if (interrupted) {
@@ -154,12 +172,12 @@ export default function EpisodeScreen() {
     }
   }, [
     askOpenSettings,
+    finish,
     interrupted,
     isRec,
     requestAndStart,
     services.recorder,
     showError,
-    showToast,
     start,
     t,
     ws,
@@ -167,46 +185,16 @@ export default function EpisodeScreen() {
 
   const finishFromInterruption = useCallback(async () => {
     try {
-      const r = await ws.stopRecording();
-      if (r) showToast({ text: t.record.takeAdded(formatSmp(smp(r.durationSmp))) });
+      await finish();
     } catch (e) {
       showError(errorText(t, e));
     }
-  }, [showError, showToast, t, ws]);
-
-  const applyRetake = useCallback(
-    (mode: 'chapter' | 'last10') => {
-      const dropped = ws.retake(mode);
-      if (dropped === null) {
-        showToast({ text: t.record.retakeNothing });
-        return;
-      }
-      undoToastFor.current = null;
-      showToast({
-        text: t.record.retakeDone(formatSmp(dropped, { tenths: true })),
-        action: t.common.undo,
-        onAction: () => void ws.undoRetake(),
-      });
-    },
-    [showToast, t, ws],
-  );
-
-  const openRetake = () => {
-    const shown = iosActionSheet({
-      title: t.record.retakeTitle,
-      message: t.record.retakeSubtitle,
-      cancelLabel: t.common.cancel,
-      options: [
-        { label: t.record.retakeFromChapter, onPress: () => applyRetake('chapter') },
-        { label: t.record.retakeLast10, onPress: () => applyRetake('last10') },
-      ],
-    });
-    if (!shown) setRetake(true);
-  };
+  }, [finish, showError, t]);
 
   const insertAsset = useCallback(
     async (a: AssetRow, at?: Smp) => {
-      if (isRec) {
+      // 割り込みで止まっている間も録音中のテイクに付ける（履歴には止めたときに積む）
+      if (isRec || interrupted) {
         await ws.insertAsset(a, 'recording');
         const mode = services.settings.monitor.jinglePlayback;
         const speaker = await services.recorder.isSpeakerOutput().catch(() => true);
@@ -226,11 +214,11 @@ export default function EpisodeScreen() {
       await ws.insertAsset(a, where);
       toast1(t.record.insertedAt(a.name, formatSmp(where)), () => void ws.undo());
     },
-    [isRec, services, showToast, state.playhead, t, toast1, ws],
+    [interrupted, isRec, services, showToast, state.playhead, t, toast1, ws],
   );
 
   const changeTab = (next: Tab) => {
-    if (live && next !== 'record') {
+    if (live && next !== 'studio') {
       showToast({ text: t.record.finishFirst });
       return;
     }
@@ -250,12 +238,10 @@ export default function EpisodeScreen() {
         : {
             bottomBar: (
               <Transport
-                tab={tab}
                 ws={ws}
                 recCtx={recCtx}
                 onToggleRec={() => void toggleRec()}
                 onFinishInterrupted={() => void finishFromInterruption()}
-                onRetake={openRetake}
               />
             ),
           })}
@@ -270,6 +256,23 @@ export default function EpisodeScreen() {
         label={t.episode.a11yMenu}
         title={episode.title || t.episode.untitled}
         disabled={live}
+        // 取り消しはどのタブからも使える。録音中は押せない（FR-EDIT-7、Issue #122）
+        buttons={[
+          {
+            key: 'undo',
+            icon: 'undo',
+            label: state.undoLabel ? t.edit.a11yUndo(state.undoLabel) : t.common.undo,
+            disabled: live || !state.canUndo,
+            onPress: () => void ws.undo().then((op) => op && toast1(t.undo.undid(op.label))),
+          },
+          {
+            key: 'redo',
+            icon: 'redo',
+            label: state.redoLabel ? t.edit.a11yRedo(state.redoLabel) : t.common.redo,
+            disabled: live || !state.canRedo,
+            onPress: () => void ws.redo().then((op) => op && toast1(t.undo.redid(op.label))),
+          },
+        ]}
         actions={[
           {
             key: 'backup',
@@ -316,24 +319,16 @@ export default function EpisodeScreen() {
           onChange={changeTab}
           disabled={() => live}
           options={[
-            { value: 'record', label: t.episode.tabs.record },
-            { value: 'edit', label: t.episode.tabs.edit },
+            { value: 'studio', label: t.episode.tabs.studio },
             { value: 'export', label: t.episode.tabs.export },
           ]}
         />
       </View>
 
-      {tab === 'record' ? (
-        <RecordTab
+      {tab === 'studio' ? (
+        <StudioTab
           ws={ws}
           recCtx={recCtx}
-          onInsertAsset={(a) => void insertAsset(a)}
-          onOpenAssets={() => router.push('/show')}
-          onShowToast={(text) => showToast({ text })}
-        />
-      ) : tab === 'edit' ? (
-        <EditTab
-          ws={ws}
           onInsertAsset={(a, at) => void insertAsset(a, at)}
           onOpenAssets={() => router.push('/show')}
           onShowToast={toast1}
@@ -344,37 +339,12 @@ export default function EpisodeScreen() {
         <ExportTab
           ws={ws}
           onShowToast={toast1}
-          onGoEdit={() => setTab('edit')}
+          onGoEdit={() => setTab('studio')}
           onDone={(exportId) =>
             router.push(`/episode/${episodeId}/share?exportId=${exportId}` as never)
           }
         />
       )}
-
-      <Sheet
-        visible={retake}
-        onClose={() => setRetake(false)}
-        title={t.record.retakeTitle}
-        subtitle={t.record.retakeSubtitle}
-      >
-        <Row
-          label={t.record.retakeFromChapter}
-          sub={t.record.retakeFromChapterSub}
-          onPress={() => {
-            setRetake(false);
-            applyRetake('chapter');
-          }}
-        />
-        <Row
-          label={t.record.retakeLast10}
-          sub={t.record.retakeLast10Sub}
-          last
-          onPress={() => {
-            setRetake(false);
-            applyRetake('last10');
-          }}
-        />
-      </Sheet>
     </Screen>
   );
 }

@@ -16,7 +16,7 @@ import { formatSmp, smp, type Smp } from '@/domain/time';
 import type { PlacedOverlay } from '@/domain/timeline/overlays';
 import type { Range, VoiceSegment } from '@/domain/timeline/types';
 import { snapToBoundary } from '@/domain/timeline/blocks';
-import { placeVoice } from '@/domain/timeline/voice';
+import { insertAt, placeVoice } from '@/domain/timeline/voice';
 import { useT } from '@/i18n';
 import type { RecordingEvent } from '@/infra/db/repositories/recordingEventsRepo';
 import { Icon, Text } from '@/ui/components';
@@ -55,6 +55,8 @@ export interface WaveformProps {
   pps: number;
   recording: boolean;
   recFrames: number;
+  /** 録音を差し込んでいる位置。省略時は末尾（Issue #122）。 */
+  recordAt?: Smp | null;
   onSeek: (to: Smp) => void;
   onSelectOverlay: (id: string | null) => void;
   onChapterPress: (item: OutlineItem) => void;
@@ -80,6 +82,8 @@ const EMPTY_BLOCKS: readonly Range[] = [];
 const FULL_HEIGHT = 96;
 const COMPACT_HEIGHT = 44;
 const OVERLAY_H = 22;
+/** 差し込み録音中の仮の区間。ピークが無いので棒は描かれず、録音の帯だけが見える。 */
+const LIVE_SEGMENT_ID = '__live__';
 
 /**
  * 声トラック + 素材レイヤーの波形タイムライン（FR-EDIT-8）。
@@ -95,6 +99,29 @@ export const Waveform = memo(function Waveform(p: WaveformProps) {
   const [scrollX, setScrollX] = useState(0);
   const scrollRef = useRef<ScrollView>(null);
   const totalSec = (p.total + (p.recording ? p.recFrames : 0)) / SAMPLE_RATE;
+  const recFrom = p.recordAt ?? p.total;
+  // 途中に差し込んで録っている間は、差し込み位置より後ろを録った長さだけ右へずらして描く。
+  // 上書きではなく差し込みだと見て分かるように（Issue #122）。帯の区間は波形の無い仮の区間。
+  const liveShift = p.recording && p.recordAt != null ? p.recFrames : 0;
+  const shiftAt = useCallback(
+    (s: number) => (liveShift > 0 && s >= recFrom ? s + liveShift : s),
+    [liveShift, recFrom],
+  );
+  const voice = useMemo(
+    () =>
+      liveShift > 0
+        ? insertAt(p.voice, smp(recFrom), {
+            id: LIVE_SEGMENT_ID,
+            takeId: LIVE_SEGMENT_ID,
+            srcStart: smp(0),
+            srcEnd: smp(liveShift),
+            gainDb: 0,
+            fadeIn: smp(0),
+            fadeOut: smp(0),
+          })
+        : p.voice,
+    [liveShift, p.voice, recFrom],
+  );
   const contentW = Math.max(viewW, totalSec * p.pps + viewW);
   const onLayout = useCallback((e: LayoutChangeEvent) => setViewW(e.nativeEvent.layout.width), []);
   const onScroll = useCallback(
@@ -110,11 +137,14 @@ export const Waveform = memo(function Waveform(p: WaveformProps) {
     const n = Math.ceil((to - from) / COL_W);
     const fromSmp = Math.floor((from / p.pps) * SAMPLE_RATE);
     const toSmp = Math.floor((to / p.pps) * SAMPLE_RATE);
-    return { x: from, n, data: sampleVoiceColumns(p.voice, p.peaksByTake, fromSmp, toSmp, n) };
-  }, [from, to, viewW, p.pps, p.voice, p.peaksByTake]);
+    return { x: from, n, data: sampleVoiceColumns(voice, p.peaksByTake, fromSmp, toSmp, n) };
+  }, [from, to, viewW, p.pps, voice, p.peaksByTake]);
 
   const xOf = (s: number) => (s / SAMPLE_RATE) * p.pps;
-  const placed = useMemo(() => placeVoice(p.voice), [p.voice]);
+  const placed = useMemo(
+    () => placeVoice(voice).filter((x) => x.segment.id !== LIVE_SEGMENT_ID),
+    [voice],
+  );
 
   const seekAt = (x: number) => {
     if (!Number.isFinite(x)) return;
@@ -261,7 +291,7 @@ export const Waveform = memo(function Waveform(p: WaveformProps) {
                 style={[
                   styles.recLive,
                   {
-                    left: xOf(p.total),
+                    left: xOf(recFrom),
                     width: Math.max(4, xOf(p.recFrames)),
                     backgroundColor: c.recordingOverlay,
                     borderColor: c.recSolid,
@@ -273,7 +303,10 @@ export const Waveform = memo(function Waveform(p: WaveformProps) {
             {p.blocks?.map((b) => (
               <View
                 key={`${b.start}-${b.end}`}
-                style={[styles.blockEdge, { left: xOf(b.start), borderColor: c.borderStrong }]}
+                style={[
+                  styles.blockEdge,
+                  { left: xOf(shiftAt(b.start)), borderColor: c.borderStrong },
+                ]}
               />
             ))}
             {p.selection ? (
@@ -319,8 +352,8 @@ export const Waveform = memo(function Waveform(p: WaveformProps) {
                   style={[
                     styles.overlayClip,
                     {
-                      left: xOf(o.range.start),
-                      width: Math.max(6, xOf(o.range.end) - xOf(o.range.start)),
+                      left: xOf(shiftAt(o.range.start)),
+                      width: Math.max(6, xOf(shiftAt(o.range.end)) - xOf(shiftAt(o.range.start))),
                       backgroundColor: music ? c.musicFill : c.insertFill,
                       borderColor: selected ? mark : music ? c.musicBorder : c.insertBorder,
                       borderWidth: selected ? stroke.selected : stroke.hairline,
@@ -346,7 +379,7 @@ export const Waveform = memo(function Waveform(p: WaveformProps) {
               accessibilityRole="button"
               accessibilityLabel={t.edit.a11yChapter(item.heading)}
               accessibilityHint={t.edit.a11yChapterHint}
-              style={[styles.chapter, { left: xOf(at), top: laneTop }]}
+              style={[styles.chapter, { left: xOf(shiftAt(at)), top: laneTop }]}
             >
               <View style={[styles.chapterTick, { backgroundColor: c.textSecondary }]} />
               <Text
@@ -364,7 +397,7 @@ export const Waveform = memo(function Waveform(p: WaveformProps) {
               accessibilityLabel={
                 event.kind === 'interruption' ? t.edit.a11yInterruption : t.edit.a11yRouteChange
               }
-              style={[styles.event, { left: xOf(at) - icon.sm / 2, top: laneTop }]}
+              style={[styles.event, { left: xOf(shiftAt(at)) - icon.sm / 2, top: laneTop }]}
             >
               <Icon
                 name={event.kind === 'interruption' ? 'pause' : 'warning'}
@@ -378,7 +411,7 @@ export const Waveform = memo(function Waveform(p: WaveformProps) {
             style={[
               styles.playhead,
               {
-                left: xOf(p.recording ? p.total + p.recFrames : p.playhead),
+                left: xOf(p.recording ? recFrom + p.recFrames : p.playhead),
                 backgroundColor: p.recording ? c.recSolid : mark,
               },
             ]}

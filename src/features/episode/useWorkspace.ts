@@ -9,8 +9,6 @@ import type { OverlayClip, Range } from '@/domain/timeline/types';
 import {
   deleteRange,
   deleteRanges,
-  moveSegment,
-  placeVoice,
   resolveSource,
   resolveTimeline,
   totalDuration,
@@ -33,9 +31,6 @@ import type { LevelEvent } from '../../../modules/podsnow-recorder/src/PodsnowRe
 import { useServices } from '../app/ServicesProvider';
 import { LEVEL_STEP_SMP, readPeaksFile, timelineLevels, type TakePeaks } from './peaks';
 
-/** 「言い直す」の既定の範囲（10 秒）。 */
-const RETAKE_WINDOW = 10 * 48000;
-
 export interface WorkspaceState {
   episode: EpisodeRow | null;
   doc: EditableDoc;
@@ -49,6 +44,8 @@ export interface WorkspaceState {
   playing: boolean;
   recording: SessionState;
   recFrames: number;
+  /** 録音を差し込んでいる位置（null = 末尾に足している）。 */
+  recAt: Smp | null;
   level: LevelEvent | null;
   selection: Range | null;
   selectedOverlay: string | null;
@@ -63,7 +60,7 @@ export interface WorkspaceState {
 }
 
 /**
- * エピソード画面（録音 / 編集 / 書き出しの 3 タブ）が共有する状態と操作。
+ * エピソード画面（収録 / 書き出しの 2 タブ）が共有する状態と操作。
  * EditingService / RecordingSession / PlaybackService / OutlineService を結線する。
  * 画面はこのフックだけを使う（ARCHITECTURE.md §2 / §12）。
  */
@@ -86,6 +83,7 @@ export function useWorkspace(episodeId: string) {
     playing: false,
     recording: recording.current,
     recFrames: 0,
+    recAt: null,
     level: null,
     selection: null,
     selectedOverlay: null,
@@ -159,27 +157,38 @@ export function useWorkspace(episodeId: string) {
     patch({ outline, events });
   }, [db, episodeId, patch, services.outline]);
 
-  const reloadAll = useCallback(async () => {
-    // RecordingSession は DB に直接書くので、毎回 DB から開き直す（メモリ上の doc を信用しない）
-    const e = await services.openEditing(episodeId);
-    editingRef.current = e;
-    const [episode, takes, assets] = await Promise.all([
-      getEpisode(db, episodeId),
-      listTakes(db, episodeId),
-      services.assets.list(services.show.id),
-    ]);
-    const assetDurations = new Map(assets.map((a) => [a.id, a.duration_smp as Smp]));
-    syncFromEditing(e, {
-      episode,
-      takes,
-      assets,
-      assetDurations,
-      ready: true,
-      playhead: smp(episode?.playhead_smp ?? 0),
-    });
-    await Promise.all([loadPeaks(takes), loadOutline()]);
-    await playback.reload(episodeId).catch(() => {});
-  }, [db, episodeId, loadPeaks, loadOutline, playback, services, syncFromEditing]);
+  const reloadAll = useCallback(
+    async (opts: { open?: boolean; refocus?: boolean } = {}) => {
+      // RecordingSession は DB に直接書くので、毎回 DB から読み直す（メモリ上の doc を信用しない）。
+      // 画面を開いたときだけ取り消しの履歴を空にする（Issue #122）。
+      const e = opts.open
+        ? await services.openEditing(episodeId)
+        : await services.resumeEditing(episodeId);
+      editingRef.current = e;
+      const [episode, takes, assets] = await Promise.all([
+        getEpisode(db, episodeId),
+        listTakes(db, episodeId),
+        services.assets.list(services.show.id),
+      ]);
+      const assetDurations = new Map(assets.map((a) => [a.id, a.duration_smp as Smp]));
+      syncFromEditing(e, {
+        episode,
+        takes,
+        assets,
+        assetDurations,
+        ready: true,
+        playhead: smp(episode?.playhead_smp ?? 0),
+      });
+      await Promise.all([loadPeaks(takes), loadOutline()]);
+      await playback.reload(episodeId).catch(() => {});
+      // 開いたとき・戻ってきたときは、再生エンジンの位置をこの回の保存位置に合わせる
+      // （エンジンは 1 つなので、直前に開いていた別の回の位置が残っている）
+      if ((opts.open || opts.refocus) && episode) {
+        await playback.seek(smp(episode.playhead_smp ?? 0)).catch(() => {});
+      }
+    },
+    [db, episodeId, loadPeaks, loadOutline, playback, services, syncFromEditing],
+  );
 
   useEffect(() => {
     let alive = true;
@@ -189,7 +198,7 @@ export function useWorkspace(episodeId: string) {
     //   react-hooks/set-state-in-effect は await の先まで追えないため直接呼びは弾かれる）
     void Promise.resolve().then(() => {
       if (!alive) return;
-      return reloadAll();
+      return reloadAll({ open: true });
     });
     return () => {
       alive = false;
@@ -197,23 +206,64 @@ export function useWorkspace(episodeId: string) {
     };
   }, [episodeId, playback, reloadAll, services.episodes]);
 
+  /**
+   * 画面に戻ってきたとき（上に積んだ別の回の画面を閉じたとき）。再生エンジンが別の回を
+   * 読み込んでいたら、この回を読み込み直す。取り消しの履歴は残す。
+   */
+  const refocus = useCallback(async () => {
+    if (!editingRef.current) return;
+    if (playback.loadedEpisodeId === episodeId) return;
+    patch({ playing: false });
+    await reloadAll({ refocus: true });
+  }, [episodeId, patch, playback, reloadAll]);
+
+  // 画面を抜けたら取り消しの履歴を捨てる。編集そのものは保存済み（Issue #122）。
+  useEffect(
+    () => () => void services.discardEditHistory(episodeId).catch(() => {}),
+    [episodeId, services],
+  );
+
+  /** 再生位置を置く（保存もする）。範囲の確認は呼び出し側で済ませる。 */
+  const placePlayhead = useCallback(
+    async (to: Smp) => {
+      patch({ playhead: to });
+      await playback.seek(to).catch(() => {});
+      void services.episodes.update(episodeId, { playheadSmp: to });
+    },
+    [episodeId, patch, playback, services.episodes],
+  );
+
   // ---- 録音・再生イベント ----
   useEffect(() => {
     const subs = [
       recording.on('state', (s) => patch({ recording: s })),
       recording.on('level', (l) => patch({ level: l, recFrames: l.frames })),
-      recording.on('takeFinalized', () => void reloadAll()),
-      playback.on('state', (e) => patch({ playing: e.playing, playhead: smp(e.frame) })),
-      playback.on('position', (e) => patch({ playhead: smp(e.frame) })),
+      // 止めたら、今録った部分の直後に再生位置を置く。続けて押せば続きから録れる。
+      // 別のエピソードの画面が下に積まれていても、自分の回の録音だけを受ける。
+      recording.on('takeFinalized', (e) => {
+        if (e.episodeId !== episodeId) return;
+        void reloadAll().then(() => placePlayhead(e.endSmp));
+      }),
+      // 再生エンジンは 1 つ。下に積まれた別の回の画面は、その回を読み込んでいる間だけ受ける
+      playback.on('state', (e) => {
+        if (playback.loadedEpisodeId !== episodeId) return;
+        patch({ playing: e.playing, playhead: smp(e.frame) });
+      }),
+      playback.on('position', (e) => {
+        if (playback.loadedEpisodeId !== episodeId) return;
+        patch({ playhead: smp(e.frame) });
+      }),
     ];
     return () => subs.forEach((s) => s.remove());
-  }, [patch, playback, recording, reloadAll]);
+  }, [episodeId, patch, placePlayhead, playback, recording, reloadAll]);
 
   // ---- 編集の共通ルート ----
+  // 録音中（割り込みで止まっている間も含む）は履歴に積まない。録音中の変更は
+  // 止めたときに録音の追加と 1 つの操作にまとまる（Issue #122）。
   const apply = useCallback(
     async (label: string, mutate: (d: EditableDoc) => EditableDoc, groupKey?: string) => {
       const e = editingRef.current;
-      if (!e) return;
+      if (!e || !recording.isIdle) return;
       const before = e.current;
       const op = await e.apply(label, mutate, { groupKey: groupKey ?? null });
       if (!op) return;
@@ -229,26 +279,27 @@ export function useWorkspace(episodeId: string) {
       await playback.reload(episodeId).catch(() => {});
       void services.episodes.refreshStatus(episodeId);
     },
-    [episodeId, playback, services.episodes, syncFromEditing, t],
+    [episodeId, playback, recording, services.episodes, syncFromEditing, t],
   );
 
+  // 録音中（準備・停止処理を含む）は取り消せない。トーストの「取り消す」もここを通る。
   const undo = useCallback(async () => {
     const e = editingRef.current;
-    if (!e) return null;
+    if (!e || !recording.isIdle) return null;
     const op = await e.undo();
     syncFromEditing(e);
     await playback.reload(episodeId).catch(() => {});
     return op;
-  }, [episodeId, playback, syncFromEditing]);
+  }, [episodeId, playback, recording, syncFromEditing]);
 
   const redo = useCallback(async () => {
     const e = editingRef.current;
-    if (!e) return null;
+    if (!e || !recording.isIdle) return null;
     const op = await e.redo();
     syncFromEditing(e);
     await playback.reload(episodeId).catch(() => {});
     return op;
-  }, [episodeId, playback, syncFromEditing]);
+  }, [episodeId, playback, recording, syncFromEditing]);
 
   // ---- 再生 ----
   const seek = useCallback(
@@ -263,30 +314,17 @@ export function useWorkspace(episodeId: string) {
   const togglePlay = useCallback(() => playback.toggle(), [playback]);
 
   // ---- 録音 ----
-  const startRecording = useCallback(
-    async (opts: { punchIn?: Range | null } = {}) => {
-      await playback.pause();
-      const perm = await services.recorder
-        .getInputs()
-        .then(() => true)
-        .catch(() => true);
-      void perm;
-      if (opts.punchIn) {
-        // 範囲を除去してから、その位置に録る
-        await apply(t.undo.punchInPrepare, (d) => ({
-          ...d,
-          voice: deleteRange(d.voice, opts.punchIn!.start, opts.punchIn!.end),
-        }));
-        patch({ selection: null });
-        await recording.start(episodeId, { insertAtSmp: opts.punchIn.start });
-        haptics.play('impact');
-        return;
-      }
-      await recording.start(episodeId, { insertAtSmp: null });
-      haptics.play('impact');
-    },
-    [apply, episodeId, haptics, patch, playback, recording, services.recorder, t],
-  );
+  /**
+   * 再生位置から録る。途中なら挿入し、後ろの声はずれる。末尾なら足す（FR-REC-1）。
+   * 声を置き換えたいときは、先に塊を選んで削除し、空いた位置から録る。
+   */
+  const startRecording = useCallback(async () => {
+    await playback.pause();
+    const at = state.playhead < state.total ? state.playhead : null;
+    await recording.start(episodeId, { insertAtSmp: at });
+    patch({ selection: null, selectedOverlay: null, recAt: at, recFrames: 0 });
+    haptics.play('impact');
+  }, [episodeId, haptics, patch, playback, recording, state.playhead, state.total]);
   const stopRecording = useCallback(async () => {
     const r = await recording.stop();
     haptics.play('impact');
@@ -304,33 +342,6 @@ export function useWorkspace(episodeId: string) {
     () => recording.resumeAfterInterruption(),
     [recording],
   );
-
-  /**
-   * 言い直す（FR-REC-4）。録音を止めずに直近を捨てる。
-   * `chapter` はいま話している項目の頭から、`last10` は直近 10 秒。
-   * 戻り値は捨てた長さ。捨てるものが無ければ null。
-   */
-  const retake = useCallback(
-    (mode: 'chapter' | 'last10'): Smp | null => {
-      const pos = recording.currentSourcePosition();
-      if (!pos) return null;
-      let from = smp(Math.max(0, pos.srcSmp - RETAKE_WINDOW));
-      if (mode === 'chapter') {
-        const i = currentIndex(state.outline);
-        const item = i === null ? null : state.outline[i];
-        from =
-          item && item.recordedTakeId === pos.takeId && item.recordedSrcSmp !== null
-            ? item.recordedSrcSmp
-            : ZERO_SMP;
-      }
-      const dropped = recording.retake(from);
-      if (dropped !== null) haptics.play('warning');
-      return dropped;
-    },
-    [haptics, recording, state.outline],
-  );
-
-  const undoRetake = useCallback(() => recording.undoRetake(), [recording]);
 
   /**
    * 無音で区切られた声の塊（FR-EDIT-2）。編集の選択単位。
@@ -465,23 +476,7 @@ export function useWorkspace(episodeId: string) {
     [apply, t],
   );
 
-  // ---- テイク ----
-  const moveTake = useCallback(
-    (fromIndex: number, toIndex: number) =>
-      apply(t.undo.reorderTakes, (d) => ({
-        ...d,
-        voice: moveSegment(d.voice, fromIndex, toIndex),
-      })),
-    [apply, t],
-  );
-  const removeVoiceSegment = useCallback(
-    (index: number) =>
-      apply(t.undo.removeFromTimeline, (d) => {
-        const p = placeVoice(d.voice)[index];
-        return p ? { ...d, voice: deleteRange(d.voice, p.start, p.end) } : d;
-      }),
-    [apply, t],
-  );
+  // ---- 声 ----
   const setVoiceGain = useCallback(
     (index: number, gainDb: number) =>
       apply(
@@ -619,8 +614,6 @@ export function useWorkspace(episodeId: string) {
     pauseRecording,
     resumeRecording,
     resumeAfterInterruption,
-    retake,
-    undoRetake,
     setSelectionStart,
     setSelectionEnd,
     selectBlockAt,
@@ -629,8 +622,6 @@ export function useWorkspace(episodeId: string) {
     deleteSelection,
     planSilence,
     applySilencePlan,
-    moveTake,
-    removeVoiceSegment,
     setVoiceGain,
     insertAsset,
     updateOverlay,
@@ -643,6 +634,7 @@ export function useWorkspace(episodeId: string) {
     outlineCurrent,
     outlineNext,
     reloadAll,
+    refocus,
   };
 }
 

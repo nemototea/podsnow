@@ -53,28 +53,55 @@ export async function persistCommit(
   docAfter: EditableDoc,
   now: number,
 ): Promise<void> {
+  if (!result.op) return;
+  await db.transaction(() => writeCommit(db, episodeId, result, docAfter, now));
+}
+
+/**
+ * commit の結果を書く。トランザクションは張らないので、呼び出し側のトランザクションの中で使う
+ * （録音の確定と同じトランザクションで履歴に積むため。Issue #122）。
+ */
+export async function writeCommit(
+  db: SqlExecutor,
+  episodeId: string,
+  result: CommitResult,
+  docAfter: EditableDoc,
+  now: number,
+): Promise<void> {
   const { history, op, replacedSeq, droppedSeqs } = result;
   if (!op) return;
+  for (const seq of droppedSeqs) {
+    await db.run('DELETE FROM edit_ops WHERE episode_id = ? AND seq = ?', [episodeId, seq]);
+  }
+  if (replacedSeq !== null) {
+    await db.run(
+      'UPDATE edit_ops SET label = ?, op = ?, created_at = ? WHERE episode_id = ? AND seq = ?',
+      [op.label, serialize(op), op.createdAt, episodeId, replacedSeq],
+    );
+  } else {
+    await db.run(
+      'INSERT INTO edit_ops (id, episode_id, seq, label, op, group_key, created_at) VALUES (?,?,?,?,?,?,?)',
+      [op.id, episodeId, op.seq, op.label, serialize(op), op.groupKey, op.createdAt],
+    );
+  }
+  // 上限で切り詰められた古い op を消す
+  const minSeq = history.ops[0]?.seq ?? 0;
+  await db.run('DELETE FROM edit_ops WHERE episode_id = ? AND seq < ?', [episodeId, minSeq]);
+  await setCursor(db, episodeId, history, now);
+  await saveDoc(db, episodeId, docAfter, now);
+}
+
+/**
+ * 履歴を空にする。取り消しはエピソード画面を開いている間だけ効く（FR-EDIT-7、Issue #122）。
+ * doc（声の並び・素材）には触れない。
+ */
+export async function clearHistory(db: SqlExecutor, episodeId: string, now: number): Promise<void> {
   await db.transaction(async () => {
-    for (const seq of droppedSeqs) {
-      await db.run('DELETE FROM edit_ops WHERE episode_id = ? AND seq = ?', [episodeId, seq]);
-    }
-    if (replacedSeq !== null) {
-      await db.run(
-        'UPDATE edit_ops SET label = ?, op = ?, created_at = ? WHERE episode_id = ? AND seq = ?',
-        [op.label, serialize(op), op.createdAt, episodeId, replacedSeq],
-      );
-    } else {
-      await db.run(
-        'INSERT INTO edit_ops (id, episode_id, seq, label, op, group_key, created_at) VALUES (?,?,?,?,?,?,?)',
-        [op.id, episodeId, op.seq, op.label, serialize(op), op.groupKey, op.createdAt],
-      );
-    }
-    // 上限で切り詰められた古い op を消す
-    const minSeq = history.ops[0]?.seq ?? 0;
-    await db.run('DELETE FROM edit_ops WHERE episode_id = ? AND seq < ?', [episodeId, minSeq]);
-    await setCursor(db, episodeId, history, now);
-    await saveDoc(db, episodeId, docAfter, now);
+    await db.run('DELETE FROM edit_ops WHERE episode_id = ?', [episodeId]);
+    await db.run('UPDATE episodes SET undo_cursor = 0, updated_at = ? WHERE id = ?', [
+      now,
+      episodeId,
+    ]);
   });
 }
 

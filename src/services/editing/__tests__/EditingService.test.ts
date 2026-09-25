@@ -2,7 +2,7 @@ import { smp, ZERO_SMP } from '@/domain/time';
 import { appendTake, deleteRange } from '@/domain/timeline/voice';
 import { createNodeSqliteExecutor } from '@/infra/db/__tests__/nodeSqliteExecutor';
 import { migrate } from '@/infra/db/migrate';
-import { loadDoc } from '@/infra/db/repositories/editableDocRepo';
+import { loadDoc, saveDoc } from '@/infra/db/repositories/editableDocRepo';
 
 import { EditingService } from '../EditingService';
 
@@ -32,7 +32,7 @@ async function setup() {
 }
 
 describe('EditingService', () => {
-  it('persists every edit and restores doc + history after reopening', async () => {
+  it('persists every edit and restores doc + history on resume', async () => {
     const { db, deps } = await setup();
     let svc = await EditingService.open(deps, 'e');
     expect(svc.current.voice).toEqual([]);
@@ -73,8 +73,8 @@ describe('EditingService', () => {
     }));
     expect(svc.undoLabel).toBe('ジングルを挿入');
 
-    // 再オープンしても同じ状態
-    svc = await EditingService.open(deps, 'e');
+    // 読み直しても同じ状態
+    svc = await EditingService.resume(deps, 'e');
     expect(svc.current.voice.map((s) => [s.srcStart, s.srcEnd])).toEqual([
       [0, 100],
       [200, 1000],
@@ -89,7 +89,7 @@ describe('EditingService', () => {
     expect((await svc.undo())?.label).toBe('音量を変える');
     expect(svc.current.overlays).toEqual([]);
     expect(svc.current.voice[0]!.gainDb).toBe(0);
-    svc = await EditingService.open(deps, 'e');
+    svc = await EditingService.resume(deps, 'e');
     expect(svc.redoLabel).toBe('音量を変える');
     expect((await svc.redo())?.label).toBe('音量を変える');
     expect((await loadDoc(db, 'e')).voice[0]!.gainDb).toBe(-3);
@@ -157,5 +157,60 @@ describe('EditingService', () => {
     expect(svc.undoTopId).toBe(cut!.id);
     await svc.undo();
     expect(svc.undoTopId).toBeNull();
+  });
+
+  it('画面を開くと・閉じると、取り消しの履歴だけを捨てる（Issue #122）', async () => {
+    const { db, deps } = await setup();
+    let svc = await EditingService.open(deps, 'e');
+    await svc.writeWithoutHistory((d) => ({
+      ...d,
+      voice: appendTake(d.voice, { id: 'v1', takeId: 'T1', durationSmp: smp(1000) }),
+    }));
+    await svc.apply('範囲を削除', (d) => ({
+      ...d,
+      voice: deleteRange(d.voice, smp(100), smp(200)),
+    }));
+    await svc.apply('音量', (d) => ({ ...d, voice: d.voice.map((v) => ({ ...v, gainDb: -3 })) }));
+    await svc.undo();
+    const doc = await loadDoc(db, 'e');
+
+    svc = await EditingService.open(deps, 'e');
+    expect(svc.canUndo).toBe(false);
+    expect(svc.canRedo).toBe(false);
+    expect(svc.current).toEqual(doc);
+    expect(await db.all('SELECT seq FROM edit_ops WHERE episode_id = ?', ['e'])).toEqual([]);
+
+    await svc.apply('音量', (d) => ({ ...d, voice: d.voice.map((v) => ({ ...v, gainDb: -6 })) }));
+    await EditingService.discardHistory(deps, 'e');
+    svc = await EditingService.resume(deps, 'e');
+    expect(svc.canUndo).toBe(false);
+    expect(svc.current.voice.every((v) => v.gainDb === -6)).toBe(true);
+    const cur = await db.get<{ undo_cursor: number }>(
+      'SELECT undo_cursor FROM episodes WHERE id = ?',
+      ['e'],
+    );
+    expect(cur?.undo_cursor).toBe(0);
+  });
+
+  it('修正前のデータ: 履歴の外で足されたテイクは、開き直せば古い履歴で外れない（Issue #122）', async () => {
+    const { db, deps } = await setup();
+    const now = 1;
+    let svc = await EditingService.open(deps, 'e');
+    await svc.writeWithoutHistory((d) => ({
+      ...d,
+      voice: appendTake(d.voice, { id: 'v1', takeId: 'T1', durationSmp: smp(1000) }),
+    }));
+    await svc.apply('音量', (d) => ({ ...d, voice: d.voice.map((v) => ({ ...v, gainDb: -3 })) }));
+    // 旧実装の RecordingSession と同じく、履歴の外で 2 本目を足す
+    const d = await loadDoc(db, 'e');
+    await saveDoc(
+      db,
+      'e',
+      { ...d, voice: appendTake(d.voice, { id: 'v2', takeId: 'T2', durationSmp: smp(1000) }) },
+      now,
+    );
+    svc = await EditingService.open(deps, 'e');
+    expect(await svc.undo()).toBeNull();
+    expect(svc.current.voice.map((v) => v.takeId)).toEqual(['T1', 'T2']);
   });
 });
