@@ -27,7 +27,7 @@ export interface ShowRow extends SqlRow {
   owner_email: string;
   /** 0 / 1 */
   complete: number;
-  /** `podcast:locked`（0 / 1）。自前配信の RSS に yes で出し、他のホスティングへの無断の取り込みを断る */
+  /** `podcast:locked`（0 / 1）。PodsNow が配信する RSS に yes で出し、他のホスティングへの無断の取り込みを断る */
   locked: number;
   feed_url: string | null;
   podcast_guid: string | null;

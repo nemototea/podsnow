@@ -50,7 +50,7 @@ shows 1──* episodes 1──* takes 1──* take_segments
   │            └──* transcripts (将来) ──▶ takes
   ├──* assets
   ├──* show_categories / show_funding / show_external_ids (RSS の番組情報)
-  ├──* feed_episodes (配信済みの回: 取り込み + 自前配信) ··▶ episodes
+  ├──* feed_episodes (配信済みの回: 取り込み + PodsNow から配信) ··▶ episodes
   ├──1 description_templates
   ├──* show_topic_template (トークテーマのひな形)
   └──1 show_layout (既定構成)
@@ -79,7 +79,7 @@ recovery_journal
 | copyright | TEXT NOT NULL DEFAULT '' | `copyright` |
 | owner_name / owner_email | TEXT NOT NULL DEFAULT '' | `itunes:owner` の `itunes:name` / `itunes:email` |
 | complete | INTEGER NOT NULL DEFAULT 0 | `itunes:complete`（yes = 1） |
-| locked | INTEGER NOT NULL DEFAULT 0 | `podcast:locked`（yes = 1）。自前配信の RSS では yes にして、他のホスティングによる無断の取り込みを断る（REQUIREMENTS.md FR-PUB-3） |
+| locked | INTEGER NOT NULL DEFAULT 0 | `podcast:locked`（yes = 1）。PodsNow が配信する RSS では yes にして、他のホスティングによる無断の取り込みを断る（REQUIREMENTS.md FR-PUB-3） |
 | feed_url | TEXT nullable | RSS の URL（`atom:link rel="self"`、無ければ取得に使った URL）。自分で始めた番組は NULL |
 | podcast_guid | TEXT nullable | `podcast:guid`（UUIDv5） |
 | cover_source_url | TEXT nullable | `itunes:image@href`。取得元の記録で、表示と書き出しは `cover_path` を使う |
@@ -95,7 +95,7 @@ MVP は起動時に 1 行自動作成。【事実】
 
 `podcast:person`、`podcast:txt`、`itunes:block` は今は持たない。必要になったら列を足す（`podcast:txt` は所有権の確認 FR-PUB-6 で使う可能性がある）。【事実】
 
-配信サーバーの URL とトークンは、配信を実装するときに足す。トークンは SQLite に置かない（REQUIREMENTS.md NFR-11）。
+配信基盤（Issue #107）の番組 ID などは、配信を実装するときに足す。トークンは SQLite に置かない（REQUIREMENTS.md NFR-11）。
 
 ### 4.1.1 `show_categories`（`itunes:category`）
 | 列 | 型 | 説明 |
@@ -204,7 +204,7 @@ MVP は起動時に 1 行自動作成。【事実】
 | undo_cursor | INTEGER | `edit_ops.seq` の現在位置（0 = 履歴なし）。§4.12 |
 | sound_settings | TEXT | JSON: `{ loudness: { enabled, targetLufs: -16, truePeakDbtp: -1 }, ducking: { enabled, depthDb, attackMs, releaseMs } }` |
 | audio_purged_at | INTEGER nullable | 「音声を削除」（FR-EP-4）を実行した時刻。録音だけ消し、行・話数・メタデータ・書き出し履歴は残す。一覧では「音声なし」として表示する |
-| guid | TEXT | RSS の `guid`。作成時の `id` を入れ、以後変えない（PSP-1: 一意で、決して変えない）。自前サーバーはこの値を RSS に出す（REQUIREMENTS.md FR-PUB-3）。0004 で既存行にも `id` を入れた。索引 `(show_id, guid)` |
+| guid | TEXT | RSS の `guid`。作成時の `id` を入れ、以後変えない（PSP-1: 一意で、決して変えない）。配信基盤はこの値を RSS に出す（REQUIREMENTS.md FR-PUB-3。#107 §7）。0004 で既存行にも `id` を入れた。索引 `(show_id, guid)` |
 | episode_type | TEXT NOT NULL DEFAULT 'full' | `itunes:episodeType`。`full` / `trailer` / `bonus` |
 | explicit | INTEGER nullable | `itunes:explicit`（0 / 1）。NULL は番組の `explicit` に従う |
 | website_url | TEXT NOT NULL DEFAULT '' | `link` |
@@ -403,7 +403,7 @@ Take の「時間軸」は Segment を `seq` 順に連結したもの。割り�
 | created_at / updated_at | INTEGER | |
 
 配信済みの回の端末側の写し。入る経路は 2 つ: 既存の配信サービスの RSS から取り込んだ回（Issue #101）と、
-自前サーバーから配信した回（REQUIREMENTS.md FR-PUB-5）。正本はサーバー（乗り換え前は旧配信元の RSS）。
+PodsNow の配信基盤から配信した回（REQUIREMENTS.md FR-PUB-5）。正本は配信基盤（乗り換え前は旧配信元の RSS）。
 
 `episodes` とは分ける。`episodes` は「PodsNow で作っている回（録音と編集の作業場所）」で、
 配信済みの回を入れると音声の無い行がホームの一覧と「続き」に混ざる。【事実】
@@ -412,7 +412,7 @@ Take の「時間軸」は Segment を `seq` 順に連結したもの。割り�
 - フィードから消えた行は消さない。最新 N 件しか RSS に載せないホスティングがあるため。
 - 音声（`enclosure`）はダウンロードしない。
 - 話数の採番（§4.1）は `episodes` と `feed_episodes` の両方から導出する。配信済みの番号は二度と使わない（REQUIREMENTS.md §2.1.1）。
-- 乗り換え時は、ここにある過去の回を `guid` を変えずに自前サーバーの RSS へ載せる（REQUIREMENTS.md FR-PUB-4）。
+- 乗り換え時は、ここにある過去の回を `guid` を変えずに PodsNow の配信基盤の RSS へ載せる（REQUIREMENTS.md FR-PUB-4）。
 
 ### 4.16 `app_settings`
 `expo-sqlite/kv-store`（【確認済み】AsyncStorage 互換の KV）を使う案と、専用テーブル `app_settings(key TEXT PK, value TEXT)` の案がある。型安全性のため専用テーブル + Zod スキーマ【仮説】。
