@@ -70,8 +70,6 @@ export const ja = {
     decrease: (label: string) => `${label} を下げる`,
     increase: (label: string) => `${label} を上げる`,
     dismiss: '通知を閉じる',
-    back5: '5秒戻る',
-    forward5: '5秒進む',
   },
 
   /** エピソードの状態（FR-EP-3）。 */

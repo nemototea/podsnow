@@ -45,8 +45,6 @@ export const SYMBOLS: Record<IconName, SFSymbol> = {
   starFilled: 'star.fill',
   archive: 'archivebox',
   edit: 'pencil',
-  rewind: 'gobackward.5',
-  forward: 'goforward.5',
 };
 
 export function sfSymbol(name: IconName): SFSymbol {

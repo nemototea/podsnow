@@ -237,7 +237,7 @@ describe('書体', () => {
   it('主要な操作の高さは 48 以上、通常のボタンは 52 以上', () => {
     expect(hit.min).toBeGreaterThanOrEqual(48);
     expect(hit.button).toBeGreaterThanOrEqual(52);
-    expect(hit.record).toBeGreaterThan(hit.secondary);
+    expect(hit.record).toBeGreaterThan(hit.button);
   });
 
   it('見出しは役割が下がるほど小さくなる', () => {
