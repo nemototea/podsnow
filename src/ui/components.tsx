@@ -16,6 +16,7 @@ import {
 } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Reanimated, {
+  Easing,
   FadeInDown,
   FadeOutDown,
   runOnJS,
@@ -152,6 +153,7 @@ export function IconButton({
   color,
   showLabel,
   selected,
+  corner,
 }: {
   name: IconName;
   label: string;
@@ -160,6 +162,8 @@ export function IconButton({
   color?: string;
   showLabel?: boolean;
   selected?: boolean;
+  /** 押下面の角丸。角丸の面の内側に置くときは `concentric(外側, 余白)` を渡す。 */
+  corner?: number;
 }) {
   const c = useAppTheme();
   const fg = disabled ? c.textDisabled : (color ?? c.textPrimary);
@@ -172,6 +176,7 @@ export function IconButton({
       accessibilityState={{ disabled: !!disabled, ...(selected ? { selected } : {}) }}
       style={({ pressed }) => [
         showLabel ? s.iconButtonLabeled : s.iconButton,
+        corner === undefined ? null : { borderRadius: corner },
         { backgroundColor: pressed ? c.surfaceHover : 'transparent' },
       ]}
     >
@@ -192,6 +197,7 @@ export function SectionHeader({ title, right }: { title: string; right?: ReactNo
       <Text
         style={[typography.heading, s.flex, { color: c.textPrimary }]}
         accessibilityRole="header"
+        textBreakStrategy="balanced"
       >
         {title}
       </Text>
@@ -333,6 +339,8 @@ export function Button({
       style={[
         s.button,
         compact ? s.buttonCompact : null,
+        // 字形の脇には余白が入っているので、アイコン側の余白を 2 だけ詰めて光学的に釣り合わせる。
+        busy || iconName ? { paddingLeft: (compact ? space.md : space.lg) - OPTICAL_NUDGE } : null,
         {
           backgroundColor: l.bg,
           borderColor: l.border,
@@ -511,7 +519,7 @@ export function Toast({
         })
         .onEnd((e) => {
           if (e.translationY > DISMISS_DRAG && onDismiss) runOnJS(onDismiss)();
-          else drag.set(withSpring(0, SPRING));
+          else drag.set(withSpring(0, SETTLE));
         }),
     [drag, onDismiss],
   );
@@ -525,8 +533,9 @@ export function Toast({
         {...(reduced
           ? {}
           : {
-              entering: FadeInDown.springify().damping(SPRING.damping),
-              exiting: FadeOutDown.duration(motion.quick),
+              // 跳ねさせない（DESIGN_SYSTEM.md §2「跳ねるボタン」を排除）。入りより出を短く、どちらも ease-out。
+              entering: FadeInDown.duration(motion.moderate).easing(Easing.out(Easing.cubic)),
+              exiting: FadeOutDown.duration(motion.quick).easing(Easing.out(Easing.cubic)),
             })}
         onLayout={(e) => setToastHeight(e.nativeEvent.layout.height + BOTTOM_GAP)}
         style={[
@@ -557,7 +566,14 @@ export function Toast({
             <Text style={[typography.label, { color: c.accentText }]}>{toast.action}</Text>
           </Pressable>
         ) : null}
-        {onDismiss ? <IconButton name="close" label={t.a11y.dismiss} onPress={onDismiss} /> : null}
+        {onDismiss ? (
+          <IconButton
+            name="close"
+            label={t.a11y.dismiss}
+            onPress={onDismiss}
+            corner={concentric(radius.md, space.xs)}
+          />
+        ) : null}
       </Reanimated.View>
     </GestureDetector>
   );
@@ -600,6 +616,9 @@ export function Chip({
   const c = useAppTheme();
   const t = tone ?? { text: c.textPrimary, border: c.accentBorder, subtle: c.accentSubtle };
   const fg = disabled ? c.textDisabled : active ? t.text : c.textSecondary;
+  const border = active ? stroke.selected : stroke.hairline;
+  // 選択で輪郭が太くなった分だけ内側の余白を減らし、幅と文字の位置を動かさない。
+  const pad = space.md - (border - stroke.hairline);
   return (
     <Pressable
       onPress={onPress}
@@ -611,8 +630,10 @@ export function Chip({
       style={({ pressed }) => [
         s.chip,
         {
+          paddingLeft: iconName ? pad - OPTICAL_NUDGE : pad,
+          paddingRight: pad,
           borderColor: disabled ? c.border : active ? t.border : c.borderStrong,
-          borderWidth: active ? stroke.selected : stroke.hairline,
+          borderWidth: border,
           backgroundColor: active ? t.subtle : pressed ? c.surfaceHover : 'transparent',
         },
       ]}
@@ -635,11 +656,13 @@ export function ProgressBar({
   const c = useAppTheme();
   const reduced = useReducedMotion();
   const [slide] = useState(() => new Animated.Value(0));
+  const [trackW, setTrackW] = useState(0);
   const indeterminate = value === null;
   useEffect(() => {
     if (!indeterminate || reduced) return;
+    // left ではなく transform を動かし、ネイティブ側で回す（JS が忙しい書き出し中も止まらない）。
     const loop = Animated.loop(
-      Animated.timing(slide, { toValue: 1, duration: 1200, useNativeDriver: false }),
+      Animated.timing(slide, { toValue: 1, duration: 1200, useNativeDriver: true }),
     );
     loop.start();
     return () => loop.stop();
@@ -648,6 +671,7 @@ export function ProgressBar({
   return (
     <View
       style={[s.track, { backgroundColor: c.surfaceHover }]}
+      onLayout={(e) => setTrackW(e.nativeEvent.layout.width)}
       accessibilityRole="progressbar"
       accessibilityLabel={label}
       {...(pct === null ? {} : { accessibilityValue: { min: 0, max: 100, now: pct } })}
@@ -659,9 +683,16 @@ export function ProgressBar({
             s.indeterminate,
             {
               backgroundColor: color ?? c.accentSolid,
-              left: reduced
-                ? '30%'
-                : slide.interpolate({ inputRange: [0, 1], outputRange: ['-40%', '100%'] }),
+              transform: [
+                {
+                  translateX: reduced
+                    ? trackW * 0.3
+                    : slide.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [-trackW * 0.4, trackW],
+                      }),
+                },
+              ],
             },
           ]}
         />
@@ -781,10 +812,13 @@ export function Field({
 }
 
 const CHIP_H = 40;
+/** アイコンの付いた側の余白を詰める量（光学的な位置合わせ）。 */
+const OPTICAL_NUDGE = space.hair;
 const AnimatedPressable = Reanimated.createAnimatedComponent(Pressable);
 const DISMISS_DRAG = 24;
 const DRAG_START = 4;
-const SPRING = { damping: 20, stiffness: 240, mass: 0.8 } as const;
+/** 引っ張ったトーストを戻すばね。臨界減衰（dampingRatio 1）で行き過ぎない。 */
+const SETTLE = { dampingRatio: 1, duration: motion.moderate } as const;
 
 const s = StyleSheet.create({
   root: { flex: 1 },
@@ -857,12 +891,12 @@ const s = StyleSheet.create({
   toastAction: {
     minHeight: hit.min,
     paddingHorizontal: space.md,
-    borderRadius: radius.sm,
+    // 外側 radius.md の内側に space.xs で入る
+    borderRadius: concentric(radius.md, space.xs),
     justifyContent: 'center',
   },
   chip: {
     minHeight: CHIP_H,
-    paddingHorizontal: space.md,
     borderRadius: radius.pill,
     flexDirection: 'row',
     gap: space.xs,
@@ -871,7 +905,7 @@ const s = StyleSheet.create({
   },
   track: { height: space.sm, borderRadius: radius.pill, overflow: 'hidden' },
   trackFill: { height: space.sm, borderRadius: radius.pill },
-  indeterminate: { position: 'absolute', width: '40%' },
+  indeterminate: { position: 'absolute', left: 0, width: '40%' },
   notice: {
     flexDirection: 'row',
     gap: space.md,

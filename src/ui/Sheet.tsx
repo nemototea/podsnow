@@ -70,6 +70,7 @@ export function Sheet({ visible, onClose, title, subtitle, children }: SheetProp
                 <Text
                   style={[typography.heading, { color: c.textPrimary }]}
                   accessibilityRole="header"
+                  textBreakStrategy="balanced"
                 >
                   {title}
                 </Text>

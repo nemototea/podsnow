@@ -1,13 +1,12 @@
 import { memo } from 'react';
 import Svg, { Circle, Ellipse, Path, Rect } from 'react-native-svg';
 
-import { useAppTheme } from './ThemeContext';
 import { icon as iconSize } from './tokens';
 
 type Shape =
   | { k: 'path'; d: string; fill?: boolean; w?: number }
   | { k: 'rect'; x: number; y: number; w: number; h: number; r: number; fill?: boolean }
-  | { k: 'circle'; cx: number; cy: number; r: number; fill?: boolean; knock?: boolean }
+  | { k: 'circle'; cx: number; cy: number; r: number; fill?: boolean }
   | { k: 'ellipse'; cx: number; cy: number; rx: number; ry: number };
 
 const p = (d: string, fill = false, w?: number): Shape =>
@@ -29,10 +28,11 @@ const SHAPES = {
   flag: [p('M5 21V4m0 0h12l-3 4 3 4H5')],
   check: [p('m5 12 4 4L19 6')],
   copy: [{ k: 'rect', x: 8, y: 8, w: 12, h: 13, r: 2 }, p('M15 8V3H3v12h5')],
+  // 線はつまみの手前で切る。背景色で塗りつぶして隠すと、押下面など bg 以外の上で丸が浮く。
   settings: [
-    p('M4 7h16M4 17h16'),
-    { k: 'circle', cx: 9, cy: 7, r: 3, knock: true },
-    { k: 'circle', cx: 15, cy: 17, r: 3, knock: true },
+    p('M4 7h2M12 7h8M4 17h8M18 17h2'),
+    { k: 'circle', cx: 9, cy: 7, r: 3 },
+    { k: 'circle', cx: 15, cy: 17, r: 3 },
   ],
   more: [
     { k: 'circle', cx: 5, cy: 12, r: 1.4, fill: true },
@@ -87,7 +87,6 @@ export const IconSvg = memo(function IconSvg({
   color: string;
   size?: number;
 }) {
-  const c = useAppTheme();
   const shapes: readonly Shape[] = SHAPES[name];
   return (
     <Svg
@@ -134,7 +133,7 @@ export const IconSvg = memo(function IconSvg({
                 cx={s.cx}
                 cy={s.cy}
                 r={s.r}
-                fill={s.fill ? color : s.knock ? c.bg : 'none'}
+                fill={s.fill ? color : 'none'}
                 stroke={s.fill ? 'none' : color}
               />
             );

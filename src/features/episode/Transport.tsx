@@ -1,10 +1,23 @@
-import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
+import { useState } from 'react';
+import { ActivityIndicator, Platform, Pressable, StyleSheet, View } from 'react-native';
+import Animated, { useAnimatedStyle, withTiming } from 'react-native-reanimated';
 
 import { secToSmp, smp } from '@/domain/time';
 import { useT, type Messages } from '@/i18n';
-import { hit, icon, radius, space, stroke, typography } from '@/ui/tokens';
+import {
+  hit,
+  icon,
+  motion,
+  pressScale,
+  radius,
+  space,
+  stroke,
+  tabularNums,
+  typography,
+} from '@/ui/tokens';
 import { Icon, IconButton, Text, type IconName } from '@/ui/components';
 import { useAppTheme } from '@/ui/ThemeContext';
+import { useReducedMotion } from '@/ui/useReducedMotion';
 
 import type { RecordingContext } from './useRecordingContext';
 import type { Workspace } from './useWorkspace';
@@ -42,11 +55,23 @@ function RoundButton({
   showLabel?: boolean;
 }) {
   const c = useAppTheme();
+  const reduced = useReducedMotion();
+  const [held, setHeld] = useState(false);
   const off = disabled || busy;
   const fg = off ? c.textDisabled : filled ? c.recOnSolid : c.textPrimary;
+  // 録音・停止は塗りの色が変わらないので、縮小が唯一の押下の手応えになる。
+  const pressStyle = useAnimatedStyle(() => ({
+    transform: [
+      {
+        scale: reduced || off ? 1 : withTiming(held ? pressScale : 1, { duration: motion.instant }),
+      },
+    ],
+  }));
   return (
     <Pressable
       onPress={onPress}
+      onPressIn={() => setHeld(true)}
+      onPressOut={() => setHeld(false)}
       disabled={off}
       accessibilityRole="button"
       accessibilityLabel={label}
@@ -55,8 +80,9 @@ function RoundButton({
     >
       {({ pressed }) => (
         <>
-          <View
+          <Animated.View
             style={[
+              pressStyle,
               st.circle,
               {
                 width: size,
@@ -75,9 +101,11 @@ function RoundButton({
             {busy ? (
               <ActivityIndicator color={c.textSecondary} />
             ) : (
-              <Icon name={iconName} color={fg} size={size > hit.secondary ? icon.lg : icon.md} />
+              <View style={iconName === 'play' ? st.playNudge : null}>
+                <Icon name={iconName} color={fg} size={size > hit.secondary ? icon.lg : icon.md} />
+              </View>
             )}
-          </View>
+          </Animated.View>
           {showLabel ? (
             <Text
               style={[
@@ -196,6 +224,7 @@ export function Transport({
       <Text
         style={[
           typography.caption,
+          tabularNums,
           st.storage,
           { color: active && !recCtx.writerOk ? c.dangerText : c.textTertiary },
         ]}
@@ -222,5 +251,8 @@ const st = StyleSheet.create({
     justifyContent: 'center',
   },
   roundLabel: { textAlign: 'center' },
+  // 三角は重心が左に寄るので、丸の中で右へ寄せて光学的に中央へ置く。
+  // SVG（Android・Web）は字形の側で重心を中央に置いてあるので、SF Symbols（iOS）だけ。
+  playNudge: Platform.OS === 'ios' ? { transform: [{ translateX: space.hair }] } : {},
   storage: { textAlign: 'center', marginTop: space.sm },
 });

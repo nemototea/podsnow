@@ -227,7 +227,9 @@ export function EditTab({
       </View>
 
       {sel ? (
-        <Text style={[typography.caption, { color: c.textSecondary, marginTop: space.sm }]}>
+        <Text
+          style={[typography.caption, tabularNums, { color: c.textSecondary, marginTop: space.sm }]}
+        >
           {t.edit.hintSelection(formatSmp(sel.start), formatSmp(sel.end, { tenths: true }))}
         </Text>
       ) : null}
