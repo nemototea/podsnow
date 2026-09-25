@@ -269,7 +269,8 @@ export function Button({
   const reduced = useReducedMotion();
   const off = disabled || busy;
   const [pressed, setPressed] = useState(false);
-  const tactile = kind === 'primary' || kind === 'secondary';
+  // 形のあるボタンは硬い影と押し込み。ghost だけは縮小で返す。
+  const tactile = kind !== 'ghost';
   const depressed = pressed && !off && tactile && !reduced;
   const pressStyle = useAnimatedStyle(() => ({
     transform: [
@@ -308,7 +309,7 @@ export function Button({
       case 'danger':
         return {
           bg: pressed ? c.dangerSolidPressed : c.dangerSolid,
-          border: pressed ? c.dangerSolidPressed : c.dangerSolid,
+          border: c.controlEdge,
           fg: c.dangerOnSolid,
         };
       case 'secondary':

@@ -321,7 +321,7 @@ Issue #105 / #110: 共通 Button の primary / secondary は押下時に 2px 下
 | カード | 角丸 16、内側 20。一覧をすべて囲わない | `Card` |
 | シート | 上辺 24、閉じるボタン、下端 safe area | `Sheet` |
 | 線 | 区切り 1、選択 2、焦点 3 | `stroke` |
-| 押下 | Button は 120ms 以内の 2px 押し込み。収録の丸ボタンと danger / ghost は縮小。動きを減らす設定では移動・縮小しない | `motion`、`buttonDepth`、`pressScale` |
+| 押下 | Button は 120ms 以内の 2px 押し込み。収録の丸ボタンと ghost は縮小（danger は primary と同じ硬い影と押し込み。#124）。動きを減らす設定では移動・縮小しない | `motion`、`buttonDepth`、`pressScale` |
 
 - アイコンは 24 基準・線幅 2 の単一セット（`src/ui/Icon.tsx`、react-native-svg）。`▶ ⚙ ⋮ ＋` などの
   フォント字形をアイコンに使わない。主要操作には文字も付ける。
@@ -342,7 +342,7 @@ Issue #105 / #110: 共通 Button の primary / secondary は押下時に 2px 下
 | `DateField` | 日付。iOS はコンパクトな日付ピッカー、ほかは `YYYY-MM-DD` の文字入力 |
 | `Sheet` | iOS はページシート（下スワイプで閉じる）、ほかは下からのシート |
 | `ReorderList` | 並べ替えはすべてこれ（FR-UI-1）。行の右端のつまみだけにドラッグを付け、行の押下・スクロールと衝突させない。間の行が避け、離すと吸い付く。読み上げには行の操作「上へ移動」「下へ移動」。操作ヒントの文は出さない（§2.3） |
-| `alerts` | `confirmDestructive` / `ask` / `notify`（OS のアラート）、`iosActionSheet`、`iosPrompt`。削除はすべて `confirmDestructive` を通す（FR-UI-2）。削除・外す操作のアイコンはゴミ箱（`trash`）と `dangerText` に揃え、✕（`close`）は閉じる操作だけに使う |
+| `alerts` | `confirmDestructive` / `ask` / `notify`（自作の `Dialog`、§6.3）、`iosActionSheet`。削除はすべて `confirmDestructive` を通す（FR-UI-2）。削除・外す操作のアイコンはゴミ箱（`trash`）と `dangerText` に揃え、✕（`close`）は閉じる操作だけに使う |
 | `Field` | 常に見えるラベル、補足、エラー（読み上げに関連付け）、焦点の輪郭 |
 | `Segmented` | タブ（iOS は `UISegmentedControl`）。選択は一段明るい面 + 輪郭 1 周 + 文字色。片側の線は引かない（§2.1）。無効時は `textDisabled` |
 | `Chip` | 高さ 40 + 上下の hitSlop で 48。選択は輪郭 2 と淡い地 |
@@ -362,7 +362,8 @@ Issue #105 / #110: 共通 Button の primary / secondary は押下時に 2px 下
 | ナビゲーションバー（Home 以外） | expo-router のネイティブスタックヘッダー | 題の書体、`accentText` の色合い、背景 `bg`、区切り線なし、戻るは矢印だけ | 同じ（Android は Material のツールバー） |
 | 「…」の操作 | `Stack.Toolbar.Menu`（ヘッダー）、`@expo/ui` の `Menu`（行） | SF Symbols、削除は destructive | 現行のシート（`MoreMenu`） |
 | 選択肢（設定の値など） | `@expo/ui` の `Menu` によるプルダウン（選択中にチェック） | — | 現行のシート（`ChoiceMenu`） |
-| 確認・エラー・マイク権限・無音を詰める確認・名前の変更 | `Alert.alert` / `Alert.prompt`、言い直すは `ActionSheetIOS` | — | `Alert.alert`（Web は confirm）。名前の変更と言い直すはシート |
+| 言い直す | `ActionSheetIOS` | — | シート |
+| 名前の変更 | シート（`Sheet`） | — | 同じ |
 | 入力や一覧を伴うシート | `Modal` の `pageSheet`（下スワイプで閉じる） | 題の書体、閉じるボタン | 現行の下からのシート |
 | スイッチ | `Switch` | オン `accentSolid` | 同じ |
 | エピソードのタブ | `UISegmentedControl` | 書体、選択面 `surfaceRaised` | 現行の `Segmented` |
@@ -372,13 +373,35 @@ Issue #105 / #110: 共通 Button の primary / secondary は押下時に 2px 下
 | 押下・通知の動き | Reanimated（UI スレッド）と Gesture Handler | `motion` の時間、`pressScale`。動きを減らす設定では動かさない | 同じ |
 
 独自のまま残すもの: ロゴ、色、書体、Home 上部のブランド領域、録音の操作バー（`Transport`）、波形、
-レベルメーター、`Card` / `Row` / `Button` / `Notice`（OS に同等の部品が無く、ブランドの形そのもの）。
+レベルメーター、`Card` / `Row` / `Button` / `Notice`（OS に同等の部品が無く、ブランドの形そのもの）、
+確認・エラー・マイク権限・無音を詰める確認のダイアログ（§6.3。#124）。
 
 - iOS だけの実装は `*.ios.tsx` に分け、Android と Web は既存の実装を使う。Android / Web で `@expo/ui` の
   SwiftUI 部品を読み込まないため。
 - 収録中は戻るジェスチャと戻るボタンを止める（`gestureEnabled: false`、`usePreventRemove`）。
-- 取り消せない操作（音声の削除）と、話数の再利用を伴う削除（書き出し済みの回）は OS のアラートで確かめる。
-  iOS のメニューは項目の補足を出さないため、補足に書いていた注意をアラートへ移した。
+- 取り消せない操作（音声の削除）と、話数の再利用を伴う削除（書き出し済みの回）はダイアログ（§6.3）で確かめる。
+  iOS のメニューは項目の補足を出さないため、補足に書いていた注意をダイアログへ移した。
+
+### 6.3 ダイアログ（#124）【事実】
+
+確認・エラー・問いかけは、iOS・Android・Web とも自作の `Dialog`（画面中央）で出す。
+Android の `Alert.alert` は古い AppCompat のダイアログ（四角い角・既定の配色）で、アプリの見た目から浮いていた。
+iOS だけ OS のアラートにすると 2 つの見た目が混ざるので、両方を同じにする。
+
+- 呼び出しは `src/ui/alerts.ts` の `confirmDestructive` / `ask` / `notify` のまま。要求はキューに積み、1 つずつ出す
+  （許可の前置き → 設定を開く、処理の失敗 → エラー通知、のように続けて出ることがある）。
+- 形: `surfaceRaised` の面に `border` の輪郭（シートの上でも面が溶けない）、角丸 `radius.xl`、背面は `overlayScrim`。題は `heading`、本文は `body`。
+  ボタンは右が実行（削除は `danger`、ほかは `primary`）、左がキャンセル（`secondary`）。文字を大きくする設定では縦に積む。
+- 閉じ方: Android の戻る操作と背景のタップは「キャンセル」（通知は「OK」と同じ）。コールバックは 1 回だけ呼ぶ。
+- 動き: フェードで出入りする。動きを減らす設定では動かさない。
+- 読み上げ: 背面を読ませない（`accessibilityViewIsModal`）。題は見出しの役割。
+- **表示先（`DialogHost`）はルートと各 `Sheet` の中に置き、描画の時点で一番新しいホストに出す。**
+  【確認済み】iOS の RN Modal は一番近いビューコントローラから present するため、ルートの Modal は表示中の
+  ページシートの上に出せない。
+  出典: https://github.com/facebook/react-native/blob/v0.86.3/packages/react-native/React/Fabric/Mounting/ComponentViews/Modal/RCTModalHostViewComponentView.mm
+  シートを閉じた直後に確認を出す場合（Android の「…」→削除）は、シートのホストが外れた時点でルートのホストが引き継ぐ。
+- 【仮説】iOS でダイアログが閉じる途中に次の Modal を出すと表示されないことがある。キューに次の要求があるあいだは
+  Modal を閉じずに中身だけ入れ替えて避ける。iOS の実機で確認する（#124）。
 
 ## 7. 情報構造とナビゲーション【事実】
 

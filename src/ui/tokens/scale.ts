@@ -25,6 +25,8 @@ export const space = {
 export const gutter = 20;
 export const gutterCompact = space.lg;
 export const compactWidth = 360;
+/** ダイアログの最大幅（DESIGN_SYSTEM.md §6.3）。狭い画面では左右に `gutter` を残して縮む。 */
+export const dialogWidth = 400;
 
 /** 角丸。部品ごとの値は DESIGN_SYSTEM.md §6 で決める。 */
 export const radius = {

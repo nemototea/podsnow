@@ -5,6 +5,7 @@ export {
   buttonDepth,
   compactWidth,
   concentric,
+  dialogWidth,
   family,
   glyphSlop,
   gutter,
