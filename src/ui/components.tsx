@@ -9,6 +9,8 @@ import {
   Switch,
   useWindowDimensions,
   View,
+  type AccessibilityActionEvent,
+  type AccessibilityActionInfo,
   type StyleProp,
   type TextInputProps,
   type TextStyle,
@@ -381,6 +383,8 @@ export function Row({
   accessibilityLabel,
   mono,
   below,
+  accessibilityActions,
+  onAccessibilityAction,
 }: {
   label: string;
   sub?: string;
@@ -392,6 +396,9 @@ export function Row({
   last?: boolean;
   accessibilityLabel?: string;
   mono?: string;
+  /** 読み上げ中だけの操作（例: ドラッグの代わりの「上へ移動」）。押せる行にだけ付く。 */
+  accessibilityActions?: readonly AccessibilityActionInfo[];
+  onAccessibilityAction?: (e: AccessibilityActionEvent) => void;
 }) {
   const c = useAppTheme();
   const content = (
@@ -426,6 +433,9 @@ export function Row({
     );
   }
   const a11y = accessibilityLabel ?? (sub ? `${label}, ${sub}` : label);
+  const a11yActions = accessibilityActions?.length
+    ? { accessibilityActions, ...(onAccessibilityAction ? { onAccessibilityAction } : {}) }
+    : {};
   if (right) {
     // 右の操作（メニュー・ボタン・ネイティブのピッカー）は行の押下の外に置く。
     // 入れ子にすると、右を押したときに行の移動も同時に起きうる。
@@ -435,6 +445,7 @@ export function Row({
           onPress={onPress}
           accessibilityRole="button"
           accessibilityLabel={a11y}
+          {...a11yActions}
           style={s.flex}
         >
           {({ pressed }) => (
@@ -448,7 +459,12 @@ export function Row({
     );
   }
   return (
-    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={a11y}>
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={a11y}
+      {...a11yActions}
+    >
       {({ pressed }) => (
         <View
           style={[s.row, divider, { backgroundColor: pressed ? c.surfaceHover : 'transparent' }]}

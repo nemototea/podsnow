@@ -21,6 +21,7 @@ const SHAPES = {
   chevronUp: [p('m7 14 5-5 5 5')],
   up: [p('M12 19V5m0 0-6 6m6-6 6 6')],
   down: [p('M12 5v14m0 0-6-6m6 6 6-6')],
+  grip: [p('M5 8h14M5 12h14M5 16h14')],
   play: [p('m8 5 11 7-11 7Z', true)],
   pause: [p('M9 6v12M15 6v12', false, 3)],
   stop: [{ k: 'rect', x: 6, y: 6, w: 12, h: 12, r: 2, fill: true }],

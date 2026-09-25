@@ -249,6 +249,9 @@ Podcast: {{show_name}}
     a11yInsertAt: (name: string) => `${name} を再生位置に入れる`,
     a11yRemoveFromEpisode: (name: string) => `${name} をこの回から外す`,
     a11yDeleteTopic: (heading: string) => `${heading} を削除`,
+    reorderHint: '右端のつまみをドラッグして並べ替え',
+    a11yMovedTopic: (heading: string, position: number, total: number) =>
+      `${heading} を ${total} 件中 ${position} 番目へ移動`,
     addTopics: '話すことを追加',
     finish: '収録を終える',
     start: '録音を開始',
