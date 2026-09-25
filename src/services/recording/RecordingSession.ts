@@ -1,9 +1,9 @@
 import { AppError, type AppErrorCode } from '@/domain/errors';
 import { smp, type Smp } from '@/domain/time';
-import type { Range } from '@/domain/timeline/types';
-import { insertAt, keptIntervals } from '@/domain/timeline/voice';
+import type { EditableDoc } from '@/domain/editing/doc';
+import { insertAt, totalDuration } from '@/domain/timeline/voice';
 import type { SqlExecutor } from '@/infra/db/executor';
-import { loadDoc, saveDoc } from '@/infra/db/repositories/editableDocRepo';
+import { loadDoc } from '@/infra/db/repositories/editableDocRepo';
 import {
   insertRecordingEvent,
   type RecordingEvent,
@@ -23,6 +23,7 @@ import {
 import { joinRoot, relPaths } from '@/infra/files/layout';
 
 import type { ServiceLabels } from '../app/labels';
+import { commitInTransaction } from '../editing/EditingService';
 
 import type {
   InterruptionEvent,
@@ -66,7 +67,7 @@ export interface RecordingSessionDeps {
   newId: () => string;
   now: () => number;
   settings: () => RecordingSettings;
-  /** DB に書き込む文言（割り込みマーカー）。UI 層が i18n から渡す（Issue #80）。 */
+  /** DB に書き込む文言（割り込みマーカー、取り消しの履歴の名前）。UI 層が i18n から渡す（Issue #80）。 */
   labels: () => ServiceLabels;
   /** 1 秒ごとのハートビート用タイマー。テストで差し替える。 */
   setInterval?: (fn: () => void, ms: number) => unknown;
@@ -76,8 +77,8 @@ export interface RecordingSessionDeps {
 export interface SessionEvents {
   state: (s: SessionState) => void;
   level: (e: LevelEvent) => void;
-  /** Take が確定して声トラックに追加された。 */
-  takeFinalized: (e: { takeId: string; episodeId: string; durationSmp: Smp }) => void;
+  /** Take が確定して声トラックに追加された。`endSmp` は声トラック上で今録った部分の終わり。 */
+  takeFinalized: (e: { takeId: string; episodeId: string; durationSmp: Smp; endSmp: Smp }) => void;
   interruption: (e: InterruptionEvent) => void;
   routeChange: (e: RouteChangeEvent) => void;
   /** `code` があれば UI は i18n から文言を引く。無ければ `message` をそのまま出す。 */
@@ -88,15 +89,18 @@ export interface SessionEvents {
 interface ActiveTake {
   episodeId: string;
   takeId: string;
+  takeName: string;
+  /** 録音を始めたときの doc。止めたときに「録音を追加」の取り消し先になる（Issue #122）。 */
+  docBefore: EditableDoc;
   /** 声トラック上の挿入位置。null = 末尾。 */
   insertAtSmp: Smp | null;
   segmentId: string;
   seq: number;
   /** 先行 Segment の合計フレーム。 */
   offsetSmp: number;
+  /** 閉じたが、まだ offsetSmp に足していない Segment の長さ（DB への確定待ち）。 */
+  closingSmp: number;
   path: string;
-  /** 「言い直す」で捨てた Take 内の範囲（FR-REC-4）。確定時に声の並びから外す。 */
-  drops: Range[];
 }
 
 /**
@@ -125,6 +129,10 @@ export class RecordingSession {
 
   get current(): SessionState {
     return this.state;
+  }
+  /** 録音していない（準備中・停止処理中も含めて何もしていない）。取り消しはこのときだけ効く。 */
+  get isIdle(): boolean {
+    return this.state === 'idle';
   }
   get activeTakeId(): string | null {
     return this.active?.takeId ?? null;
@@ -167,8 +175,8 @@ export class RecordingSession {
   }
 
   /**
-   * 新しい Take の録音を開始する。insertAtSmp を渡すと停止時にその位置へ挿入（パンチイン）、
-   * null なら末尾に追加。
+   * 新しい Take の録音を開始する。insertAtSmp を渡すと停止時にその位置へ挿入し
+   * （後ろの声はずれる）、null なら末尾に追加。
    */
   async start(
     episodeId: string,
@@ -198,10 +206,12 @@ export class RecordingSession {
       const now = this.deps.now();
       const takeId = this.deps.newId();
       const n = (await countTakes(this.deps.db, episodeId)) + 1;
+      const takeName = opts.name ?? this.deps.labels().takeName(n);
+      const docBefore = await loadDoc(this.deps.db, episodeId);
       await insertTake(this.deps.db, {
         id: takeId,
         episodeId,
-        name: opts.name ?? this.deps.labels().takeName(n),
+        name: takeName,
         sampleRate: s.sampleRate,
         channels: s.channels,
         inputLabel: input?.name ?? null,
@@ -210,12 +220,14 @@ export class RecordingSession {
       this.active = {
         episodeId,
         takeId,
+        takeName,
+        docBefore,
         insertAtSmp: opts.insertAtSmp ?? null,
         segmentId: '',
         seq: 0,
         offsetSmp: 0,
+        closingSmp: 0,
         path: '',
-        drops: [],
       };
       await this.openSegment();
       this.setState('recording');
@@ -307,6 +319,7 @@ export class RecordingSession {
     if (!a || this.closedSegments.has(a.segmentId)) return this.closing;
     this.closedSegments.add(a.segmentId);
     const segmentId = a.segmentId;
+    a.closingSmp = frames;
     this.stopHeartbeat();
     this.closing = this.closing.then(async () => {
       await this.deps.db.transaction(async () => {
@@ -314,6 +327,7 @@ export class RecordingSession {
         await closeJournal(this.deps.db, segmentId);
       });
       a.offsetSmp += frames;
+      a.closingSmp = 0;
     });
     return this.closing;
   }
@@ -362,6 +376,7 @@ export class RecordingSession {
     this.stopHeartbeat();
     const durationSmp = smp(a.offsetSmp);
     const now = this.deps.now();
+    let endSmp = smp(0);
     await this.deps.db.transaction(async () => {
       await finalizeTake(
         this.deps.db,
@@ -370,35 +385,44 @@ export class RecordingSession {
         durationSmp,
         now,
       );
+      // 録音中に重ねた素材はすでに doc に入っている。声の追加とまとめて 1 つの操作として
+      // 履歴に積み、取り消せば両方が外れる（Issue #122）。録音ファイルは消さない（FR-SAFE-7）。
+      const doc = await loadDoc(this.deps.db, a.episodeId);
+      let voice = doc.voice;
       if (durationSmp > 0) {
-        const doc = await loadDoc(this.deps.db, a.episodeId);
-        // 「言い直す」で捨てた範囲は声の並びに載せない。録音ファイルはそのまま残る（非破壊）。
-        const kept = keptIntervals(durationSmp, a.drops);
-        let voice = doc.voice;
-        let offset = 0;
-        for (const k of kept) {
-          const seg = {
-            id: this.deps.newId(),
-            takeId: a.takeId,
-            srcStart: k.start,
-            srcEnd: k.end,
-            gainDb: 0,
-            fadeIn: smp(0),
-            fadeOut: smp(0),
-          };
-          if (a.insertAtSmp === null) {
-            voice = [...voice, seg];
-          } else {
-            voice = insertAt(voice, smp(a.insertAtSmp + offset), seg);
-            offset += k.end - k.start;
-          }
+        const seg = {
+          id: this.deps.newId(),
+          takeId: a.takeId,
+          srcStart: smp(0),
+          srcEnd: durationSmp,
+          gainDb: 0,
+          fadeIn: smp(0),
+          fadeOut: smp(0),
+        };
+        if (a.insertAtSmp === null) {
+          voice = [...voice, seg];
+          endSmp = totalDuration(voice);
+        } else {
+          voice = insertAt(voice, a.insertAtSmp, seg);
+          endSmp = smp(a.insertAtSmp + durationSmp);
         }
-        await saveDoc(this.deps.db, a.episodeId, { ...doc, voice }, now);
       }
+      await commitInTransaction(
+        this.deps.db,
+        a.episodeId,
+        a.docBefore,
+        { ...doc, voice },
+        { id: this.deps.newId(), label: this.deps.labels().addTakeOp(a.takeName), now },
+      );
     });
     this.setState('idle');
     if (durationSmp > 0) {
-      this.dispatch('takeFinalized', { takeId: a.takeId, episodeId: a.episodeId, durationSmp });
+      this.dispatch('takeFinalized', {
+        takeId: a.takeId,
+        episodeId: a.episodeId,
+        durationSmp,
+        endSmp,
+      });
     }
     return { takeId: a.takeId, durationSmp };
   }
@@ -413,7 +437,7 @@ export class RecordingSession {
     const e: RecordingEvent = {
       id: this.deps.newId(),
       takeId: a.takeId,
-      srcSmp: smp(a.offsetSmp + this.deps.recorder.getFrames()),
+      srcSmp: this.sourcePosition(a),
       label,
       kind,
       createdAt: this.deps.now(),
@@ -422,34 +446,21 @@ export class RecordingSession {
     return e;
   }
 
-  /**
-   * 言い直す（FR-REC-4）。`fromSrcSmp` から今までを声の並びから外し、録音は止めない。
-   * 録音ファイルには残るので非破壊で、`undoRetake()` で戻せる。
-   * 戻り値は捨てた長さ。録音中でない、または長さが 0 なら null。
-   */
-  retake(fromSrcSmp: Smp): Smp | null {
-    const a = this.active;
-    if (!a) return null;
-    const now = smp(a.offsetSmp + this.deps.recorder.getFrames());
-    const from = smp(Math.max(0, Math.min(now, fromSrcSmp)));
-    if (now - from <= 0) return null;
-    a.drops.push({ start: from, end: now });
-    return smp(now - from);
-  }
-
-  /** 直前の「言い直す」を取り消す。 */
-  undoRetake(): boolean {
-    const a = this.active;
-    if (!a || !a.drops.length) return false;
-    a.drops.pop();
-    return true;
-  }
-
   /** 現在の録音位置（Take 座標）。録音中でなければ null。 */
   currentSourcePosition(): { takeId: string; srcSmp: Smp } | null {
     const a = this.active;
     if (!a) return null;
-    return { takeId: a.takeId, srcSmp: smp(a.offsetSmp + this.deps.recorder.getFrames()) };
+    return { takeId: a.takeId, srcSmp: this.sourcePosition(a) };
+  }
+
+  /**
+   * Take 座標の現在位置。Segment が閉じている間（割り込み中）は、閉じた Segment の終わり。
+   * 閉じたあとも getFrames() がその Segment の長さを返すと、足したときに二重に数える
+   * （FakeRecorder はそう振る舞う。ネイティブの振る舞いは【仮説】で、どちらでも正しくなるようにする）。
+   */
+  private sourcePosition(a: ActiveTake): Smp {
+    if (this.closedSegments.has(a.segmentId)) return smp(a.offsetSmp + a.closingSmp);
+    return smp(a.offsetSmp + this.deps.recorder.getFrames());
   }
 
   // ---- ハートビート ----

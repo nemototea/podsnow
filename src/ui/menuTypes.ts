@@ -18,6 +18,16 @@ export interface ChoiceOption<T extends string | number> {
   sub?: string;
 }
 
+/** ヘッダーの「…」の手前に並べるボタン（取り消し / やり直しなど）。 */
+export interface HeaderButton {
+  key: string;
+  icon: IconName;
+  /** 読み上げのラベル。 */
+  label: string;
+  disabled?: boolean;
+  onPress: () => void;
+}
+
 export interface MoreMenuProps {
   /** 読み上げのラベル（例: 「エピソード 3 の操作」）。 */
   label: string;
@@ -25,6 +35,11 @@ export interface MoreMenuProps {
   title?: string;
   actions: readonly MenuAction[];
   disabled?: boolean;
+}
+
+export interface HeaderMenuProps extends MoreMenuProps {
+  /** 「…」の手前に並べるボタン。`disabled` は「…」の `disabled` と独立。 */
+  buttons?: readonly HeaderButton[];
 }
 
 export interface ChoiceMenuProps<T extends string | number> {

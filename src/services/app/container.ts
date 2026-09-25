@@ -46,7 +46,12 @@ export interface AppServices {
   outline: OutlineService;
   /** 設定の「ハプティクス」に従う触覚（DESIGN_SYSTEM.md §6.2）。 */
   haptics: HapticsService;
+  /** エピソード画面を開く。取り消しの履歴は空から始まる（Issue #122）。 */
   openEditing: (episodeId: string) => Promise<EditingService>;
+  /** 開いている画面で DB から読み直す（録音の確定のあと）。履歴は残す。 */
+  resumeEditing: (episodeId: string) => Promise<EditingService>;
+  /** エピソード画面を閉じたときに取り消しの履歴を捨てる。 */
+  discardEditHistory: (episodeId: string) => Promise<void>;
   updateSettings: <K extends keyof AppSettings>(key: K, value: AppSettings[K]) => Promise<void>;
   /**
    * DB に書き込む既定文言を差し替える（表示言語が変わったとき）。
@@ -136,6 +141,8 @@ export async function bootstrap(
     outline,
     haptics,
     openEditing: (episodeId) => EditingService.open({ db, newId, now }, episodeId),
+    resumeEditing: (episodeId) => EditingService.resume({ db, newId, now }, episodeId),
+    discardEditHistory: (episodeId) => EditingService.discardHistory({ db, newId, now }, episodeId),
     updateSettings: async (key, value) => {
       await saveSetting(db, key, value);
       liveSettings.settings = { ...liveSettings.settings, [key]: value };

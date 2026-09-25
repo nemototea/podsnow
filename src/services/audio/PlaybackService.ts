@@ -58,6 +58,10 @@ export class PlaybackService {
   get position(): Smp {
     return this.frame as Smp;
   }
+  /** いま読み込んでいるエピソード。画面が重なっているとき、自分の回かどうかを見分ける。 */
+  get loadedEpisodeId(): string | null {
+    return this.loadedEpisode;
+  }
 
   /** タイムラインを（再）読み込みする。再生中なら位置を保って続ける。 */
   async reload(episodeId: string): Promise<void> {

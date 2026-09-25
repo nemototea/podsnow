@@ -99,6 +99,7 @@ export const ja = {
   seed: {
     showName: 'マイポッドキャスト',
     takeName: (n: number) => `録音 ${n}`,
+    addTakeOp: (take: string) => `${take} を追加`,
     descriptionTemplate: `{{topics}}
 
 ――――――
@@ -117,11 +118,8 @@ Podcast: {{show_name}}
 
   /** Undo 履歴のラベル（トーストに「〜を取り消しました」として出る）。 */
   undo: {
-    punchInPrepare: '録り直しの準備',
     deleteRange: '範囲を削除',
     deleteSilence: '無音を削除',
-    reorderTakes: '録音を並び替え',
-    removeFromTimeline: 'この回から外す',
     changeGain: '音量を変更',
     removeAsset: '素材を削除',
     moveAsset: '素材を移動',
@@ -192,6 +190,7 @@ Podcast: {{show_name}}
     builtInMic: '内蔵マイク',
     routeChanged: (input: string) => `入力が ${input} に切り替わりました`,
     takeAdded: (duration: string) => `録音を追加しました（${duration}）`,
+    takeInserted: (duration: string, at: string) => `${at} に録音を差し込みました（${duration}）`,
     started: '録音を開始しました',
 
     talkingNow: 'いま話していること',
@@ -215,18 +214,6 @@ Podcast: {{show_name}}
     insertedNoMonitor: (name: string) => `${name} を入れました · 再生なし`,
     insertedAt: (name: string, at: string) => `${name} を ${at} に入れました`,
 
-    recordingsEyebrow: 'この回の録音',
-    removedFromEpisode: 'この回から外しました',
-
-    retake: '言い直す',
-    retakeTitle: '言い直す',
-    retakeSubtitle: '直近を捨てて、録音を止めずに言い直します',
-    retakeFromChapter: 'いまの話題の頭から',
-    retakeFromChapterSub: 'この項目に入ってから今までを捨てる',
-    retakeLast10: '直近 10 秒',
-    retakeLast10Sub: '少しだけ言い直す',
-    retakeNothing: '捨てる範囲がありません',
-    retakeDone: (duration: string) => `直近の ${duration} を捨てました。録音は続いています`,
     pause: '一時停止',
     resume: '再開',
     finishFirst: '収録を終えてから移動してください',
@@ -249,16 +236,13 @@ Podcast: {{show_name}}
     assetsTitle: 'ジングル・効果音',
     a11yInsertNow: (name: string) => `${name} をいまの位置に入れる`,
     a11yInsertAt: (name: string) => `${name} を再生位置に入れる`,
-    a11yRemoveFromEpisode: (name: string) => `${name} をこの回から外す`,
     a11yDeleteTopic: (heading: string) => `${heading} を削除`,
     confirmDeleteTopic: (heading: string) => `「${heading}」を削除しますか？`,
     confirmDeleteTopicNote: '書いた台本も一緒に消える',
-    confirmRemoveTake: (name: string) => `「${name}」をこの回から外しますか？`,
-    confirmRemoveTakeNote: '録音ファイルは端末に残る',
-    removeTake: '外す',
     addTopics: '話すことを追加',
     finish: '収録を終える',
     start: '録音を開始',
+    startHere: 'ここから録音',
     savingOnDevice: (left: string) => `保存中 · 残り約 ${left}`,
     savingOnDeviceUnknown: '保存中',
     savingStopped: '保存が止まりました。ここまでの録音は残っています',
@@ -278,10 +262,8 @@ Podcast: {{show_name}}
 
   edit: {
     emptyTitle: 'まだ録音がありません',
-    emptySub: '「録音」タブで録ると、ここで編集できます',
+    emptySub: '下の録音ボタンで始めます。途中の位置を選んで録ると、そこに差し込まれます',
     delete: '削除',
-    punchIn: '録り直す',
-    punchInStarted: '範囲を空けて録音しています',
     insertBefore: '前に素材',
     insertAfter: '後ろに素材',
     insert: '素材を追加',
@@ -334,8 +316,7 @@ Podcast: {{show_name}}
   episode: {
     untitled: '（タイトル未設定）',
     tabs: {
-      record: '録音',
-      edit: '編集',
+      studio: '収録',
       export: '書き出し',
     },
     duplicated: (n: number) => `#${n} として複製しました`,

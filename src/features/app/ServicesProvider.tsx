@@ -12,6 +12,7 @@ function serviceLabels(t: Messages): ServiceLabels {
     showName: t.seed.showName,
     descriptionTemplate: t.seed.descriptionTemplate,
     takeName: t.seed.takeName,
+    addTakeOp: t.seed.addTakeOp,
     interruptionNote: t.seed.interruptionNote,
     androidNotification: t.androidNotification,
   };

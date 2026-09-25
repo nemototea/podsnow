@@ -123,72 +123,64 @@ function RoundButton({
   );
 }
 
+/**
+ * 収録タブの下部。待機中は再生の操作と録音、録音中は一時停止と停止（Issue #122）。
+ * 録音は再生位置から始まる。途中なら差し込み、末尾なら足す（FR-REC-1）。
+ */
 export function Transport({
-  tab,
   ws,
   recCtx,
   onToggleRec,
   onFinishInterrupted,
-  onRetake,
 }: {
-  tab: 'record' | 'edit';
   ws: Workspace;
   recCtx: RecordingContext;
   onToggleRec: () => void;
   onFinishInterrupted: () => void;
-  onRetake: () => void;
 }) {
   const c = useAppTheme();
   const t = useT();
   const { state } = ws;
 
-  if (tab === 'edit') {
-    const empty = state.total === 0;
-    return (
-      <View style={st.row}>
-        <IconButton
-          name="rewind"
-          label={t.a11y.back5}
-          disabled={empty}
-          onPress={() => void ws.seek(smp(Math.max(0, state.playhead - SKIP)))}
-        />
-        <RoundButton
-          size={hit.secondary}
-          label={state.playing ? t.a11y.pause : t.a11y.play}
-          iconName={state.playing ? 'pause' : 'play'}
-          disabled={empty}
-          onPress={() => void ws.togglePlay()}
-          showLabel={false}
-        />
-        <IconButton
-          name="forward"
-          label={t.a11y.forward5}
-          disabled={empty}
-          onPress={() => void ws.seek(smp(Math.min(state.total, state.playhead + SKIP)))}
-        />
-      </View>
-    );
-  }
-
   const s = state.recording;
   const active = s === 'recording' || s === 'paused';
   const interrupted = s === 'interrupted';
   const busy = s === 'preparing' || s === 'stopping';
+  const idle = s === 'idle';
   const line = storageLine(t, recCtx, active);
+  const empty = state.total === 0;
+  const inMiddle = state.playhead < state.total;
 
   return (
     <View>
       <View style={st.row}>
-        <View style={st.side}>
-          <IconButton
-            name="retake"
-            label={t.record.retake}
-            showLabel
-            disabled={s !== 'recording' && s !== 'paused'}
-            onPress={onRetake}
-          />
-        </View>
-        {interrupted ? (
+        {idle ? (
+          <>
+            <View style={st.side}>
+              <IconButton
+                name="rewind"
+                label={t.a11y.back5}
+                disabled={empty}
+                onPress={() => void ws.seek(smp(Math.max(0, state.playhead - SKIP)))}
+              />
+            </View>
+            <RoundButton
+              size={hit.secondary}
+              label={state.playing ? t.a11y.pause : t.a11y.play}
+              iconName={state.playing ? 'pause' : 'play'}
+              disabled={empty}
+              onPress={() => void ws.togglePlay()}
+            />
+            <View style={st.side}>
+              <IconButton
+                name="forward"
+                label={t.a11y.forward5}
+                disabled={empty}
+                onPress={() => void ws.seek(smp(Math.min(state.total, state.playhead + SKIP)))}
+              />
+            </View>
+          </>
+        ) : interrupted ? (
           <RoundButton
             size={hit.secondary}
             label={t.record.resume}
@@ -215,7 +207,9 @@ export function Transport({
                 ? t.record.stateStopping
                 : active || interrupted
                   ? t.record.finish
-                  : t.record.start
+                  : inMiddle
+                    ? t.record.startHere
+                    : t.record.start
           }
           iconName={active || interrupted ? 'stop' : 'record'}
           onPress={interrupted ? onFinishInterrupted : onToggleRec}
