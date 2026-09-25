@@ -1,3 +1,5 @@
+import type { EpisodeType } from '@/domain/podcast/feed';
+
 import type { SqlExecutor, SqlRow } from '../executor';
 
 export type EpisodeStatus = 'draft' | 'ready' | 'exported';
@@ -19,6 +21,15 @@ export interface EpisodeRow extends SqlRow {
   sound_settings: string;
   /** 「音声を削除」を実行した時刻（FR-EP-4）。行と話数は残る。 */
   audio_purged_at: number | null;
+  // 以下は Podcast RSS の item に対応する列（DATA_MODEL.md §4.5、0004）
+  /** RSS の `guid`。作成時の id を入れ、以後変えない */
+  guid: string | null;
+  episode_type: EpisodeType;
+  /** 0 / 1。NULL は番組の設定に従う */
+  explicit: number | null;
+  website_url: string;
+  /** 実際に配信した日時（`pubDate`）。予定は `publish_planned_at` */
+  published_at: number | null;
   created_at: number;
   updated_at: number;
 }
@@ -71,6 +82,19 @@ export async function episodeNumberTaken(
   return (r?.n ?? 0) > 0;
 }
 
+/** 同じ Show に同じ RSS guid の（削除されていない）エピソードがあるか。 */
+export async function episodeGuidTaken(
+  db: SqlExecutor,
+  showId: string,
+  guid: string,
+): Promise<boolean> {
+  const r = await db.get<{ n: number }>(
+    'SELECT COUNT(*) AS n FROM episodes WHERE show_id = ? AND guid = ? AND deleted_at IS NULL',
+    [showId, guid],
+  );
+  return (r?.n ?? 0) > 0;
+}
+
 export async function insertEpisode(
   db: SqlExecutor,
   e: {
@@ -84,8 +108,21 @@ export async function insertEpisode(
   },
 ): Promise<void> {
   await db.run(
-    'INSERT INTO episodes (id, show_id, title, description, episode_number, season, recorded_at, last_opened_at, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)',
-    [e.id, e.showId, e.title, e.description, e.episodeNumber, e.season, e.now, e.now, e.now, e.now],
+    'INSERT INTO episodes (id, show_id, title, description, episode_number, season, recorded_at, last_opened_at, guid, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
+    [
+      e.id,
+      e.showId,
+      e.title,
+      e.description,
+      e.episodeNumber,
+      e.season,
+      e.now,
+      e.now,
+      // guid は配信後に変えてはいけない（PSP-1）。作成時の id で固定する。
+      e.id,
+      e.now,
+      e.now,
+    ],
   );
 }
 
@@ -104,6 +141,10 @@ export async function updateEpisode(
     lastOpenedAt: number;
     playheadSmp: number;
     soundSettings: string;
+    episodeType: EpisodeType;
+    explicit: boolean | null;
+    websiteUrl: string;
+    publishedAt: number | null;
   }>,
   now: number,
 ): Promise<void> {
@@ -119,14 +160,18 @@ export async function updateEpisode(
     lastOpenedAt: 'last_opened_at',
     playheadSmp: 'playhead_smp',
     soundSettings: 'sound_settings',
+    episodeType: 'episode_type',
+    explicit: 'explicit',
+    websiteUrl: 'website_url',
+    publishedAt: 'published_at',
   };
   const sets: string[] = [];
   const vals: (string | number | null)[] = [];
   for (const [k, col] of Object.entries(map)) {
-    const v = (patch as Record<string, string | number | null | undefined>)[k];
+    const v = (patch as Record<string, string | number | boolean | null | undefined>)[k];
     if (v !== undefined) {
       sets.push(`${col} = ?`);
-      vals.push(v);
+      vals.push(typeof v === 'boolean' ? (v ? 1 : 0) : v);
     }
   }
   if (!sets.length) return;

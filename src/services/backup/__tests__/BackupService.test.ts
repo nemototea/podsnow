@@ -143,6 +143,37 @@ describe('BackupService', () => {
     expect(res).toMatchObject({ episodeNumber: 3, renumbered: false });
   });
 
+  it('keeps the RSS guid and item fields, and issues a new guid when it is already in use', async () => {
+    const { tmp, show, db, deps } = await setup();
+    await db.run(
+      "UPDATE episodes SET guid = 'G', episode_type = 'bonus', explicit = 1, website_url = 'https://example.com/3', published_at = 5000 WHERE id = 'E'",
+    );
+    const zip = path.join(tmp, 'out', 'e.podsnow');
+    await exportEpisodeBackup(deps, 'E', zip);
+
+    // 元の回が残っている → 同じ guid は使えないので新しい回として復元する
+    const dup = await importEpisodeBackup(deps, show.id, zip);
+    expect(await db.get('SELECT guid FROM episodes WHERE id = ?', [dup.episodeId])).toEqual({
+      guid: dup.episodeId,
+    });
+
+    // 元の回と複製を消せば guid は空く（ストレージクリア後の復元と同じ状況）
+    await db.run('UPDATE episodes SET deleted_at = ? WHERE show_id = ?', [2000, show.id]);
+    const res = await importEpisodeBackup(deps, show.id, zip);
+    expect(
+      await db.get(
+        'SELECT guid, episode_type, explicit, website_url, published_at FROM episodes WHERE id = ?',
+        [res.episodeId],
+      ),
+    ).toEqual({
+      guid: 'G',
+      episode_type: 'bonus',
+      explicit: 1,
+      website_url: 'https://example.com/3',
+      published_at: 5000,
+    });
+  });
+
   it('round-trips an episode through a .podsnow zip with new IDs and identical audio', async () => {
     const { tmp, root, db, show, deps } = await setup();
     const zip = path.join(tmp, 'out', 'e.podsnow');

@@ -1,3 +1,10 @@
+import type {
+  ExternalIdProvider,
+  PodcastCategory,
+  PodcastFunding,
+  ShowType,
+} from '@/domain/podcast/feed';
+
 import type { SqlExecutor, SqlRow } from '../executor';
 
 export interface ShowRow extends SqlRow {
@@ -9,6 +16,21 @@ export interface ShowRow extends SqlRow {
   default_season: number;
   next_episode_number: number;
   default_export_preset: string | null;
+  // 以下は Podcast RSS の規格に対応する列（DATA_MODEL.md §4.1、0004）
+  website_url: string;
+  language: string;
+  /** 0 / 1 */
+  explicit: number;
+  show_type: ShowType;
+  copyright: string;
+  owner_name: string;
+  owner_email: string;
+  /** 0 / 1 */
+  complete: number;
+  feed_url: string | null;
+  podcast_guid: string | null;
+  cover_source_url: string | null;
+  feed_imported_at: number | null;
 }
 
 export interface ShowLayoutRow extends SqlRow {
@@ -80,34 +102,48 @@ export async function updateShow(
     coverPath: string | null;
     defaultSeason: number;
     defaultExportPreset: string;
+    websiteUrl: string;
+    language: string;
+    explicit: boolean;
+    showType: ShowType;
+    copyright: string;
+    ownerName: string;
+    ownerEmail: string;
+    complete: boolean;
+    feedUrl: string | null;
+    podcastGuid: string | null;
+    coverSourceUrl: string | null;
+    feedImportedAt: number | null;
   }>,
   now: number,
 ): Promise<void> {
+  const map: Record<string, string> = {
+    name: 'name',
+    description: 'description',
+    author: 'author',
+    coverPath: 'cover_path',
+    defaultSeason: 'default_season',
+    defaultExportPreset: 'default_export_preset',
+    websiteUrl: 'website_url',
+    language: 'language',
+    explicit: 'explicit',
+    showType: 'show_type',
+    copyright: 'copyright',
+    ownerName: 'owner_name',
+    ownerEmail: 'owner_email',
+    complete: 'complete',
+    feedUrl: 'feed_url',
+    podcastGuid: 'podcast_guid',
+    coverSourceUrl: 'cover_source_url',
+    feedImportedAt: 'feed_imported_at',
+  };
   const sets: string[] = [];
   const vals: (string | number | null)[] = [];
-  if (patch.name !== undefined) {
-    sets.push('name = ?');
-    vals.push(patch.name);
-  }
-  if (patch.description !== undefined) {
-    sets.push('description = ?');
-    vals.push(patch.description);
-  }
-  if (patch.author !== undefined) {
-    sets.push('author = ?');
-    vals.push(patch.author);
-  }
-  if (patch.coverPath !== undefined) {
-    sets.push('cover_path = ?');
-    vals.push(patch.coverPath);
-  }
-  if (patch.defaultSeason !== undefined) {
-    sets.push('default_season = ?');
-    vals.push(patch.defaultSeason);
-  }
-  if (patch.defaultExportPreset !== undefined) {
-    sets.push('default_export_preset = ?');
-    vals.push(patch.defaultExportPreset);
+  for (const [k, col] of Object.entries(map)) {
+    const v = (patch as Record<string, string | number | boolean | null | undefined>)[k];
+    if (v === undefined) continue;
+    sets.push(`${col} = ?`);
+    vals.push(typeof v === 'boolean' ? (v ? 1 : 0) : v);
   }
   if (!sets.length) return;
   sets.push('updated_at = ?');
@@ -181,4 +217,99 @@ export async function updateTemplate(
     now,
     id,
   ]);
+}
+
+export interface ShowCategoryRow extends SqlRow {
+  id: string;
+  show_id: string;
+  position: number;
+  category: string;
+  subcategory: string;
+}
+
+export interface ShowFundingRow extends SqlRow {
+  id: string;
+  show_id: string;
+  position: number;
+  url: string;
+  label: string;
+}
+
+/** `itunes:category` の並び（DATA_MODEL.md §4.1.1）。先頭が主カテゴリー。 */
+export async function listCategories(db: SqlExecutor, showId: string): Promise<ShowCategoryRow[]> {
+  return db.all<ShowCategoryRow>(
+    'SELECT * FROM show_categories WHERE show_id = ? ORDER BY position',
+    [showId],
+  );
+}
+
+/**
+ * カテゴリーを丸ごと置き換える。取り込みと番組設定の保存はどちらも「全体の上書き」なので差分は取らない。
+ * トランザクションは呼び出し側で張る（`saveOutline` と同じ）。
+ */
+export async function replaceCategories(
+  db: SqlExecutor,
+  showId: string,
+  categories: readonly PodcastCategory[],
+  newId: () => string,
+): Promise<void> {
+  await db.run('DELETE FROM show_categories WHERE show_id = ?', [showId]);
+  let position = 0;
+  for (const c of categories) {
+    await db.run(
+      'INSERT INTO show_categories (id, show_id, position, category, subcategory) VALUES (?,?,?,?,?)',
+      [newId(), showId, position++, c.category, c.subcategory],
+    );
+  }
+}
+
+/** `podcast:funding` の並び（DATA_MODEL.md §4.1.2）。 */
+export async function listFunding(db: SqlExecutor, showId: string): Promise<ShowFundingRow[]> {
+  return db.all<ShowFundingRow>('SELECT * FROM show_funding WHERE show_id = ? ORDER BY position', [
+    showId,
+  ]);
+}
+
+/** 支援リンクを丸ごと置き換える。トランザクションは呼び出し側で張る。 */
+export async function replaceFunding(
+  db: SqlExecutor,
+  showId: string,
+  funding: readonly PodcastFunding[],
+  newId: () => string,
+): Promise<void> {
+  await db.run('DELETE FROM show_funding WHERE show_id = ?', [showId]);
+  let position = 0;
+  for (const f of funding) {
+    await db.run(
+      'INSERT INTO show_funding (id, show_id, position, url, label) VALUES (?,?,?,?,?)',
+      [newId(), showId, position++, f.url, f.label],
+    );
+  }
+}
+
+/** 外部サービスでの番組 ID（DATA_MODEL.md §4.1.3）。PodsNow の `shows.id` とは混ぜない。 */
+export async function getExternalId(
+  db: SqlExecutor,
+  showId: string,
+  provider: ExternalIdProvider,
+): Promise<string | null> {
+  const r = await db.get<{ external_id: string }>(
+    'SELECT external_id FROM show_external_ids WHERE show_id = ? AND provider = ?',
+    [showId, provider],
+  );
+  return r?.external_id ?? null;
+}
+
+export async function setExternalId(
+  db: SqlExecutor,
+  showId: string,
+  provider: ExternalIdProvider,
+  externalId: string,
+  now: number,
+): Promise<void> {
+  await db.run(
+    `INSERT INTO show_external_ids (show_id, provider, external_id, updated_at) VALUES (?,?,?,?)
+     ON CONFLICT (show_id, provider) DO UPDATE SET external_id = excluded.external_id, updated_at = excluded.updated_at`,
+    [showId, provider, externalId, now],
+  );
 }
