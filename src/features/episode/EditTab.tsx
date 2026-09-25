@@ -17,7 +17,7 @@ import {
   Toggle,
   useCompact,
 } from '@/ui/components';
-import { ask } from '@/ui/alerts';
+import { ask, confirmDestructive } from '@/ui/alerts';
 import { useAppTheme } from '@/ui/ThemeContext';
 
 import { parseSeconds, validateRange } from './selectionInput';
@@ -101,13 +101,18 @@ export function EditTab({
     }
   }, [applySilence, onError, onShowToast, t, ws]);
 
-  const doCut = useCallback(async () => {
+  const doCut = useCallback(() => {
     if (!sel) return;
-    await ws.deleteSelection();
-    onShowToast(
-      t.edit.deleted(formatSmp(smp(sel.end - sel.start), { tenths: true })),
-      () => void ws.undo(),
-    );
+    const length = formatSmp(smp(sel.end - sel.start), { tenths: true });
+    confirmDestructive({
+      title: t.edit.confirmDelete(length),
+      confirmLabel: t.common.delete,
+      cancelLabel: t.common.cancel,
+      onConfirm: () =>
+        void ws
+          .deleteSelection()
+          .then(() => onShowToast(t.edit.deleted(length), () => void ws.undo())),
+    });
   }, [onShowToast, sel, t, ws]);
 
   const commitFields = () => {
@@ -265,7 +270,7 @@ export function EditTab({
               kind="secondary"
               icon="scissors"
               style={st.cell}
-              onPress={() => void doCut()}
+              onPress={doCut}
             />
             <Button
               label={t.edit.playSelection}
@@ -462,14 +467,23 @@ export function EditTab({
               />
             ) : null}
             <Row
-              icon="close"
+              icon="trash"
               label={t.edit.removeOverlay}
+              danger
               last
-              onPress={() => {
-                void ws.removeOverlay(selectedOverlay.id);
-                setSheet(null);
-                onShowToast(t.edit.overlayRemoved, () => void ws.undo());
-              }}
+              onPress={() =>
+                confirmDestructive({
+                  title: t.edit.confirmRemoveOverlay,
+                  confirmLabel: t.edit.removeOverlayShort,
+                  cancelLabel: t.common.cancel,
+                  onConfirm: () => {
+                    setSheet(null);
+                    void ws
+                      .removeOverlay(selectedOverlay.id)
+                      .then(() => onShowToast(t.edit.overlayRemoved, () => void ws.undo()));
+                  },
+                })
+              }
             />
           </>
         ) : null}

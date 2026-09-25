@@ -141,15 +141,15 @@ export default function HomeScreen() {
       label: t.home.menu.remove,
       destructive: true,
       onPress: () =>
-        e.status === 'exported'
-          ? confirmDestructive({
-              title: t.home.menu.remove,
-              message: t.home.menu.removeExportedNote(e.episode_number),
-              confirmLabel: t.common.delete,
-              cancelLabel: t.common.cancel,
-              onConfirm: () => void remove(e),
-            })
-          : void remove(e),
+        confirmDestructive({
+          title: t.home.menu.remove,
+          ...(e.status === 'exported'
+            ? { message: t.home.menu.removeExportedNote(e.episode_number) }
+            : {}),
+          confirmLabel: t.common.delete,
+          cancelLabel: t.common.cancel,
+          onConfirm: () => void remove(e),
+        }),
     },
   ];
 

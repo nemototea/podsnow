@@ -175,6 +175,13 @@ describe('insertAt / appendTake / moveSegment', () => {
     expect(moveSegment(base, 0, 99).map((s) => s.id)).toEqual(['b', 'a']);
     expect(() => moveSegment(base, 5, 0)).toThrow();
   });
+  it('moveSegment は行を作り直さない（ドラッグで離した行を id で追いかけるため）', () => {
+    const four = [...base, seg('c', 'C', 0, 100), seg('d', 'D', 0, 100)];
+    const out = moveSegment(four, 0, 3);
+    expect(out.map((s) => s.id)).toEqual(['b', 'c', 'd', 'a']);
+    expect(out[3]).toBe(four[0]);
+    assertVoiceInvariant(out);
+  });
 });
 
 describe('punch-in (delete + insert)', () => {

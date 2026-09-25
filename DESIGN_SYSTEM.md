@@ -341,7 +341,8 @@ Issue #105 / #110: 共通 Button の primary / secondary は押下時に 2px 下
 | `ChoiceMenu` | 値を 1 つ選ぶ行。iOS はメニュー形式のピッカー、ほかはシート（選択中にチェック） |
 | `DateField` | 日付。iOS はコンパクトな日付ピッカー、ほかは `YYYY-MM-DD` の文字入力 |
 | `Sheet` | iOS はページシート（下スワイプで閉じる）、ほかは下からのシート |
-| `alerts` | `confirmDestructive` / `ask` / `notify`（OS のアラート）、`iosActionSheet`、`iosPrompt` |
+| `ReorderList` | 並べ替えはすべてこれ（FR-UI-1）。行の右端のつまみだけにドラッグを付け、行の押下・スクロールと衝突させない。間の行が避け、離すと吸い付く。読み上げには行の操作「上へ移動」「下へ移動」。操作ヒントの文は出さない（§2.3） |
+| `alerts` | `confirmDestructive` / `ask` / `notify`（OS のアラート）、`iosActionSheet`、`iosPrompt`。削除はすべて `confirmDestructive` を通す（FR-UI-2）。削除・外す操作のアイコンはゴミ箱（`trash`）と `dangerText` に揃え、✕（`close`）は閉じる操作だけに使う |
 | `Field` | 常に見えるラベル、補足、エラー（読み上げに関連付け）、焦点の輪郭 |
 | `Segmented` | タブ（iOS は `UISegmentedControl`）。選択は一段明るい面 + 輪郭 1 周 + 文字色。片側の線は引かない（§2.1）。無効時は `textDisabled` |
 | `Chip` | 高さ 40 + 上下の hitSlop で 48。選択は輪郭 2 と淡い地 |

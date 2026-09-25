@@ -26,7 +26,7 @@ export interface OutlineDeps {
  *
  * Undo の対象にしない。理由は 2 つ:
  *   - テキスト入力を Undo 履歴に混ぜると、録音の取り消しと同じ操作で文字が戻ることになる
- *   - 項目を消したときは、その場のトーストの「取り消す」で守るほうが予測しやすい
+ *   - 項目を消すときは、削除前の確認で守る（FR-UI-2）。取り消しで守るのは音源の操作（Issue #122）
  * チャプターの位置は (take_id, src_smp) に紐づくので、声を切っても自動で追従する
  * （`domain/timeline/voice.ts:resolveTimeline`）。Undo で位置を戻す必要はない。
  */

@@ -4,7 +4,6 @@ import {
   Animated,
   Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
   Switch,
   useWindowDimensions,
@@ -16,7 +15,7 @@ import {
   type TextStyle,
   type ViewStyle,
 } from 'react-native';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import { Gesture, GestureDetector, ScrollView } from 'react-native-gesture-handler';
 import Reanimated, {
   Easing,
   FadeInDown,
@@ -107,6 +106,8 @@ function ScreenBody({
     >
       <View style={s.root}>
         {scroll ? (
+          // Gesture Handler の ScrollView にして、中のドラッグ（並べ替えのつまみ・波形のハンドル）が
+          // 先に始まったらスクロールを止められるようにする（`Sheet` と同じ）。
           <ScrollView
             contentContainerStyle={[inner, { paddingBottom: bottomPad }]}
             keyboardShouldPersistTaps="handled"
@@ -396,7 +397,7 @@ export function Row({
   last?: boolean;
   accessibilityLabel?: string;
   mono?: string;
-  /** 読み上げ中だけの操作（例: ドラッグの代わりの「上へ移動」）。押せる行にだけ付く。 */
+  /** 読み上げ中だけの操作（例: ドラッグの代わりの「上へ移動」）。 */
   accessibilityActions?: readonly AccessibilityActionInfo[];
   onAccessibilityAction?: (e: AccessibilityActionEvent) => void;
 }) {
@@ -424,18 +425,29 @@ export function Row({
     borderBottomColor: c.border,
     borderBottomWidth: last ? 0 : StyleSheet.hairlineWidth,
   };
-  if (!onPress) {
-    return (
-      <View style={[s.row, divider]}>
-        {content}
-        {right}
-      </View>
-    );
-  }
   const a11y = accessibilityLabel ?? (sub ? `${label}, ${sub}` : label);
   const a11yActions = accessibilityActions?.length
     ? { accessibilityActions, ...(onAccessibilityAction ? { onAccessibilityAction } : {}) }
     : {};
+  if (!onPress) {
+    if (!accessibilityActions?.length) {
+      return (
+        <View style={[s.row, divider]}>
+          {content}
+          {right}
+        </View>
+      );
+    }
+    // 読み上げの操作は、読み上げが止まる要素に付ける。本文をひとまとまりにし、右の操作は外に置く。
+    return (
+      <View style={[s.rowOuter, divider]}>
+        <View style={[s.row, s.flex]} accessible accessibilityLabel={a11y} {...a11yActions}>
+          {content}
+        </View>
+        {right}
+      </View>
+    );
+  }
   if (right) {
     // 右の操作（メニュー・ボタン・ネイティブのピッカー）は行の押下の外に置く。
     // 入れ子にすると、右を押したときに行の移動も同時に起きうる。

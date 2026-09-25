@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { moveItem } from '@/domain/outline';
@@ -21,11 +21,13 @@ import {
   useCompact,
   type IconName,
 } from '@/ui/components';
+import { confirmDestructive } from '@/ui/alerts';
+import { ReorderList } from '@/ui/ReorderList';
 import { useAppTheme } from '@/ui/ThemeContext';
 
+import { useServices } from '../app/ServicesProvider';
 import { LevelMeter } from './LevelMeter';
 import type { RecordingContext } from './useRecordingContext';
-import { TopicList } from './TopicList';
 import type { Workspace } from './useWorkspace';
 
 export interface RecordTabProps {
@@ -85,6 +87,11 @@ export function RecordTab({
     ? (recCtx.input?.name ?? t.record.builtInMic)
     : t.record.inputUnknown;
   const channels = recCtx.channels === 2 ? t.settings.stereo : t.settings.mono;
+
+  const { haptics } = useServices();
+  const pick = useCallback(() => haptics.play('light'), [haptics]);
+  const cross = useCallback(() => haptics.play('selection'), [haptics]);
+  const takeName = (takeId: string) => state.takes.find((x) => x.id === takeId)?.name ?? '';
 
   const openBody = (id: string, value: string) => {
     setEditing(id);
@@ -254,55 +261,91 @@ export function RecordTab({
       )}
 
       {state.doc.voice.length ? <SectionHeader title={t.record.recordingsEyebrow} /> : null}
-      {state.doc.voice.map((v, i) => {
-        const take = state.takes.find((x) => x.id === v.takeId);
-        const last = i === state.doc.voice.length - 1;
-        return (
-          <Row
-            key={v.id}
-            label={take?.name ?? ''}
-            sub={formatSmp(smp(v.srcEnd - v.srcStart))}
-            last={last}
-            right={
-              <View style={st.rowActions}>
-                <IconButton
-                  name="up"
-                  label={t.common.moveUp}
-                  disabled={i === 0 || live}
-                  onPress={() => void ws.moveTake(i, i - 1)}
-                />
-                <IconButton
-                  name="down"
-                  label={t.common.moveDown}
-                  disabled={last || live}
-                  onPress={() => void ws.moveTake(i, i + 1)}
-                />
-                <IconButton
-                  name="close"
-                  label={t.record.a11yRemoveFromEpisode(take?.name ?? '')}
-                  disabled={live}
-                  onPress={() => {
-                    void ws.removeVoiceSegment(i);
-                    onShowToast(t.record.removedFromEpisode);
-                  }}
-                />
-              </View>
-            }
-          />
-        );
-      })}
+      <ReorderList
+        items={state.doc.voice}
+        keyOf={(v) => v.id}
+        labelOf={(v) => takeName(v.takeId)}
+        disabled={live}
+        onMove={(from, to) => ws.moveTake(from, to).then(() => undefined)}
+        onPick={pick}
+        onCross={cross}
+        renderItem={(v, i, { grip, a11y }) => {
+          const name = takeName(v.takeId);
+          return (
+            <Row
+              label={name}
+              sub={formatSmp(smp(v.srcEnd - v.srcStart))}
+              last={i === state.doc.voice.length - 1}
+              {...a11y}
+              right={
+                <View style={st.rowActions}>
+                  <IconButton
+                    name="trash"
+                    label={t.record.a11yRemoveFromEpisode(name)}
+                    color={c.dangerText}
+                    disabled={live}
+                    onPress={() =>
+                      confirmDestructive({
+                        title: t.record.confirmRemoveTake(name),
+                        message: t.record.confirmRemoveTakeNote,
+                        confirmLabel: t.record.removeTake,
+                        cancelLabel: t.common.cancel,
+                        onConfirm: () =>
+                          void ws
+                            .removeVoiceSegment(i)
+                            .then(() => onShowToast(t.record.removedFromEpisode)),
+                      })
+                    }
+                  />
+                  {grip}
+                </View>
+              }
+            />
+          );
+        }}
+      />
 
       <Sheet
         visible={sheet === 'topics'}
         onClose={() => setSheet(null)}
         title={t.record.topicsTitle}
-        {...(state.outline.length > 1 ? { subtitle: t.record.reorderHint } : {})}
       >
-        <TopicList
+        <ReorderList
           items={state.outline}
-          onOpen={(item) => openBody(item.id, item.body)}
+          keyOf={(item) => item.id}
+          labelOf={(item) => item.heading}
           onMove={(from, to) => ws.saveOutline(moveItem(state.outline, from, to))}
-          onDelete={(item) => void ws.saveOutline(state.outline.filter((x) => x.id !== item.id))}
+          onPick={pick}
+          onCross={cross}
+          renderItem={(item, i, { grip, a11y }) => (
+            <Row
+              label={item.heading}
+              sub={item.body.trim() ? item.body.trim() : t.record.addScript}
+              onPress={() => openBody(item.id, item.body)}
+              last={i === state.outline.length - 1}
+              {...a11y}
+              right={
+                <View style={st.rowActions}>
+                  <IconButton
+                    name="trash"
+                    label={t.record.a11yDeleteTopic(item.heading)}
+                    color={c.dangerText}
+                    onPress={() =>
+                      confirmDestructive({
+                        title: t.record.confirmDeleteTopic(item.heading),
+                        ...(item.body.trim() ? { message: t.record.confirmDeleteTopicNote } : {}),
+                        confirmLabel: t.common.delete,
+                        cancelLabel: t.common.cancel,
+                        onConfirm: () =>
+                          void ws.saveOutline(state.outline.filter((x) => x.id !== item.id)),
+                      })
+                    }
+                  />
+                  {grip}
+                </View>
+              }
+            />
+          )}
         />
         <View style={{ marginTop: space.md }}>
           <Field
