@@ -65,14 +65,6 @@ export const tabularNums = { fontVariant: ['tabular-nums' as const] };
  * - 11px は波形の目盛りだけ（`tick`）。説明やボタンに使わない。
  */
 export const typography = {
-  /** PN-01 の表示窓の中の時間（#115）。幅 360 未満では `timer`。 */
-  timerDisplay: {
-    fontSize: 72,
-    lineHeight: 80,
-    fontWeight: '500',
-    fontFamily: family.numeric,
-    ...tabularNums,
-  },
   /** 収録中の時間。幅 320 では `timerCompact`。 */
   timer: {
     fontSize: 48,
@@ -189,9 +181,12 @@ export const motion = {
 /** 押し込みの縮小率（better-ui: 0.95 より小さいと大げさに見える）。 */
 export const pressScale = 0.96;
 
+/** Button の硬い影と押し込み。配置は動かさず描画だけを移動する。 */
+export const buttonDepth = { offsetX: 2, offsetY: 3, travel: 2, pressedOffsetY: 1 } as const;
+
 /**
- * PN-01 のキー（#115、DESIGN_SYSTEM.md §6）。天面の下に側面 `side` の厚みが見え、その下に柔らかい影が落ちる。
- * 押すと天面が `travel` だけ沈み、側面と影が縮む。配置は動かさず描画だけを移動する。
+ * 編集タブのキー（PN-01、#115。DESIGN_SYSTEM.md §6.3）。天面の下に側面 `side` の厚みが見え、
+ * その下に柔らかい影が落ちる。押すと天面が `travel` だけ沈み、側面と影が縮む。
  */
 export const keyDepth = {
   side: 3,
@@ -204,5 +199,5 @@ export const keyDepth = {
   shadowSpread: -6,
 } as const;
 
-/** 表示窓（黒いガラス）の枠。面に沈んだ縁の太さと、窓の角丸。 */
+/** 編集タブの表示窓（黒いガラス）の縁の太さと角丸。 */
 export const displayFrame = { bezel: 4, radius: 16 } as const;

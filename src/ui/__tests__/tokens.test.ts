@@ -27,7 +27,7 @@ const TONES = [
 const THEMES = ['dark', 'light'] as const;
 
 /** 本文が載りうる面。文字はこのどれに載っても読めなければならない。 */
-const TEXT_SURFACES = ['bg', 'surface', 'surfaceRaised', 'surfaceHover', 'well'] as const;
+const TEXT_SURFACES = ['bg', 'surface', 'surfaceRaised', 'surfaceHover'] as const;
 
 /** WCAG 1.4.3（本文 4.5:1）を満たさなければならない文字のトークン。 */
 const BODY_TEXT = [
@@ -124,11 +124,11 @@ describe.each(THEMES)('%s テーマの色', (theme) => {
     expect(contrast(t.border, c.bg)).toBeGreaterThanOrEqual(3);
   });
 
-  it('いちばん条件の悪い面は押下の面か凹んだ溝（文字の段はここから逆算している）', () => {
+  it('いちばん条件の悪い面は surfaceHover（文字の段はここから逆算している）', () => {
     const worst = TEXT_SURFACES.reduce((a, b) =>
       contrast(c[a], c.textPrimary) <= contrast(c[b], c.textPrimary) ? a : b,
     );
-    expect(['surfaceHover', 'well']).toContain(worst);
+    expect(worst).toBe('surfaceHover');
   });
 
   it('カードの面はページの地と見分けがつく', () => {
@@ -249,30 +249,56 @@ describe('書体', () => {
   });
 });
 
-describe('PN-01 のキー（#115）', () => {
-  it.each(THEMES)('%s: キーの輪郭は、キーが載る面から見分けられる', (theme) => {
+describe('ボタンの輪郭と硬い影', () => {
+  it.each(['dark', 'light'] as const)(
+    '%s: 副操作の輪郭と影は、ボタンが載る面から見分けられる',
+    (theme) => {
+      const c = colors[theme];
+      for (const surface of TEXT_SURFACES) {
+        expect(contrast(c.controlBorder, c[surface])).toBeGreaterThanOrEqual(3);
+        expect(contrast(c.controlShadow, c[surface])).toBeGreaterThanOrEqual(3);
+      }
+    },
+  );
+
+  it.each(['dark', 'light'] as const)('%s: 主操作の枠はシトロンの塗りから見分けられる', (theme) => {
     const c = colors[theme];
-    for (const surface of TEXT_SURFACES) {
+    for (const fill of ['accentSolid', 'accentSolidPressed'] as const) {
+      expect(contrast(c.controlEdge, c[fill])).toBeGreaterThanOrEqual(3);
+    }
+  });
+
+  it('ダーク: 明るい影の手前で主操作の枠が線として見え、塗りは背景から区別できる', () => {
+    const c = colors.dark;
+    expect(contrast(c.controlShadow, c.controlEdge)).toBeGreaterThanOrEqual(3);
+    for (const fill of ['accentSolid', 'accentSolidPressed'] as const) {
+      expect(contrast(c[fill], c.bg)).toBeGreaterThanOrEqual(3);
+    }
+  });
+});
+
+describe('編集タブのキー（PN-01、#115）', () => {
+  it.each(THEMES)('%s: キーの輪郭は、キーが載る面と溝から見分けられる', (theme) => {
+    const c = colors[theme];
+    for (const surface of [...TEXT_SURFACES, 'well'] as const) {
       expect(contrast(c.keyEdge, c[surface])).toBeGreaterThanOrEqual(3);
     }
   });
 
-  it.each(THEMES)('%s: キーのラベルは読める', (theme) => {
+  it.each(THEMES)('%s: キーの記号とラベルは読める', (theme) => {
     const c = colors[theme];
     expect(contrast(c.textPrimary, c.key)).toBeGreaterThanOrEqual(4.5);
-    expect(contrast(c.recOnSolid, c.recSolid)).toBeGreaterThanOrEqual(4.5);
     expect(contrast(c.accentOnSolid, c.accentSolid)).toBeGreaterThanOrEqual(4.5);
   });
 
   it.each(THEMES)('%s: キーの側面は天面より暗い（押し込みの厚みに見える）', (theme) => {
     const c = colors[theme];
     expect(contrast(c.keySide, '#000000')).toBeLessThan(contrast(c.key, '#000000'));
-    expect(contrast(c.keySideRec, '#000000')).toBeLessThan(contrast(c.recSolid, '#000000'));
     expect(contrast(c.keySideAccent, '#000000')).toBeLessThan(contrast(c.accentSolid, '#000000'));
   });
 });
 
-describe('PN-01 の表示窓（#115）', () => {
+describe('編集タブの表示窓（#115）', () => {
   it('表示窓の色はテーマに関係なく同じ', () => {
     const disp = (c: Colors) => Object.entries(c).filter(([n]) => n.startsWith('disp'));
     expect(disp(colors.light)).toEqual(disp(colors.dark));
@@ -285,10 +311,9 @@ describe('PN-01 の表示窓（#115）', () => {
         expect(contrast(c[fg], c[bg])).toBeGreaterThanOrEqual(4.5);
       }
     }
-    expect(contrast(c.dispRecText, c.dispRecSubtle)).toBeGreaterThanOrEqual(4.5);
   });
 
-  it('メーターと波形の色は、消灯した目盛りと地から見分けられる', () => {
+  it('波形と状態の色は、表示窓の地から見分けられる', () => {
     const c = colors.dark;
     for (const fg of [
       'dispVoice',
@@ -299,7 +324,6 @@ describe('PN-01 の表示窓（#115）', () => {
       'dispRec',
     ] as const) {
       expect(contrast(c[fg], c.dispBg)).toBeGreaterThanOrEqual(3);
-      expect(contrast(c[fg], c.dispLine)).toBeGreaterThanOrEqual(3);
     }
   });
 });

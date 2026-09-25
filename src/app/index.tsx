@@ -21,7 +21,6 @@ import {
   Toast,
   type IconName,
 } from '@/ui/components';
-import { Display, DisplayCells } from '@/ui/device';
 import { useAppTheme } from '@/ui/ThemeContext';
 import { useToast } from '@/ui/useToast';
 import { confirmDestructive } from '@/ui/alerts';
@@ -164,8 +163,7 @@ export default function HomeScreen() {
       bottomBar={
         <Button
           label={t.home.newEpisodeCta}
-          icon="record"
-          kind="rec"
+          icon="plus"
           onPress={() => void create()}
           busy={creating}
         />
@@ -221,37 +219,22 @@ export default function HomeScreen() {
       ) : null}
 
       {cont ? (
-        <View style={st.cont}>
-          {/* 制作中の回は表示窓で見せる（PN-01、#115） */}
-          <Display innerStyle={st.contInner}>
-            <View style={st.contMeta} accessibilityLabel={statusText(t, cont)}>
-              <Text style={[typography.numeric, tabularNums, { color: c.dispDim }]}>
-                {t.home.episodeCode(cont.episode_number)}
-              </Text>
-              <Icon name={statusIcon(cont)} color={c.dispMistake} size={icon.sm} />
-              <Text style={[typography.overline, { color: c.dispMistake }]}>
-                {statusText(t, cont)}
-              </Text>
-            </View>
-            <Text
-              style={[typography.heading, st.contTitle, { color: c.dispInk }]}
-              numberOfLines={2}
-            >
-              {cont.title || t.home.untitled}
+        <Card>
+          <Text style={[typography.heading, { color: c.textPrimary }]} numberOfLines={2}>
+            {cont.title || t.home.untitled}
+          </Text>
+          <View style={st.contMeta} accessibilityLabel={statusText(t, cont)}>
+            <Icon name={statusIcon(cont)} color={c.textSecondary} size={icon.sm} />
+            <Text style={[typography.numeric, tabularNums, { color: c.textSecondary }]}>
+              {t.home.episodeCode(cont.episode_number)} · {formatClock(smp(cont.duration_smp))}
             </Text>
-            <DisplayCells
-              cells={[
-                { label: t.home.cellLength, value: formatClock(smp(cont.duration_smp)) },
-                { label: t.home.cellTakes, value: t.home.takesValue(cont.take_count) },
-              ]}
-            />
-          </Display>
+          </View>
           <Button
             label={nextActionLabel(t, cont)}
-            icon={cont.take_count === 0 ? 'mic' : cont.status === 'exported' ? 'share' : 'edit'}
+            kind="secondary"
             onPress={() => router.push(`/episode/${cont.id}`)}
           />
-        </View>
+        </Card>
       ) : null}
 
       {others.length > 0 ? (
@@ -304,15 +287,13 @@ const st = StyleSheet.create({
   },
   showBlock: { marginTop: space.xl, marginBottom: space.xl, gap: space.xs },
   noticeActions: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm, marginTop: space.sm },
-  cont: { gap: space.md, marginBottom: space.md },
-  contInner: { paddingTop: space.md },
   contMeta: {
     flexDirection: 'row',
     alignItems: 'center',
     flexWrap: 'wrap',
-    gap: space.xs,
-    paddingHorizontal: space.md,
+    gap: space.sm,
+    marginTop: space.xs,
+    marginBottom: space.lg,
   },
-  contTitle: { paddingHorizontal: space.md, marginTop: space.xs, marginBottom: space.md },
   linkCard: { paddingVertical: space.xs },
 });

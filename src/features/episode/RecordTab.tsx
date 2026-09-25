@@ -1,14 +1,15 @@
 import { useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { moveItem } from '@/domain/outline';
 import { formatClock, formatSmp, smp } from '@/domain/time';
 import { useT, type Messages } from '@/i18n';
 import type { AssetRow } from '@/infra/db/repositories/assetsRepo';
 import type { SessionState } from '@/services/recording/RecordingSession';
-import { hit, icon, radius, space, stroke, tabularNums, typography } from '@/ui/tokens';
+import { icon, radius, space, stroke, tabularNums, typography } from '@/ui/tokens';
 import {
   Button,
+  Chip,
   Field,
   Icon,
   IconButton,
@@ -20,7 +21,6 @@ import {
   useCompact,
   type IconName,
 } from '@/ui/components';
-import { Display, DisplayCells, Key, Led, PanelLabel, useKeyInk } from '@/ui/device';
 import { useAppTheme } from '@/ui/ThemeContext';
 
 import { LevelMeter } from './LevelMeter';
@@ -71,11 +71,10 @@ export function RecordTab({
 
   const s = state.recording;
   const isRec = s === 'recording' || s === 'paused';
-  const active = isRec;
-  const keyInk = useKeyInk();
   const live = isRec || s === 'interrupted';
   const label = stateLabel(t, s);
-  const stateColor = s === 'interrupted' ? c.dispMistake : c.dispDim;
+  const stateColor =
+    s === 'recording' ? c.recText : s === 'interrupted' ? c.mistakeText : c.textSecondary;
   const current = ws.outlineCurrent === null ? null : (state.outline[ws.outlineCurrent] ?? null);
   const done = state.outline.filter((i) => i.recordedTakeId !== null).length;
   const favorites = state.assets.filter(
@@ -96,72 +95,64 @@ export function RecordTab({
     setEditing(null);
   };
 
-  const cells = [
-    { label: t.record.cellInput, value: inputName },
-    { label: t.record.cellFormat, value: t.record.formatValue(channels) },
-    active && !recCtx.writerOk
-      ? { label: t.record.cellLeft, value: t.record.notSaving, tone: 'alert' as const }
-      : {
-          label: t.record.cellLeft,
-          value: recCtx.estimate
-            ? t.record.leftValue(
-                recCtx.estimate.unit === 'hours'
-                  ? t.record.hours(recCtx.estimate.value)
-                  : t.record.minutes(recCtx.estimate.value),
-              )
-            : t.record.leftUnknown,
-        },
-  ];
-  const shown = current ?? (ws.outlineNext !== null ? state.outline[ws.outlineNext] : null) ?? null;
-  const upcoming = current && ws.outlineNext !== null ? state.outline[ws.outlineNext] : null;
-
   return (
-    <View style={st.root}>
-      {/* 見るもの：状態・時間・レベル・入力・形式・残りを 1 枚の表示窓にまとめる（PN-01、#115） */}
-      <Display>
-        <View style={st.dispTop}>
-          {s === 'recording' ? (
-            <View style={[st.onAir, { backgroundColor: c.dispRecSubtle, borderColor: c.dispRec }]}>
-              <Led color={c.dispRec} />
-              <Text style={[typography.overline, { color: c.dispRecText }]}>{t.record.onAir}</Text>
-            </View>
-          ) : null}
-          {label ? (
-            <View style={st.stateLabel} accessibilityLiveRegion="polite">
-              {label.icon && s !== 'recording' ? (
-                <Icon name={label.icon} color={stateColor} size={icon.sm} />
-              ) : null}
-              <Text style={[typography.overline, { color: stateColor }]}>{label.text}</Text>
-            </View>
-          ) : null}
-          <View style={st.flex} />
-          <Text style={[typography.overline, { color: c.dispDim }]}>
+    <View>
+      {label ? (
+        <View style={st.statusRow}>
+          <View style={st.stateLabel} accessibilityLiveRegion="polite">
+            {label.icon ? <Icon name={label.icon} color={stateColor} size={icon.sm} /> : null}
+            <Text style={[typography.label, { color: stateColor }]}>{label.text}</Text>
+          </View>
+          <Text style={[typography.caption, { color: c.textSecondary }]}>
             {live ? t.record.takeLabel(state.takes.length + 1) : ''}
           </Text>
         </View>
-        <Text
-          style={[
-            compactTimer ? typography.timer : typography.timerDisplay,
-            tabularNums,
-            st.timer,
-            { color: c.dispInk },
-          ]}
-          accessibilityLabel={
-            live
-              ? t.record.a11yElapsed(formatClock(smp(state.recFrames)))
-              : t.record.a11yRecordedSoFar(formatClock(state.total))
-          }
-        >
-          {formatClock(live ? smp(state.recFrames) : state.total)}
+      ) : null}
+
+      <Text
+        style={[
+          compactTimer ? typography.timerCompact : typography.timer,
+          tabularNums,
+          { color: c.textPrimary },
+        ]}
+        accessibilityLabel={
+          live
+            ? t.record.a11yElapsed(formatClock(smp(state.recFrames)))
+            : t.record.a11yRecordedSoFar(formatClock(state.total))
+        }
+      >
+        {formatClock(live ? smp(state.recFrames) : state.total)}
+      </Text>
+
+      <LevelMeter level={isRec && s === 'recording' ? state.level : null} />
+
+      <View style={st.inputRow}>
+        <Icon
+          name={recCtx.input?.type === 'builtin' ? 'mic' : 'headphones'}
+          color={c.textSecondary}
+          size={icon.sm}
+        />
+        <Text style={[typography.caption, { color: c.textSecondary, flex: 1 }]}>
+          {t.record.inputLine(inputName, channels)}
         </Text>
-        <LevelMeter level={isRec && s === 'recording' ? state.level : null} />
-        <DisplayCells cells={cells} />
-      </Display>
+      </View>
       {recCtx.input?.lowQuality ? (
         <Notice kind="warning" title={t.record.bluetoothTitle} body={t.settings.bluetoothWarning} />
       ) : null}
 
-      {/* 話すこと：今の話題と次の話題。右のキーで送る。表示窓を押すと一覧を開く */}
+      <SectionHeader
+        title={t.record.talkingPoints}
+        right={
+          <View style={st.headRight}>
+            {state.outline.length ? (
+              <Text style={[typography.numeric, tabularNums, { color: c.textSecondary }]}>
+                {t.record.progress(done, state.outline.length)}
+              </Text>
+            ) : null}
+            <IconButton name="edit" label={t.record.openList} onPress={() => setSheet('topics')} />
+          </View>
+        }
+      />
       {state.outline.length === 0 ? (
         <Button
           label={t.record.addTopics}
@@ -170,65 +161,70 @@ export function RecordTab({
           onPress={() => setSheet('topics')}
         />
       ) : (
-        <View style={st.topicRow}>
-          <Pressable
-            style={st.flex}
-            onPress={() => setSheet('topics')}
-            accessibilityRole="button"
-            accessibilityLabel={`${t.record.talkingPoints} ${t.record.progress(done, state.outline.length)}, ${shown?.heading ?? ''}`}
-            accessibilityHint={t.record.openList}
-          >
-            <Display innerStyle={st.topicInner}>
-              <View style={st.topicHead}>
-                <Text style={[typography.overline, { color: c.dispDim }]}>
-                  {t.record.talkingPoints}
-                </Text>
-                <Text style={[typography.tick, tabularNums, { color: c.dispDim }]}>
-                  {t.record.progress(done, state.outline.length)}
-                </Text>
+        <View>
+          {state.outline.map((item, i) => {
+            const isCurrent = current?.id === item.id;
+            const passed = item.recordedTakeId !== null && !isCurrent;
+            return (
+              <View
+                key={item.id}
+                style={[
+                  st.topic,
+                  {
+                    borderBottomColor: c.border,
+                    borderBottomWidth:
+                      i === state.outline.length - 1 ? 0 : StyleSheet.hairlineWidth,
+                  },
+                ]}
+                accessibilityLabel={`${item.heading}${passed ? `, ${t.record.a11yTalked}` : isCurrent ? `, ${t.record.talkingNow}` : ''}`}
+              >
+                <View
+                  style={[
+                    st.check,
+                    {
+                      borderColor: passed || isCurrent ? c.accentBorder : c.borderStrong,
+                      backgroundColor: passed ? c.accentSubtle : 'transparent',
+                    },
+                  ]}
+                >
+                  {passed ? <Icon name="check" color={c.accentText} size={icon.sm} /> : null}
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text
+                    style={[
+                      isCurrent ? typography.bodyStrong : typography.body,
+                      { color: passed ? c.textSecondary : c.textPrimary },
+                    ]}
+                  >
+                    {item.heading}
+                  </Text>
+                  {isCurrent && item.body.trim() ? (
+                    <Text style={[typography.body, { color: c.textSecondary }]}>{item.body}</Text>
+                  ) : null}
+                </View>
               </View>
-              <Text style={[typography.bodyStrong, { color: c.dispInk }]} numberOfLines={2}>
-                {shown?.heading ?? ''}
-              </Text>
-              {current && current.body.trim() ? (
-                <Text style={[typography.caption, { color: c.dispDim }]} numberOfLines={3}>
-                  {current.body}
-                </Text>
-              ) : null}
-              {upcoming ? (
-                <Text style={[typography.caption, { color: c.dispDim }]} numberOfLines={1}>
-                  {t.record.nextTopic(upcoming.heading)}
-                </Text>
-              ) : null}
-            </Display>
-          </Pressable>
+            );
+          })}
           {ws.outlineNext !== null ? (
-            <Key
-              label={t.record.a11yNextTopic(state.outline[ws.outlineNext]?.heading ?? '')}
+            <Button
+              label={
+                current
+                  ? t.record.nextTopic(state.outline[ws.outlineNext]?.heading ?? '')
+                  : t.record.firstTopic(state.outline[ws.outlineNext]?.heading ?? '')
+              }
+              kind="secondary"
+              style={st.nextTopic}
               onPress={() =>
                 void ws
                   .advanceOutline()
                   .then((it) => it && onShowToast(t.record.advanced(it.heading)))
               }
-              style={st.stepKey}
-            >
-              <Icon name="down" color={keyInk} size={icon.sm} />
-            </Key>
+            />
           ) : null}
         </View>
       )}
 
-      {/* 触るもの：素材のパッド。押す面は同じで、色は上辺の灯りだけ */}
-      <PanelLabel
-        title={t.record.assetsTitle}
-        right={
-          favorites.length ? (
-            <Text style={[typography.numeric, tabularNums, { color: c.textSecondary }]}>
-              {favorites.length}
-            </Text>
-          ) : null
-        }
-      />
+      <SectionHeader title={t.record.assetsTitle} />
       {favorites.length === 0 ? (
         <Button
           label={t.record.registerAssets}
@@ -237,30 +233,19 @@ export function RecordTab({
           onPress={onOpenAssets}
         />
       ) : (
-        <View style={st.pads}>
-          {favorites.slice(0, 3).map((a) => (
-            <View key={a.id} style={st.padCell}>
-              <Key
-                label={isRec ? t.record.a11yInsertNow(a.name) : t.record.a11yInsertAt(a.name)}
-                caption={a.name}
-                onPress={() => onInsertAsset(a)}
-                style={st.pad}
-              >
-                <View style={[st.padLed, { backgroundColor: c.insertSolid }]} />
-                <Icon name="music" color={keyInk} size={icon.sm} />
-              </Key>
-            </View>
+        <View style={st.assets}>
+          {favorites.slice(0, 4).map((a) => (
+            <Chip
+              key={a.id}
+              icon="music"
+              label={a.name}
+              accessibilityLabel={
+                isRec ? t.record.a11yInsertNow(a.name) : t.record.a11yInsertAt(a.name)
+              }
+              onPress={() => onInsertAsset(a)}
+            />
           ))}
-          <View style={st.padCell}>
-            <Key
-              label={t.record.moreAssets}
-              caption={t.record.moreAssets}
-              onPress={() => setSheet('insert')}
-              style={st.pad}
-            >
-              <Icon name="more" color={keyInk} size={icon.sm} />
-            </Key>
-          </View>
+          <Chip label={t.record.moreAssets} onPress={() => setSheet('insert')} />
         </View>
       )}
 
@@ -399,45 +384,31 @@ export function RecordTab({
 }
 
 const st = StyleSheet.create({
-  root: { gap: space.lg },
-  flex: { flex: 1 },
-  dispTop: {
+  statusRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     gap: space.sm,
-    paddingHorizontal: space.md,
-    paddingTop: space.md,
-    minHeight: space.xl + space.md,
-  },
-  onAir: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.xs + stroke.selected,
-    paddingHorizontal: space.sm,
-    height: space.xl,
-    borderRadius: radius.xs + stroke.selected,
-    borderWidth: stroke.hairline,
   },
   stateLabel: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
-  timer: { paddingHorizontal: space.md, marginTop: space.xs },
-  topicRow: { flexDirection: 'row', gap: space.sm, alignItems: 'stretch' },
-  topicInner: {
-    paddingHorizontal: space.md,
-    paddingVertical: space.md - stroke.selected,
-    gap: space.hair,
+  inputRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm, marginTop: space.md },
+  headRight: { flexDirection: 'row', alignItems: 'center', gap: space.xs, marginRight: -space.md },
+  topic: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: space.md,
+    paddingVertical: space.md,
   },
-  topicHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  stepKey: { width: hit.min, flex: 1, minHeight: hit.min },
-  pads: { flexDirection: 'row', gap: space.md, marginTop: -space.sm },
-  padCell: { flex: 1, minWidth: 0 },
-  pad: { width: '100%', height: hit.secondary + space.xs, gap: space.xs },
-  padLed: {
-    position: 'absolute',
-    top: space.sm,
-    left: space.md,
-    right: space.md,
-    height: stroke.focus,
-    borderRadius: radius.pill,
+  check: {
+    width: icon.md,
+    height: icon.md,
+    marginTop: space.hair,
+    borderRadius: radius.xs,
+    borderWidth: stroke.selected,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
+  nextTopic: { marginTop: space.md },
+  assets: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
   rowActions: { flexDirection: 'row', alignItems: 'center', marginRight: -space.md },
 });

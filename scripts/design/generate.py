@@ -48,19 +48,24 @@ def checks(t: dict[str, str], theme: str) -> list[tuple[str, str, float, str]]:
             out.append((f'{role}Border', s, 3.0, 'WCAG 1.4.11 輪郭'))
     for s in ('bg', 'surface'):
         out.append(('brandAccent', s, 3.0, 'ブランドの点の製品基準'))
-    # PN-01 のキー（DESIGN_SYSTEM.md §6）。形は輪郭 keyEdge が運び、側面と影は奥行きの補助。
+    # ボタンの輪郭と硬い影（DESIGN_SYSTEM.md §6）。影は bg に置いた下部バーの上にも出る。
     for s in TEXT_SURFACES:
+        out.append(('controlBorder', s, 3.0, 'WCAG 1.4.11 副操作の輪郭'))
+        out.append(('controlShadow', s, 3.0, '硬い影が面から見える'))
+    for s in ('accentSolid', 'accentSolidPressed'):
+        out.append(('controlEdge', s, 3.0, '主操作の枠がシトロンの塗りから見分けられる'))
+    if theme == 'light':
+        for s in TEXT_SURFACES:
+            out.append(('controlEdge', s, 3.0, 'WCAG 1.4.11 ライトの主操作の輪郭'))
+    # 編集タブのキーと表示窓（PN-01、#115。DESIGN_SYSTEM.md §6.3）
+    for s in TEXT_SURFACES + ('well',):
         out.append(('keyEdge', s, 3.0, 'WCAG 1.4.11 キーの輪郭'))
-    out.append(('textPrimary', 'key', 4.5, 'キーのラベル'))
-    # 表示窓（黒いガラス）。テーマに関係なく同じ値。
+    out.append(('textPrimary', 'key', 4.5, 'キーの記号・ラベル'))
     for fg in ('dispInk', 'dispDim'):
         for bg in ('dispBg', 'dispLine'):
             out.append((fg, bg, 4.5, 'WCAG 1.4.3 表示窓の文字'))
-    out.append(('dispRecText', 'dispRecSubtle', 4.5, 'ON AIR の文字'))
-    out.append(('dispRecText', 'dispBg', 4.5, '保存停止などの文字'))
     for fg in ('dispVoice', 'dispMusic', 'dispInsert', 'dispMistake', 'dispSuccess', 'dispRec'):
-        out.append((fg, 'dispBg', 3.0, 'WCAG 1.4.11 表示窓のメーター・波形'))
-        out.append((fg, 'dispLine', 3.0, 'メーターの消灯した目盛りと区別できる'))
+        out.append((fg, 'dispBg', 3.0, 'WCAG 1.4.11 表示窓の波形・状態'))
     out += [
         ('accentOnSolid', 'accentSolid', 4.5, '主操作のラベル'),
         ('accentOnSolid', 'accentSolidPressed', 4.5, '押下中も読める'),
@@ -72,6 +77,7 @@ def checks(t: dict[str, str], theme: str) -> list[tuple[str, str, float, str]]:
         ('dangerSolid', 'bg', 3.0, 'WCAG 1.4.11 塗りだけで形が分かる'),
     ]
     if theme == 'dark':
+        out.append(('controlShadow', 'controlEdge', 3.0, '明るい影の手前で主操作の枠が線として見える'))
         out.append(('accentSolid', 'bg', 3.0, 'WCAG 1.4.11 塗りだけで形が分かる'))
     else:
         # ライトではシトロンの塗りが白地に 3:1 を持てない。形は輪郭 accentBorder が運ぶ。

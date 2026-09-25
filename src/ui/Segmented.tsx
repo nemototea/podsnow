@@ -1,10 +1,8 @@
-import { Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
-import { keyLook, keyShadow } from './device';
-import { Icon } from './Icon';
 import { Text } from './Text';
 import { useAppTheme } from './ThemeContext';
-import { compactWidth, concentric, hit, icon, radius, space, stroke, typography } from './tokens';
+import { concentric, hit, radius, space, stroke, typography } from './tokens';
 
 export interface SegmentedProps<T extends string> {
   value: T;
@@ -21,10 +19,11 @@ export function Segmented<T extends string>({
   disabled,
 }: SegmentedProps<T>) {
   const c = useAppTheme();
-  // 狭い画面では鍵を出さない。ラベルが折り返すより、色だけで無効を示すほうが読める。
-  const roomy = useWindowDimensions().width >= compactWidth;
   return (
-    <View style={[st.segmented, { backgroundColor: c.well }]} accessibilityRole="tablist">
+    <View
+      style={[st.segmented, { backgroundColor: c.surface, borderColor: c.border }]}
+      accessibilityRole="tablist"
+    >
       {options.map((o) => {
         const active = o.value === value;
         const off = !active && !!disabled?.(o.value);
@@ -34,36 +33,27 @@ export function Segmented<T extends string>({
             onPress={() => onChange(o.value)}
             accessibilityRole="tab"
             accessibilityState={{ selected: active, disabled: off }}
-            style={({ pressed }) => {
-              // PN-01: 凹んだ溝（well）の中で、選ばれた駒だけがキーとして浮く（#115）
-              const look = keyLook(c, 'neutral', false);
-              return [
-                st.segment,
-                active
-                  ? {
-                      backgroundColor: look.face,
-                      borderColor: look.edge,
-                      boxShadow: keyShadow(c, look, true),
-                    }
-                  : {
-                      backgroundColor: pressed ? c.surfaceHover : 'transparent',
-                      borderColor: 'transparent',
-                    },
-              ];
-            }}
+            style={({ pressed }) => [
+              st.segment,
+              {
+                backgroundColor: active
+                  ? c.surfaceHover
+                  : pressed
+                    ? c.surfaceRaised
+                    : 'transparent',
+                borderColor: active ? c.borderStrong : 'transparent',
+              },
+            ]}
           >
-            <View style={st.inner}>
-              {off && roomy ? <Icon name="lock" color={c.textDisabled} size={icon.sm} /> : null}
-              <Text
-                style={[
-                  typography.label,
-                  st.center,
-                  { color: active ? c.textPrimary : off ? c.textDisabled : c.textSecondary },
-                ]}
-              >
-                {o.label}
-              </Text>
-            </View>
+            <Text
+              style={[
+                typography.label,
+                st.center,
+                { color: active ? c.textPrimary : off ? c.textDisabled : c.textSecondary },
+              ]}
+            >
+              {o.label}
+            </Text>
           </Pressable>
         );
       })}
@@ -72,11 +62,11 @@ export function Segmented<T extends string>({
 }
 
 const st = StyleSheet.create({
-  inner: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space.xs },
   center: { alignItems: 'center', justifyContent: 'center', textAlign: 'center' },
   segmented: {
     flexDirection: 'row',
     borderRadius: radius.md,
+    borderWidth: 1,
     padding: space.xs,
     gap: space.xs,
   },

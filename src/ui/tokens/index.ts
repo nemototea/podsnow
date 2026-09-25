@@ -2,6 +2,7 @@
 export { colors, type Colors, type ThemeName } from './colors';
 export { tone, type Tone, type ToneName } from './tones';
 export {
+  buttonDepth,
   compactWidth,
   concentric,
   displayFrame,

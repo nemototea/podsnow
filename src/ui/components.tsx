@@ -22,17 +22,18 @@ import Reanimated, {
   useAnimatedStyle,
   useSharedValue,
   withSpring,
+  withTiming,
 } from 'react-native-reanimated';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useT } from '@/i18n';
 
 import { BOTTOM_GAP, BottomInsetProvider, useBottomInset } from './BottomInset';
-import { canShadow, keyLook, keyShadow, type KeyTone } from './device';
 import { Icon, type IconName } from './Icon';
 import { Text, TextInput } from './Text';
 import { useAppTheme } from './ThemeContext';
 import {
+  buttonDepth,
   compactWidth,
   concentric,
   gutter,
@@ -40,8 +41,8 @@ import {
   hit,
   hitSlop,
   icon,
-  keyDepth,
   motion,
+  pressScale,
   radius,
   space,
   stroke,
@@ -122,11 +123,7 @@ function ScreenBody({
                 paddingBottom: insets.bottom + space.sm,
                 paddingHorizontal: g,
                 backgroundColor: c.bg,
-                // パネルの継ぎ目：暗い 1px と、その下の明るい 1px（PN-01、#115）
-                borderTopColor: c.seamDark,
-                boxShadow: canShadow
-                  ? [{ offsetX: 0, offsetY: 1, color: c.seamLight, inset: true }]
-                  : [],
+                borderTopColor: c.border,
               },
             ]}
             onLayout={(e) => setBarHeight(e.nativeEvent.layout.height)}
@@ -236,19 +233,8 @@ export function Card({
   );
 }
 
-export type ButtonKind = 'primary' | 'secondary' | 'danger' | 'ghost' | 'rec';
+export type ButtonKind = 'primary' | 'secondary' | 'danger' | 'ghost';
 
-const KEY_TONE: Record<Exclude<ButtonKind, 'ghost'>, KeyTone> = {
-  primary: 'accent',
-  secondary: 'neutral',
-  danger: 'danger',
-  rec: 'rec',
-};
-
-/**
- * 文字のあるボタン。ghost 以外は PN-01 のキーとして描く（#115、DESIGN_SYSTEM.md §6）。
- * 押すと天面が沈み、側面と影が縮む。動きを減らす設定では色だけで反応する。
- */
 export function Button({
   label,
   onPress,
@@ -272,52 +258,107 @@ export function Button({
 }) {
   const c = useAppTheme();
   const reduced = useReducedMotion();
-  const off = !!(disabled || busy);
-  const ghost = kind === 'ghost';
-  const fg = ghost ? (off ? c.textDisabled : c.textPrimary) : keyLook(c, KEY_TONE[kind], off).ink;
+  const off = disabled || busy;
+  const [pressed, setPressed] = useState(false);
+  const tactile = kind === 'primary' || kind === 'secondary';
+  const depressed = pressed && !off && tactile && !reduced;
+  const pressStyle = useAnimatedStyle(() => ({
+    transform: [
+      {
+        scale:
+          reduced || off || tactile
+            ? 1
+            : withTiming(pressed ? pressScale : 1, { duration: motion.instant }),
+      },
+      {
+        translateY:
+          reduced || off
+            ? 0
+            : withTiming(depressed ? buttonDepth.travel : 0, { duration: motion.instant }),
+      },
+    ],
+  }));
+  // Android 7/8 では boxShadow が未対応。形は不透明な輪郭で伝える。
+  const hardShadow =
+    tactile && !off && (Platform.OS !== 'android' || Number(Platform.Version) >= 28);
+  const look = (pressed: boolean): { bg: string; border: string; fg: string } => {
+    if (off) {
+      return {
+        bg: kind === 'ghost' ? 'transparent' : c.surfaceRaised,
+        border: kind === 'ghost' ? 'transparent' : c.border,
+        fg: c.textDisabled,
+      };
+    }
+    switch (kind) {
+      case 'primary':
+        return {
+          bg: pressed ? c.accentSolidPressed : c.accentSolid,
+          border: c.controlEdge,
+          fg: c.accentOnSolid,
+        };
+      case 'danger':
+        return {
+          bg: pressed ? c.dangerSolidPressed : c.dangerSolid,
+          border: pressed ? c.dangerSolidPressed : c.dangerSolid,
+          fg: c.dangerOnSolid,
+        };
+      case 'secondary':
+        return {
+          bg: pressed ? c.surfaceHover : c.isDark ? c.surfaceRaised : c.surface,
+          border: c.controlBorder,
+          fg: c.textPrimary,
+        };
+      case 'ghost':
+        return {
+          bg: pressed ? c.surfaceHover : 'transparent',
+          border: 'transparent',
+          fg: c.textPrimary,
+        };
+    }
+  };
+  const l = look(pressed);
   return (
-    <Pressable
+    <AnimatedPressable
       onPress={onPress}
+      onPressIn={() => {
+        setPressed(true);
+      }}
+      onPressOut={() => {
+        setPressed(false);
+      }}
       disabled={off}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel ?? label}
-      accessibilityState={{ disabled: off, busy: !!busy }}
-      style={({ pressed }) => {
-        const down = pressed && !off;
-        if (ghost) {
-          return [
-            s.button,
-            compact ? s.buttonCompact : null,
-            {
-              backgroundColor: down ? c.surfaceHover : 'transparent',
-              borderColor: 'transparent',
-              borderWidth: stroke.hairline,
-            },
-            style,
-          ];
-        }
-        const look = keyLook(c, KEY_TONE[kind], off);
-        return [
-          s.button,
-          compact ? s.buttonCompact : null,
-          {
-            backgroundColor: look.face,
-            borderColor: look.edge,
-            borderWidth: stroke.hairline,
-            boxShadow: off ? [] : keyShadow(c, look, down),
-            transform: [{ translateY: down && !reduced ? keyDepth.travel : 0 }],
-          },
-          style,
-        ];
-      }}
+      accessibilityState={{ disabled: !!off, busy: !!busy }}
+      style={[
+        s.button,
+        compact ? s.buttonCompact : null,
+        {
+          backgroundColor: l.bg,
+          borderColor: l.border,
+          borderWidth: tactile ? stroke.selected : stroke.hairline,
+          boxShadow: hardShadow
+            ? [
+                {
+                  offsetX: depressed ? 0 : buttonDepth.offsetX,
+                  offsetY: depressed ? buttonDepth.pressedOffsetY : buttonDepth.offsetY,
+                  blurRadius: 0,
+                  color: c.controlShadow,
+                },
+              ]
+            : [],
+        },
+        pressStyle,
+        style,
+      ]}
     >
       {busy ? (
-        <ActivityIndicator color={fg} />
+        <ActivityIndicator color={l.fg} />
       ) : iconName ? (
-        <Icon name={iconName} color={fg} size={icon.sm} />
+        <Icon name={iconName} color={l.fg} size={icon.sm} />
       ) : null}
-      <Text style={[typography.label, s.buttonLabel, { color: fg }]}>{label}</Text>
-    </Pressable>
+      <Text style={[typography.label, s.buttonLabel, { color: l.fg }]}>{label}</Text>
+    </AnimatedPressable>
   );
 }
 
@@ -740,6 +781,7 @@ export function Field({
 }
 
 const CHIP_H = 40;
+const AnimatedPressable = Reanimated.createAnimatedComponent(Pressable);
 const DISMISS_DRAG = 24;
 const DRAG_START = 4;
 const SPRING = { damping: 20, stiffness: 240, mass: 0.8 } as const;
@@ -748,7 +790,7 @@ const s = StyleSheet.create({
   root: { flex: 1 },
   flex: { flex: 1 },
   center: { alignItems: 'center', justifyContent: 'center', textAlign: 'center' },
-  bottomBar: { borderTopWidth: stroke.hairline, paddingTop: space.lg },
+  bottomBar: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: space.md },
   iconButton: {
     minWidth: hit.min,
     minHeight: hit.min,

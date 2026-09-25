@@ -1,8 +1,12 @@
-// PN-01 の部品（#115、DESIGN_SYSTEM.md §6.3）。
+// 編集タブの録音機の部品（PN-01、#115。DESIGN_SYSTEM.md §6.3）。
 //
-// 質感は 3 つだけ: 面（Screen の地 `bg`）、面に沈んだ黒い表示窓（Display）、押し込めるキー（Key）。
+// 録音機の表現は編集タブだけで使う。ほかの画面は従来の部品（`components.tsx`）で作る。
+// 質感は 2 つだけ: 黒いガラスの表示窓（Display）と、押し込めるキー（Key）。
 // 飾りだけの部品（ビス・シボ・基板・紙）は作らない。どの部品も状態を示すか、操作を受ける。
-import { type ReactNode } from 'react';
+//
+// 光沢と反射は react-native-svg の線形グラデーションで描く（`Sheen`）。色は既存トークンに不透明度を
+// 掛けるだけで、新しい色を作らない（透過のトークンを増やさない。DESIGN_SYSTEM.md §5.5）。
+import { useId, type ReactNode } from 'react';
 import {
   ActivityIndicator,
   Platform,
@@ -13,17 +17,18 @@ import {
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
+import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 
 import { Text } from './Text';
-import { useAppTheme } from './ThemeContext';
+import { DarkInside, useAppTheme } from './ThemeContext';
 import {
   type Colors,
   displayFrame,
-  hit,
   keyDepth,
   radius,
   space,
   stroke,
+  tabularNums,
   typography,
 } from './tokens';
 import { useReducedMotion } from './useReducedMotion';
@@ -84,6 +89,62 @@ export function keyShadow(c: Theme, look: KeyLook, pressed: boolean): BoxShadowV
   ];
 }
 
+/** 光沢の種類。天面の丸み（key）、ガラスの映り込み（glass）。 */
+export type SheenKind = 'key' | 'glass';
+
+const SHEEN: Record<SheenKind, { x2: string; y2: string; stops: [number, number][] }> = {
+  // 上から 45% までが明るく、そこから天面の色に戻る
+  key: {
+    x2: '0',
+    y2: '1',
+    stops: [
+      [0, 0.32],
+      [0.45, 0.06],
+      [1, 0],
+    ],
+  },
+  // 左上から斜めに 1 枚の映り込みがあり、途中でくっきり切れる
+  glass: {
+    x2: '1',
+    y2: '0.55',
+    stops: [
+      [0, 0.09],
+      [0.38, 0.03],
+      [0.382, 0],
+      [1, 0],
+    ],
+  },
+};
+
+/** 光沢の重ね。親の角丸に合わせて切り抜かれる前提（親に overflow: 'hidden' か同じ角丸を置く）。 */
+export function Sheen({ kind, rounded = 0 }: { kind: SheenKind; rounded?: number }) {
+  const c = useAppTheme();
+  const id = `sheen-${kind}-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`;
+  const g = SHEEN[kind];
+  return (
+    <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+      <Svg width="100%" height="100%">
+        <Defs>
+          <LinearGradient id={id} x1="0" y1="0" x2={g.x2} y2={g.y2}>
+            {g.stops.map(([offset, opacity]) => (
+              <Stop key={offset} offset={offset} stopColor={c.dispInk} stopOpacity={opacity} />
+            ))}
+          </LinearGradient>
+        </Defs>
+        <Rect
+          x="0"
+          y="0"
+          width="100%"
+          height="100%"
+          rx={rounded}
+          ry={rounded}
+          fill={`url(#${id})`}
+        />
+      </Svg>
+    </View>
+  );
+}
+
 /**
  * 押し込めるキー。記号（アイコン）をキーの上に、名前（`caption`）をキーの下の面に置く。
  * 名前を出さないキーも `label` を読み上げに使う。
@@ -92,9 +153,11 @@ export function Key({
   label,
   caption,
   onPress,
+  onLongPress,
   tone = 'neutral',
   disabled,
   busy,
+  selected,
   style,
   children,
   led,
@@ -102,9 +165,12 @@ export function Key({
   label: string;
   caption?: string;
   onPress: () => void;
+  onLongPress?: () => void;
   tone?: KeyTone;
   disabled?: boolean;
   busy?: boolean;
+  /** 押し込まれたまま（選ばれている）キー。 */
+  selected?: boolean;
   /** キーの大きさ（幅・高さ・角丸）。 */
   style?: StyleProp<ViewStyle>;
   children?: ReactNode;
@@ -115,16 +181,18 @@ export function Key({
   const reduced = useReducedMotion();
   const off = !!(disabled || busy);
   const look = keyLook(c, tone, off);
+  const rounded = StyleSheet.flatten(style)?.borderRadius;
   return (
     <View style={s.keyCell}>
       <Pressable
         onPress={onPress}
+        {...(onLongPress ? { onLongPress } : {})}
         disabled={off}
         accessibilityRole="button"
         accessibilityLabel={label}
-        accessibilityState={{ disabled: off, busy: !!busy }}
+        accessibilityState={{ disabled: off, busy: !!busy, ...(selected ? { selected } : {}) }}
         style={({ pressed }) => {
-          const down = pressed && !off;
+          const down = (pressed || !!selected) && !off;
           return [
             s.key,
             {
@@ -137,8 +205,15 @@ export function Key({
           ];
         }}
       >
+        {off ? null : (
+          <Sheen kind="key" rounded={typeof rounded === 'number' ? rounded : radius.md} />
+        )}
         {busy ? <ActivityIndicator color={look.ink} /> : children}
-        {led && !off ? <View style={[s.keyLed, { backgroundColor: look.ink }]} /> : null}
+        {led && !off ? (
+          <View style={s.ledCorner}>
+            <Led color={tone === 'neutral' ? c.accentSolid : look.ink} />
+          </View>
+        ) : null}
       </Pressable>
       {caption ? (
         <Text
@@ -165,7 +240,7 @@ export function useKeyInk(tone: KeyTone = 'neutral', off = false): string {
 
 /**
  * 表示窓。面に沈んだ縁（`well`）の中に、黒いガラス（`dispBg`）を置く。
- * 中の文字と色は `disp*` トークンだけを使う。テーマに関係なく同じ見え方になる。
+ * 中はテーマに関係なくダークの色で描く（`DarkInside`）。映り込みは 1 枚だけ。
  */
 export function Display({
   children,
@@ -183,13 +258,19 @@ export function Display({
         s.bezel,
         {
           backgroundColor: c.well,
-          boxShadow: canShadow ? [{ offsetX: 0, offsetY: 1, color: c.seamLight }] : [],
+          boxShadow: canShadow
+            ? [
+                { offsetX: 0, offsetY: 2, blurRadius: 3, color: c.keyShadow, inset: true },
+                { offsetX: 0, offsetY: 1, color: c.seamLight },
+              ]
+            : [],
         },
         style,
       ]}
     >
       <View style={[s.glass, { backgroundColor: c.dispBg, borderColor: c.dispLine }, innerStyle]}>
-        {children}
+        <DarkInside>{children}</DarkInside>
+        <Sheen kind="glass" />
       </View>
     </View>
   );
@@ -199,48 +280,55 @@ export function Display({
 export function DisplayCells({
   cells,
 }: {
-  cells: { label: string; value: string; tone?: 'normal' | 'alert' }[];
+  cells: {
+    label: string;
+    value: string;
+    onPress?: () => void;
+    a11yHint?: string;
+  }[];
 }) {
   const c = useAppTheme();
   return (
     <View style={[s.cells, { borderTopColor: c.dispLine }]}>
-      {cells.map((cell, i) => (
-        <View
-          key={cell.label}
-          style={[
-            s.cell,
-            i > 0 ? { borderLeftColor: c.dispLine, borderLeftWidth: stroke.hairline } : null,
-          ]}
-          accessible
-          accessibilityLabel={`${cell.label} ${cell.value}`}
-        >
-          <Text style={[typography.overline, { color: c.dispDim }]} numberOfLines={1}>
-            {cell.label}
-          </Text>
-          <Text
-            style={[typography.label, { color: cell.tone === 'alert' ? c.dispRecText : c.dispInk }]}
-            numberOfLines={2}
+      {cells.map((cell, i) => {
+        const body = (
+          <>
+            <Text style={[typography.overline, { color: c.dispDim }]} numberOfLines={1}>
+              {cell.label}
+            </Text>
+            <Text style={[typography.label, s.tabular, { color: c.dispInk }]} numberOfLines={2}>
+              {cell.value}
+            </Text>
+          </>
+        );
+        const divider =
+          i > 0 ? { borderLeftColor: c.dispLine, borderLeftWidth: stroke.hairline } : null;
+        return cell.onPress ? (
+          <Pressable
+            key={cell.label}
+            onPress={cell.onPress}
+            accessibilityRole="button"
+            accessibilityLabel={`${cell.label} ${cell.value}`}
+            {...(cell.a11yHint ? { accessibilityHint: cell.a11yHint } : {})}
+            style={({ pressed }) => [
+              s.cell,
+              divider,
+              pressed ? { backgroundColor: c.dispLine } : null,
+            ]}
           >
-            {cell.value}
-          </Text>
-        </View>
-      ))}
-    </View>
-  );
-}
-
-/** パネルに刻んだ小さな名札（「ジングル・効果音」など）。見出しより小さく、右に数や操作を置ける。 */
-export function PanelLabel({ title, right }: { title: string; right?: ReactNode }) {
-  const c = useAppTheme();
-  return (
-    <View style={s.panelLabel}>
-      <Text
-        style={[typography.overline, s.flex, { color: c.textSecondary }]}
-        accessibilityRole="header"
-      >
-        {title}
-      </Text>
-      {right}
+            {body}
+          </Pressable>
+        ) : (
+          <View
+            key={cell.label}
+            style={[s.cell, divider]}
+            accessible
+            accessibilityLabel={`${cell.label} ${cell.value}`}
+          >
+            {body}
+          </View>
+        );
+      })}
     </View>
   );
 }
@@ -261,17 +349,6 @@ export function Led({ color, on = true }: { color: string; on?: boolean }) {
   );
 }
 
-/** パネルの継ぎ目。暗い 1px と明るい 1px の 2 本線だけで描く。 */
-export function Seam({ style }: { style?: StyleProp<ViewStyle> }) {
-  const c = useAppTheme();
-  return (
-    <View style={style}>
-      <View style={[s.seamLine, { backgroundColor: c.seamDark }]} />
-      <View style={[s.seamLine, { backgroundColor: c.seamLight }]} />
-    </View>
-  );
-}
-
 const s = StyleSheet.create({
   keyCell: { alignItems: 'center', gap: space.sm },
   key: {
@@ -279,14 +356,7 @@ const s = StyleSheet.create({
     justifyContent: 'center',
     borderRadius: radius.md,
     borderWidth: stroke.hairline,
-  },
-  keyLed: {
-    position: 'absolute',
-    top: space.sm,
-    right: space.sm,
-    width: space.xs + stroke.hairline,
-    height: space.xs + stroke.hairline,
-    borderRadius: radius.pill,
+    overflow: 'visible',
   },
   keyCaption: { textAlign: 'center' },
   bezel: { borderRadius: displayFrame.radius, padding: displayFrame.bezel },
@@ -303,12 +373,11 @@ const s = StyleSheet.create({
     paddingTop: space.sm,
     paddingBottom: space.md,
   },
+  tabular: tabularNums,
+  ledCorner: { position: 'absolute', top: space.sm, right: space.sm },
   led: {
     width: space.sm - stroke.hairline,
     height: space.sm - stroke.hairline,
     borderRadius: radius.pill,
   },
-  seamLine: { height: stroke.hairline },
-  panelLabel: { flexDirection: 'row', alignItems: 'center', gap: space.sm, minHeight: hit.min },
-  flex: { flex: 1 },
 });
