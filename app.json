@@ -40,14 +40,14 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#F7F6F3",
+          "backgroundColor": "#D9DCDE",
           "image": "./assets/images/splash-icon-light.png",
           "imageWidth": 240,
           "android": {
             "imageWidth": 176
           },
           "dark": {
-            "backgroundColor": "#111416",
+            "backgroundColor": "#2B2F32",
             "image": "./assets/images/splash-icon.png"
           }
         }
@@ -127,9 +127,9 @@
       "typedRoutes": true
     },
     "splash": {
-      "backgroundColor": "#F7F6F3",
+      "backgroundColor": "#D9DCDE",
       "dark": {
-        "backgroundColor": "#111416"
+        "backgroundColor": "#2B2F32"
       }
     },
     "locales": {
