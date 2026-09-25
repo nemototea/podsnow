@@ -169,7 +169,7 @@ describe('migrate', () => {
 
     expect(
       await db.get(
-        'SELECT name, website_url, language, explicit, show_type, copyright, owner_name, owner_email, complete, feed_url, podcast_guid, cover_source_url, feed_imported_at FROM shows WHERE id = ?',
+        'SELECT name, website_url, language, explicit, show_type, copyright, owner_name, owner_email, complete, locked, feed_url, podcast_guid, cover_source_url, feed_imported_at FROM shows WHERE id = ?',
         ['s1'],
       ),
     ).toEqual({
@@ -182,6 +182,7 @@ describe('migrate', () => {
       owner_name: '',
       owner_email: '',
       complete: 0,
+      locked: 0,
       feed_url: null,
       podcast_guid: null,
       cover_source_url: null,

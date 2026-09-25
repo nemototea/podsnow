@@ -4,9 +4,11 @@ import { TEST_SHOW_SEED } from '@/services/app/__tests__/labels';
 
 import { migrate } from '../migrate';
 import {
+  episodeGuidTaken,
   getEpisode,
   insertEpisode,
-  episodeGuidTaken,
+  nextEpisodeNumber,
+  softDeleteEpisode,
   updateEpisode,
 } from '../repositories/episodesRepo';
 import {
@@ -71,6 +73,7 @@ describe('shows: podcast RSS fields', () => {
         ownerName: 'Owner',
         ownerEmail: 'owner@example.com',
         complete: true,
+        locked: true,
         feedUrl: 'https://example.com/feed.xml',
         podcastGuid: 'ead4c236-bf58-58c6-a2c6-a6b28d128cb6',
         coverSourceUrl: 'https://example.com/art.jpg',
@@ -88,6 +91,7 @@ describe('shows: podcast RSS fields', () => {
       owner_name: 'Owner',
       owner_email: 'owner@example.com',
       complete: 1,
+      locked: 1,
       feed_url: 'https://example.com/feed.xml',
       podcast_guid: 'ead4c236-bf58-58c6-a2c6-a6b28d128cb6',
       cover_source_url: 'https://example.com/art.jpg',
@@ -251,5 +255,51 @@ describe('feed_episodes', () => {
       created_at: 1000,
       updated_at: 2000,
     });
+  });
+});
+
+describe('episode numbering with published episodes', () => {
+  it('continues after the largest published number and never reuses it', async () => {
+    const { db, newId, show } = await setup();
+    expect(await nextEpisodeNumber(db, show.id)).toBe(1);
+
+    // 取り込んだ番組: 第 120 回まで配信済み（予告は話数なし）
+    await upsertFeedEpisodes(
+      db,
+      show.id,
+      [
+        item('g119', { episodeNumber: 119 }),
+        item('g120', { episodeNumber: 120 }),
+        item('trailer', { episodeType: 'trailer' }),
+      ],
+      newId,
+      1000,
+    );
+    expect(await nextEpisodeNumber(db, show.id)).toBe(121);
+
+    // 手元で第 121 回を作って消すと番号は返る（未配信なので）
+    await insertEpisode(db, {
+      id: 'e121',
+      showId: show.id,
+      title: '',
+      description: '',
+      episodeNumber: 121,
+      season: 1,
+      now: 1000,
+    });
+    expect(await nextEpisodeNumber(db, show.id)).toBe(122);
+    await softDeleteEpisode(db, 'e121', 2000);
+    expect(await nextEpisodeNumber(db, show.id)).toBe(121);
+
+    // 配信済みの番号は、対応する手元の回を消しても返らない
+    await upsertFeedEpisodes(db, show.id, [item('g121', { episodeNumber: 121 })], newId, 3000);
+    expect(await nextEpisodeNumber(db, show.id)).toBe(122);
+  });
+
+  it('ignores published episodes of other shows', async () => {
+    const { db, newId, show } = await setup();
+    await db.run('INSERT INTO shows (id, created_at, updated_at) VALUES (?,?,?)', ['other', 1, 1]);
+    await upsertFeedEpisodes(db, 'other', [item('x', { episodeNumber: 50 })], newId, 1000);
+    expect(await nextEpisodeNumber(db, show.id)).toBe(1);
   });
 });

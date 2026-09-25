@@ -57,13 +57,17 @@ export async function getEpisode(db: SqlExecutor, id: string): Promise<EpisodeRo
 /**
  * 新規エピソードの話数（REQUIREMENTS.md §2.1.1 / FR-EP-6）。
  *
- * 採番用のカウンターは持たず、既存行から導出する。条件は「削除されていないこと」だけで、
- * `status` は見ない。これにより試用で作って消した回は番号を消費せず、消した番号が返る。
+ * 採番用のカウンターは持たず、既存行から導出する。台帳は 2 つ:
+ * - `episodes` の削除されていない行。`status` は見ない。試用で作って消した回は番号を消費せず、消した番号が返る。
+ * - `feed_episodes`（配信済みの回）。配信した番号は二度と使わない。取り込んだ番組は続きの番号から始まる。
  */
 export async function nextEpisodeNumber(db: SqlExecutor, showId: string): Promise<number> {
   const r = await db.get<{ n: number }>(
-    'SELECT COALESCE(MAX(episode_number), 0) + 1 AS n FROM episodes WHERE show_id = ? AND deleted_at IS NULL',
-    [showId],
+    `SELECT MAX(
+       COALESCE((SELECT MAX(episode_number) FROM episodes WHERE show_id = ? AND deleted_at IS NULL), 0),
+       COALESCE((SELECT MAX(episode_number) FROM feed_episodes WHERE show_id = ?), 0)
+     ) + 1 AS n`,
+    [showId, showId],
   );
   return r?.n ?? 1;
 }

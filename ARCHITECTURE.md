@@ -195,20 +195,21 @@ interface AudioEngineModule {
 | 機能 | ローカルで成立 | サーバー必須 | 現在の扱い |
 |---|---|---|---|
 | 収録・編集・仕上げ・書き出し・共有・Show Assets・テンプレート・設定 | ○ | — | MVP。ネットワーク不要 |
-| 配信中の番組の取り込み（検索 / RSS 取得） | ○（アプリから Apple の公開検索と RSS 配信元へ直接 HTTPS。API キー不要） | — | SHOULD（Issue #101）。自前サーバーは持たない。秘密情報が要る外部 API を使うことになったら、アプリに埋め込まずサーバーを検討する |
+| 配信中の番組の取り込み（検索 / RSS 取得） | ○（アプリから Apple の公開検索と RSS 配信元へ直接 HTTPS。API キー不要） | — | SHOULD（Issue #101）。秘密情報が要る外部 API は使わない |
 | エピソードのバックアップ / 復元（`.podsnow` ファイル） | ○（ユーザーの iCloud Drive / Google Drive 等へ共有シートで保存） | — | MVP。自前サーバーは持たない |
 | OS 標準の音声入力・音声認識 | ○（端末依存でオンライン処理される場合あり） | — | 音声入力は MVP、文字起こしは後続 |
 | ローカル LLM による要約・概要欄下書き | ○（端末内推論。無料・ローカルが前提） | — | 後続。`AiProvider` インターフェースのみ |
 | 複数端末間の同期 | △（ファイル共有による手動同期は可） | ○（自動同期・衝突解決） | 将来。UUID / updated_at / 論理削除で道を残す |
-| 配信サービスへの直接アップロード | — | ○（各サービスの API。有料化リスク） | 将来。`Publisher` インターフェースのみ。MVP は Distribution Pack で人がコピペ |
-| ユーザー登録・課金・解析 | — | ○ | 持たない |
+| 自前サーバーからの配信（セルフホスト） | — | ○（音声と RSS の配信） | MVP は開発者自身の番組 1 つ（REQUIREMENTS.md §2.13）。サーバーは別 Issue。アプリは `SelfHostedPublisher` |
+| 他社配信サービスへの直接アップロード | — | ○（各サービスの API。有料化リスク） | 持たない。Distribution Pack で人がコピペ |
+| ユーザー登録・課金・解析 | — | ○ | MVP は持たない。一般向けの配信サービスにするときに判断（REQUIREMENTS.md FR-PUB-8） |
 
 ### 7.4 将来拡張の接続点 【事実】
 | 拡張 | 接続点 |
 |---|---|
 | AI（文字起こし / 要約 / 概要欄下書き） | `services/ai/AiProvider` インターフェース（`transcribe(take)`, `suggestDescription(episode)`）。MVP 実装は `NoopAiProvider`。`transcripts` テーブルと `episodes.description_suggestion` を用意 |
 | 複数端末同期 | UUID、`updated_at`、論理削除（`deleted_at`）を全主要テーブルに持たせる。バックアップ形式（`.podsnow`）が同期の単位になり得る |
-| 配信サービスへの直接アップロード | `services/publish/Publisher` インターフェース。MVP は `ManualPublisher`（Distribution Pack）のみ |
+| 配信 | `services/publish/Publisher` インターフェース。`ManualPublisher`（Distribution Pack）と `SelfHostedPublisher`（自前サーバー。MVP）。一般向けサービスにしても同じインターフェースの後ろで差し替える |
 | MP3 / FLAC | `podsnow-audio-engine` の `format` 列挙を拡張。エンコーダは Strategy で追加 |
 | 複数 Show | `shows` テーブルと `show_id` 外部キーは最初から存在。UI の Show 切替だけ後付け |
 
@@ -242,7 +243,9 @@ idle ──start──▶ preparing ──ok──▶ recording ◀──resume�
 `queued → rendering(progress) → encoding(progress) → done | failed | cancelled`。ジョブは `exports` テーブルに記録し、アプリ再起動で `rendering` のまま残っていれば `failed` に倒す。
 
 ## 9. セキュリティ / プライバシー
-- 通信は番組の取り込み（REQUIREMENTS.md FR-SHOW-6〜10）だけ。ユーザーが操作したときに限り、Apple の公開検索と RSS 配信元へ HTTPS で GET する（NFR-2 / NFR-5）。それ以外の機能はネットワークを使わない。
+- 通信は番組の取り込み（REQUIREMENTS.md FR-SHOW-6〜10）と自前サーバーへの配信（§2.13）だけ。ユーザーが操作したときに限り、Apple の公開検索と RSS 配信元への GET、登録した配信サーバーへの HTTPS 通信を行う（NFR-2 / NFR-5）。それ以外の機能はネットワークを使わない。
+- 配信サーバーのトークンは OS の安全な保管領域に置き、SQLite とバックアップには入れない（NFR-11）。
+- 正本の分担: 制作（録音・編集）の正本は端末の SQLite。配信済みの回と RSS の正本はサーバー。端末の `feed_episodes` はその写し（DATA_MODEL.md §4.17）。
 - 権限はマイク、（Android）通知、（Android）FGS、ファイル選択。Android の `INTERNET` は Expo の生成するマニフェストに最初から入っている【事実】（`@expo/config-plugins` の `withAndroidBaseMods.js` のテンプレート。元は https://github.com/expo/expo/blob/main/templates/expo-template-bare-minimum/android/app/src/main/AndroidManifest.xml ）。iOS は ATS により HTTPS 以外を拒否する既定のままにする。
 - 取り込みの層分け: 通信は `infra/`（`fetch`）、検索元と RSS 取得の組み立ては `services/podcast/`、XML から取り出した値の正規化（`itunes:explicit` / `itunes:duration` など）は `domain/podcast/`（純粋関数。Jest で網羅）。検索元はインターフェースの後ろに置き、Apple 以外を足せる形にする。RSS は信用しない入力として扱う（NFR-10）。
 - 録音ファイルはアプリの `Paths.document` 配下。iCloud バックアップ除外は【仮説】（expo-file-system に API 記載なし。必要ならネイティブで `isExcludedFromBackup` を設定）。

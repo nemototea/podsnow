@@ -55,6 +55,8 @@ export interface PodcastShowMeta {
   ownerEmail: string;
   /** `itunes:complete` が yes */
   complete: boolean;
+  /** `podcast:locked` が yes */
+  locked: boolean;
   /** `atom:link rel="self"`。無ければ取得に使った URL を入れる */
   feedUrl: string;
   /** `podcast:guid` */
@@ -115,7 +117,7 @@ export function parseEpisodeType(v: string | null | undefined): EpisodeType {
   return (EPISODE_TYPES as readonly string[]).includes(s) ? (s as EpisodeType) : 'full';
 }
 
-/** `itunes:complete` / `itunes:block` のように yes だけが意味を持つ要素。 */
+/** `itunes:complete` / `podcast:locked` のように yes だけが意味を持つ要素。 */
 export function parseYes(v: string | null | undefined): boolean {
   return norm(v) === 'yes';
 }

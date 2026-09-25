@@ -27,6 +27,8 @@ export interface ShowRow extends SqlRow {
   owner_email: string;
   /** 0 / 1 */
   complete: number;
+  /** `podcast:locked`（0 / 1）。自前配信の RSS に yes で出し、他のホスティングへの無断の取り込みを断る */
+  locked: number;
   feed_url: string | null;
   podcast_guid: string | null;
   cover_source_url: string | null;
@@ -110,6 +112,7 @@ export async function updateShow(
     ownerName: string;
     ownerEmail: string;
     complete: boolean;
+    locked: boolean;
     feedUrl: string | null;
     podcastGuid: string | null;
     coverSourceUrl: string | null;
@@ -132,6 +135,7 @@ export async function updateShow(
     ownerName: 'owner_name',
     ownerEmail: 'owner_email',
     complete: 'complete',
+    locked: 'locked',
     feedUrl: 'feed_url',
     podcastGuid: 'podcast_guid',
     coverSourceUrl: 'cover_source_url',
