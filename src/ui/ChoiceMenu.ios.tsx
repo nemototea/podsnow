@@ -19,6 +19,7 @@ export function ChoiceMenu<T extends string | number>({
   value,
   options,
   onChange,
+  last,
 }: ChoiceMenuProps<T>) {
   const c = useAppTheme();
   const family = useFontFamily();
@@ -30,6 +31,7 @@ export function ChoiceMenu<T extends string | number>({
     <Row
       label={label}
       {...(showSub ? { sub } : {})}
+      last={!!last}
       right={
         <Host matchContents colorScheme={c.isDark ? 'dark' : 'light'}>
           <Picker

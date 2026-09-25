@@ -195,6 +195,7 @@ export default function SettingsScreen() {
         />
         <Row
           label={t.settings.expectedLength}
+          last={Platform.OS !== 'android'}
           below={
             <>
               {MINUTES.map((m) => (
@@ -211,6 +212,7 @@ export default function SettingsScreen() {
         {Platform.OS === 'android' ? (
           <ChoiceMenu
             label={t.settings.androidSource}
+            last
             sub={t.settings.sources[settings.recording.androidAudioSource].label}
             title={t.settings.androidSource}
             value={settings.recording.androidAudioSource}
@@ -286,6 +288,7 @@ export default function SettingsScreen() {
         />
         <ChoiceMenu
           label={t.settings.monitorRow}
+          last
           sub={t.settings.monitor[settings.monitor.jinglePlayback].label}
           title={t.settings.monitorRow}
           value={settings.monitor.jinglePlayback}
@@ -302,6 +305,7 @@ export default function SettingsScreen() {
       <Card style={{ paddingVertical: space.xs }}>
         <ChoiceMenu
           label={t.settings.defaultPreset}
+          last
           sub={t.settings.presets[settings.export.defaultPreset].sub}
           title={t.settings.defaultPresetSheet}
           value={settings.export.defaultPreset}

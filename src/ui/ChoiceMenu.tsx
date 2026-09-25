@@ -19,12 +19,13 @@ export function ChoiceMenu<T extends string | number>({
   options,
   onChange,
   emptyText,
+  last,
 }: ChoiceMenuProps<T>) {
   const c = useAppTheme();
   const [open, setOpen] = useState(false);
   return (
     <>
-      <Row label={label} {...(sub ? { sub } : {})} onPress={() => setOpen(true)} />
+      <Row label={label} {...(sub ? { sub } : {})} last={!!last} onPress={() => setOpen(true)} />
       <Sheet visible={open} onClose={() => setOpen(false)} title={title}>
         {options.map((o, i) => (
           <Row
