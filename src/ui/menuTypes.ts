@@ -39,4 +39,6 @@ export interface ChoiceMenuProps<T extends string | number> {
   onChange: (v: T) => void;
   /** 選択肢が無いときの説明。 */
   emptyText?: string;
+  /** カードの最後の行（下の区切り線を出さない）。 */
+  last?: boolean;
 }
