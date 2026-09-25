@@ -3,6 +3,7 @@ import { useAudioPlayer } from 'expo-audio';
 import { useCallback, useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
+import { moveItem } from '@/domain/outline';
 import { formatSmp, smp } from '@/domain/time';
 import { useServices } from '@/features/app/ServicesProvider';
 import { ASSET_KIND_ORDER, assetKinds, kindLabel } from '@/features/show/assetKinds';
@@ -22,7 +23,8 @@ import {
   SectionHeader,
   Sheet,
 } from '@/ui/components';
-import { iosPrompt } from '@/ui/alerts';
+import { confirmDestructive, iosPrompt } from '@/ui/alerts';
+import { ReorderList } from '@/ui/ReorderList';
 import { MoreMenu } from '@/ui/MoreMenu';
 import { useAppTheme } from '@/ui/ThemeContext';
 
@@ -42,7 +44,7 @@ export interface AssetsSectionProps {
 export function AssetsSection({ onToast }: AssetsSectionProps) {
   const c = useAppTheme();
   const t = useT();
-  const { assets, show, root, engine, db, now } = useServices();
+  const { assets, show, root, engine, db, now, haptics } = useServices();
   const loader = useCallback(() => assets.list(show.id), [assets, show.id]);
   const { data: list, reload } = useAsyncData<AssetRow[]>(loader, []);
   // 用途は切り替え式。空の用途が画面を占めない（DESIGN_SYSTEM.md §2.3）。
@@ -99,16 +101,19 @@ export function AssetsSection({ onToast }: AssetsSectionProps) {
     await reload();
   };
 
-  const move = async (a: AssetRow, dir: -1 | 1) => {
-    const group = list.filter((x) => x.kind === a.kind);
-    const i = group.findIndex((x) => x.id === a.id);
-    const j = i + dir;
-    if (i < 0 || j < 0 || j >= group.length) return;
-    const ids = group.map((x) => x.id);
-    [ids[i], ids[j]] = [ids[j]!, ids[i]!];
-    await assets.reorder(ids);
+  /** 同じ種類の中で並べ替える（ドラッグ）。並びは種類ごとに持つ。 */
+  const move = async (from: number, to: number) => {
+    await assets.reorder(moveItem(items, from, to).map((x) => x.id));
     await reload();
   };
+
+  const confirmRemove = (a: AssetRow) =>
+    confirmDestructive({
+      title: t.showAssets.confirmRemove(a.name),
+      confirmLabel: t.common.delete,
+      cancelLabel: t.common.cancel,
+      onConfirm: () => void remove(a),
+    });
 
   const remove = async (a: AssetRow) => {
     if (playingId === a.id) {
@@ -191,66 +196,63 @@ export function AssetsSection({ onToast }: AssetsSectionProps) {
       ) : null}
       {items.length ? (
         <Card style={st.group}>
-          {items.map((a, i) => (
-            <Row
-              key={a.id}
-              label={a.name}
-              sub={
-                a.default_gain_db
-                  ? `${formatSmp(smp(a.duration_smp))} · ${a.default_gain_db > 0 ? '+' : ''}${a.default_gain_db} dB`
-                  : formatSmp(smp(a.duration_smp))
-              }
-              last={i === items.length - 1}
-              right={
-                <View style={st.rowRight}>
-                  <IconButton
-                    name={playingId === a.id ? 'stop' : 'play'}
-                    label={playingId === a.id ? t.showAssets.stop : t.showAssets.preview}
-                    selected={playingId === a.id}
-                    onPress={() => preview(a)}
-                  />
-                  <IconButton
-                    name={a.is_favorite ? 'starFilled' : 'star'}
-                    label={a.is_favorite ? t.showAssets.unfavorite : t.showAssets.favorite}
-                    color={a.is_favorite ? c.accentText : c.textSecondary}
-                    selected={!!a.is_favorite}
-                    onPress={() => void toggleFavorite(a)}
-                  />
-                  <MoreMenu
-                    label={t.showAssets.a11yMenu(a.name)}
-                    title={`${a.name} · ${kindLabel(t, a.kind)}`}
-                    actions={[
-                      {
-                        key: 'rename',
-                        icon: 'edit',
-                        label: t.common.rename,
-                        onPress: () => startRename(a),
-                      },
-                      {
-                        key: 'up',
-                        icon: 'up',
-                        label: t.common.moveUp,
-                        onPress: () => void move(a, -1),
-                      },
-                      {
-                        key: 'down',
-                        icon: 'down',
-                        label: t.common.moveDown,
-                        onPress: () => void move(a, 1),
-                      },
-                      {
-                        key: 'remove',
-                        icon: 'trash',
-                        label: t.common.delete,
-                        destructive: true,
-                        onPress: () => void remove(a),
-                      },
-                    ]}
-                  />
-                </View>
-              }
-            />
-          ))}
+          <ReorderList
+            items={items}
+            keyOf={(a) => a.id}
+            labelOf={(a) => a.name}
+            onMove={move}
+            onPick={() => haptics.play('light')}
+            onCross={() => haptics.play('selection')}
+            renderItem={(a, i, { grip, a11y }) => (
+              <Row
+                label={a.name}
+                sub={
+                  a.default_gain_db
+                    ? `${formatSmp(smp(a.duration_smp))} · ${a.default_gain_db > 0 ? '+' : ''}${a.default_gain_db} dB`
+                    : formatSmp(smp(a.duration_smp))
+                }
+                last={i === items.length - 1}
+                {...a11y}
+                right={
+                  <View style={st.rowRight}>
+                    <IconButton
+                      name={playingId === a.id ? 'stop' : 'play'}
+                      label={playingId === a.id ? t.showAssets.stop : t.showAssets.preview}
+                      selected={playingId === a.id}
+                      onPress={() => preview(a)}
+                    />
+                    <IconButton
+                      name={a.is_favorite ? 'starFilled' : 'star'}
+                      label={a.is_favorite ? t.showAssets.unfavorite : t.showAssets.favorite}
+                      color={a.is_favorite ? c.accentText : c.textSecondary}
+                      selected={!!a.is_favorite}
+                      onPress={() => void toggleFavorite(a)}
+                    />
+                    <MoreMenu
+                      label={t.showAssets.a11yMenu(a.name)}
+                      title={`${a.name} · ${kindLabel(t, a.kind)}`}
+                      actions={[
+                        {
+                          key: 'rename',
+                          icon: 'edit',
+                          label: t.common.rename,
+                          onPress: () => startRename(a),
+                        },
+                        {
+                          key: 'remove',
+                          icon: 'trash',
+                          label: t.common.delete,
+                          destructive: true,
+                          onPress: () => confirmRemove(a),
+                        },
+                      ]}
+                    />
+                    {grip}
+                  </View>
+                }
+              />
+            )}
+          />
         </Card>
       ) : null}
 

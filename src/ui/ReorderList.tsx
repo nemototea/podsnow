@@ -1,5 +1,11 @@
-import { memo, useCallback, useLayoutEffect, useMemo, useRef } from 'react';
-import { AccessibilityInfo, StyleSheet, View, type AccessibilityActionEvent } from 'react-native';
+import { useCallback, useLayoutEffect, useMemo, useRef, type ReactNode } from 'react';
+import {
+  AccessibilityInfo,
+  StyleSheet,
+  View,
+  type AccessibilityActionEvent,
+  type AccessibilityActionInfo,
+} from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Reanimated, {
   Easing,
@@ -11,22 +17,38 @@ import Reanimated, {
   type SharedValue,
 } from 'react-native-reanimated';
 
-import type { OutlineItem } from '@/domain/outline';
 import { useT } from '@/i18n';
-import { Icon, IconButton, Row } from '@/ui/components';
-import { useAppTheme } from '@/ui/ThemeContext';
-import { hit, motion, space } from '@/ui/tokens';
-import { useReducedMotion } from '@/ui/useReducedMotion';
 
-import { useServices } from '../app/ServicesProvider';
+import { Icon } from './Icon';
 import { dropIndex, shiftFor, slotOffset } from './reorder';
+import { useAppTheme } from './ThemeContext';
+import { hit, motion } from './tokens';
+import { useReducedMotion } from './useReducedMotion';
 
-export interface TopicListProps {
-  items: readonly OutlineItem[];
-  onOpen: (item: OutlineItem) => void;
-  /** 並べ替えを保存する。保存に失敗したら reject する（行を元の位置へ戻す）。 */
+/** `renderItem` に渡す、行へ組み込む部品。 */
+export interface ReorderRowParts {
+  /** 行の右端に置くつまみ。 */
+  grip: ReactNode;
+  /** 行の読み上げ要素に付ける操作（上へ移動 / 下へ移動）。 */
+  a11y: {
+    accessibilityActions: AccessibilityActionInfo[];
+    onAccessibilityAction: (e: AccessibilityActionEvent) => void;
+  };
+}
+
+export interface ReorderListProps<T> {
+  items: readonly T[];
+  keyOf: (item: T) => string;
+  /** 移動したあとに読み上げる名前。 */
+  labelOf: (item: T) => string;
+  /** 並べ替えを保存する。失敗したら reject する（行を元の位置へ戻す）。 */
   onMove: (from: number, to: number) => Promise<void>;
-  onDelete: (item: OutlineItem) => void;
+  renderItem: (item: T, index: number, parts: ReorderRowParts) => ReactNode;
+  /** 並べ替えを止める（録音中など）。つまみは淡く、読み上げの操作も出さない。 */
+  disabled?: boolean;
+  /** 掴んだとき・行を越えたときの触覚。`ui/` は services を持たないので呼び出し側が渡す。 */
+  onPick?: () => void;
+  onCross?: () => void;
 }
 
 /** ドラッグ中の状態。UI スレッドで読むので shared value にまとめる。 */
@@ -41,18 +63,38 @@ interface DragState {
   heights: SharedValue<number[]>;
 }
 
+interface Handlers {
+  measure: (key: string, h: number) => void;
+  pick: () => void;
+  cross: () => void;
+  drop: (from: number, to: number) => void;
+  /** 読み上げの操作から 1 つ動かす。 */
+  moveBy: (from: number, to: number) => void;
+}
+
 const EASE = { duration: motion.quick, easing: Easing.out(Easing.cubic) };
 
 /**
- * トークテーマのシートの項目の列（FR-OUT-3）。右端のつまみをドラッグして並べ替える。
+ * つまみのドラッグで並べ替える列（アプリの並べ替えはすべてこれ。Issue #119 / #121）。
  *
- * - つまみにだけドラッグを付ける。行を押すと台本を開くので、行全体を掴ませると衝突する
+ * - ドラッグはつまみにだけ付ける。行の押下（詳細を開くなど）やスクロールと衝突させない
  * - 読み上げ中はドラッグできないので、行に「上へ移動」「下へ移動」の操作を付ける（見た目には出さない）
  * - 離した行は新しい並びが描かれるまで離した位置に留める。先に戻すと、保存を待つ間に元の位置へ一瞬跳ねる
+ * - 録音中は親がメーターの頻度で描き直される。行へ渡す関数は固定し、ジェスチャーを作り直さない
+ *
+ * スクロールの中に置くときは、Gesture Handler の ScrollView の中に置く（`Screen` と `Sheet` はそうしてある）。
  */
-export function TopicList({ items, onOpen, onMove, onDelete }: TopicListProps) {
+export function ReorderList<T>({
+  items,
+  keyOf,
+  labelOf,
+  onMove,
+  renderItem,
+  disabled = false,
+  onPick,
+  onCross,
+}: ReorderListProps<T>) {
   const t = useT();
-  const { haptics } = useServices();
   const active = useSharedValue(-1);
   const target = useSharedValue(-1);
   const dy = useSharedValue(0);
@@ -63,26 +105,27 @@ export function TopicList({ items, onOpen, onMove, onDelete }: TopicListProps) {
   );
   const sizes = useRef(new Map<string, number>());
 
-  // 録音中はメーターの更新で親が頻繁に描き直される（FR-OUT-2 で録音中も並べ替える）。
-  // 行へ渡す関数を固定して、行ごとの描き直しとジェスチャーの作り直しを避ける。最新の値は ref から読む。
-  const latest = useRef({ items, onOpen, onMove, onDelete, t, haptics });
+  // 最新の値は ref から読む。行へ渡す関数を固定するため。
+  const latest = useRef({ items, keyOf, labelOf, onMove, onPick, onCross, t });
   useLayoutEffect(() => {
-    latest.current = { items, onOpen, onMove, onDelete, t, haptics };
+    latest.current = { items, keyOf, labelOf, onMove, onPick, onCross, t };
   });
 
-  const order = items.map((i) => i.id).join('\n');
+  const keys = items.map(keyOf);
+  const order = keys.join('\n');
   useLayoutEffect(() => {
     // 新しい並びが描かれたら、ずらしていた分を一斉に戻す。
-    heights.set(order.split('\n').map((id) => sizes.current.get(id) ?? 0));
+    heights.set(order.split('\n').map((k) => sizes.current.get(k) ?? 0));
     active.set(-1);
     target.set(-1);
     dy.set(0);
   }, [order, heights, active, target, dy]);
 
   const measure = useCallback(
-    (id: string, h: number) => {
-      sizes.current.set(id, h);
-      heights.set(latest.current.items.map((i) => sizes.current.get(i.id) ?? 0));
+    (key: string, h: number) => {
+      sizes.current.set(key, h);
+      const { items: now, keyOf: k } = latest.current;
+      heights.set(now.map((i) => sizes.current.get(k(i)) ?? 0));
     },
     [heights],
   );
@@ -98,21 +141,19 @@ export function TopicList({ items, onOpen, onMove, onDelete }: TopicListProps) {
     [active, target, dy],
   );
 
-  const handlers = useMemo<RowHandlers>(
+  const handlers = useMemo<Handlers>(
     () => ({
       measure,
-      open: (item) => latest.current.onOpen(item),
-      remove: (item) => latest.current.onDelete(item),
-      pick: () => latest.current.haptics.play('light'),
-      cross: () => latest.current.haptics.play('selection'),
+      pick: () => latest.current.onPick?.(),
+      cross: () => latest.current.onCross?.(),
       drop: (from, to) => void move(from, to),
       moveBy: (from, to) => {
-        const { items: now, t: tt } = latest.current;
+        const { items: now, labelOf: label, t: tt } = latest.current;
         const item = now[from];
-        if (!item || to < 0 || to >= now.length) return;
+        if (item === undefined || to < 0 || to >= now.length) return;
         void move(from, to).then(() =>
           AccessibilityInfo.announceForAccessibility(
-            tt.record.a11yMovedTopic(item.heading, to + 1, now.length),
+            tt.a11y.movedTo(label(item), to + 1, now.length),
           ),
         );
       },
@@ -123,42 +164,37 @@ export function TopicList({ items, onOpen, onMove, onDelete }: TopicListProps) {
   return (
     <View>
       {items.map((item, i) => (
-        <TopicRow
-          key={item.id}
-          item={item}
+        <ReorderRow
+          key={keys[i]}
+          itemKey={keys[i]!}
           index={i}
           count={items.length}
+          disabled={disabled}
           drag={drag}
           on={handlers}
+          render={(parts) => renderItem(item, i, parts)}
         />
       ))}
     </View>
   );
 }
 
-interface RowHandlers {
-  measure: (id: string, h: number) => void;
-  open: (item: OutlineItem) => void;
-  remove: (item: OutlineItem) => void;
-  pick: () => void;
-  cross: () => void;
-  drop: (from: number, to: number) => void;
-  /** 読み上げの操作から 1 つ動かす。 */
-  moveBy: (from: number, to: number) => void;
-}
-
-const TopicRow = memo(function TopicRow({
-  item,
+function ReorderRow({
+  itemKey,
   index,
   count,
+  disabled,
   drag,
   on,
+  render,
 }: {
-  item: OutlineItem;
+  itemKey: string;
   index: number;
   count: number;
+  disabled: boolean;
   drag: DragState;
-  on: RowHandlers;
+  on: Handlers;
+  render: (parts: ReorderRowParts) => ReactNode;
 }) {
   const c = useAppTheme();
   const t = useT();
@@ -182,6 +218,7 @@ const TopicRow = memo(function TopicRow({
   const pan = useMemo(
     () =>
       Gesture.Pan()
+        .enabled(!disabled)
         // つまみに触れて動かした時点で掴む。先にスクロールが始まらないように。
         .minDistance(0)
         .onStart(() => {
@@ -213,17 +250,20 @@ const TopicRow = memo(function TopicRow({
             done(true);
           } else dy.set(withTiming(settle, EASE, done));
         }),
-    [index, reduced, active, target, dy, heights, on],
+    [index, disabled, reduced, active, target, dy, heights, on],
   );
 
-  const actions = useMemo(
-    () => [
-      ...(index > 0 ? [{ name: 'moveUp', label: t.common.moveUp }] : []),
-      ...(index < count - 1 ? [{ name: 'moveDown', label: t.common.moveDown }] : []),
-    ],
-    [index, count, t],
+  const accessibilityActions = useMemo(
+    () =>
+      disabled
+        ? []
+        : [
+            ...(index > 0 ? [{ name: 'moveUp', label: t.common.moveUp }] : []),
+            ...(index < count - 1 ? [{ name: 'moveDown', label: t.common.moveDown }] : []),
+          ],
+    [index, count, disabled, t],
   );
-  const onAction = useCallback(
+  const onAccessibilityAction = useCallback(
     (e: AccessibilityActionEvent) => {
       if (e.nativeEvent.actionName === 'moveUp') on.moveBy(index, index - 1);
       else if (e.nativeEvent.actionName === 'moveDown') on.moveBy(index, index + 1);
@@ -240,44 +280,29 @@ const TopicRow = memo(function TopicRow({
     };
   });
 
+  const grip = (
+    <GestureDetector gesture={pan}>
+      {/* 読み上げではドラッグできないので隠す。代わりに行の操作で動かす。 */}
+      <View
+        style={st.grip}
+        accessibilityElementsHidden
+        importantForAccessibility="no-hide-descendants"
+      >
+        <Icon name="grip" color={disabled ? c.textDisabled : c.textSecondary} />
+      </View>
+    </GestureDetector>
+  );
+
   return (
     <Reanimated.View
       style={style}
-      onLayout={(e) => on.measure(item.id, e.nativeEvent.layout.height)}
+      onLayout={(e) => on.measure(itemKey, e.nativeEvent.layout.height)}
     >
-      <Row
-        label={item.heading}
-        sub={item.body.trim() ? item.body.trim() : t.record.addScript}
-        onPress={() => on.open(item)}
-        last={index === count - 1}
-        accessibilityActions={actions}
-        onAccessibilityAction={onAction}
-        right={
-          <View style={st.actions}>
-            <IconButton
-              name="trash"
-              label={t.record.a11yDeleteTopic(item.heading)}
-              color={c.dangerText}
-              onPress={() => on.remove(item)}
-            />
-            <GestureDetector gesture={pan}>
-              {/* 読み上げではドラッグできないので隠す。代わりに行の操作で動かす。 */}
-              <View
-                style={st.grip}
-                accessibilityElementsHidden
-                importantForAccessibility="no-hide-descendants"
-              >
-                <Icon name="grip" color={c.textSecondary} />
-              </View>
-            </GestureDetector>
-          </View>
-        }
-      />
+      {render({ grip, a11y: { accessibilityActions, onAccessibilityAction } })}
     </Reanimated.View>
   );
-});
+}
 
 const st = StyleSheet.create({
-  actions: { flexDirection: 'row', alignItems: 'center', marginRight: -space.md },
   grip: { width: hit.min, height: hit.min, alignItems: 'center', justifyContent: 'center' },
 });

@@ -296,14 +296,14 @@ export default function EpisodeScreen() {
             label: t.episode.menu.remove,
             destructive: true,
             onPress: () => {
-              const run = () => void services.episodes.remove(episodeId).then(() => router.back());
-              if (episode.status !== 'exported') return run();
               confirmDestructive({
                 title: t.episode.menu.remove,
-                message: t.episode.menu.removeExportedNote(episode.episode_number),
+                ...(episode.status === 'exported'
+                  ? { message: t.episode.menu.removeExportedNote(episode.episode_number) }
+                  : {}),
                 confirmLabel: t.common.delete,
                 cancelLabel: t.common.cancel,
-                onConfirm: run,
+                onConfirm: () => void services.episodes.remove(episodeId).then(() => router.back()),
               });
             },
           },
