@@ -26,12 +26,7 @@ export const gutter = 20;
 export const gutterCompact = space.lg;
 export const compactWidth = 360;
 
-/**
- * 角丸。
- *
- * 入れ子にするときは **外側 = 内側 + 余白**（better-ui: concentric border radius）。
- * `concentric()` で計算する。目分量で合わせない。
- */
+/** 角丸。部品ごとの値は DESIGN_SYSTEM.md §6 で決める。 */
 export const radius = {
   xs: 4,
   sm: 8,
@@ -41,7 +36,7 @@ export const radius = {
   pill: 999,
 } as const;
 
-/** 余白 `pad` の内側に置く要素の角丸。外側 `outer` と同心になる。 */
+/** 余白 `pad` だけ内側に密着して重なる要素（セグメント、トーストの押下面など）の角丸。 */
 export function concentric(outer: number, pad: number): number {
   return Math.max(0, outer - pad);
 }
