@@ -2,6 +2,7 @@ import { DarkTheme, DefaultTheme, Stack, ThemeProvider as NavThemeProvider } fro
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { KeyboardProvider } from 'react-native-keyboard-controller';
 
 import { ServiceLabelsSync, ServicesProvider, useServices } from '@/features/app/ServicesProvider';
 import { LocaleProvider, useT } from '@/i18n';
@@ -86,19 +87,22 @@ function Booting() {
 export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <FontProvider>
-        <LocaleProvider>
-          <ServicesProvider
-            fallback={
-              <ThemeProvider pref="system">
-                <Booting />
-              </ThemeProvider>
-            }
-          >
-            <Themed />
-          </ServicesProvider>
-        </LocaleProvider>
-      </FontProvider>
+      {/* キーボードの位置を `Screen` / `Sheet` / `Toast` へ配る（Issue #132）。 */}
+      <KeyboardProvider>
+        <FontProvider>
+          <LocaleProvider>
+            <ServicesProvider
+              fallback={
+                <ThemeProvider pref="system">
+                  <Booting />
+                </ThemeProvider>
+              }
+            >
+              <Themed />
+            </ServicesProvider>
+          </LocaleProvider>
+        </FontProvider>
+      </KeyboardProvider>
     </GestureHandlerRootView>
   );
 }

@@ -1,11 +1,12 @@
 import { Modal, StyleSheet, View } from 'react-native';
-import { GestureHandlerRootView, ScrollView } from 'react-native-gesture-handler';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useT } from '@/i18n';
 
 import { IconButton, useGutter } from './components';
 import { DialogHost } from './Dialog';
+import { KeyboardScroll } from './KeyboardScroll';
 import type { SheetProps } from './Sheet';
 import { Text } from './Text';
 import { useAppTheme } from './ThemeContext';
@@ -51,14 +52,12 @@ export function Sheet({ visible, onClose, title, subtitle, children }: SheetProp
           </View>
           <IconButton name="close" label={t.a11y.close} onPress={onClose} />
         </View>
-        <ScrollView
-          keyboardShouldPersistTaps="handled"
-          keyboardDismissMode="interactive"
-          automaticallyAdjustKeyboardInsets
+        {/* キーボードが出たら入力中の欄が見えるまでずらす（Issue #132、`Screen` と同じ部品）。 */}
+        <KeyboardScroll
           contentContainerStyle={{ paddingHorizontal: g, paddingBottom: insets.bottom + space.xl }}
         >
           {children}
-        </ScrollView>
+        </KeyboardScroll>
         {/* シートの中から出す確認は、ページシートの上に出す（DESIGN_SYSTEM.md §6.3）。 */}
         <DialogHost />
       </GestureHandlerRootView>

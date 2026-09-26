@@ -44,3 +44,17 @@ export function useBottomInset(): BottomInsetValue {
 
 /** トーストと下部要素のあいだの余白（M3 の Snackbar と FAB の間隔に相当）。 */
 export const BOTTOM_GAP = space.md;
+
+/**
+ * キーボードが出ている間、画面下に置いたもの（トースト）を持ち上げる量（Issue #132）。
+ *
+ * - `keyboardHeight`: react-native-keyboard-controller の高さ。出ているとき負の値になる。
+ * - `floor`: キーボードが無いときの下端（下部バーの実測高さか、無ければ safe area）。
+ *
+ * 下部バーはキーボードの裏に隠れるので、キーボードが `floor` より高い分だけ上げる。
+ * 戻り値は translateY（上へ動かすので 0 以下）。
+ */
+export function keyboardLift(keyboardHeight: number, floor: number): number {
+  'worklet';
+  return Math.min(0, keyboardHeight + floor);
+}
