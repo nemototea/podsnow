@@ -154,6 +154,21 @@ describe('parsePodcastFeed', () => {
     expect(show.showType).toBe('episodic');
   });
 
+  it('E-8: drops URLs that are not http(s)', () => {
+    const xml = `<rss xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd" xmlns:podcast="https://podcastindex.org/namespace/1.0"><channel>
+      <title>t</title><link>javascript:alert(1)</link>
+      <itunes:image href="data:image/png;base64,AAAA"/>
+      <podcast:funding url="javascript:x">x</podcast:funding>
+      <item><guid>g</guid><link>file:///etc/passwd</link><itunes:image href="ftp://e.com/a.png"/>
+        <enclosure url="javascript:y" length="1" type="audio/mpeg"/></item>
+    </channel></rss>`;
+    const { show, items } = parsePodcastFeed(xml, 'https://example.com/f');
+    expect(show.websiteUrl).toBe('');
+    expect(show.imageUrl).toBeNull();
+    expect(show.funding).toEqual([]);
+    expect(items[0]).toMatchObject({ websiteUrl: '', imageUrl: null, enclosureUrl: null });
+  });
+
   it('rejects documents that are not RSS feeds', () => {
     const code = (xml: string) => {
       try {

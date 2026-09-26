@@ -178,7 +178,7 @@ describe('PodcastImportService.preview', () => {
       feedUrl: FEED_URL,
       genres: [],
     };
-    const p = await svc.preview({ directory });
+    const p = await svc.preview(show.id, { directory });
     // RSS が優先、無い項目だけ検索結果で補う
     expect(p.feed.show.title).toBe('取り込んだ番組');
     expect(p.feed.show.author).toBe('検索結果の著者');
@@ -191,7 +191,7 @@ describe('PodcastImportService.preview', () => {
   });
 
   it('rejects non-HTTPS URLs, http redirects, missing feed URLs and non-feeds', async () => {
-    const { svc } = await setup({
+    const { svc, show } = await setup({
       'https://redirected.example.com/': {
         url: 'http://plain.example.com/feed',
         text: feedXml(''),
@@ -200,21 +200,23 @@ describe('PodcastImportService.preview', () => {
       'https://html.example.com/': { text: '<html><body>hello</body></html>' },
       'https://slow.example.com/': { error: 'import_timeout' },
     });
-    expect(await codeOf(svc.preview({ feedUrl: 'http://example.com/feed' }))).toBe(
+    expect(await codeOf(svc.preview(show.id, { feedUrl: 'http://example.com/feed' }))).toBe(
       'import_not_https',
     );
-    expect(await codeOf(svc.preview({ feedUrl: 'file:///etc/passwd' }))).toBe('import_not_https');
-    expect(await codeOf(svc.preview({ feedUrl: '   ' }))).toBe('import_no_feed_url');
-    expect(await codeOf(svc.preview({ feedUrl: 'https://redirected.example.com/' }))).toBe(
+    expect(await codeOf(svc.preview(show.id, { feedUrl: 'file:///etc/passwd' }))).toBe(
       'import_not_https',
     );
-    expect(await codeOf(svc.preview({ feedUrl: 'https://notfound.example.com/' }))).toBe(
+    expect(await codeOf(svc.preview(show.id, { feedUrl: '   ' }))).toBe('import_no_feed_url');
+    expect(await codeOf(svc.preview(show.id, { feedUrl: 'https://redirected.example.com/' }))).toBe(
+      'import_not_https',
+    );
+    expect(await codeOf(svc.preview(show.id, { feedUrl: 'https://notfound.example.com/' }))).toBe(
       'import_http_status',
     );
-    expect(await codeOf(svc.preview({ feedUrl: 'https://html.example.com/' }))).toBe(
+    expect(await codeOf(svc.preview(show.id, { feedUrl: 'https://html.example.com/' }))).toBe(
       'import_not_a_feed',
     );
-    expect(await codeOf(svc.preview({ feedUrl: 'https://slow.example.com/' }))).toBe(
+    expect(await codeOf(svc.preview(show.id, { feedUrl: 'https://slow.example.com/' }))).toBe(
       'import_timeout',
     );
     const noFeed: DirectoryResult = {
@@ -226,12 +228,12 @@ describe('PodcastImportService.preview', () => {
       feedUrl: null,
       genres: [],
     };
-    expect(await codeOf(svc.preview({ directory: noFeed }))).toBe('import_no_feed_url');
+    expect(await codeOf(svc.preview(show.id, { directory: noFeed }))).toBe('import_no_feed_url');
   });
 
   it('passes size and time limits to the HTTP port', async () => {
-    const { svc, calls } = await setup({ [FEED_URL]: { text: feedXml('') } });
-    await svc.preview({ feedUrl: FEED_URL });
+    const { svc, calls, show } = await setup({ [FEED_URL]: { text: feedXml('') } });
+    await svc.preview(show.id, { feedUrl: FEED_URL });
     expect(calls[0]!.opts).toMatchObject({ maxBytes: 20 * 1024 * 1024, timeoutMs: 20_000 });
   });
 });
@@ -241,11 +243,11 @@ describe('PodcastImportService.nextEpisodeNumberAfter', () => {
     const routes: Record<string, Route> = { [FEED_URL]: { text: feedXml(item(119) + item(120)) } };
     const { svc, show } = await setup(routes);
     expect(
-      await svc.nextEpisodeNumberAfter(show.id, await svc.preview({ feedUrl: FEED_URL })),
+      await svc.nextEpisodeNumberAfter(show.id, await svc.preview(show.id, { feedUrl: FEED_URL })),
     ).toBe(121);
     routes[FEED_URL] = { text: feedXml('<item><guid>a</guid></item>') };
     expect(
-      await svc.nextEpisodeNumberAfter(show.id, await svc.preview({ feedUrl: FEED_URL })),
+      await svc.nextEpisodeNumberAfter(show.id, await svc.preview(show.id, { feedUrl: FEED_URL })),
     ).toBeNull();
   });
 });
@@ -265,7 +267,7 @@ describe('PodcastImportService.commit', () => {
       feedUrl: FEED_URL,
       genres: [],
     };
-    const r = await svc.commit(show.id, await svc.preview({ directory }));
+    const r = await svc.commit(show.id, await svc.preview(show.id, { directory }));
     expect(r).toEqual({ episodes: 2, coverSaved: true });
 
     const s = (await getShow(db, show.id))!;
@@ -303,7 +305,7 @@ describe('PodcastImportService.commit', () => {
       { author: '手で入れた著者', description: '手で書いた概要' },
       2000,
     );
-    const p = await svc.preview({ feedUrl: FEED_URL });
+    const p = await svc.preview(show.id, { feedUrl: FEED_URL });
     const withArt = { ...p, feed: { ...p.feed, show: { ...p.feed.show, imageUrl: ART_URL } } };
     const r = await svc.commit(show.id, withArt);
     expect(r).toEqual({ episodes: 1, coverSaved: false });
@@ -322,9 +324,9 @@ describe('PodcastImportService.commit', () => {
       [ART_URL]: { contentType: 'image/jpeg', bytes: JPEG },
     };
     const { svc, db, show, root } = await setup(routes);
-    await svc.commit(show.id, await svc.preview({ feedUrl: FEED_URL }));
+    await svc.commit(show.id, await svc.preview(show.id, { feedUrl: FEED_URL }));
     routes[ART_URL] = { contentType: 'image/png', bytes: new Uint8Array([0x89, 0x50]) };
-    await svc.commit(show.id, await svc.preview({ feedUrl: FEED_URL }));
+    await svc.commit(show.id, await svc.preview(show.id, { feedUrl: FEED_URL }));
     expect((await getShow(db, show.id))!.cover_path).toBe(`shows/${show.id}/cover.png`);
     expect(fs.existsSync(path.join(root, `shows/${show.id}/cover.jpg`))).toBe(false);
     expect(fs.existsSync(path.join(root, `shows/${show.id}/cover.png`))).toBe(true);
@@ -333,13 +335,60 @@ describe('PodcastImportService.commit', () => {
   it('re-importing updates episodes by guid and keeps ones missing from the feed', async () => {
     const routes: Record<string, Route> = { [FEED_URL]: { text: feedXml(item(1) + item(2)) } };
     const { svc, db, show } = await setup(routes);
-    await svc.commit(show.id, await svc.preview({ feedUrl: FEED_URL }));
+    await svc.commit(show.id, await svc.preview(show.id, { feedUrl: FEED_URL }));
     routes[FEED_URL] = { text: feedXml(item(3)) };
-    await svc.commit(show.id, await svc.preview({ feedUrl: FEED_URL }));
+    await svc.commit(show.id, await svc.preview(show.id, { feedUrl: FEED_URL }));
     expect((await listFeedEpisodes(db, show.id)).map((e) => e.guid).sort()).toEqual([
       'ep-1',
       'ep-2',
       'ep-3',
     ]);
+  });
+});
+
+describe('PodcastImportService: same / different show (docs/podcast-import-cases.md §5)', () => {
+  const OTHER_URL = 'https://feeds.other.example.com/b.xml';
+  const otherFeed = `<rss><channel><title>別の番組</title>${[1, 2]
+    .map((n) => `<item><guid>b-${n}</guid><itunes:episode>${n}</itunes:episode></item>`)
+    .join('')}</channel></rss>`;
+
+  it('Q3: previewing the already added show is identified as same', async () => {
+    const { svc, show } = await setup({ [FEED_URL]: { text: feedXml(item(1) + item(2)) } });
+    expect((await svc.preview(show.id, { feedUrl: FEED_URL })).identity).toBe('new');
+    await svc.commit(show.id, await svc.preview(show.id, { feedUrl: FEED_URL }));
+    expect((await svc.preview(show.id, { feedUrl: FEED_URL })).identity).toBe('same');
+  });
+
+  it('B-1 / D-1: refuses another show and leaves episodes and numbering untouched', async () => {
+    const { svc, db, show } = await setup({
+      [FEED_URL]: { text: feedXml(item(119) + item(120)) },
+      [OTHER_URL]: { text: otherFeed },
+    });
+    await svc.commit(show.id, await svc.preview(show.id, { feedUrl: FEED_URL }));
+    const other = await svc.preview(show.id, { feedUrl: OTHER_URL });
+    expect(other.identity).toBe('different');
+    expect(await codeOf(svc.commit(show.id, other))).toBe('import_other_show');
+    expect((await getShow(db, show.id))!.name).toBe('取り込んだ番組');
+    expect((await listFeedEpisodes(db, show.id)).map((e) => e.guid).sort()).toEqual([
+      'ep-119',
+      'ep-120',
+    ]);
+    expect(await nextEpisodeNumber(db, show.id)).toBe(121);
+  });
+
+  it('refresh reads the previous feed again, and refuses when it became another show', async () => {
+    const G = (g: string) => `<podcast:guid>${g}</podcast:guid>`;
+    const routes: Record<string, Route> = { [FEED_URL]: { text: feedXml(item(1), G('aaa')) } };
+    const { svc, db, show } = await setup(routes);
+    expect(await codeOf(svc.previewRefresh(show.id))).toBe('import_no_feed_url');
+    await svc.commit(show.id, await svc.preview(show.id, { feedUrl: FEED_URL }));
+    routes[FEED_URL] = { text: feedXml(item(1) + item(2), G('aaa')) };
+    const p = await svc.previewRefresh(show.id);
+    expect(p.identity).toBe('same');
+    await svc.commit(show.id, p);
+    expect(await listFeedEpisodes(db, show.id)).toHaveLength(2);
+    // 同じ URL でも番組の ID が変わっていれば別の番組
+    routes[FEED_URL] = { text: feedXml(item(1), G('bbb')) };
+    expect(await codeOf(svc.previewRefresh(show.id))).toBe('import_other_show');
   });
 });

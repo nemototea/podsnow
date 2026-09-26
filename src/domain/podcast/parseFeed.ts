@@ -86,6 +86,14 @@ function nonEmpty(...values: string[]): string {
   return values.find((v) => v !== '') ?? '';
 }
 
+/**
+ * 外から来た URL は http(s) だけを残す（`javascript:` などを保存しない。docs/podcast-import-cases.md E-8）。
+ */
+export function safeUrl(v: string): string {
+  const s = v.trim();
+  return /^https?:\/\/[^\s/]+/i.test(s) ? s : '';
+}
+
 function orNull(v: string): string | null {
   return v === '' ? null : v;
 }
@@ -190,7 +198,7 @@ function parseCategories(channel: View): PodcastCategory[] {
 function parseFunding(channel: View): PodcastFunding[] {
   return channel
     .all('podcast:funding')
-    .map((f) => ({ url: f.el.attrs.url?.trim() ?? '', label: f.el.text.trim() }))
+    .map((f) => ({ url: safeUrl(f.el.attrs.url ?? ''), label: f.el.text.trim() }))
     .filter((f) => f.url !== '');
 }
 
@@ -201,7 +209,7 @@ function parseLength(v: string): number | null {
 }
 
 function parseItem(item: View): PodcastFeedItem | null {
-  const enclosureUrl = orNull(item.attr('enclosure', 'url'));
+  const enclosureUrl = orNull(safeUrl(item.attr('enclosure', 'url')));
   // guid の無い古いフィードは、多くのアプリと同じく音声の URL を guid の代わりにする。
   // どちらも無ければ再取り込みで突き合わせられないので取り込まない。
   const guid = nonEmpty(item.text('guid'), enclosureUrl ?? '');
@@ -224,8 +232,8 @@ function parseItem(item: View): PodcastFeedItem | null {
     season: parsePositiveInt(item.text('itunes:season')),
     episodeType: parseEpisodeType(item.text('itunes:episodeType')),
     explicit: parseExplicit(item.text('itunes:explicit')),
-    websiteUrl: item.text('link'),
-    imageUrl: orNull(item.attr('itunes:image', 'href')),
+    websiteUrl: safeUrl(item.text('link')),
+    imageUrl: orNull(safeUrl(item.attr('itunes:image', 'href'))),
   };
 }
 
@@ -269,10 +277,13 @@ export function parsePodcastFeed(xml: string, fetchedUrl: string): PodcastFeed {
         nonEmpty(channel.text('description'), channel.text('itunes:summary')),
       ),
       author: channel.text('itunes:author'),
-      websiteUrl: channel.text('link'),
+      websiteUrl: safeUrl(channel.text('link')),
       language: normalizeLanguage(channel.text('language')),
       imageUrl: orNull(
-        nonEmpty(channel.attr('itunes:image', 'href'), channel.one('image')?.text('url') ?? ''),
+        nonEmpty(
+          safeUrl(channel.attr('itunes:image', 'href')),
+          safeUrl(channel.one('image')?.text('url') ?? ''),
+        ),
       ),
       categories: parseCategories(channel),
       explicit: parseExplicit(channel.text('itunes:explicit')) ?? false,
@@ -283,7 +294,11 @@ export function parsePodcastFeed(xml: string, fetchedUrl: string): PodcastFeed {
       complete: parseYes(channel.text('itunes:complete')),
       locked: parseYes(channel.text('podcast:locked')),
       // 移転を宣言していればそれが正、次に自己申告の URL、最後に実際に取れた URL
-      feedUrl: nonEmpty(channel.text('itunes:new-feed-url'), selfLink ?? '', fetchedUrl),
+      feedUrl: nonEmpty(
+        safeUrl(channel.text('itunes:new-feed-url')),
+        safeUrl(selfLink ?? ''),
+        fetchedUrl,
+      ),
       podcastGuid: orNull(channel.text('podcast:guid')),
       funding: parseFunding(channel),
     },

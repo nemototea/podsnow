@@ -98,6 +98,7 @@ export const ja = {
     import_too_large: (maxMb: string) => `ファイルが大きすぎます（上限 ${maxMb} MB）`,
     import_not_a_feed: 'ポッドキャストの RSS として読めませんでした。URL を確認してください',
     import_no_feed_url: 'この番組は RSS の URL が公開されていないため、取り込めません',
+    import_other_show: 'すでに別の番組を取り込んでいます。番組は 1 つだけ持てます',
   },
 
   /** 初回起動時に DB へ書き込む既定値。以後はユーザーのデータなので翻訳しない。 */
@@ -210,6 +211,9 @@ Podcast: {{show_name}}
       `前回取り込んだ RSS（${url}）から、最新の情報と配信済みの回を読み込み直します`,
     reload: '読み込み直す',
     loading: '番組の情報を読み込んでいます…',
+    refreshHeader: '最新の番組の情報',
+    alreadyAdded: 'この番組は追加済みです',
+    alreadyAddedBody: '最新の情報と配信済みの回は「読み込み直す」で取り込めます',
     previewHeader: 'この番組を取り込みますか？',
     a11yArtwork: (name: string) => `${name} のアートワーク`,
     episodesCount: (n: number) => `配信済みの回 ${n} 本`,

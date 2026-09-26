@@ -37,6 +37,8 @@ export const APP_ERROR_CODES = [
   'import_not_a_feed',
   /** 取り込み: 検索結果に RSS の URL が無い */
   'import_no_feed_url',
+  /** 取り込み: 今の番組とは別の番組（番組を 1 つしか持てない間は取り込めない） */
+  'import_other_show',
 ] as const;
 
 export type AppErrorCode = (typeof APP_ERROR_CODES)[number];

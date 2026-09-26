@@ -94,6 +94,7 @@ export const en: Messages = {
     import_too_large: (maxMb: string) => `The file is too large (limit ${maxMb} MB)`,
     import_not_a_feed: 'This could not be read as a podcast RSS feed. Check the URL',
     import_no_feed_url: 'This podcast does not publish an RSS URL, so it cannot be imported',
+    import_other_show: 'Another show is already imported. You can have one show',
   },
 
   seed: {
@@ -205,6 +206,9 @@ Tag #PodsNow to share your thoughts`,
       `Load the latest details and published episodes again from the RSS you imported (${url})`,
     reload: 'Load again',
     loading: 'Loading the show…',
+    refreshHeader: 'Latest show details',
+    alreadyAdded: 'This show is already added',
+    alreadyAddedBody: 'Use “Load again” to get the latest details and published episodes',
     previewHeader: 'Import this show?',
     a11yArtwork: (name: string) => `Artwork for ${name}`,
     episodesCount: (n: number) => `${n} published episodes`,

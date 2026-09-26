@@ -37,6 +37,7 @@ export function errorCodeText(
     case 'import_timeout':
     case 'import_not_a_feed':
     case 'import_no_feed_url':
+    case 'import_other_show':
       return t.errors[code];
   }
 }

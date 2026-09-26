@@ -4,12 +4,14 @@ import {
   type DirectoryResult,
 } from '@/domain/podcast/directory';
 import type { PodcastFeed } from '@/domain/podcast/feed';
+import { judgeShowIdentity, type ShowIdentity } from '@/domain/podcast/identity';
 import { parsePodcastFeed } from '@/domain/podcast/parseFeed';
 import { AppError } from '@/domain/errors';
 import type { SqlExecutor } from '@/infra/db/executor';
 import { nextEpisodeNumber } from '@/infra/db/repositories/episodesRepo';
-import { upsertFeedEpisodes } from '@/infra/db/repositories/feedEpisodesRepo';
+import { listFeedEpisodes, upsertFeedEpisodes } from '@/infra/db/repositories/feedEpisodesRepo';
 import {
+  getExternalId,
   getShow,
   replaceCategories,
   replaceFunding,
@@ -43,6 +45,12 @@ export interface ImportPreview {
   feed: PodcastFeed;
   /** 検索から選んだときの検索結果。RSS の URL を直接入れたときは null */
   directory: DirectoryResult | null;
+  /**
+   * 今の番組との関係（docs/podcast-import-cases.md §5）。
+   * `same` は「追加済み」で、取り込みの流れはそこで終わる（読み込み直しは別の操作）。
+   * `different` は、番組を 1 つしか持てない間（FR-SHOW-1）は取り込めない。
+   */
+  identity: ShowIdentity;
 }
 
 export interface ImportResult {
@@ -108,6 +116,7 @@ export class PodcastImportService {
 
   /** 検索結果から、または RSS の URL から、取り込む内容を用意する。 */
   async preview(
+    showId: string,
     source: { directory: DirectoryResult } | { feedUrl: string },
   ): Promise<ImportPreview> {
     const directory = 'directory' in source ? source.directory : null;
@@ -123,7 +132,49 @@ export class PodcastImportService {
     assertHttps(res.url);
     if (!isOk(res.status)) throw new AppError('import_http_status', { status: res.status });
     const feed = fillFromDirectory(parsePodcastFeed(res.text, res.url), directory);
-    return { feed, directory };
+    const identity = await this.identityOf(showId, feed, [url, res.url], directory);
+    return { feed, directory, identity };
+  }
+
+  /**
+   * 前回取り込んだ RSS から読み込み直す（配信状況の更新）。取り込みとは別の操作で、
+   * 同じ番組であることが前提。別の番組に変わっていたら `import_other_show`。
+   */
+  async previewRefresh(showId: string): Promise<ImportPreview> {
+    const show = await getShow(this.deps.db, showId);
+    if (!show?.feed_url) throw new AppError('import_no_feed_url');
+    const p = await this.preview(showId, { feedUrl: show.feed_url });
+    if (p.identity === 'different') throw new AppError('import_other_show');
+    return p;
+  }
+
+  private async identityOf(
+    showId: string,
+    feed: PodcastFeed,
+    urls: readonly string[],
+    directory: DirectoryResult | null,
+  ): Promise<ShowIdentity> {
+    const { db } = this.deps;
+    const [show, appleId, episodes] = await Promise.all([
+      getShow(db, showId),
+      getExternalId(db, showId, 'apple_podcasts'),
+      listFeedEpisodes(db, showId),
+    ]);
+    return judgeShowIdentity(
+      {
+        imported: show?.feed_imported_at != null,
+        feedUrl: show?.feed_url ?? null,
+        podcastGuid: show?.podcast_guid ?? null,
+        appleId,
+        episodeGuids: episodes.map((e) => e.guid),
+      },
+      {
+        feedUrls: [...urls, feed.show.feedUrl, directory?.feedUrl ?? ''],
+        podcastGuid: feed.show.podcastGuid,
+        appleId: directory?.provider === 'apple_podcasts' ? directory.externalId : null,
+        episodeGuids: feed.items.map((i) => i.guid),
+      },
+    );
   }
 
   /**
@@ -143,6 +194,8 @@ export class PodcastImportService {
    * RSS に値の無い文字列項目は、今の値を残す（空で上書きしない）。
    */
   async commit(showId: string, preview: ImportPreview): Promise<ImportResult> {
+    // 別の番組の回と話数の台帳を混ぜない（docs/podcast-import-cases.md B-1 / D-1）
+    if (preview.identity === 'different') throw new AppError('import_other_show');
     const { db, newId, now } = this.deps;
     const { show, items } = preview.feed;
     const prevCover = (await getShow(db, showId))?.cover_path ?? null;

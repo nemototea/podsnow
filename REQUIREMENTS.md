@@ -30,7 +30,7 @@
 
 | ID | 要件 | 優先度 | 根拠 |
 |---|---|---|---|
-| FR-SHOW-1 | Show は 1 つ固定で自動作成される。UI に Show 切替は出さない | MUST | 【事実】 |
+| FR-SHOW-1 | Show は 1 つ固定で自動作成される。UI に Show 切替は出さない | MUST | 【事実】MVP。**一般公開版では複数の番組を持ち、切り替えて管理する**（Spotify for Creators と同じ。ユーザー判断 2026-09-26、`docs/podcast-import-cases.md` Q2） |
 | FR-SHOW-2 | データモデルは複数 Show を持てる構造にする（全エピソードに show_id） | MUST | 【事実】 |
 | FR-SHOW-3 | Show は番組名・概要・著者・Cover Art・既定メタデータ・概要欄ベーステンプレート・既定構成（Opening/Ending/BGM の自動配置）を持つ | MUST | 【事実】 |
 | FR-SHOW-3a | Show は Podcast RSS の番組（channel）の情報を持つ: Web サイト・言語・カテゴリー（主と副、複数）・explicit・番組の形式（episodic / serial）・著作権表記・所有者の名前とメール・完結済み・RSS の URL・`podcast:guid`・支援リンク。外部サービスの番組 ID は PodsNow の ID と分けて持つ（DATA_MODEL.md §4.1） | MUST | 【事実】ユーザー判断（2026-09-25）。取り込み（FR-SHOW-6〜）と将来の RSS 生成の両方の受け皿。値の範囲は【確認済み】PSP-1（https://github.com/Podcast-Standards-Project/PSP-1-Podcast-RSS-Specification） |

@@ -2,6 +2,7 @@ import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
+import { AppError } from '@/domain/errors';
 import type { DirectoryResult } from '@/domain/podcast/directory';
 import { useServices } from '@/features/app/ServicesProvider';
 import { errorText, useLocale, useT } from '@/i18n';
@@ -20,7 +21,14 @@ const COVER = 160;
 type Step =
   | { kind: 'search' }
   | { kind: 'loading' }
-  | { kind: 'preview'; preview: ImportPreview; nextNumber: number | null; saving: boolean }
+  | {
+      kind: 'preview';
+      preview: ImportPreview;
+      nextNumber: number | null;
+      saving: boolean;
+      /** 前回の RSS からの読み込み直し（取り込みとは別の操作） */
+      refresh: boolean;
+    }
   | { kind: 'done'; result: ImportResult };
 
 /**
@@ -61,30 +69,33 @@ export default function ImportScreen() {
     }
   };
 
-  const load = async (source: { directory: DirectoryResult } | { feedUrl: string }) => {
+  const load = async (source: { directory: DirectoryResult } | { feedUrl: string } | 'refresh') => {
     setError(null);
     setStep({ kind: 'loading' });
     try {
-      const preview = await podcastImport.preview(source);
+      const refresh = source === 'refresh';
+      const preview = refresh
+        ? await podcastImport.previewRefresh(showId)
+        : await podcastImport.preview(showId, source);
       const nextNumber = await podcastImport.nextEpisodeNumberAfter(showId, preview);
-      setStep({ kind: 'preview', preview, nextNumber, saving: false });
+      setStep({ kind: 'preview', preview, nextNumber, saving: false, refresh });
     } catch (e) {
       setError(errorText(t, e));
       setStep({ kind: 'search' });
     }
   };
 
-  const confirm = async (preview: ImportPreview, nextNumber: number | null) => {
+  const confirm = async (s: Extract<Step, { kind: 'preview' }>) => {
     setError(null);
-    setStep({ kind: 'preview', preview, nextNumber, saving: true });
+    setStep({ ...s, saving: true });
     try {
-      const result = await podcastImport.commit(showId, preview);
+      const result = await podcastImport.commit(showId, s.preview);
       await services.reloadShow();
       if (!services.settings.onboardingDone) await services.updateSettings('onboardingDone', true);
       setStep({ kind: 'done', result });
     } catch (e) {
       setError(errorText(t, e));
-      setStep({ kind: 'preview', preview, nextNumber, saving: false });
+      setStep({ ...s, saving: false });
     }
   };
 
@@ -105,10 +116,28 @@ export default function ImportScreen() {
 
   if (step.kind === 'preview') {
     const { show, items } = step.preview.feed;
+    // 追加済み（同じ番組）なら取り込みはここで終わる。別の番組は取り込めない（docs/podcast-import-cases.md B-1 / Q2 / Q3）
+    const blocked = step.refresh
+      ? null
+      : step.preview.identity === 'same'
+        ? {
+            kind: 'info' as const,
+            title: t.podcastImport.alreadyAdded,
+            body: t.podcastImport.alreadyAddedBody,
+          }
+        : step.preview.identity === 'different'
+          ? {
+              kind: 'error' as const,
+              title: t.podcastImport.failed,
+              body: errorText(t, new AppError('import_other_show')),
+            }
+          : null;
     return (
       <Screen>
         <ScreenHeader title={t.podcastImport.title} />
-        <SectionHeader title={t.podcastImport.previewHeader} />
+        <SectionHeader
+          title={step.refresh ? t.podcastImport.refreshHeader : t.podcastImport.previewHeader}
+        />
         <Card>
           <View style={st.previewTop}>
             <Artwork
@@ -144,14 +173,26 @@ export default function ImportScreen() {
             </Text>
           </View>
         </Card>
-        <Notice kind="info" title={t.podcastImport.overwriteNote} />
+        {blocked ? (
+          <Notice kind={blocked.kind} title={blocked.title} body={blocked.body} />
+        ) : (
+          <Notice kind="info" title={t.podcastImport.overwriteNote} />
+        )}
         {errorNotice}
         <View style={st.actions}>
-          <Button
-            label={step.saving ? t.podcastImport.importing : t.podcastImport.confirm}
-            busy={step.saving}
-            onPress={() => void confirm(step.preview, step.nextNumber)}
-          />
+          {blocked ? null : (
+            <Button
+              label={
+                step.saving
+                  ? t.podcastImport.importing
+                  : step.refresh
+                    ? t.podcastImport.reload
+                    : t.podcastImport.confirm
+              }
+              busy={step.saving}
+              onPress={() => void confirm(step)}
+            />
+          )}
           <Button
             label={t.podcastImport.back}
             kind="ghost"
@@ -202,7 +243,7 @@ export default function ImportScreen() {
               label={t.podcastImport.reload}
               icon="refresh"
               kind="secondary"
-              onPress={() => void load({ feedUrl: previousFeed })}
+              onPress={() => void load('refresh')}
             />
           </Card>
         </>
