@@ -1,6 +1,7 @@
 {
   "ios": {
     "CFBundleDisplayName": "PodsNow",
-    "NSMicrophoneUsageDescription": "ポッドキャストを収録するためにマイクを使用します。"
+    "NSMicrophoneUsageDescription": "ポッドキャストを収録するためにマイクを使用します。",
+    "NSPhotoLibraryUsageDescription": "番組のアートワークを選ぶために写真を使用します。"
   }
 }

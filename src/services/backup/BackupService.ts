@@ -6,6 +6,7 @@ import {
   nextEpisodeNumber,
   parseEpisodeExportPreset,
 } from '@/infra/db/repositories/episodesRepo';
+import { getShow, updateShow } from '@/infra/db/repositories/showsRepo';
 import type { FsPort } from '@/infra/files/fsPort';
 import { joinRoot, relPaths } from '@/infra/files/layout';
 import {
@@ -21,15 +22,17 @@ import {
 /*
  * エピソードのバックアップ（.podsnow = zip）と復元（DATA_MODEL.md §7、FR-EXP-9）。
  *
- * manifest.json  { formatVersion: 2, app: 'podsnow', createdAt, episodeId, showId }
+ * manifest.json  { formatVersion: 3, app: 'podsnow', createdAt, episodeId, showId }
  * episode.json   各テーブルの行（SELECT * の JSON）
  * takes/<takeId>/seg-NNNN.wav   録音 Segment（無圧縮）
  * assets/<assetId>.wav          オーバーレイが参照する素材（無圧縮）
+ * show/cover.<jpg|png>           番組アートワーク（あるとき）
  */
 
+// 3: 番組アートワークをユーザーデータとして同梱する（Issue #133）。
 // 2: markers / topics を recording_events / outline_items に置き換えた（DATA_MODEL.md §4.10 / §4.11）。
 //    1 で書かれたファイルも読める（旧 topics は見出しへ、旧 markers はシステム由来のものだけ拾う）。
-export const BACKUP_FORMAT_VERSION = 2;
+export const BACKUP_FORMAT_VERSION = 3;
 export const BACKUP_EXTENSION = 'podsnow';
 
 export interface BackupManifest {
@@ -41,6 +44,8 @@ export interface BackupManifest {
 }
 
 export interface BackupPayload {
+  /** formatVersion 3 以降。Show の他の情報は復元で上書きしない。 */
+  show?: { cover_path: string | null };
   episode: SqlRow;
   takes: SqlRow[];
   take_segments: SqlRow[];
@@ -72,6 +77,10 @@ export interface BackupDeps {
 
 const AUDIO_EXT = '.wav';
 
+function coverExtension(path: string): 'jpg' | 'png' {
+  return /\.png$/i.test(path) ? 'png' : 'jpg';
+}
+
 /** エピソードを .podsnow に書き出す。戻り値は zip の絶対パス。 */
 export async function exportEpisodeBackup(
   deps: BackupDeps,
@@ -83,6 +92,10 @@ export async function exportEpisodeBackup(
   onProgress?.({ phase: 'collect', progress: 0 });
   const episode = await db.get('SELECT * FROM episodes WHERE id = ?', [episodeId]);
   if (!episode) throw new Error('episode not found');
+  const show = await db.get<{ cover_path: string | null }>(
+    'SELECT cover_path FROM shows WHERE id = ?',
+    [episode.show_id as string],
+  );
   const takes = await db.all('SELECT * FROM takes WHERE episode_id = ?', [episodeId]);
   const takeIds = takes.map((t) => t.id as string);
   const take_segments = takeIds.length
@@ -125,6 +138,7 @@ export async function exportEpisodeBackup(
     showId: episode.show_id as string,
   };
   const payload: BackupPayload = {
+    show: { cover_path: show?.cover_path ?? null },
     episode,
     takes,
     take_segments,
@@ -169,6 +183,14 @@ export async function exportEpisodeBackup(
       source: { path: abs },
     });
   }
+  if (show?.cover_path) {
+    const abs = joinRoot(root, show.cover_path);
+    if (!fs.exists(abs)) missingFiles.push(show.cover_path);
+    else {
+      const ext = coverExtension(show.cover_path);
+      entries.push({ name: `show/cover.${ext}`, store: true, source: { path: abs } });
+    }
+  }
 
   fs.ensureDir(outAbsPath.slice(0, outAbsPath.lastIndexOf('/')));
   writeZip(fs, outAbsPath, entries, (p) => {
@@ -189,6 +211,8 @@ export interface RestoreResult {
   takes: number;
   reusedAssets: number;
   importedAssets: number;
+  /** 復元先に画像がなく、バックアップから戻したか。 */
+  coverRestored: boolean;
 }
 
 /**
@@ -220,6 +244,7 @@ export async function importEpisodeBackup(
     throw new AppError('backup_unsupported_version', { version: manifest.formatVersion });
   }
   const payload = JSON.parse(utf8Decode(payloadSink.result())) as BackupPayload;
+  const targetShow = await getShow(db, showId);
 
   const newEpisodeId = newId();
   const takeMap = new Map<string, string>();
@@ -251,9 +276,21 @@ export async function importEpisodeBackup(
     const rel = relPaths.assetFile(showId, m.id);
     assetTargets.set(`assets/${a.id as string}${AUDIO_EXT}`, { rel, abs: joinRoot(root, rel) });
   }
+  const coverTarget =
+    !targetShow?.cover_path && payload.show?.cover_path
+      ? (() => {
+          const ext = coverExtension(payload.show.cover_path);
+          const rel = relPaths.coverFile(showId, `restore-${newEpisodeId}`, ext);
+          return { rel, abs: joinRoot(root, rel), entry: `show/cover.${ext}` };
+        })()
+      : null;
 
-  // 2 パス目: 音声を展開
-  for (const t of [...segmentTargets.values(), ...assetTargets.values()]) {
+  // 2 パス目: 音声とアートワークを展開
+  for (const t of [
+    ...segmentTargets.values(),
+    ...assetTargets.values(),
+    ...(coverTarget ? [coverTarget] : []),
+  ]) {
     fs.ensureDir(t.abs.slice(0, t.abs.lastIndexOf('/')));
   }
   readZip(
@@ -261,7 +298,8 @@ export async function importEpisodeBackup(
     zipAbsPath,
     (name) => {
       const t = segmentTargets.get(name) ?? assetTargets.get(name);
-      return t ? fileSink(fs, t.abs) : null;
+      if (t) return fileSink(fs, t.abs);
+      return coverTarget && name === coverTarget.entry ? fileSink(fs, coverTarget.abs) : null;
     },
     (bytes, total) =>
       onProgress?.({ phase: 'unzip', progress: total ? bytes / total : 1, detail: 'audio' }),
@@ -270,6 +308,7 @@ export async function importEpisodeBackup(
   // 3: DB へ書く
   onProgress?.({ phase: 'db', progress: 0 });
   const t = now();
+  const coverRestored = !!coverTarget && fs.exists(coverTarget.abs);
   const ep = payload.episode;
   const backedUpNumber = Number(ep.episode_number ?? 0);
   const renumbered =
@@ -284,7 +323,10 @@ export async function importEpisodeBackup(
     backedUpGuid && !(await episodeGuidTaken(db, showId, backedUpGuid))
       ? backedUpGuid
       : newEpisodeId;
-  await db.transaction(async () => {
+  const commit = db.transaction(async () => {
+    if (coverRestored && coverTarget) {
+      await updateShow(db, showId, { coverPath: coverTarget.rel, coverSourceUrl: null }, t);
+    }
     await db.run(
       'INSERT INTO episodes (id, show_id, title, description, description_suggestion, episode_number, season, recorded_at, publish_planned_at, status, last_opened_at, playhead_smp, undo_cursor, sound_settings, export_preset, guid, episode_type, explicit, website_url, published_at, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
       [
@@ -505,6 +547,16 @@ export async function importEpisodeBackup(
       );
     }
   });
+  await commit.catch((cause: unknown) => {
+    if (coverRestored && coverTarget) {
+      try {
+        fs.delete(coverTarget.abs);
+      } catch {
+        // DB がロールバックされたら、参照されない展開済み画像も best effort で片付ける。
+      }
+    }
+    throw cause;
+  });
   onProgress?.({ phase: 'db', progress: 1 });
   let reused = 0;
   let imported = 0;
@@ -519,6 +571,7 @@ export async function importEpisodeBackup(
     takes: payload.takes.length,
     reusedAssets: reused,
     importedAssets: imported,
+    coverRestored,
   };
 }
 

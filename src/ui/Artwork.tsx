@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Image, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import { Image } from 'expo-image';
 
 import { Icon } from './Icon';
 import { useAppTheme } from './ThemeContext';
@@ -13,12 +14,15 @@ export function Artwork({
   uri,
   size,
   label,
+  transition = 0,
 }: {
   /** `https://` または `file://` */
   uri: string | null;
   size: number;
   /** 読み上げ用。飾りなら省く */
   label?: string;
+  /** 画像の入れ替え時間。動きを減らすときは 0。 */
+  transition?: number;
 }) {
   const c = useAppTheme();
   const [failed, setFailed] = useState<string | null>(null);
@@ -49,9 +53,10 @@ export function Artwork({
   return (
     <View style={box} {...a11y}>
       <Image
-        source={{ uri }}
+        source={uri}
         style={{ width: size, height: size }}
-        resizeMode="cover"
+        contentFit="cover"
+        transition={transition}
         onError={() => setFailed(uri)}
       />
     </View>

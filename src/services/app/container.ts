@@ -14,6 +14,8 @@ import {
 import { createNativeAudioEngine } from '@/infra/native/audioEngineAdapter';
 import { createNativeHaptics } from '@/infra/native/hapticsAdapter';
 import { expoFsPort } from '@/infra/files/expoFsPort';
+import { expoImageProcessor } from '@/infra/images/expoImageProcessor';
+import { expoImagePicker } from '@/infra/images/expoImagePicker';
 import { createNativeRecorder } from '@/infra/native/recorderAdapter';
 import { fetchHttp } from '@/infra/net/fetchHttp';
 
@@ -30,6 +32,7 @@ import { PodcastImportService } from '../podcast/PodcastImportService';
 import type { RecorderPort } from '../recording/RecorderPort';
 import { RecordingSession } from '../recording/RecordingSession';
 import { recoverUnfinishedTakes, type RecoveredTake } from '../recording/RecoveryService';
+import { CoverArtService } from '../shows/CoverArtService';
 import { newId } from './ids';
 import type { ServiceLabels } from './labels';
 
@@ -47,6 +50,8 @@ export interface AppServices {
   episodes: EpisodeService;
   assets: AssetsService;
   outline: OutlineService;
+  /** 番組アートワークの正規化・永続化・削除（Issue #133）。 */
+  coverArt: CoverArtService;
   /** 配信中の番組の取り込み（Issue #101）。保存したあとは `reloadShow` で `show` を最新化する。 */
   podcastImport: PodcastImportService;
   /** 設定の「ハプティクス」に従う触覚（DESIGN_SYSTEM.md §6.2）。 */
@@ -126,6 +131,15 @@ export async function bootstrap(
   });
   const assets = new AssetsService({ db, engine, root, ensureDir, newId, now });
   const outline = new OutlineService({ db, newId, now });
+  const coverArt = new CoverArtService({
+    db,
+    fs: expoFsPort,
+    imagePicker: expoImagePicker,
+    imageProcessor: expoImageProcessor,
+    root,
+    newId,
+    now,
+  });
   const podcastImport = new PodcastImportService({
     db,
     http: fetchHttp,
@@ -152,6 +166,7 @@ export async function bootstrap(
     episodes,
     assets,
     outline,
+    coverArt,
     podcastImport,
     haptics,
     openEditing: (episodeId) => EditingService.open({ db, newId, now }, episodeId),

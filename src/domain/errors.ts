@@ -41,6 +41,8 @@ export const APP_ERROR_CODES = [
   'import_other_show',
   /** 取り込み: UTF-8 以外の文字コードの RSS（params: encoding） */
   'import_unsupported_encoding',
+  /** 番組アートワークの正規化または保存に失敗した */
+  'cover_processing_failed',
 ] as const;
 
 export type AppErrorCode = (typeof APP_ERROR_CODES)[number];

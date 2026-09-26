@@ -5,6 +5,7 @@ import { StyleSheet, View } from 'react-native';
 import { formatClock, formatSmp, smp } from '@/domain/time';
 import { useServices } from '@/features/app/ServicesProvider';
 import { useHome } from '@/features/home/useHome';
+import { HomeArtwork } from '@/features/home/HomeArtwork';
 import { useT, type Messages } from '@/i18n';
 import type { EpisodeListItem } from '@/infra/db/repositories/episodesRepo';
 import { icon, space, tabularNums, typography } from '@/ui/tokens';
@@ -189,6 +190,8 @@ export default function HomeScreen() {
           onPress={() => router.push('/settings')}
         />
       </View>
+
+      {show.cover_path ? <HomeArtwork uri={services.coverArt.uri(show.cover_path)!} /> : null}
 
       <View style={st.showBlock}>
         <Text

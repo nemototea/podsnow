@@ -28,6 +28,13 @@ export const compactWidth = 360;
 /** ダイアログの最大幅（DESIGN_SYSTEM.md §6.3）。狭い画面では左右に `gutter` を残して縮む。 */
 export const dialogWidth = 400;
 
+/** 番組アートワーク（Issue #133）。 */
+export const artwork = {
+  settingsPreview: 128,
+  homeAspectRatio: 4 / 3,
+  homeFadeStart: 0.45,
+} as const;
+
 /** 角丸。部品ごとの値は DESIGN_SYSTEM.md §6 で決める。 */
 export const radius = {
   xs: 4,

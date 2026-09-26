@@ -19,7 +19,7 @@
 podsnow/
 ├── db/podsnow.db                       # SQLite (+ -wal, -shm)
 ├── shows/<showId>/
-│   ├── cover-<時刻>.jpg|png          # 番組のアートワーク（取り込み時にダウンロード。取り込むたびに別名。Issue #101）
+│   ├── cover-<時刻>.jpg|png          # 番組のアートワーク（取り込みは jpg/png、手動選択は 3000px 以下の JPEG）
 │   └── assets/<assetId>.wav            # 取り込み時に 48k WAV へ変換したもの【仮説】
 │   └── assets/<assetId>.peaks          # 波形キャッシュ
 ├── episodes/<episodeId>/
@@ -34,7 +34,8 @@ podsnow/
 
 - Segment は 1 つの連続録音。一時停止ではファイルを分けず、割り込み・エラー・ルート変更（設定次第）で分ける（AUDIO_DESIGN.md §4）。
 - `.peaks`: 独自のバイナリ（ヘッダ + `Int8` の min/max ペア列、既定 100 サンプル/秒）【仮説】。
-- バックアップ `.podsnow` は zip（`manifest.json` + `episode.json` + `takes/**`、`assets/**` は参照 ID のみ、または同梱を選択）。
+- 番組アートワークの置き換えは別名へ書き、`shows.cover_path` を確定してから旧ファイルを消す。中断されても DB が存在しないファイルを指さないようにする。【事実: Issue #133】
+- バックアップ `.podsnow` は zip（`manifest.json` + `episode.json` + `takes/**` + `assets/**` + `show/cover.<jpg|png>`）。番組アートワークがあるときはユーザーデータとして同梱する。【事実: Issue #133】
 
 ## 3. ER 図
 
@@ -462,15 +463,20 @@ planSilenceRemoval(ranges, { padMs }): Range[]
 5. ユーザーへ「未確定の録音を復元しました（n 分 m 秒）」を表示し、該当 Take を Editor で開く。
 6. `recovery_journal` を `closed` に。
 
-## 7. バックアップ形式 `.podsnow`【仮説】
+## 7. バックアップ形式 `.podsnow`【事実】
 
 ```
-manifest.json     { formatVersion: 1, app: "podsnow", createdAt, episodeId, showId }
-episode.json      episodes / takes / take_segments / voice_segments / overlay_clips / recording_events / outline_items / exports(メタのみ) の行を JSON で
+manifest.json     { formatVersion: 3, app: "podsnow", createdAt, episodeId, showId }
+episode.json      show(アートワークの参照) / episodes / takes / take_segments / voice_segments / overlay_clips / recording_events / outline_items / exports(メタのみ) の行を JSON で
 takes/<takeId>/seg-0001.wav ...
 assets/<assetId>.wav  (オプション。既定は同梱)
+show/cover.<jpg|png>    (番組アートワークがあるとき。保存形式を維持する)
 ```
 復元時、ID が衝突する場合は新 UUID を採番して参照を張り替える。
+
+番組アートワークは、復元先の Show にアートワークが無いときだけ復元する。
+既にある現在の番組のアートワークは、別の回のバックアップを戻しただけで上書きしない。
+formatVersion 1 / 2 のバックアップにはアートワークが無いので、従来どおりアートワークを変更せずに復元する。【事実: Issue #133】
 
 `episodes.guid` は引き継ぐ（配信済みの回を指す値なので）。同じ番組に同じ `guid` の回が残っている場合
 （同じバックアップを 2 回復元した等）だけ、新しい id を `guid` に使う。0004 より前のバックアップには `guid` が無いので、新しい id を使う。
