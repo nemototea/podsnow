@@ -15,13 +15,18 @@ import {
 } from '@/domain/timeline/voice';
 import { useT } from '@/i18n';
 import type { AssetRow } from '@/infra/db/repositories/assetsRepo';
-import { getEpisode, type EpisodeRow } from '@/infra/db/repositories/episodesRepo';
+import {
+  getEpisode,
+  type EpisodeExportPreset,
+  type EpisodeRow,
+} from '@/infra/db/repositories/episodesRepo';
 import {
   listRecordingEvents,
   type RecordingEvent,
 } from '@/infra/db/repositories/recordingEventsRepo';
 import { listSegments, listTakes, type TakeRow } from '@/infra/db/repositories/takesRepo';
 import { ensureTakePeaks } from '@/services/audio/PeaksService';
+import { soundAffectsPlayback, type SoundSettings } from '@/services/audio/renderDocumentFromDb';
 import { planSilenceForTimeline } from '@/services/audio/SilenceService';
 import type { EditingService } from '@/services/editing/EditingService';
 import type { SessionState } from '@/services/recording/RecordingSession';
@@ -312,6 +317,40 @@ export function useWorkspace(episodeId: string) {
     [episodeId, patch, playback, services.episodes, state.total],
   );
   const togglePlay = useCallback(() => playback.toggle(), [playback]);
+
+  /**
+   * DB に書いた episodes の列を、メモリ上の `state.episode` にも反映する。
+   * 書き出しタブはタブを切り替えるたびに作り直され `state.episode` から読み直すので、
+   * これを忘れると変更前の値に戻って見える（Issue #136）。
+   */
+  const patchEpisode = useCallback(
+    (fields: Partial<Pick<EpisodeRow, 'sound_settings' | 'export_preset'>>) =>
+      patch((s) => (s.episode ? { episode: { ...s.episode, ...fields } } : {})),
+    [patch],
+  );
+
+  /**
+   * 音の仕上げを保存する。試聴に効く変更（ダッキング）なら再生を読み直し、
+   * 聴いている位置のまま新しい設定で鳴らす（Issue #134）。
+   */
+  const updateSound = useCallback(
+    async (prev: SoundSettings, next: SoundSettings) => {
+      const soundSettings = JSON.stringify(next);
+      await services.episodes.update(episodeId, { soundSettings });
+      patchEpisode({ sound_settings: soundSettings });
+      if (soundAffectsPlayback(prev, next)) await playback.reload(episodeId).catch(() => {});
+    },
+    [episodeId, patchEpisode, playback, services.episodes],
+  );
+
+  /** 書き出しプリセットの選択をこの回に保存する（DATA_MODEL.md §4.5.1）。 */
+  const updateExportPreset = useCallback(
+    async (key: EpisodeExportPreset) => {
+      await services.episodes.update(episodeId, { exportPreset: key });
+      patchEpisode({ export_preset: key });
+    },
+    [episodeId, patchEpisode, services.episodes],
+  );
 
   // ---- 録音 ----
   /**
@@ -609,6 +648,8 @@ export function useWorkspace(episodeId: string) {
     redo,
     seek,
     togglePlay,
+    updateSound,
+    updateExportPreset,
     startRecording,
     stopRecording,
     pauseRecording,

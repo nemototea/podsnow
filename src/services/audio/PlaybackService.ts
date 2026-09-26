@@ -1,4 +1,4 @@
-import type { Smp } from '@/domain/time';
+import { ZERO_SMP, type Smp } from '@/domain/time';
 import type { SqlExecutor } from '@/infra/db/executor';
 
 import type { Subscription } from '../recording/RecorderPort';
@@ -18,6 +18,8 @@ export class PlaybackService {
   private subs: Subscription[] = [];
   private listeners = new Map<keyof PlaybackEvents, Set<(p: never) => void>>();
   private loadedEpisode: string | null = null;
+  /** 読み込んだタイムラインの長さ。 */
+  private total = 0;
   private frame = 0;
   private playing = false;
 
@@ -73,6 +75,7 @@ export class PlaybackService {
     });
     await this.deps.engine.loadTimeline(JSON.stringify(doc));
     this.loadedEpisode = episodeId;
+    this.total = doc.totalFrames;
     await this.deps.engine.seek(Math.min(at, doc.totalFrames));
     if (wasPlaying && doc.totalFrames > 0) await this.deps.engine.play(null);
   }
@@ -86,9 +89,13 @@ export class PlaybackService {
     await this.deps.engine.pause();
   }
 
+  /**
+   * 再生 / 一時停止。末尾にいるときは先頭から鳴らす。収録を止めると再生位置は末尾に
+   * 置かれるので、そのまま押すと何も鳴らずに終わってしまう（Issue #134）。
+   */
   async toggle(): Promise<void> {
     if (this.playing) await this.pause();
-    else await this.play();
+    else await this.play(this.frame >= this.total ? ZERO_SMP : undefined);
   }
 
   async seek(frame: Smp): Promise<void> {
@@ -101,5 +108,6 @@ export class PlaybackService {
     this.subs = [];
     await this.deps.engine.unload();
     this.loadedEpisode = null;
+    this.total = 0;
   }
 }

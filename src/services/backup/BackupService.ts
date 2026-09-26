@@ -4,6 +4,7 @@ import {
   episodeGuidTaken,
   episodeNumberTaken,
   nextEpisodeNumber,
+  parseEpisodeExportPreset,
 } from '@/infra/db/repositories/episodesRepo';
 import type { FsPort } from '@/infra/files/fsPort';
 import { joinRoot, relPaths } from '@/infra/files/layout';
@@ -276,7 +277,7 @@ export async function importEpisodeBackup(
     backedUpNumber <= 0 ||
     (await episodeNumberTaken(db, showId, backedUpNumber));
   const episodeNumber = renumbered ? await nextEpisodeNumber(db, showId) : backedUpNumber;
-  // RSS の guid は配信済みの回を指すので引き継ぐ。0004 より前のバックアップには無いので新しい id を使う。
+  // RSS の guid は配信済みの回を指すので引き継ぐ。0005 より前のバックアップには無いので新しい id を使う。
   // 同じ番組に同じ guid の回が既にあれば（同じバックアップを 2 回復元した等）、別の回として新しい id を振る。
   const backedUpGuid = typeof ep.guid === 'string' && ep.guid ? ep.guid : null;
   const guid =
@@ -285,7 +286,7 @@ export async function importEpisodeBackup(
       : newEpisodeId;
   await db.transaction(async () => {
     await db.run(
-      'INSERT INTO episodes (id, show_id, title, description, description_suggestion, episode_number, season, recorded_at, publish_planned_at, status, last_opened_at, playhead_smp, undo_cursor, sound_settings, guid, episode_type, explicit, website_url, published_at, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+      'INSERT INTO episodes (id, show_id, title, description, description_suggestion, episode_number, season, recorded_at, publish_planned_at, status, last_opened_at, playhead_smp, undo_cursor, sound_settings, export_preset, guid, episode_type, explicit, website_url, published_at, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
       [
         newEpisodeId,
         showId,
@@ -301,6 +302,8 @@ export async function importEpisodeBackup(
         (ep.playhead_smp as number) ?? 0,
         0,
         (ep.sound_settings as string) ?? '{}',
+        // 値の無い古い .podsnow や知らない値は NULL（= 設定の既定で開く。DATA_MODEL.md §4.5.1）
+        parseEpisodeExportPreset(ep.export_preset),
         guid,
         (ep.episode_type as string | undefined) ?? 'full',
         (ep.explicit as number | null | undefined) ?? null,

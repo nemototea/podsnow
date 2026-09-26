@@ -20,6 +20,8 @@ export class FakeAudioEngine implements AudioEnginePort {
   wavInfo: WavInfo = { frames: 48000, sampleRate: 48000, channels: 1 };
   position = 0;
   playing = false;
+  /** 読み込んだタイムラインの長さ（未読み込みなら null）。 */
+  totalFrames: number | null = null;
   private seq = 0;
   private listeners = new Map<string, Set<Listener>>();
 
@@ -40,12 +42,23 @@ export class FakeAudioEngine implements AudioEnginePort {
   }
   async loadTimeline(json: string) {
     this.calls.push('load');
-    this.timelines.push(JSON.parse(json));
+    const doc = JSON.parse(json) as { totalFrames?: number };
+    this.timelines.push(doc);
+    // ネイティブ（TimelinePlayer）と同じく、読み込むと位置は先頭に戻る
+    this.totalFrames = doc.totalFrames ?? 0;
+    this.position = 0;
   }
   async play(at?: number | null) {
+    this.calls.push(`play:${at ?? 'null'}`);
     this.playing = true;
     if (at != null) this.position = at;
     this.emit('onPlaybackState', { playing: true, frame: this.position });
+    // ネイティブと同じく、末尾から鳴らすと何も出さずにすぐ終わる
+    if (this.totalFrames !== null && this.position >= this.totalFrames) {
+      this.playing = false;
+      this.position = this.totalFrames;
+      this.emit('onPlaybackState', { playing: false, frame: this.position, ended: true });
+    }
   }
   async pause() {
     this.playing = false;

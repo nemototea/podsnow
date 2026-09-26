@@ -4,7 +4,7 @@
 //
 // 既存の行はそのまま残る。新しい列はすべて既定値つき（または NULL 可）なので、INSERT 側の変更は要らない。
 // episodes.guid だけは既存行に id を入れる。guid は一度決めたら変えない値なので、作成時の id を使う。
-export const MIGRATION_0004_PODCAST_FEED_METADATA = `
+export const MIGRATION_0005_PODCAST_FEED_METADATA = `
 ALTER TABLE shows ADD COLUMN website_url TEXT NOT NULL DEFAULT '';
 ALTER TABLE shows ADD COLUMN language TEXT NOT NULL DEFAULT '';
 ALTER TABLE shows ADD COLUMN explicit INTEGER NOT NULL DEFAULT 0 CHECK (explicit IN (0,1));

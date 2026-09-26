@@ -247,6 +247,26 @@ describe('BackupService', () => {
     fs.rmSync(tmp, { recursive: true, force: true });
   });
 
+  it('carries over the export preset choice (DATA_MODEL.md §4.5.1)', async () => {
+    const { tmp, show, db, deps } = await setup();
+    const zip = path.join(tmp, 'out', 'e.podsnow');
+    // 選んだことのない回は NULL のまま（= 復元後も設定の既定で開く）
+    await exportEpisodeBackup(deps, 'E', zip);
+    const plain = await importEpisodeBackup(deps, show.id, zip);
+    expect(
+      await db.get('SELECT export_preset FROM episodes WHERE id = ?', [plain.episodeId]),
+    ).toEqual({ export_preset: null });
+
+    await db.run('UPDATE episodes SET export_preset = ? WHERE id = ?', ['wav', 'E']);
+    const zip2 = path.join(tmp, 'out', 'e2.podsnow');
+    await exportEpisodeBackup(deps, 'E', zip2);
+    const res = await importEpisodeBackup(deps, show.id, zip2);
+    expect(
+      await db.get('SELECT export_preset FROM episodes WHERE id = ?', [res.episodeId]),
+    ).toEqual({ export_preset: 'wav' });
+    fs.rmSync(tmp, { recursive: true, force: true });
+  });
+
   it('imports the asset when the show does not have it', async () => {
     const { tmp, root, db, show, deps } = await setup();
     const zip = path.join(tmp, 'e.podsnow');

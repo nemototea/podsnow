@@ -10,6 +10,7 @@ import { DEFAULT_SETTINGS } from '@/infra/db/repositories/settingsRepo';
 import {
   CUSTOM_BITRATES,
   DEFAULT_CUSTOM_EXPORT,
+  episodeExportPreset,
   estimateExportBytes,
   exportLoudness,
   EXPORT_PRESETS,
@@ -241,5 +242,23 @@ describe('custom export settings', () => {
     expect(estimateExportBytes(aacMono, min)).toBe(1_920_000);
     const wavStereo = resolveExportPreset('custom', { format: 'wav', channels: 2 });
     expect(estimateExportBytes(wavStereo, min)).toBe(min * 2 * 2 + 44);
+  });
+});
+
+describe('episodeExportPreset (DATA_MODEL.md §4.5.1 / Issue #136)', () => {
+  it("prefers the preset last chosen for the episode over the settings' default", () => {
+    expect(episodeExportPreset('wav', 'podcast')).toBe('wav');
+    expect(episodeExportPreset('custom', 'high')).toBe('custom');
+    expect(episodeExportPreset('podcast', 'wav')).toBe('podcast');
+  });
+
+  it("falls back to the settings' default when the episode has never chosen one", () => {
+    expect(episodeExportPreset(null, 'podcast')).toBe('podcast');
+    expect(episodeExportPreset(undefined, 'high')).toBe('high');
+  });
+
+  it("falls back to the settings' default for unknown stored values", () => {
+    expect(episodeExportPreset('mp3', 'high')).toBe('high');
+    expect(episodeExportPreset('', 'wav')).toBe('wav');
   });
 });
