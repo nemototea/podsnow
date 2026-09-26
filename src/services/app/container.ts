@@ -13,6 +13,7 @@ import {
 } from '@/infra/files/fileSystem';
 import { createNativeAudioEngine } from '@/infra/native/audioEngineAdapter';
 import { createNativeHaptics } from '@/infra/native/hapticsAdapter';
+import { createExpoFilePlayback } from '@/infra/playback/expoFilePlayback';
 import { expoFsPort } from '@/infra/files/expoFsPort';
 import { expoImageProcessor } from '@/infra/images/expoImageProcessor';
 import { expoImagePicker } from '@/infra/images/expoImagePicker';
@@ -27,6 +28,7 @@ import { EpisodeService } from '../episodes/EpisodeService';
 import { ExportService } from '../export/ExportService';
 import type { HapticsPort } from '../feedback/HapticsPort';
 import { HapticsService } from '../feedback/HapticsService';
+import { HomeService } from '../home/HomeService';
 import { OutlineService } from '../outline/OutlineService';
 import { PodcastImportService } from '../podcast/PodcastImportService';
 import type { RecorderPort } from '../recording/RecorderPort';
@@ -56,6 +58,7 @@ export interface AppServices {
   podcastImport: PodcastImportService;
   /** 設定の「ハプティクス」に従う触覚（DESIGN_SYSTEM.md §6.2）。 */
   haptics: HapticsService;
+  home: HomeService;
   /** エピソード画面を開く。取り消しの履歴は空から始まる（Issue #122）。 */
   openEditing: (episodeId: string) => Promise<EditingService>;
   /** 開いている画面で DB から読み直す（録音の確定のあと）。履歴は残す。 */
@@ -95,6 +98,7 @@ export async function bootstrap(
   const settings = await loadSettings(db);
   const recorder = overrides.recorder ?? createNativeRecorder();
   const engine = overrides.engine ?? createNativeAudioEngine();
+  const filePlayer = createExpoFilePlayback();
 
   const recovered = await recoverUnfinishedTakes({ db, recorder, root, fileExists, newId, now });
   await failStaleExports(db, now());
@@ -119,7 +123,7 @@ export async function bootstrap(
     }),
     labels: () => live.labels,
   });
-  const playback = new PlaybackService({ db, engine, root });
+  const playback = new PlaybackService({ db, engine, filePlayer, fileExists, root });
   const exporter = new ExportService({ db, engine, root, ensureDir, fileSize, newId, now });
   const episodes = new EpisodeService({
     db,
@@ -152,6 +156,7 @@ export async function bootstrap(
     port: overrides.haptics ?? createNativeHaptics(),
     enabled: () => liveSettings.settings.haptics,
   });
+  const home = new HomeService(db);
 
   const services: AppServices = {
     db,
@@ -169,6 +174,7 @@ export async function bootstrap(
     coverArt,
     podcastImport,
     haptics,
+    home,
     openEditing: (episodeId) => EditingService.open({ db, newId, now }, episodeId),
     resumeEditing: (episodeId) => EditingService.resume({ db, newId, now }, episodeId),
     discardEditHistory: (episodeId) => EditingService.discardHistory({ db, newId, now }, episodeId),

@@ -31,8 +31,17 @@ export const dialogWidth = 400;
 /** 番組アートワーク（Issue #133）。 */
 export const artwork = {
   settingsPreview: 128,
+  player: 184,
+  miniPlayer: 44,
   homeAspectRatio: 4 / 3,
   homeFadeStart: 0.45,
+} as const;
+
+/** 音声プレーヤー（Issue #135）。 */
+export const player = {
+  seekTrack: 4,
+  seekThumb: 16,
+  miniBottom: space.sm,
 } as const;
 
 /** 角丸。部品ごとの値は DESIGN_SYSTEM.md §6 で決める。 */

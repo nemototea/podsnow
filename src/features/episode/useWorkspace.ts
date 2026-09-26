@@ -207,7 +207,7 @@ export function useWorkspace(episodeId: string) {
     });
     return () => {
       alive = false;
-      void playback.pause();
+      void playback.pauseTimeline();
     };
   }, [episodeId, playback, reloadAll, services.episodes]);
 
@@ -251,11 +251,11 @@ export function useWorkspace(episodeId: string) {
       }),
       // 再生エンジンは 1 つ。下に積まれた別の回の画面は、その回を読み込んでいる間だけ受ける
       playback.on('state', (e) => {
-        if (playback.loadedEpisodeId !== episodeId) return;
+        if (playback.loadedEpisodeId !== episodeId || playback.source?.kind !== 'timeline') return;
         patch({ playing: e.playing, playhead: smp(e.frame) });
       }),
       playback.on('position', (e) => {
-        if (playback.loadedEpisodeId !== episodeId) return;
+        if (playback.loadedEpisodeId !== episodeId || playback.source?.kind !== 'timeline') return;
         patch({ playhead: smp(e.frame) });
       }),
     ];
@@ -358,7 +358,7 @@ export function useWorkspace(episodeId: string) {
    * 声を置き換えたいときは、先に塊を選んで削除し、空いた位置から録る。
    */
   const startRecording = useCallback(async () => {
-    await playback.pause();
+    await playback.stopForRecording();
     const at = state.playhead < state.total ? state.playhead : null;
     await recording.start(episodeId, { insertAtSmp: at });
     patch({ selection: null, selectedOverlay: null, recAt: at, recFrames: 0 });

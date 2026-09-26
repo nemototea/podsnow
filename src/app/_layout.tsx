@@ -5,6 +5,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 
 import { ServiceLabelsSync, ServicesProvider, useServices } from '@/features/app/ServicesProvider';
+import { MiniPlayer } from '@/features/player/MiniPlayer';
 import { LocaleProvider, useT } from '@/i18n';
 import { Loading } from '@/ui/components';
 import { DialogHost } from '@/ui/Dialog';
@@ -48,7 +49,9 @@ function Navigation() {
         }}
       >
         <Stack.Screen name="index" options={{ headerShown: false, title: t.app.name }} />
+        <Stack.Screen name="player" options={{ title: t.player.title }} />
       </Stack>
+      <MiniPlayer />
       <DialogHost />
       <StatusBar style={c.isDark ? 'light' : 'dark'} />
     </NavThemeProvider>

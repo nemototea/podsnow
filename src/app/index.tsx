@@ -5,9 +5,11 @@ import { StyleSheet, View } from 'react-native';
 import { formatClock, formatSmp, smp } from '@/domain/time';
 import { useServices } from '@/features/app/ServicesProvider';
 import { useHome } from '@/features/home/useHome';
+import { usePlayback } from '@/features/player/usePlayback';
 import { HomeArtwork } from '@/features/home/HomeArtwork';
 import { useT, type Messages } from '@/i18n';
 import type { EpisodeListItem } from '@/infra/db/repositories/episodesRepo';
+import type { HomeEpisodeItem } from '@/services/home/HomeService';
 import { icon, space, tabularNums, typography } from '@/ui/tokens';
 import {
   Button,
@@ -30,14 +32,18 @@ import { MoreMenu } from '@/ui/MoreMenu';
 import { Wordmark } from '@/ui/Wordmark';
 
 /** 状態はアイコンで示す（DESIGN_SYSTEM.md §2.3）。文字は読み上げにだけ使う。 */
-function statusIcon(e: EpisodeListItem): IconName {
+function statusIcon(item: HomeEpisodeItem): IconName {
+  const e = item.local;
+  if (!e || item.feed) return 'check';
   if (e.audio_purged_at) return 'volume';
   if (e.take_count === 0) return 'mic';
   if (e.status === 'exported') return 'check';
   return 'edit';
 }
 
-function statusText(t: Messages, e: EpisodeListItem): string {
+function statusText(t: Messages, item: HomeEpisodeItem): string {
+  const e = item.local;
+  if (!e || item.feed) return t.home.badgePublished;
   if (e.audio_purged_at) return t.home.badgeNoAudio;
   if (e.take_count === 0) return t.home.badgeNew;
   return t.status[e.status];
@@ -49,7 +55,8 @@ export default function HomeScreen() {
   const router = useRouter();
   const services = useServices();
   const { show, episodes, recovered } = services;
-  const { list, loading, reload } = useHome();
+  const { list, playable, loading, reload } = useHome();
+  const player = usePlayback();
   const [onboardingDone, setOnboardingDone] = useState(services.settings.onboardingDone);
   const { toast, show: showToast, act, dismiss } = useToast();
   const [creating, setCreating] = useState(false);
@@ -259,25 +266,54 @@ export default function HomeScreen() {
               </Text>
             }
           />
-          {list.map((e, i) => (
-            <Row
-              key={e.id}
-              mono={String(e.episode_number).padStart(3, '0')}
-              icon={statusIcon(e)}
-              label={e.title || t.home.untitled}
-              sub={e.audio_purged_at ? t.home.badgeNoAudio : formatSmp(smp(e.duration_smp))}
-              accessibilityLabel={`${e.title || t.home.untitled}, ${statusText(t, e)}`}
-              last={i === list.length - 1}
-              onPress={() => router.push(`/episode/${e.id}`)}
-              right={
-                <MoreMenu
-                  label={t.home.a11yEpisodeMenu(e.episode_number)}
-                  title={`${t.home.episodeCode(e.episode_number)} ${e.title || t.home.untitled}`}
-                  actions={episodeActions(e)}
-                />
-              }
-            />
-          ))}
+          {list.map((item, i) => {
+            const e = item.local;
+            const number = item.episodeNumber;
+            const active = player.source?.homeKey === item.key;
+            return (
+              <Row
+                key={item.key}
+                {...(number === null ? {} : { mono: String(number).padStart(3, '0') })}
+                icon={statusIcon(item)}
+                label={item.title || t.home.untitled}
+                sub={
+                  e?.audio_purged_at && !item.feed
+                    ? t.home.badgeNoAudio
+                    : formatSmp(smp(item.durationSmp))
+                }
+                accessibilityLabel={`${item.title || t.home.untitled}, ${statusText(t, item)}`}
+                last={i === list.length - 1}
+                {...(e
+                  ? { onPress: () => router.push(`/episode/${e.id}`) }
+                  : playable.has(item.key)
+                    ? {
+                        onPress: () =>
+                          void player.toggleHome(item).then((ok) => {
+                            if (ok) router.push('/player');
+                          }),
+                      }
+                    : {})}
+                right={
+                  <View style={st.rowActions}>
+                    {playable.has(item.key) ? (
+                      <IconButton
+                        name={active && player.playing ? 'pause' : 'play'}
+                        label={active && player.playing ? t.a11y.pause : t.a11y.play}
+                        onPress={() => void player.toggleHome(item)}
+                      />
+                    ) : null}
+                    {e ? (
+                      <MoreMenu
+                        label={t.home.a11yEpisodeMenu(e.episode_number)}
+                        title={`${t.home.episodeCode(e.episode_number)} ${e.title || t.home.untitled}`}
+                        actions={episodeActions(e)}
+                      />
+                    ) : null}
+                  </View>
+                }
+              />
+            );
+          })}
         </>
       ) : null}
     </Screen>
@@ -294,6 +330,7 @@ const st = StyleSheet.create({
   showCard: { marginTop: space.xl },
   showCardTop: { flexDirection: 'row', alignItems: 'center', gap: space.md },
   showCardText: { flex: 1, gap: space.xs },
+  rowActions: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
   noticeActions: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm, marginTop: space.sm },
   onboardingBody: { marginTop: space.xs, marginBottom: space.lg },
   onboardingActions: { gap: space.sm },

@@ -40,6 +40,7 @@ import {
   Toggle,
 } from '@/ui/components';
 import { DateField } from '@/ui/DateField';
+import { EpisodePlayer } from '@/ui/EpisodePlayer';
 import { useAppTheme } from '@/ui/ThemeContext';
 
 import type { Workspace } from './useWorkspace';
@@ -140,7 +141,8 @@ export interface ExportTabProps {
 export function ExportTab({ ws, onShowToast, onDone, onGoEdit }: ExportTabProps) {
   const c = useAppTheme();
   const t = useT();
-  const { db, root, show, episodes, exporter, settings, updateSettings, haptics } = useServices();
+  const { db, root, show, coverArt, episodes, exporter, settings, updateSettings, haptics } =
+    useServices();
   const { state } = ws;
   const episode = state.episode;
 
@@ -340,18 +342,15 @@ export function ExportTab({ ws, onShowToast, onDone, onGoEdit }: ExportTabProps)
   return (
     <View>
       <Card>
-        <View style={st.kv}>
-          <Text style={[typography.body, { color: c.textSecondary }]}>{t.export.duration}</Text>
-          <Text style={[typography.numeric, tabularNums, { color: c.textPrimary }]}>
-            {formatSmp(state.total)}
-          </Text>
-        </View>
-        <Button
-          label={state.playing ? t.export.pausePreview : t.export.playPreview}
-          kind="secondary"
-          icon={state.playing ? 'pause' : 'play'}
-          onPress={() => void ws.togglePlay()}
-          disabled={state.total === 0}
+        <EpisodePlayer
+          artworkUri={coverArt.uri(show.cover_path)}
+          title={episode.title}
+          episodeNumber={episode.episode_number}
+          position={state.playhead}
+          duration={state.total}
+          playing={state.playing}
+          onToggle={() => void ws.togglePlay()}
+          onSeek={(to) => void ws.seek(to)}
         />
       </Card>
 
