@@ -15,7 +15,11 @@ import {
 } from '@/domain/timeline/voice';
 import { useT } from '@/i18n';
 import type { AssetRow } from '@/infra/db/repositories/assetsRepo';
-import { getEpisode, type EpisodeRow } from '@/infra/db/repositories/episodesRepo';
+import {
+  getEpisode,
+  type EpisodeExportPreset,
+  type EpisodeRow,
+} from '@/infra/db/repositories/episodesRepo';
 import {
   listRecordingEvents,
   type RecordingEvent,
@@ -326,6 +330,18 @@ export function useWorkspace(episodeId: string) {
     [episodeId, playback, services.episodes],
   );
 
+  /**
+   * 書き出しプリセットの選択をこの回に保存する（Issue #136）。書き出しタブはタブを切り替えるたびに
+   * 作り直され、`state.episode` から選択を読み直すので、DB と一緒にメモリ上の行も書き換える。
+   */
+  const updateExportPreset = useCallback(
+    async (key: EpisodeExportPreset) => {
+      await services.episodes.update(episodeId, { exportPreset: key });
+      patch((s) => (s.episode ? { episode: { ...s.episode, export_preset: key } } : {}));
+    },
+    [episodeId, patch, services.episodes],
+  );
+
   // ---- 録音 ----
   /**
    * 再生位置から録る。途中なら挿入し、後ろの声はずれる。末尾なら足す（FR-REC-1）。
@@ -623,6 +639,7 @@ export function useWorkspace(episodeId: string) {
     seek,
     togglePlay,
     updateSound,
+    updateExportPreset,
     startRecording,
     stopRecording,
     pauseRecording,

@@ -8,7 +8,6 @@ export interface ShowRow extends SqlRow {
   cover_path: string | null;
   default_season: number;
   next_episode_number: number;
-  default_export_preset: string | null;
 }
 
 export interface ShowLayoutRow extends SqlRow {
@@ -79,7 +78,6 @@ export async function updateShow(
     author: string;
     coverPath: string | null;
     defaultSeason: number;
-    defaultExportPreset: string;
   }>,
   now: number,
 ): Promise<void> {
@@ -104,10 +102,6 @@ export async function updateShow(
   if (patch.defaultSeason !== undefined) {
     sets.push('default_season = ?');
     vals.push(patch.defaultSeason);
-  }
-  if (patch.defaultExportPreset !== undefined) {
-    sets.push('default_export_preset = ?');
-    vals.push(patch.defaultExportPreset);
   }
   if (!sets.length) return;
   sets.push('updated_at = ?');

@@ -69,10 +69,12 @@ recovery_journal
 | author | TEXT | |
 | cover_path | TEXT | 相対パス |
 | default_season | INTEGER | 新規エピソードの既定シーズン |
-| default_export_preset | TEXT | JSON |
 | created_at / updated_at / deleted_at | INTEGER | Unix ms |
 
 MVP は起動時に 1 行自動作成。【事実】
+
+番組ごとの既定書き出しプリセット（旧 `default_export_preset`）は持たない。移行 0004 で列を削除した（Issue #136）。
+既定は設定の `export.defaultPreset`（§4.16）の 1 か所だけで、MVP は番組が 1 つなので番組単位の既定は二重の真実になる。【事実】
 
 話数の採番用カウンター列は持たない。台帳は `episodes` の行そのもので、新規作成時は
 `SELECT COALESCE(MAX(episode_number), 0) + 1 FROM episodes WHERE show_id = ? AND deleted_at IS NULL`
@@ -150,7 +152,22 @@ MVP は起動時に 1 行自動作成。【事実】
 | undo_cursor | INTEGER | `edit_ops.seq` の現在位置（0 = 履歴なし）。§4.12 |
 | sound_settings | TEXT | JSON: `{ loudness: { enabled, targetLufs: -16, truePeakDbtp: -1 }, ducking: { enabled, depthDb, attackMs, releaseMs } }` |
 | audio_purged_at | INTEGER nullable | 「音声を削除」（FR-EP-4）を実行した時刻。録音だけ消し、行・話数・メタデータ・書き出し履歴は残す。一覧では「音声なし」として表示する |
+| export_preset | TEXT nullable | この回で最後に選んだ書き出しプリセットのキー（`podcast` / `high` / `wav` / `custom`）。NULL = 選んだことがない。§4.5.1 |
 | created_at / updated_at / deleted_at | INTEGER | |
+
+#### 4.5.1 書き出しプリセットの選択（`export_preset`）【事実: Issue #136】
+
+書き出しタブで選ぶプリセットは次の順で決める。
+
+1. その回の `episodes.export_preset`（書き出しタブでプリセットを選んだ時点で保存する）
+2. NULL、または知らない値なら設定の `export.defaultPreset`（§4.16）
+
+- 保存するのは**キーだけ**。「カスタム」の中身（形式・ビットレート・チャンネル）は設定の `export.custom` に 1 つだけ持ち、回ごとには持たない。
+  カスタムを選んだ回は、書き出す時点の `export.custom` で書き出す。
+- 書き出したファイルの実際の中身は `exports.preset`（§4.13）に残る。`export_preset` は「次に開いたときの選択」であって履歴ではない。
+- **複製**（FR-EP-4）と**バックアップの復元**（§7）は `export_preset` を引き継ぐ（`sound_settings` と同じ扱い）。
+  値の無い古い `.podsnow` や、知らない値は NULL として復元する（= 設定の既定で開く）。
+- 移行 0004 で追加。既存の回は NULL（= 設定の既定）から始まる。
 
 ### 4.6 `takes`
 | 列 | 型 | 説明 |
@@ -283,7 +300,7 @@ Take の「時間軸」は Segment を `seq` 順に連結したもの。割り�
 - **履歴の寿命**: エピソード画面を開いたときと抜けたときに空にする（FR-EDIT-7）。再起動をまたいで持たない。doc（声の並びと素材）は常に保存済み（FR-SAFE-8）。
 - **対象**: `voice_segments`、`overlay_clips`。
 - **録音の追加**: 停止時に、録音を始めたときの doc を `before`、テイクを足した doc を `after` として積む（Take の確定と同じトランザクション）。録音中に重ねた素材も `after` に含まれ、取り消せばテイクと一緒に外れる。Take の行と録音ファイルは消さない（FR-SAFE-7）。
-- **対象外**: `outline_items`（削除の確認で守る、FR-UI-2）、`episodes.sound_settings`、`recording_events`（アプリが記録した事実）、Take の行そのもの（削除は論理削除 + ゴミ箱）。
+- **対象外**: `outline_items`（削除の確認で守る、FR-UI-2）、`episodes.sound_settings`、`episodes.export_preset`、`recording_events`（アプリが記録した事実）、Take の行そのもの（削除は論理削除 + ゴミ箱）。
 - 復旧（`RecoveryService`）が足すテイクは履歴に積まない。復旧は起動時に走り、次に画面を開いた時点で履歴は空から始まる。
 
 ### 4.13 `exports`
@@ -376,7 +393,7 @@ assets/<assetId>.wav  (オプション。既定は同梱)
 ## 8. 移行戦略
 - `PRAGMA user_version` を 1 から開始。`src/infra/db/migrations/0001_init.sql` … を順に適用。
 - Drizzle 採用時は drizzle-kit の生成 SQL をそのまま使う【仮説】。
-- 破壊的変更は必ず「新列追加 → データ移送 → 旧列放置」の順。DB ファイル自体のバックアップを移行前に `db/podsnow.db.bak-<version>` として残す。
+- 破壊的変更は必ず「新列追加 → データ移送 → 旧列放置」の順。ただし 0.1.0（未公開）の間は、二重の真実を残すほうが害が大きい場合に限り旧テーブル・旧列を落とす（0003 の `topics` / `markers`、0004 の `shows.default_export_preset`）。DB ファイル自体のバックアップを移行前に `db/podsnow.db.bak-<version>` として残す。
 
 ## 9. ストレージ見積り
 - 48 kHz / 16 bit / mono = 96 KB/s ≈ 5.8 MB/分 ≈ **345 MB/時間**。ステレオは 2 倍。

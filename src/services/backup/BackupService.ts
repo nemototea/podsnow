@@ -1,6 +1,10 @@
 import { AppError } from '@/domain/errors';
 import type { SqlExecutor, SqlRow } from '@/infra/db/executor';
-import { episodeNumberTaken, nextEpisodeNumber } from '@/infra/db/repositories/episodesRepo';
+import {
+  episodeNumberTaken,
+  nextEpisodeNumber,
+  parseEpisodeExportPreset,
+} from '@/infra/db/repositories/episodesRepo';
 import type { FsPort } from '@/infra/files/fsPort';
 import { joinRoot, relPaths } from '@/infra/files/layout';
 import {
@@ -274,7 +278,7 @@ export async function importEpisodeBackup(
   const episodeNumber = renumbered ? await nextEpisodeNumber(db, showId) : backedUpNumber;
   await db.transaction(async () => {
     await db.run(
-      'INSERT INTO episodes (id, show_id, title, description, description_suggestion, episode_number, season, recorded_at, publish_planned_at, status, last_opened_at, playhead_smp, undo_cursor, sound_settings, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+      'INSERT INTO episodes (id, show_id, title, description, description_suggestion, episode_number, season, recorded_at, publish_planned_at, status, last_opened_at, playhead_smp, undo_cursor, sound_settings, export_preset, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
       [
         newEpisodeId,
         showId,
@@ -290,6 +294,8 @@ export async function importEpisodeBackup(
         (ep.playhead_smp as number) ?? 0,
         0,
         (ep.sound_settings as string) ?? '{}',
+        // 値の無い古い .podsnow や知らない値は NULL（= 設定の既定で開く。DATA_MODEL.md §4.5.1）
+        parseEpisodeExportPreset(ep.export_preset),
         t,
         t,
       ],

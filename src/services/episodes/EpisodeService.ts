@@ -231,7 +231,10 @@ export class EpisodeService {
     }
   }
 
-  /** 複製して新しい回にする: メタデータ・オーバーレイ・トークテーマを引き継ぎ、録音は引き継がない。 */
+  /**
+   * 複製して新しい回にする: メタデータ・音の仕上げ・書き出しプリセットの選択・オーバーレイ・
+   * トークテーマを引き継ぎ、録音は引き継がない（書き出しプリセットは DATA_MODEL.md §4.5.1）。
+   */
   async duplicate(id: string): Promise<EpisodeRow> {
     const src = await getEpisode(this.deps.db, id);
     if (!src) throw new Error('episode not found');
@@ -241,7 +244,12 @@ export class EpisodeService {
       await updateEpisode(
         this.deps.db,
         created.id,
-        { description: src.description, season: src.season, soundSettings: src.sound_settings },
+        {
+          description: src.description,
+          season: src.season,
+          soundSettings: src.sound_settings,
+          exportPreset: src.export_preset,
+        },
         this.deps.now(),
       );
       await saveDoc(
