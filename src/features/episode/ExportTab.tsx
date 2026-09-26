@@ -15,6 +15,7 @@ import {
   CUSTOM_BITRATES,
   estimateExportBytes,
   EXPORT_PRESETS,
+  episodeExportPreset,
   exportLoudness,
   normalizeCustomExport,
   resolveExportPreset,
@@ -152,7 +153,11 @@ export function ExportTab({ ws, onShowToast, onDone, onGoEdit }: ExportTabProps)
   const [dirty, setDirty] = useState(false);
   const [sound, setSound] = useState<SoundSettings | null>(null);
   const [soundAdvanced, setSoundAdvanced] = useState(false);
-  const [preset, setPreset] = useState<ExportPresetKey>(settings.export.defaultPreset);
+  // その回で最後に選んだもの → なければ設定の既定（DATA_MODEL.md §4.5.1）。
+  // 選んだ直後は DB の保存を待たずに表示を切り替える。
+  const [picked, setPicked] = useState<ExportPresetKey | null>(null);
+  const preset =
+    picked ?? episodeExportPreset(episode?.export_preset, settings.export.defaultPreset);
   const [custom, setCustom] = useState<CustomExportSettings>(() =>
     normalizeCustomExport(settings.export.custom),
   );
@@ -275,6 +280,11 @@ export function ExportTab({ ws, onShowToast, onDone, onGoEdit }: ExportTabProps)
     const next = { ...custom, ...patch };
     setCustom(next);
     void updateSettings('export', { ...settings.export, custom: next });
+  };
+
+  const choosePreset = (k: ExportPresetKey) => {
+    setPicked(k);
+    void ws.updateExportPreset(k);
   };
 
   const updateSound = (next: SoundSettings) => {
@@ -609,7 +619,7 @@ export function ExportTab({ ws, onShowToast, onDone, onGoEdit }: ExportTabProps)
           return (
             <Pressable
               key={k}
-              onPress={() => setPreset(k)}
+              onPress={() => choosePreset(k)}
               accessibilityRole="radio"
               accessibilityState={{ checked: on }}
               accessibilityLabel={`${text.label}, ${text.spec}`}

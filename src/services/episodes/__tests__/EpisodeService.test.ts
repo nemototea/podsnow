@@ -101,6 +101,18 @@ describe('EpisodeService', () => {
     expect(await svc.list(show.id)).toHaveLength(2);
   });
 
+  it('duplicate carries over the export preset choice (DATA_MODEL.md §4.5.1)', async () => {
+    const { show, svc } = await setup();
+    const ep = await svc.create(show.id);
+    const plain = await svc.duplicate(ep.id);
+    expect(plain.export_preset).toBeNull();
+
+    await svc.update(ep.id, { exportPreset: 'wav' });
+    expect((await svc.get(ep.id))?.export_preset).toBe('wav');
+    const dup = await svc.duplicate(ep.id);
+    expect(dup.export_preset).toBe('wav');
+  });
+
   // 以下、REQUIREMENTS.md §2.1.1 の受け入れ基準（FR-EP-6）。
 
   it('returns the number when a throwaway episode is deleted', async () => {

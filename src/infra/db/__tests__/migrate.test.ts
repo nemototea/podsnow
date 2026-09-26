@@ -69,7 +69,7 @@ describe('migrate', () => {
     );
 
     const r = await migrate(db);
-    expect(r.applied).toEqual(['0002_episode_numbering', '0003_outline_and_events']);
+    expect(r.applied).toEqual(MIGRATIONS.slice(1).map((m) => m.name));
 
     const ep = await db.get<{ episode_number: number; audio_purged_at: number | null }>(
       'SELECT episode_number, audio_purged_at FROM episodes WHERE id = ?',
@@ -115,7 +115,7 @@ describe('migrate', () => {
       );
     }
 
-    expect((await migrate(db)).applied).toEqual(['0003_outline_and_events']);
+    expect((await migrate(db)).applied).toEqual(MIGRATIONS.slice(2).map((m) => m.name));
 
     // トークテーマは見出しとして残り、チェック位置はチャプターになる
     expect(
@@ -137,6 +137,44 @@ describe('migrate', () => {
     expect(
       await db.all('SELECT kind FROM recording_events WHERE episode_id = ? ORDER BY id', ['e1']),
     ).toEqual([{ kind: 'interruption' }, { kind: 'route_change' }]);
+  });
+
+  it('0004 adds episodes.export_preset (NULL for existing rows) and drops shows.default_export_preset', async () => {
+    const db = createNodeSqliteExecutor();
+    await migrate(db, MIGRATIONS.slice(0, 3));
+    const now = Date.now();
+    await db.run(
+      'INSERT INTO shows (id, name, default_export_preset, created_at, updated_at) VALUES (?,?,?,?,?)',
+      ['s1', '番組', '{"bitrate":128000}', now, now],
+    );
+    await db.run(
+      'INSERT INTO episodes (id, show_id, title, episode_number, created_at, updated_at) VALUES (?,?,?,?,?,?)',
+      ['e1', 's1', '第1回', 3, now, now],
+    );
+
+    expect((await migrate(db)).applied).toEqual(['0004_episode_export_preset']);
+
+    // 既存の回は「選んだことがない」= 設定の既定で開く
+    expect(
+      await db.get('SELECT title, episode_number, export_preset FROM episodes WHERE id = ?', [
+        'e1',
+      ]),
+    ).toEqual({ title: '第1回', episode_number: 3, export_preset: null });
+    // 番組の行は残り、使われていなかった列だけが消える
+    const showCols = (await db.all<{ name: string }>('PRAGMA table_info(shows)')).map(
+      (c) => c.name,
+    );
+    expect(showCols).not.toContain('default_export_preset');
+    expect(await db.get('SELECT name FROM shows WHERE id = ?', ['s1'])).toEqual({ name: '番組' });
+
+    // 列はプリセットのキーだけを受け付ける
+    await db.run('UPDATE episodes SET export_preset = ? WHERE id = ?', ['wav', 'e1']);
+    await expect(
+      db.run('UPDATE episodes SET export_preset = ? WHERE id = ?', ['mp3', 'e1']),
+    ).rejects.toThrow();
+    expect(await db.get('SELECT export_preset FROM episodes WHERE id = ?', ['e1'])).toEqual({
+      export_preset: 'wav',
+    });
   });
 
   it('rolls back a failing migration without advancing user_version', async () => {

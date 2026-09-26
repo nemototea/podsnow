@@ -2,6 +2,17 @@ import type { SqlExecutor, SqlRow } from '../executor';
 
 export type EpisodeStatus = 'draft' | 'ready' | 'exported';
 
+/** 書き出しプリセットのキー（DATA_MODEL.md §4.5.1）。列の CHECK 制約と揃える。 */
+export const EPISODE_EXPORT_PRESETS = ['podcast', 'high', 'wav', 'custom'] as const;
+export type EpisodeExportPreset = (typeof EPISODE_EXPORT_PRESETS)[number];
+
+/** 保存値・バックアップ由来の値を検証する。知らない値は null（= 設定の既定）。 */
+export function parseEpisodeExportPreset(v: unknown): EpisodeExportPreset | null {
+  return typeof v === 'string' && (EPISODE_EXPORT_PRESETS as readonly string[]).includes(v)
+    ? (v as EpisodeExportPreset)
+    : null;
+}
+
 export interface EpisodeRow extends SqlRow {
   id: string;
   show_id: string;
@@ -19,6 +30,8 @@ export interface EpisodeRow extends SqlRow {
   sound_settings: string;
   /** 「音声を削除」を実行した時刻（FR-EP-4）。行と話数は残る。 */
   audio_purged_at: number | null;
+  /** この回で最後に選んだ書き出しプリセット。NULL = 選んだことがない（DATA_MODEL.md §4.5.1）。 */
+  export_preset: EpisodeExportPreset | null;
   created_at: number;
   updated_at: number;
 }
@@ -104,6 +117,7 @@ export async function updateEpisode(
     lastOpenedAt: number;
     playheadSmp: number;
     soundSettings: string;
+    exportPreset: EpisodeExportPreset | null;
   }>,
   now: number,
 ): Promise<void> {
@@ -119,6 +133,7 @@ export async function updateEpisode(
     lastOpenedAt: 'last_opened_at',
     playheadSmp: 'playhead_smp',
     soundSettings: 'sound_settings',
+    exportPreset: 'export_preset',
   };
   const sets: string[] = [];
   const vals: (string | number | null)[] = [];

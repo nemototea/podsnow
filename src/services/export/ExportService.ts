@@ -1,5 +1,6 @@
 import { AppError } from '@/domain/errors';
 import type { SqlExecutor } from '@/infra/db/executor';
+import { parseEpisodeExportPreset } from '@/infra/db/repositories/episodesRepo';
 import {
   failExport,
   finishExport,
@@ -63,6 +64,17 @@ export function normalizeCustomExport(v: unknown): CustomExportSettings {
         : DEFAULT_CUSTOM_EXPORT.bitrate,
     channels: o.channels === 1 || o.channels === 2 ? o.channels : DEFAULT_CUSTOM_EXPORT.channels,
   };
+}
+
+/**
+ * 書き出しタブで最初に選ばれているプリセット（DATA_MODEL.md §4.5.1 / Issue #136）。
+ * その回で最後に選んだもの → なければ（NULL・知らない値）設定の既定。
+ */
+export function episodeExportPreset(
+  episodeValue: unknown,
+  defaultPreset: ExportPresetKey,
+): ExportPresetKey {
+  return parseEpisodeExportPreset(episodeValue) ?? defaultPreset;
 }
 
 /** プリセットのキー（カスタムなら保存済みの項目も）からレンダに渡す設定を作る。 */
