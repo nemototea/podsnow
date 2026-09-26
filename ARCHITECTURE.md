@@ -70,7 +70,8 @@ podsnow/
 │   │   ├── episode/[id]/index.tsx    # エピソード（録音 / 編集 / 書き出しの 3 タブ）
 │   │   ├── episode/[id]/share.tsx    # 書き出し後の共有（内部名 Distribution Pack）
 │   │   ├── episode/[id]/backup.tsx
-│   │   ├── show/index.tsx            # 番組（情報・素材・ひな形を 1 画面に）
+│   │   ├── show/index.tsx            # 番組（情報・既定構成・ひな形、素材管理への入口）
+│   │   ├── show/assets.tsx           # 素材（登録・試聴・並べ替え）
 │   │   ├── restore.tsx
 │   │   └── settings.tsx
 │   ├── domain/

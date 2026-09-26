@@ -430,7 +430,7 @@ iOS だけ OS のアラートにすると 2 つの見た目が混ざるので、
 | 02 収録 / 03 編集 | 収録タブ（`StudioTab` + `Waveform` + `TopicsSection` + `Transport`）。録音中かどうかで中身を切り替える（#122） |
 | 04 音の仕上げ / 05 詳細 / 06 書き出し | 書き出しタブのセクション（`ExportTab`）。画面を分けない（#93） |
 | 07 配信の準備 | `src/app/episode/[id]/share.tsx` |
-| 08 番組と素材 | `src/app/show/index.tsx` + `AssetsSection` |
+| 08 番組と素材 | `src/app/show/index.tsx`。先頭の「素材」行から `show/assets.tsx` の素材管理へ 1 タップ。アートワーク（#133）は番組情報セクションの先頭に置く |
 | 09 設定 | `src/app/settings.tsx` |
 | バックアップ / 復元 | `src/app/episode/[id]/backup.tsx`、`src/app/restore.tsx` |
 

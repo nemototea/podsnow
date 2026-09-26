@@ -619,6 +619,7 @@ Podcast: {{show_name}}
     layoutEyebrow: '新しいエピソードの構成',
     duckingLabel: 'BGM ダッキング',
     a11yDuckAmount: 'ダッキング量',
+    chooseAsset: '素材から選ぶ',
     a11yPickAsset: (slot: string) => `${slot} の素材を選ぶ`,
     a11ySlotGain: (slot: string) => `${slot} の音量`,
     templateEyebrow: '概要欄テンプレート',
@@ -637,6 +638,9 @@ Podcast: {{show_name}}
 
   showAssets: {
     title: '素材',
+    add: '素材を追加',
+    count: (n: number) => `${n} 件`,
+    a11yOpen: (n: number) => `素材 ${n} 件の管理画面を開く`,
     a11yAdd: (kind: string) => `${kind} に音源を追加`,
     importing: (pct: number) => `取り込み中… ${pct}%`,
     imported: (kind: string, name: string) => `${kind} に「${name}」を追加しました`,

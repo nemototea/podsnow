@@ -6,7 +6,6 @@ import { formatSmp, smp } from '@/domain/time';
 import { splitIntoHeadings } from '@/domain/outline';
 import { useServices } from '@/features/app/ServicesProvider';
 import { kindLabel } from '@/features/show/assetKinds';
-import { AssetsSection } from '@/features/show/AssetsSection';
 import { useAsyncData } from '@/features/show/useAsyncData';
 import { useT, type Messages } from '@/i18n';
 import type { AssetKind, AssetRow } from '@/infra/db/repositories/assetsRepo';
@@ -71,9 +70,9 @@ const PLACEHOLDER_KEYS = [
 ] as const satisfies readonly (keyof Messages['showSettings']['placeholders'])[];
 
 /**
- * 番組の 1 画面（FR-SHOW-3, FR-SHOW-4, FR-SHOW-5, FR-META-2）。
- * 番組情報・毎回入れる素材・トークテーマのひな形・概要のひな形・素材の登録を
- * ここに集める。画面を分けない（docs/ux-restructure.md §8）。
+ * 番組設定（FR-SHOW-3, FR-SHOW-4, FR-SHOW-5, FR-META-2）。
+ * 先頭の入口から素材管理の子画面へ進み、ここでは番組情報・毎回入れる素材・
+ * トークテーマのひな形・概要のひな形を編集する（docs/ux-restructure.md §8）。
  */
 export default function ShowScreen() {
   const c = useAppTheme();
@@ -187,13 +186,29 @@ export default function ShowScreen() {
   };
 
   const assetName = (id: string | null) =>
-    data.assets.find((a) => a.id === id)?.name ?? t.common.none;
+    data.assets.find((a) => a.id === id)?.name ?? t.showSettings.chooseAsset;
   const pickedId = picking ? ((data.layout?.[SLOT_COL[picking]] as string | null) ?? null) : null;
   const pickList = picking ? data.assets.filter((a) => a.kind === (picking as AssetKind)) : [];
+
+  const openAssets = (kind?: LayoutSlot) => {
+    setPicking(null);
+    router.push(kind ? { pathname: '/show/assets', params: { kind } } : '/show/assets');
+  };
 
   return (
     <Screen overlay={<Toast toast={toast} onAction={act} onDismiss={dismiss} />}>
       <ScreenHeader title={t.showSettings.title} subtitle={services.show.name} />
+
+      <Card style={{ paddingVertical: space.xs }}>
+        <Row
+          icon="music"
+          label={t.showAssets.title}
+          sub={t.showAssets.count(data.assets.length)}
+          accessibilityLabel={t.showAssets.a11yOpen(data.assets.length)}
+          onPress={() => openAssets()}
+          last
+        />
+      </Card>
 
       <SectionHeader title={t.showSettings.showEyebrow} />
       <Card>
@@ -300,12 +315,6 @@ export default function ShowScreen() {
 
       <Button label={t.common.save} onPress={save} disabled={!draft} />
 
-      <AssetsSection
-        onToast={(text, undo) =>
-          showToast(undo ? { text, action: t.common.undo, onAction: undo } : { text })
-        }
-      />
-
       <Sheet
         visible={!!picking}
         onClose={() => setPicking(null)}
@@ -316,6 +325,12 @@ export default function ShowScreen() {
           label={t.common.none}
           onPress={() => picking && setSlot(picking, null)}
           {...(pickedId === null ? { right: <Icon name="check" color={c.accentText} /> } : {})}
+        />
+        <Row
+          icon="plus"
+          label={t.showAssets.add}
+          accessibilityLabel={picking ? t.showAssets.a11yAdd(slotLabel(picking)) : t.showAssets.add}
+          onPress={() => picking && openAssets(picking)}
         />
         {pickList.map((a) => (
           <Row

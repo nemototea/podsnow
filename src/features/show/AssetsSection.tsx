@@ -12,17 +12,7 @@ import { useT } from '@/i18n';
 import type { AssetKind, AssetRow } from '@/infra/db/repositories/assetsRepo';
 import { joinRoot } from '@/infra/files/layout';
 import { space } from '@/ui/tokens';
-import {
-  Button,
-  Card,
-  Chip,
-  Field,
-  IconButton,
-  ProgressBar,
-  Row,
-  SectionHeader,
-  Sheet,
-} from '@/ui/components';
+import { Button, Card, Chip, Field, IconButton, ProgressBar, Row, Sheet } from '@/ui/components';
 import { confirmDestructive } from '@/ui/alerts';
 import { ReorderList } from '@/ui/ReorderList';
 import { MoreMenu } from '@/ui/MoreMenu';
@@ -33,22 +23,24 @@ function stripScheme(uri: string): string {
 }
 
 export interface AssetsSectionProps {
+  /** 既定構成の選択シートから来たときに、対象の用途を最初から開く。 */
+  initialKind?: AssetKind;
   /** 取り込み・削除の結果を伝える。取り消しがあるものは onAction を渡す。 */
   onToast: (text: string, undo?: () => void | Promise<void>) => void;
 }
 
 /**
  * 素材（FR-AST-1〜3）: 用途別の一覧、取り込み、試聴、お気に入り、並び替え、名前変更、削除。
- * 番組画面の 1 セクションとして置く（画面を分けない。docs/ux-restructure.md §8）。
+ * 番組設定から 1 タップで開く素材管理画面の本体（docs/ux-restructure.md §8）。
  */
-export function AssetsSection({ onToast }: AssetsSectionProps) {
+export function AssetsSection({ initialKind, onToast }: AssetsSectionProps) {
   const c = useAppTheme();
   const t = useT();
   const { assets, show, root, engine, db, now, haptics } = useServices();
   const loader = useCallback(() => assets.list(show.id), [assets, show.id]);
   const { data: list, reload } = useAsyncData<AssetRow[]>(loader, []);
   // 用途は切り替え式。空の用途が画面を占めない（DESIGN_SYSTEM.md §2.3）。
-  const [kind, setKind] = useState<AssetKind>(ASSET_KIND_ORDER[0]!);
+  const [kind, setKind] = useState<AssetKind>(initialKind ?? ASSET_KIND_ORDER[0]!);
   const [renaming, setRenaming] = useState<AssetRow | null>(null);
   const [renameText, setRenameText] = useState('');
   const [importing, setImporting] = useState<{ kind: AssetKind; progress: number } | null>(null);
@@ -148,31 +140,26 @@ export function AssetsSection({ onToast }: AssetsSectionProps) {
 
   return (
     <>
-      <SectionHeader
-        title={t.showAssets.title}
-        right={
-          <View style={st.addWrap}>
-            <IconButton
-              name="plus"
-              label={t.showAssets.a11yAdd(kindLabel(t, kind))}
-              disabled={!!importing}
-              onPress={() => void pick(kind)}
-            />
-          </View>
-        }
-      />
-      <View style={st.kinds}>
-        {assetKinds(t).map((k) => {
-          const n = list.filter((a) => a.kind === k.kind).length;
-          return (
-            <Chip
-              key={k.kind}
-              label={n ? `${k.label} ${n}` : k.label}
-              active={kind === k.kind}
-              onPress={() => setKind(k.kind)}
-            />
-          );
-        })}
+      <View style={st.kindToolbar}>
+        <View style={st.kinds}>
+          {assetKinds(t).map((k) => {
+            const n = list.filter((a) => a.kind === k.kind).length;
+            return (
+              <Chip
+                key={k.kind}
+                label={n ? `${k.label} ${n}` : k.label}
+                active={kind === k.kind}
+                onPress={() => setKind(k.kind)}
+              />
+            );
+          })}
+        </View>
+        <IconButton
+          name="plus"
+          label={t.showAssets.a11yAdd(kindLabel(t, kind))}
+          disabled={!!importing}
+          onPress={() => void pick(kind)}
+        />
       </View>
 
       {importing?.kind === kind ? (
@@ -262,8 +249,8 @@ export function AssetsSection({ onToast }: AssetsSectionProps) {
 
 const st = StyleSheet.create({
   group: { paddingVertical: space.xs, marginTop: space.md },
-  kinds: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
-  addWrap: { marginRight: -space.md },
+  kindToolbar: { flexDirection: 'row', alignItems: 'flex-start', gap: space.xs },
+  kinds: { flex: 1, flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
   rowRight: { flexDirection: 'row', alignItems: 'center', marginRight: -space.md },
   progressWrap: { paddingVertical: space.md, gap: space.sm },
 });
