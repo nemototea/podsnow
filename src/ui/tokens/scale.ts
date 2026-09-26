@@ -161,6 +161,34 @@ export const stroke = {
 } as const;
 
 /**
+ * 入力欄（`Field`）の寸法（DESIGN_SYSTEM.md §6、#131）。
+ *
+ * OS の標準に寄せる。Material 3 の Outlined TextField は通常 1dp・入力中 2dp の枠、
+ * iOS は操作部品の既定が 44pt。常に 2 の枠と角丸 12・高さ 52 は、並べると一段大きく見えた。
+ * 高さは `hit.min` を下回らない。枠が太くなった分は余白から引き、字の位置を動かさない（`fieldPadding()`）。
+ */
+export const field = {
+  minHeight: hit.min,
+  multilineMinHeight: 128,
+  radius: radius.sm,
+  paddingX: space.lg,
+  paddingY: space.sm,
+  /** 通常時の枠。 */
+  border: stroke.hairline,
+  /** 入力中・エラー時の枠。 */
+  borderActive: stroke.selected,
+} as const;
+
+/** 枠の太さ `borderWidth` のときの内側の余白。枠と余白の和を一定に保つ。 */
+export function fieldPadding(borderWidth: number) {
+  const shift = borderWidth - field.border;
+  return {
+    paddingHorizontal: field.paddingX - shift,
+    paddingVertical: field.paddingY - shift,
+  };
+}
+
+/**
  * 動き。
  *
  * 頻繁に起きる操作の反応は 150ms 以下（better-ui）。

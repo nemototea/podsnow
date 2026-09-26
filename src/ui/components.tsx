@@ -38,6 +38,8 @@ import {
   buttonDepth,
   compactWidth,
   concentric,
+  field,
+  fieldPadding,
   gutter,
   gutterCompact,
   hit,
@@ -795,6 +797,8 @@ export function Field({
   const [focused, setFocused] = useState(false);
   // 呼び出し側の書体スタイル（typography.numeric など）に含まれる lineHeight も入力欄には渡さない（s.input）。
   const { lineHeight: _lineHeight, ...inputStyle } = StyleSheet.flatten(style) ?? {};
+  // 通常は細い枠。入力中とエラー時だけ太くする（色だけでなく太さでも状態を示す）。
+  const borderWidth = error || focused ? field.borderActive : field.border;
   return (
     <View style={s.field}>
       <Text style={[typography.label, { color: c.textSecondary }]}>{label}</Text>
@@ -821,8 +825,9 @@ export function Field({
             color: c.textPrimary,
             backgroundColor: c.bg,
             borderColor: error ? c.dangerBorder : focused ? c.focusRing : c.borderStrong,
-            borderWidth: stroke.selected,
+            borderWidth,
           },
+          fieldPadding(borderWidth),
           inputStyle,
         ]}
       />
@@ -951,12 +956,10 @@ const s = StyleSheet.create({
   input: {
     fontSize: typography.body.fontSize,
     fontWeight: typography.body.fontWeight,
-    minHeight: hit.button,
-    borderRadius: radius.md,
-    paddingHorizontal: space.lg,
-    paddingVertical: space.md,
+    minHeight: field.minHeight,
+    borderRadius: field.radius,
   },
-  multiline: { minHeight: 128 },
+  multiline: { minHeight: field.multilineMinHeight },
   multilineLeading: { lineHeight: typography.body.lineHeight },
 });
 

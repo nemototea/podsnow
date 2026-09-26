@@ -7,6 +7,8 @@ export {
   concentric,
   dialogWidth,
   family,
+  field,
+  fieldPadding,
   glyphSlop,
   gutter,
   gutterCompact,
