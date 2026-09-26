@@ -5,7 +5,7 @@ import * as path from 'node:path';
 import { createNodeSqliteExecutor } from '@/infra/db/__tests__/nodeSqliteExecutor';
 import { migrate } from '@/infra/db/migrate';
 import { ensureDefaultShow, getShow, updateShow } from '@/infra/db/repositories/showsRepo';
-import { nodeFsPort } from '@/services/backup/__tests__/nodeFsPort';
+import { nodeFsPort } from '@/infra/files/__tests__/nodeFsPort';
 import { TEST_SHOW_SEED } from '@/services/app/__tests__/labels';
 
 import { CoverArtService } from '../CoverArtService';

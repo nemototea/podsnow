@@ -5,7 +5,7 @@
 **PodsNow（ポッズナウ）**。表示ロゴは末尾に点を付けた **PodsNow.**。`Pods` = エピソード、`Now` = いま録って、いま出す。
 
 「PodSnow」「ポッドスノウ」は誤り。識別子（リポジトリ名 / `slug` / `scheme` / bundle id / package /
-モジュール名 / バックアップ拡張子 `.podsnow`）は小文字の `podsnow` のままで、これは綴りであって
+モジュール名）は小文字の `podsnow` のままで、これは綴りであって
 「Snow」の意味は持たせない。
 
 ## ロゴ（Issue #94）

@@ -66,7 +66,7 @@ const ONLY = process.env.ONLY;
   await tapLabel(T('設定', 'Settings'));
   await shot('15-settings');
   await p.goBack(); await p.waitForTimeout(800);
-  await tap(T('番組と素材', 'Show & assets'), { wait: 1200 });
+  await tap(T('新しく始める', 'Start a new show'), { wait: 1200 });
   await shot('16-show');
   console.log('ERRORS:\n' + errors.join('\n'));
   await b.close();

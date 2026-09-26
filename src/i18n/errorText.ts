@@ -15,8 +15,6 @@ export function errorCodeText(
   params: Readonly<Record<string, string | number>> = {},
 ): string {
   switch (code) {
-    case 'backup_unsupported_version':
-      return t.errors.backup_unsupported_version(String(params.version ?? ''));
     case 'disk_space_insufficient':
       return t.errors.disk_space_insufficient(
         String(params.requiredMb ?? '?'),
@@ -29,11 +27,8 @@ export function errorCodeText(
     case 'import_too_large':
       return t.errors.import_too_large(String(params.maxMb ?? '?'));
     case 'voice_timeline_empty':
-    case 'backup_manifest_missing':
     case 'recording_resume_failed':
     case 'export_app_terminated':
-    case 'export_not_in_backup':
-    case 'export_cancelled_on_restore':
     case 'import_not_https':
     case 'import_network_failed':
     case 'import_timeout':

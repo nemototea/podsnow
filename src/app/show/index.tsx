@@ -120,49 +120,78 @@ export default function ShowScreen() {
     }, [reload]),
   );
 
-  // 編集中テキスト（保存ボタンで確定）
-  const [draft, setDraft] = useState<{
+  const [editing, setEditing] = useState<'show' | 'topics' | 'template' | null>(null);
+  const [showDraft, setShowDraft] = useState<{
     name: string;
     description: string;
     author: string;
     season: string;
-    template: string;
-    topicTemplate: string;
   } | null>(null);
+  const [topicDraft, setTopicDraft] = useState<string | null>(null);
+  const [templateDraft, setTemplateDraft] = useState<string | null>(null);
   const [picking, setPicking] = useState<LayoutSlot | null>(null);
 
-  const d = draft ?? {
-    name: data.show?.name ?? '',
-    description: data.show?.description ?? '',
-    author: data.show?.author ?? '',
-    season: String(data.show?.default_season ?? 1),
-    template: data.template?.body ?? '',
-    topicTemplate: data.topicTemplate,
+  const openShowEditor = () => {
+    setShowDraft({
+      name: data.show?.name ?? '',
+      description: data.show?.description ?? '',
+      author: data.show?.author ?? '',
+      season: String(data.show?.default_season ?? 1),
+    });
+    setEditing('show');
   };
-  const setField = (k: keyof typeof d, v: string) => setDraft({ ...d, [k]: v });
+  const openTopicEditor = () => {
+    setTopicDraft(data.topicTemplate);
+    setEditing('topics');
+  };
+  const openTemplateEditor = () => {
+    setTemplateDraft(data.template?.body ?? '');
+    setEditing('template');
+  };
+  const closeEditor = () => {
+    setEditing(null);
+    setShowDraft(null);
+    setTopicDraft(null);
+    setTemplateDraft(null);
+  };
 
-  const save = async () => {
-    const season = Math.max(1, parseInt(d.season, 10) || 1);
+  const saveShowInfo = async () => {
+    if (!showDraft) return;
+    const season = Math.max(1, parseInt(showDraft.season, 10) || 1);
     await updateShow(
       db,
       showId,
       {
-        name: d.name.trim() || t.seed.showName,
-        description: d.description,
-        author: d.author,
+        name: showDraft.name.trim() || t.seed.showName,
+        description: showDraft.description,
+        author: showDraft.author,
         defaultSeason: season,
       },
       now(),
     );
-    if (data.template) await updateTemplate(db, data.template.id, d.template, now());
+    await services.reloadShow();
+    closeEditor();
+    await reload();
+    showToast({ text: t.showSettings.showInfoSaved });
+  };
+
+  const saveTopics = async () => {
+    if (topicDraft === null) return;
     await services.outline.saveTemplate(
       showId,
-      splitIntoHeadings(d.topicTemplate).map((heading) => ({ heading, body: '' })),
+      splitIntoHeadings(topicDraft).map((heading) => ({ heading, body: '' })),
     );
-    await services.reloadShow();
-    setDraft(null);
+    closeEditor();
     await reload();
-    showToast({ text: t.showSettings.saved });
+    showToast({ text: t.showSettings.topicTemplateSaved });
+  };
+
+  const saveDescriptionTemplate = async () => {
+    if (templateDraft === null || !data.template) return;
+    await updateTemplate(db, data.template.id, templateDraft, now());
+    closeEditor();
+    await reload();
+    showToast({ text: t.showSettings.descriptionTemplateSaved });
   };
 
   const pickArtwork = async () => {
@@ -233,17 +262,6 @@ export default function ShowScreen() {
     <Screen overlay={<Toast toast={toast} onAction={act} onDismiss={dismiss} />}>
       <ScreenHeader title={t.showSettings.title} subtitle={services.show.name} />
 
-      <Card style={{ paddingVertical: space.xs }}>
-        <Row
-          icon="music"
-          label={t.showAssets.title}
-          sub={t.showAssets.count(data.assets.length)}
-          accessibilityLabel={t.showAssets.a11yOpen(data.assets.length)}
-          onPress={() => openAssets()}
-          last
-        />
-      </Card>
-
       <SectionHeader title={t.showSettings.showEyebrow} />
       <Card>
         <View style={st.artworkBlock}>
@@ -289,33 +307,41 @@ export default function ShowScreen() {
             </View>
           </View>
         </View>
-        <Field
-          label={t.showSettings.name}
-          value={d.name}
-          onChangeText={(v) => setField('name', v)}
-        />
-        <Field
-          label={t.showSettings.description}
-          value={d.description}
-          onChangeText={(v) => setField('description', v)}
-          multiline
-        />
-        <Field
-          label={t.showSettings.author}
-          value={d.author}
-          onChangeText={(v) => setField('author', v)}
-        />
-        <Field
-          label={t.showSettings.defaultSeason}
-          value={d.season}
-          onChangeText={(v) => setField('season', v.replace(/[^0-9]/g, ''))}
-          keyboardType="number-pad"
+        <View style={st.showSummary}>
+          <Text style={[typography.heading, { color: c.textPrimary }]}>{data.show?.name}</Text>
+          {data.show?.author ? (
+            <Text style={[typography.caption, { color: c.textSecondary }]}>{data.show.author}</Text>
+          ) : null}
+          {data.show?.description ? (
+            <Text style={[typography.body, { color: c.textSecondary }]} numberOfLines={3}>
+              {data.show.description}
+            </Text>
+          ) : null}
+        </View>
+        <Button
+          label={t.showSettings.editShowInfo}
+          accessibilityLabel={t.showSettings.a11yEditShowInfo}
+          icon="edit"
+          kind="secondary"
+          onPress={openShowEditor}
         />
         <Button
           label={services.show.feed_url ? t.home.reimportShow : t.home.importShow}
           icon="refresh"
           kind="ghost"
           onPress={() => router.push('/import')}
+        />
+      </Card>
+
+      <SectionHeader title={t.showAssets.title} />
+      <Card rows>
+        <Row
+          icon="music"
+          label={t.showAssets.title}
+          sub={t.showAssets.count(data.assets.length)}
+          accessibilityLabel={t.showAssets.a11yOpen(data.assets.length)}
+          onPress={() => openAssets()}
+          last
         />
       </Card>
 
@@ -356,41 +382,130 @@ export default function ShowScreen() {
         </View>
       </Card>
       <SectionHeader title={t.showSettings.topicTemplateEyebrow} />
-      <Card>
-        <Field
+      <Card rows>
+        <Row
           label={t.showSettings.topicTemplateEyebrow}
-          value={d.topicTemplate}
-          onChangeText={(v) => setField('topicTemplate', v)}
-          multiline
-          placeholder={t.showSettings.topicTemplatePlaceholder}
+          sub={t.showSettings.topicCount(splitIntoHeadings(data.topicTemplate).length)}
+          accessibilityLabel={t.showSettings.a11yEditTopicTemplate}
+          onPress={openTopicEditor}
+          last
         />
       </Card>
 
       <SectionHeader title={t.showSettings.templateEyebrow} />
-      <Card>
-        <Field
-          label={t.showSettings.a11yTemplate}
-          value={d.template}
-          onChangeText={(v) => setField('template', v)}
-          multiline
+      <Card rows>
+        <Row
+          label={t.showSettings.templateEyebrow}
+          sub={data.template?.body.trim() || t.common.none}
+          accessibilityLabel={t.showSettings.a11yEditDescriptionTemplate}
+          onPress={openTemplateEditor}
+          last
         />
-        <View style={st.helpWrap}>
-          {PLACEHOLDER_KEYS.map((key) => {
-            const token = `{{${key}}}`;
-            const desc = t.showSettings.placeholders[key];
-            return (
-              <Chip
-                key={key}
-                label={desc}
-                accessibilityLabel={t.showSettings.a11yInsertPlaceholder(desc)}
-                onPress={() => setField('template', `${d.template}${token}`)}
-              />
-            );
-          })}
-        </View>
       </Card>
 
-      <Button label={t.common.save} onPress={save} disabled={!draft} />
+      <Sheet visible={editing === 'show'} onClose={closeEditor} title={t.showSettings.editShowInfo}>
+        {showDraft ? (
+          <>
+            <Field
+              label={t.showSettings.name}
+              value={showDraft.name}
+              onChangeText={(name) => setShowDraft({ ...showDraft, name })}
+            />
+            <Field
+              label={t.showSettings.description}
+              value={showDraft.description}
+              onChangeText={(description) => setShowDraft({ ...showDraft, description })}
+              multiline
+            />
+            <Field
+              label={t.showSettings.author}
+              value={showDraft.author}
+              onChangeText={(author) => setShowDraft({ ...showDraft, author })}
+            />
+            <Field
+              label={t.showSettings.defaultSeason}
+              value={showDraft.season}
+              onChangeText={(season) =>
+                setShowDraft({ ...showDraft, season: season.replace(/[^0-9]/g, '') })
+              }
+              keyboardType="number-pad"
+            />
+            <View style={st.sheetActions}>
+              <Button
+                label={t.common.save}
+                accessibilityLabel={t.showSettings.a11ySaveShowInfo}
+                onPress={() => void saveShowInfo()}
+              />
+              <Button label={t.common.cancel} kind="ghost" onPress={closeEditor} />
+            </View>
+          </>
+        ) : null}
+      </Sheet>
+
+      <Sheet
+        visible={editing === 'topics'}
+        onClose={closeEditor}
+        title={t.showSettings.topicTemplateEyebrow}
+      >
+        {topicDraft !== null ? (
+          <>
+            <Field
+              label={t.showSettings.topicTemplateEyebrow}
+              value={topicDraft}
+              onChangeText={setTopicDraft}
+              multiline
+              placeholder={t.showSettings.topicTemplatePlaceholder}
+            />
+            <View style={st.sheetActions}>
+              <Button
+                label={t.common.save}
+                accessibilityLabel={t.showSettings.a11ySaveTopicTemplate}
+                onPress={() => void saveTopics()}
+              />
+              <Button label={t.common.cancel} kind="ghost" onPress={closeEditor} />
+            </View>
+          </>
+        ) : null}
+      </Sheet>
+
+      <Sheet
+        visible={editing === 'template'}
+        onClose={closeEditor}
+        title={t.showSettings.templateEyebrow}
+      >
+        {templateDraft !== null ? (
+          <>
+            <Field
+              label={t.showSettings.a11yTemplate}
+              value={templateDraft}
+              onChangeText={setTemplateDraft}
+              multiline
+            />
+            <View style={st.helpWrap}>
+              {PLACEHOLDER_KEYS.map((key) => {
+                const token = `{{${key}}}`;
+                const desc = t.showSettings.placeholders[key];
+                return (
+                  <Chip
+                    key={key}
+                    label={desc}
+                    accessibilityLabel={t.showSettings.a11yInsertPlaceholder(desc)}
+                    onPress={() => setTemplateDraft(`${templateDraft}${token}`)}
+                  />
+                );
+              })}
+            </View>
+            <View style={st.sheetActions}>
+              <Button
+                label={t.common.save}
+                accessibilityLabel={t.showSettings.a11ySaveDescriptionTemplate}
+                onPress={() => void saveDescriptionTemplate()}
+              />
+              <Button label={t.common.cancel} kind="ghost" onPress={closeEditor} />
+            </View>
+          </>
+        ) : null}
+      </Sheet>
 
       <Sheet
         visible={!!picking}
@@ -449,6 +564,7 @@ const st = StyleSheet.create({
   artworkBlock: { gap: space.sm, marginBottom: space.lg },
   artworkRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: space.lg },
   artworkActions: { flex: 1, minWidth: artwork.settingsPreview, gap: space.sm },
+  showSummary: { gap: space.xs, marginBottom: space.lg },
   slot: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -461,4 +577,5 @@ const st = StyleSheet.create({
   stepper: { flexDirection: 'row', alignItems: 'center' },
   stepValue: { ...typography.numeric, ...tabularNums, minWidth: 64, textAlign: 'center' },
   helpWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
+  sheetActions: { gap: space.sm, marginTop: space.md },
 });

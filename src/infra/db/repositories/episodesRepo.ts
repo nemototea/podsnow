@@ -8,7 +8,7 @@ export type EpisodeStatus = 'draft' | 'ready' | 'exported';
 export const EPISODE_EXPORT_PRESETS = ['podcast', 'high', 'wav', 'custom'] as const;
 export type EpisodeExportPreset = (typeof EPISODE_EXPORT_PRESETS)[number];
 
-/** 保存値・バックアップ由来の値を検証する。知らない値は null（= 設定の既定）。 */
+/** DB の保存値を検証する。知らない値は null（= 設定の既定）。 */
 export function parseEpisodeExportPreset(v: unknown): EpisodeExportPreset | null {
   return typeof v === 'string' && (EPISODE_EXPORT_PRESETS as readonly string[]).includes(v)
     ? (v as EpisodeExportPreset)
@@ -240,20 +240,4 @@ export async function markAudioPurged(db: SqlExecutor, id: string, now: number):
     now,
     id,
   ]);
-}
-
-/** 最近開いたエピソード（Home の「続き」）。 */
-export async function getContinueEpisode(
-  db: SqlExecutor,
-  showId: string,
-): Promise<EpisodeListItem | null> {
-  const rows = await db.all<EpisodeListItem>(
-    `SELECT e.*,
-       COALESCE((SELECT SUM(v.src_end_smp - v.src_start_smp) FROM voice_segments v WHERE v.episode_id = e.id), 0) AS duration_smp,
-       (SELECT COUNT(*) FROM takes t WHERE t.episode_id = e.id AND t.deleted_at IS NULL) AS take_count
-     FROM episodes e WHERE e.show_id = ? AND e.deleted_at IS NULL AND e.status != 'exported'
-     ORDER BY e.last_opened_at DESC NULLS LAST, e.created_at DESC LIMIT 1`,
-    [showId],
-  );
-  return rows[0] ?? null;
 }

@@ -78,7 +78,6 @@ AUDIO_DESIGN.md §11 の S-1〜S-10 に対応。
 | H-2 | H-1 のファイルをラウドネスメーター（例: `ffmpeg -af ebur128` / Youlean）で測る | 統合ラウドネス -16 ± 1 LU、トゥルーピーク ≤ -1 dBTP |
 | H-3 | WAV で書き出し → PC で開く | 48 kHz / 16 bit、長さが一致 |
 | H-4 | BGM 付きで書き出し | しゃべり中に BGM が下がり、無音で戻る |
-| H-5 | iOS / Android で同じバックアップから同じプリセットで書き出し | 聴感で同じ。可能なら波形差分 |
 
 ## I. 素材取り込み
 
@@ -103,7 +102,6 @@ AUDIO_DESIGN.md §11 の S-1〜S-10 に対応。
 | J-9 | Android 13+: 設定 → アプリ → PodsNow → 言語 | 「日本語」「English」が選べる（`locales_config.xml`、FR-I18N-8）。選ぶと UI が切り替わる |
 | J-10 | 英語端末でランチャーとアプリ情報を見る | アプリ名が "PodsNow" |
 | J-11 | 英語端末で書き出し → Distribution Pack の「ALL METADATA」をコピー | 見出しが Title / Episode / Season / Recorded / Duration / File |
-| J-12 | 日本語で作ったバックアップ（.podsnow）を英語端末で復元 | 復元できる。進捗とエラーの文言が英語 |
 
 ## K. アイコン・ブランド（Issue #82 → Issue #94 で差し替え）
 

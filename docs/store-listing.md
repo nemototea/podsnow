@@ -7,7 +7,7 @@
 PodsNow
 
 読み: ポッズナウ。「PodSnow」「ポッドスノウ」ではない。
-識別子（`slug` / bundle id / package / `.podsnow`）は小文字の `podsnow` のまま。
+識別子（`slug` / bundle id / package）は小文字の `podsnow` のまま。
 
 ---
 
@@ -92,7 +92,7 @@ podcast, recorder, voice recorder, audio editor, recording, podcasting
 
 日本語・英語の 2 セットを撮る（端末の言語設定を切り替えて同じ画面を撮影）。
 
-1. Home（制作中の回と一覧）
+1. Home（番組カードとエピソード一覧）
 2. 収録タブ（収録中、レベルメーターと話すこと）
 3. 収録タブ（待機中、波形と範囲選択）
 4. 書き出しタブ（音の仕上げと形式）
