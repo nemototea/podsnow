@@ -16,4 +16,6 @@ export interface FsPort {
   exists(absPath: string): boolean;
   ensureDir(absDir: string): void;
   delete(absPath: string): void;
+  /** ディレクトリ直下のファイル名（ディレクトリは含めない）。無ければ空。 */
+  list(absDir: string): string[];
 }

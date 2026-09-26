@@ -23,6 +23,8 @@ export interface AppSettings {
     custom: { format: 'm4a' | 'wav'; bitrate: number; channels: 1 | 2 };
   };
   monitor: { jinglePlayback: 'always' | 'headphonesOnly' | 'never' };
+  /** ホームの「番組の情報を入れる」カードを閉じたか（取り込み or 新しく始める。FR-SHOW-6） */
+  onboardingDone: boolean;
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -40,6 +42,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   haptics: true,
   export: { defaultPreset: 'podcast', custom: { format: 'm4a', bitrate: 192_000, channels: 1 } },
   monitor: { jinglePlayback: 'headphonesOnly' },
+  onboardingDone: false,
 };
 
 export async function loadSettings(db: SqlExecutor): Promise<AppSettings> {

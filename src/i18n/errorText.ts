@@ -22,12 +22,24 @@ export function errorCodeText(
         String(params.requiredMb ?? '?'),
         String(params.availableMb ?? '?'),
       );
+    case 'import_http_status':
+      return t.errors.import_http_status(String(params.status ?? '?'));
+    case 'import_unsupported_encoding':
+      return t.errors.import_unsupported_encoding(String(params.encoding ?? '?'));
+    case 'import_too_large':
+      return t.errors.import_too_large(String(params.maxMb ?? '?'));
     case 'voice_timeline_empty':
     case 'backup_manifest_missing':
     case 'recording_resume_failed':
     case 'export_app_terminated':
     case 'export_not_in_backup':
     case 'export_cancelled_on_restore':
+    case 'import_not_https':
+    case 'import_network_failed':
+    case 'import_timeout':
+    case 'import_not_a_feed':
+    case 'import_no_feed_url':
+    case 'import_other_show':
       return t.errors[code];
   }
 }

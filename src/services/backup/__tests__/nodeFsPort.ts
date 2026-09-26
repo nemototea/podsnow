@@ -28,4 +28,11 @@ export const nodeFsPort: FsPort = {
   delete: (p) => {
     if (fs.existsSync(p)) fs.unlinkSync(p);
   },
+  list: (d) =>
+    fs.existsSync(d)
+      ? fs
+          .readdirSync(d, { withFileTypes: true })
+          .filter((e) => e.isFile())
+          .map((e) => e.name)
+      : [],
 };

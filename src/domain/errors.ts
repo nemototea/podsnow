@@ -23,6 +23,24 @@ export const APP_ERROR_CODES = [
   'export_not_in_backup',
   /** バックアップ復元時に中断扱いにした書き出し */
   'export_cancelled_on_restore',
+  /** 取り込み: HTTPS 以外の URL（リダイレクト先を含む） */
+  'import_not_https',
+  /** 取り込み: 通信できなかった */
+  'import_network_failed',
+  /** 取り込み: 時間内に応答が無かった */
+  'import_timeout',
+  /** 取り込み: 応答が 2xx 以外（params: status） */
+  'import_http_status',
+  /** 取り込み: 応答が大きすぎる（params: maxMb） */
+  'import_too_large',
+  /** 取り込み: RSS として読めない */
+  'import_not_a_feed',
+  /** 取り込み: 検索結果に RSS の URL が無い */
+  'import_no_feed_url',
+  /** 取り込み: 今の番組とは別の番組（番組を 1 つしか持てない間は取り込めない） */
+  'import_other_show',
+  /** 取り込み: UTF-8 以外の文字コードの RSS（params: encoding） */
+  'import_unsupported_encoding',
 ] as const;
 
 export type AppErrorCode = (typeof APP_ERROR_CODES)[number];

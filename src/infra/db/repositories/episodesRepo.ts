@@ -1,3 +1,5 @@
+import type { EpisodeType } from '@/domain/podcast/feed';
+
 import type { SqlExecutor, SqlRow } from '../executor';
 
 export type EpisodeStatus = 'draft' | 'ready' | 'exported';
@@ -32,6 +34,15 @@ export interface EpisodeRow extends SqlRow {
   audio_purged_at: number | null;
   /** この回で最後に選んだ書き出しプリセット。NULL = 選んだことがない（DATA_MODEL.md §4.5.1）。 */
   export_preset: EpisodeExportPreset | null;
+  // 以下は Podcast RSS の item に対応する列（DATA_MODEL.md §4.5、0005）
+  /** RSS の `guid`。作成時の id を入れ、以後変えない */
+  guid: string | null;
+  episode_type: EpisodeType;
+  /** 0 / 1。NULL は番組の設定に従う */
+  explicit: number | null;
+  website_url: string;
+  /** 実際に配信した日時（`pubDate`）。予定は `publish_planned_at` */
+  published_at: number | null;
   created_at: number;
   updated_at: number;
 }
@@ -59,13 +70,17 @@ export async function getEpisode(db: SqlExecutor, id: string): Promise<EpisodeRo
 /**
  * 新規エピソードの話数（REQUIREMENTS.md §2.1.1 / FR-EP-6）。
  *
- * 採番用のカウンターは持たず、既存行から導出する。条件は「削除されていないこと」だけで、
- * `status` は見ない。これにより試用で作って消した回は番号を消費せず、消した番号が返る。
+ * 採番用のカウンターは持たず、既存行から導出する。台帳は 2 つ:
+ * - `episodes` の削除されていない行。`status` は見ない。試用で作って消した回は番号を消費せず、消した番号が返る。
+ * - `feed_episodes`（配信済みの回）。配信した番号は二度と使わない。取り込んだ番組は続きの番号から始まる。
  */
 export async function nextEpisodeNumber(db: SqlExecutor, showId: string): Promise<number> {
   const r = await db.get<{ n: number }>(
-    'SELECT COALESCE(MAX(episode_number), 0) + 1 AS n FROM episodes WHERE show_id = ? AND deleted_at IS NULL',
-    [showId],
+    `SELECT MAX(
+       COALESCE((SELECT MAX(episode_number) FROM episodes WHERE show_id = ? AND deleted_at IS NULL), 0),
+       COALESCE((SELECT MAX(episode_number) FROM feed_episodes WHERE show_id = ?), 0)
+     ) + 1 AS n`,
+    [showId, showId],
   );
   return r?.n ?? 1;
 }
@@ -84,6 +99,19 @@ export async function episodeNumberTaken(
   return (r?.n ?? 0) > 0;
 }
 
+/** 同じ Show に同じ RSS guid の（削除されていない）エピソードがあるか。 */
+export async function episodeGuidTaken(
+  db: SqlExecutor,
+  showId: string,
+  guid: string,
+): Promise<boolean> {
+  const r = await db.get<{ n: number }>(
+    'SELECT COUNT(*) AS n FROM episodes WHERE show_id = ? AND guid = ? AND deleted_at IS NULL',
+    [showId, guid],
+  );
+  return (r?.n ?? 0) > 0;
+}
+
 export async function insertEpisode(
   db: SqlExecutor,
   e: {
@@ -97,8 +125,21 @@ export async function insertEpisode(
   },
 ): Promise<void> {
   await db.run(
-    'INSERT INTO episodes (id, show_id, title, description, episode_number, season, recorded_at, last_opened_at, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)',
-    [e.id, e.showId, e.title, e.description, e.episodeNumber, e.season, e.now, e.now, e.now, e.now],
+    'INSERT INTO episodes (id, show_id, title, description, episode_number, season, recorded_at, last_opened_at, guid, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
+    [
+      e.id,
+      e.showId,
+      e.title,
+      e.description,
+      e.episodeNumber,
+      e.season,
+      e.now,
+      e.now,
+      // guid は配信後に変えてはいけない（PSP-1）。作成時の id で固定する。
+      e.id,
+      e.now,
+      e.now,
+    ],
   );
 }
 
@@ -118,6 +159,10 @@ export async function updateEpisode(
     playheadSmp: number;
     soundSettings: string;
     exportPreset: EpisodeExportPreset | null;
+    episodeType: EpisodeType;
+    explicit: boolean | null;
+    websiteUrl: string;
+    publishedAt: number | null;
   }>,
   now: number,
 ): Promise<void> {
@@ -134,14 +179,18 @@ export async function updateEpisode(
     playheadSmp: 'playhead_smp',
     soundSettings: 'sound_settings',
     exportPreset: 'export_preset',
+    episodeType: 'episode_type',
+    explicit: 'explicit',
+    websiteUrl: 'website_url',
+    publishedAt: 'published_at',
   };
   const sets: string[] = [];
   const vals: (string | number | null)[] = [];
   for (const [k, col] of Object.entries(map)) {
-    const v = (patch as Record<string, string | number | null | undefined>)[k];
+    const v = (patch as Record<string, string | number | boolean | null | undefined>)[k];
     if (v !== undefined) {
       sets.push(`${col} = ?`);
-      vals.push(v);
+      vals.push(typeof v === 'boolean' ? (v ? 1 : 0) : v);
     }
   }
   if (!sets.length) return;
