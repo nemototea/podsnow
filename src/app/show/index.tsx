@@ -1,3 +1,4 @@
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
@@ -82,6 +83,7 @@ export default function ShowScreen() {
   const { db, now, assets } = services;
   const showId = services.show.id;
   const { toast, show: showToast, act, dismiss } = useToast();
+  const router = useRouter();
 
   const loader = useCallback(async (): Promise<Loaded> => {
     const [show, layout, template, list, topics] = await Promise.all([
@@ -106,6 +108,13 @@ export default function ShowScreen() {
     assets: [],
     topicTemplate: '',
   });
+
+  // 取り込み（/import）から戻ったときに、上書きされた番組情報を読み直す
+  useFocusEffect(
+    useCallback(() => {
+      void reload();
+    }, [reload]),
+  );
 
   // 編集中テキスト（保存ボタンで確定）
   const [draft, setDraft] = useState<{
@@ -209,6 +218,12 @@ export default function ShowScreen() {
           value={d.season}
           onChangeText={(v) => setField('season', v.replace(/[^0-9]/g, ''))}
           keyboardType="number-pad"
+        />
+        <Button
+          label={services.show.feed_url ? t.home.reimportShow : t.home.importShow}
+          icon="refresh"
+          kind="ghost"
+          onPress={() => router.push('/import')}
         />
       </Card>
 

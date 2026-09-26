@@ -52,8 +52,10 @@ export default function HomeScreen() {
   const c = useAppTheme();
   const t = useT();
   const router = useRouter();
-  const { show, episodes, recovered } = useServices();
-  const { list, cont, reload } = useHome();
+  const services = useServices();
+  const { show, episodes, recovered } = services;
+  const { list, cont, loading, reload } = useHome();
+  const [onboardingDone, setOnboardingDone] = useState(services.settings.onboardingDone);
   const { toast, show: showToast, act, dismiss } = useToast();
   const [creating, setCreating] = useState(false);
   const [recoveredOpen, setRecoveredOpen] = useState(recovered.length > 0);
@@ -153,6 +155,16 @@ export default function HomeScreen() {
     },
   ];
 
+  // 番組の情報がまだ何も無いときだけ出す（FR-SHOW-6）。録音開始までの手数は増やさない
+  const showOnboarding =
+    !loading && !onboardingDone && list.length === 0 && show.feed_imported_at === null;
+
+  const startNew = async () => {
+    setOnboardingDone(true);
+    await services.updateSettings('onboardingDone', true);
+    router.push('/show');
+  };
+
   const rec = recovered[0];
   const others = cont ? list.filter((e) => e.id !== cont.id) : list;
 
@@ -191,6 +203,25 @@ export default function HomeScreen() {
           {t.home.showMeta(show.default_season, list.length)}
         </Text>
       </View>
+
+      {showOnboarding ? (
+        <Card>
+          <Text style={[typography.heading, { color: c.textPrimary }]} accessibilityRole="header">
+            {t.home.onboardingTitle}
+          </Text>
+          <Text style={[typography.body, st.onboardingBody, { color: c.textSecondary }]}>
+            {t.home.onboardingBody}
+          </Text>
+          <View style={st.onboardingActions}>
+            <Button
+              label={t.home.onboardingImport}
+              icon="download"
+              onPress={() => router.push('/import')}
+            />
+            <Button label={t.home.onboardingNew} kind="secondary" onPress={() => void startNew()} />
+          </View>
+        </Card>
+      ) : null}
 
       {rec && recoveredOpen ? (
         <Notice
@@ -273,6 +304,13 @@ export default function HomeScreen() {
       <SectionHeader title={t.home.moreSection} />
       <Card style={st.linkCard}>
         <Row icon="show" label={t.home.showAndAssets} onPress={() => router.push('/show')} />
+        {showOnboarding ? null : (
+          <Row
+            icon="refresh"
+            label={show.feed_url ? t.home.reimportShow : t.home.importShow}
+            onPress={() => router.push('/import')}
+          />
+        )}
         <Row icon="download" label={t.home.restore} onPress={() => router.push('/restore')} last />
       </Card>
     </Screen>
@@ -297,4 +335,6 @@ const st = StyleSheet.create({
     marginBottom: space.lg,
   },
   linkCard: { paddingVertical: space.xs },
+  onboardingBody: { marginTop: space.xs, marginBottom: space.lg },
+  onboardingActions: { gap: space.sm },
 });

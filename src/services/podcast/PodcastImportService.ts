@@ -7,6 +7,7 @@ import type { PodcastFeed } from '@/domain/podcast/feed';
 import { parsePodcastFeed } from '@/domain/podcast/parseFeed';
 import { AppError } from '@/domain/errors';
 import type { SqlExecutor } from '@/infra/db/executor';
+import { nextEpisodeNumber } from '@/infra/db/repositories/episodesRepo';
 import { upsertFeedEpisodes } from '@/infra/db/repositories/feedEpisodesRepo';
 import {
   getShow,
@@ -123,6 +124,18 @@ export class PodcastImportService {
     if (!isOk(res.status)) throw new AppError('import_http_status', { status: res.status });
     const feed = fillFromDirectory(parsePodcastFeed(res.text, res.url), directory);
     return { feed, directory };
+  }
+
+  /**
+   * 取り込んだあとの新しいエピソードの話数（プレビューに出す。REQUIREMENTS.md §2.1.1）。
+   * RSS に話数が 1 つも無ければ null（取り込みは話数に影響しない）。
+   */
+  async nextEpisodeNumberAfter(showId: string, preview: ImportPreview): Promise<number | null> {
+    let max = 0;
+    for (const i of preview.feed.items) max = Math.max(max, i.episodeNumber ?? 0);
+    if (max === 0) return null;
+    const current = await nextEpisodeNumber(this.deps.db, showId);
+    return Math.max(current, max + 1);
   }
 
   /**

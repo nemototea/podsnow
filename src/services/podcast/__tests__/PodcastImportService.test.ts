@@ -236,6 +236,20 @@ describe('PodcastImportService.preview', () => {
   });
 });
 
+describe('PodcastImportService.nextEpisodeNumberAfter', () => {
+  it('previews the next number from the feed, or null when the feed has no numbers', async () => {
+    const routes: Record<string, Route> = { [FEED_URL]: { text: feedXml(item(119) + item(120)) } };
+    const { svc, show } = await setup(routes);
+    expect(
+      await svc.nextEpisodeNumberAfter(show.id, await svc.preview({ feedUrl: FEED_URL })),
+    ).toBe(121);
+    routes[FEED_URL] = { text: feedXml('<item><guid>a</guid></item>') };
+    expect(
+      await svc.nextEpisodeNumberAfter(show.id, await svc.preview({ feedUrl: FEED_URL })),
+    ).toBeNull();
+  });
+});
+
 describe('PodcastImportService.commit', () => {
   it('saves the show, categories, funding, external id, episodes and artwork', async () => {
     const { svc, db, show, root } = await setup({
