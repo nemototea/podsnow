@@ -10,6 +10,7 @@
     "newArchEnabled": true,
     "ios": {
       "bundleIdentifier": "dev.nemotea.podsnow",
+      "deploymentTarget": "18.0",
       "supportsTablet": false,
       "infoPlist": {
         "NSMicrophoneUsageDescription": "PodsNow uses the microphone to record your podcast.",
@@ -129,7 +130,15 @@
           "cameraPermission": false
         }
       ],
-      "expo-image"
+      "expo-image",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "minSdkVersion": 29
+          }
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true
