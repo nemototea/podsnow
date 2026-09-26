@@ -4,7 +4,8 @@
 
 ## 1. 開発環境【事実】
 
-- macOS、Xcode（SDK 57 は Xcode 27 / iOS 27 SDK を想定【確認済み】https://expo.dev/changelog/sdk-57）、Android Studio（Android 14 / 15 の実機またはエミュレータ）
+- macOS、Xcode 26.4 以上（SDK 57 の要件【確認済み】https://docs.expo.dev/versions/v57.0.0/ 。Xcode 16 系ではビルドできない）、Android Studio（Android 14 / 15 の実機またはエミュレータ）
+- 対応 OS は iOS 18.0 以上、Android 10（API 29）以上（REQUIREMENTS.md NFR-7）
 - VS Code をメイン IDE
 - Node.js LTS、npm（パッケージマネージャは npm を既定【仮説: 変更可】）、Watchman、CocoaPods、JDK 17【仮説: SDK 57 の要求バージョンは docs で確認】
 - 開発 Agent: Claude Code、Codex（§8）

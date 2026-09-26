@@ -267,7 +267,7 @@ MVP は**開発者自身の番組 1 つ**で配信する。うまく配信でき
 | NFR-10 | 外部から取る RSS は信用しない入力として扱う。HTTPS のみ、タイムアウトとサイズ上限を持ち、リダイレクト先も HTTPS に限る。XML は外部実体を展開しない。取り込んだ HTML（概要）は表示時にタグを除くか安全に描画する | 【事実】Issue #101 §13。上限値は【仮説】実装時に決める |
 | NFR-11 | 配信基盤の認証情報（トークン）は SQLite に置かず、OS の安全な保管領域（iOS Keychain / Android Keystore）に置く。将来の制作データ同期にも含めない | 【事実】【仮説: `expo-secure-store` を使う。SDK 57 の API は実装時に確認】 |
 | NFR-6 | iOS / Android で同じタイムラインから同じ書き出し結果（サンプル単位で一致が理想、±1 LSB 程度を許容）が得られる | 【仮説】DSP を共通コードにするか否かの判断材料 |
-| NFR-7 | 対応 OS: Expo SDK 57 がサポートする範囲 | 【確認済み】SDK 57 = RN 0.86 (https://expo.dev/changelog/sdk-57)。最小 OS バージョンは【仮説】要確認 |
+| NFR-7 | 対応 OS: **iOS 18.0 以上、Android 10（API 29）以上**。設定は `app.json` の `ios.deploymentTarget` と `expo-build-properties` の `android.minSdkVersion`。自作モジュールの podspec も同じ値に揃える | 【事実】Issue #150。Expo SDK 57 の下限（iOS 16.4 / Android 7）より上げた。理由は、こちらで動かして確かめられる範囲（iOS 18 以降のシミュレータ、Android 14 / 15 の実機とエミュレータ）から離れすぎないようにするため。【確認済み】SDK 57 の下限 https://docs.expo.dev/versions/v57.0.0/ 、`ios.deploymentTarget` https://docs.expo.dev/versions/v57.0.0/config/app/ 、`minSdkVersion` https://docs.expo.dev/versions/v57.0.0/sdk/build-properties/ |
 | NFR-8 | UI に表示言語がハードコードされていない。新しい文言を足すときは日英の両方が揃わないとビルドが通らない | 【事実】`Messages = typeof ja` を `en.ts` に課している |
 | NFR-9 | **UI に独自の言葉を作らない。** 画面に出す言葉は一般語だけにする（録音 / 編集 / 書き出し / 共有 / 素材 / トークテーマ / 台本 / チャプター）。内部名（Take / 声トラック / オーバーレイ / Distribution Pack / Outline）は `src/i18n/` に入れない。ボタンは「動詞 + 目的語」の普通の形にする | 【事実】固有の言い回しは認知負荷になり、理解のハードルを上げる。対応表は `docs/ux-restructure.md` §2 原則 1 |
 
