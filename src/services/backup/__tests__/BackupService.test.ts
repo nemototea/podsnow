@@ -5,7 +5,7 @@ import * as path from 'node:path';
 import { createNodeSqliteExecutor } from '@/infra/db/__tests__/nodeSqliteExecutor';
 import { migrate } from '@/infra/db/migrate';
 import { loadDoc, saveDoc } from '@/infra/db/repositories/editableDocRepo';
-import { ensureDefaultShow } from '@/infra/db/repositories/showsRepo';
+import { ensureDefaultShow, getShow, updateShow } from '@/infra/db/repositories/showsRepo';
 import { TEST_SHOW_SEED } from '@/services/app/__tests__/labels';
 import { listSegments, listTakes } from '@/infra/db/repositories/takesRepo';
 import { smp } from '@/domain/time';
@@ -132,6 +132,79 @@ async function setup() {
 }
 
 describe('BackupService', () => {
+  it('backs up and restores show artwork when the target show has none', async () => {
+    const { tmp, root, db, show, deps } = await setup();
+    const coverRel = `shows/${show.id}/cover-1000.png`;
+    const coverAbs = path.join(root, coverRel);
+    fs.mkdirSync(path.dirname(coverAbs), { recursive: true });
+    fs.writeFileSync(coverAbs, Buffer.from('cover-image'));
+    await updateShow(db, show.id, { coverPath: coverRel }, 1100);
+    const zip = path.join(tmp, 'out', 'cover.podsnow');
+    await exportEpisodeBackup(deps, 'E', zip);
+
+    await updateShow(db, show.id, { coverPath: null }, 1200);
+    fs.unlinkSync(coverAbs);
+    const restored = await importEpisodeBackup(deps, show.id, zip);
+
+    expect(restored.coverRestored).toBe(true);
+    const nextCover = (await getShow(db, show.id))?.cover_path;
+    expect(nextCover).toBe(`shows/${show.id}/cover-restore-${restored.episodeId}.png`);
+    expect(fs.readFileSync(path.join(root, nextCover!))).toEqual(Buffer.from('cover-image'));
+    fs.rmSync(tmp, { recursive: true, force: true });
+  });
+
+  it('keeps current show artwork while restoring an episode backup', async () => {
+    const { tmp, root, db, show, deps } = await setup();
+    const backupRel = `shows/${show.id}/cover-backup.jpg`;
+    fs.mkdirSync(path.dirname(path.join(root, backupRel)), { recursive: true });
+    fs.writeFileSync(path.join(root, backupRel), Buffer.from('backup-cover'));
+    await updateShow(db, show.id, { coverPath: backupRel }, 1100);
+    const zip = path.join(tmp, 'out', 'cover.podsnow');
+    await exportEpisodeBackup(deps, 'E', zip);
+
+    const currentRel = `shows/${show.id}/cover-current.jpg`;
+    fs.writeFileSync(path.join(root, currentRel), Buffer.from('current-cover'));
+    await updateShow(db, show.id, { coverPath: currentRel }, 1200);
+    const restored = await importEpisodeBackup(deps, show.id, zip);
+
+    expect(restored.coverRestored).toBe(false);
+    expect((await getShow(db, show.id))?.cover_path).toBe(currentRel);
+    expect(fs.readFileSync(path.join(root, currentRel))).toEqual(Buffer.from('current-cover'));
+    fs.rmSync(tmp, { recursive: true, force: true });
+  });
+
+  it('removes an extracted cover when the DB restore rolls back', async () => {
+    const { tmp, root, db, show, deps } = await setup();
+    const coverRel = `shows/${show.id}/cover-backup.jpg`;
+    fs.mkdirSync(path.dirname(path.join(root, coverRel)), { recursive: true });
+    fs.writeFileSync(path.join(root, coverRel), Buffer.from('backup-cover'));
+    await updateShow(db, show.id, { coverPath: coverRel }, 1100);
+    const zip = path.join(tmp, 'out', 'cover.podsnow');
+    await exportEpisodeBackup(deps, 'E', zip);
+    await updateShow(db, show.id, { coverPath: null }, 1200);
+    fs.unlinkSync(path.join(root, coverRel));
+
+    const failingDb = new Proxy(db, {
+      get(target, property, receiver) {
+        if (property === 'transaction') {
+          return async () => {
+            throw new Error('transaction failed');
+          };
+        }
+        const value = Reflect.get(target, property, receiver);
+        return typeof value === 'function' ? value.bind(target) : value;
+      },
+    });
+    await expect(importEpisodeBackup({ ...deps, db: failingDb }, show.id, zip)).rejects.toThrow(
+      'transaction failed',
+    );
+
+    const showDir = path.join(root, 'shows', show.id);
+    expect(fs.readdirSync(showDir).filter((name) => name.startsWith('cover-restore-'))).toEqual([]);
+    expect((await getShow(db, show.id))?.cover_path).toBeNull();
+    fs.rmSync(tmp, { recursive: true, force: true });
+  });
+
   it('keeps the backed-up episode number when it is free', async () => {
     const { tmp, show, db, deps } = await setup();
     const zip = path.join(tmp, 'out', 'e.podsnow');

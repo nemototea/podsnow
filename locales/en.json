@@ -1,6 +1,7 @@
 {
   "ios": {
     "CFBundleDisplayName": "PodsNow",
-    "NSMicrophoneUsageDescription": "PodsNow uses the microphone to record your podcast."
+    "NSMicrophoneUsageDescription": "PodsNow uses the microphone to record your podcast.",
+    "NSPhotoLibraryUsageDescription": "PodsNow uses your photos so you can choose show artwork."
   }
 }

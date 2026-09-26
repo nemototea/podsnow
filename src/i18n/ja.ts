@@ -101,6 +101,7 @@ export const ja = {
     import_other_show: 'すでに別の番組を取り込んでいます。番組は 1 つだけ持てます',
     import_unsupported_encoding: (encoding: string) =>
       `この RSS の文字コード（${encoding}）には対応していません。UTF-8 の RSS だけ読み込めます`,
+    cover_processing_failed: 'アートワークを保存できませんでした',
   },
 
   /** 初回起動時に DB へ書き込む既定値。以後はユーザーのデータなので翻訳しない。 */
@@ -616,6 +617,14 @@ Podcast: {{show_name}}
     description: '概要',
     author: '著者',
     defaultSeason: '既定のシーズン',
+    artwork: 'アートワーク',
+    artworkA11y: '番組のアートワーク',
+    chooseArtwork: '画像を選ぶ',
+    changeArtwork: '画像を変更',
+    removeArtwork: '画像を削除',
+    confirmRemoveArtwork: '番組のアートワークを削除しますか？',
+    artworkSaved: 'アートワークを保存しました',
+    artworkRemoved: 'アートワークを削除しました',
     layoutEyebrow: '新しいエピソードの構成',
     duckingLabel: 'BGM ダッキング',
     a11yDuckAmount: 'ダッキング量',

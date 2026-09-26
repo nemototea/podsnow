@@ -121,7 +121,15 @@
             ]
           }
         }
-      ]
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "PodsNow uses your photos so you can choose show artwork.",
+          "cameraPermission": false
+        }
+      ],
+      "expo-image"
     ],
     "experiments": {
       "typedRoutes": true

@@ -7,7 +7,7 @@ import { splitIntoHeadings } from '@/domain/outline';
 import { useServices } from '@/features/app/ServicesProvider';
 import { kindLabel } from '@/features/show/assetKinds';
 import { useAsyncData } from '@/features/show/useAsyncData';
-import { useT, type Messages } from '@/i18n';
+import { errorText, useT, type Messages } from '@/i18n';
 import type { AssetKind, AssetRow } from '@/infra/db/repositories/assetsRepo';
 import {
   getDefaultTemplate,
@@ -20,7 +20,7 @@ import {
   type ShowRow,
   type TemplateRow,
 } from '@/infra/db/repositories/showsRepo';
-import { hit, space, tabularNums, typography } from '@/ui/tokens';
+import { artwork, hit, motion, space, tabularNums, typography } from '@/ui/tokens';
 import {
   Button,
   Card,
@@ -38,6 +38,9 @@ import {
 import { ScreenHeader } from '@/ui/ScreenHeader';
 import { useAppTheme } from '@/ui/ThemeContext';
 import { useToast } from '@/ui/useToast';
+import { Artwork } from '@/ui/Artwork';
+import { confirmDestructive } from '@/ui/alerts';
+import { useReducedMotion } from '@/ui/useReducedMotion';
 
 interface Loaded {
   show: ShowRow | null;
@@ -83,6 +86,8 @@ export default function ShowScreen() {
   const showId = services.show.id;
   const { toast, show: showToast, act, dismiss } = useToast();
   const router = useRouter();
+  const reduced = useReducedMotion();
+  const [artworkBusy, setArtworkBusy] = useState(false);
 
   const loader = useCallback(async (): Promise<Loaded> => {
     const [show, layout, template, list, topics] = await Promise.all([
@@ -160,6 +165,35 @@ export default function ShowScreen() {
     showToast({ text: t.showSettings.saved });
   };
 
+  const pickArtwork = async () => {
+    setArtworkBusy(true);
+    try {
+      const saved = await services.coverArt.pickAndSet(showId);
+      if (!saved) return;
+      await services.reloadShow();
+      await reload();
+      showToast({ text: t.showSettings.artworkSaved });
+    } catch (e) {
+      showToast({ text: errorText(t, e) });
+    } finally {
+      setArtworkBusy(false);
+    }
+  };
+
+  const removeArtwork = async () => {
+    setArtworkBusy(true);
+    try {
+      await services.coverArt.remove(showId);
+      await services.reloadShow();
+      await reload();
+      showToast({ text: t.showSettings.artworkRemoved });
+    } catch (e) {
+      showToast({ text: errorText(t, e) });
+    } finally {
+      setArtworkBusy(false);
+    }
+  };
+
   const setSlot = async (slot: LayoutSlot, assetId: string | null) => {
     setPicking(null);
     const key =
@@ -212,6 +246,49 @@ export default function ShowScreen() {
 
       <SectionHeader title={t.showSettings.showEyebrow} />
       <Card>
+        <View style={st.artworkBlock}>
+          <Text style={[typography.bodyStrong, { color: c.textPrimary }]}>
+            {t.showSettings.artwork}
+          </Text>
+          <View style={st.artworkRow}>
+            <Artwork
+              uri={services.coverArt.uri(data.show?.cover_path ?? null)}
+              size={artwork.settingsPreview}
+              label={t.showSettings.artworkA11y}
+              transition={reduced ? 0 : motion.quick}
+            />
+            <View style={st.artworkActions}>
+              <Button
+                label={
+                  data.show?.cover_path
+                    ? t.showSettings.changeArtwork
+                    : t.showSettings.chooseArtwork
+                }
+                kind="secondary"
+                icon="show"
+                onPress={() => void pickArtwork()}
+                busy={artworkBusy}
+              />
+              {data.show?.cover_path ? (
+                <Button
+                  label={t.showSettings.removeArtwork}
+                  kind="danger"
+                  icon="trash"
+                  disabled={artworkBusy}
+                  onPress={() =>
+                    confirmDestructive({
+                      title: t.showSettings.removeArtwork,
+                      message: t.showSettings.confirmRemoveArtwork,
+                      confirmLabel: t.common.delete,
+                      cancelLabel: t.common.cancel,
+                      onConfirm: () => void removeArtwork(),
+                    })
+                  }
+                />
+              ) : null}
+            </View>
+          </View>
+        </View>
         <Field
           label={t.showSettings.name}
           value={d.name}
@@ -369,6 +446,9 @@ function Stepper({
 }
 
 const st = StyleSheet.create({
+  artworkBlock: { gap: space.sm, marginBottom: space.lg },
+  artworkRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: space.lg },
+  artworkActions: { flex: 1, minWidth: artwork.settingsPreview, gap: space.sm },
   slot: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -63,6 +63,7 @@ export default function RestoreScreen() {
         stripScheme(asset.uri),
         (p) => setProgress(p),
       );
+      if (r.coverRestored) await services.reloadShow();
       setResult(r);
       setPhase('done');
     } catch (e) {

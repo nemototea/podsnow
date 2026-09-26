@@ -97,6 +97,7 @@ export const en: Messages = {
     import_other_show: 'Another show is already imported. You can have one show',
     import_unsupported_encoding: (encoding: string) =>
       `This RSS uses an unsupported encoding (${encoding}). Only UTF-8 feeds can be loaded`,
+    cover_processing_failed: 'Could not save the artwork',
   },
 
   seed: {
@@ -621,6 +622,14 @@ Tag #PodsNow to share your thoughts`,
     description: 'Description',
     author: 'Author',
     defaultSeason: 'Default season',
+    artwork: 'Artwork',
+    artworkA11y: 'Show artwork',
+    chooseArtwork: 'Choose image',
+    changeArtwork: 'Change image',
+    removeArtwork: 'Delete image',
+    confirmRemoveArtwork: 'Delete the show artwork?',
+    artworkSaved: 'Saved the artwork',
+    artworkRemoved: 'Deleted the artwork',
     layoutEyebrow: 'Layout for new episodes',
     duckingLabel: 'BGM ducking',
     a11yDuckAmount: 'ducking amount',
