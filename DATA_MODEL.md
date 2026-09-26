@@ -419,12 +419,13 @@ Take の「時間軸」は Segment を `seq` 順に連結したもの。割り�
 配信済みの回の端末側の写し。入る経路は 2 つ: 既存の配信サービスの RSS から取り込んだ回（Issue #101）と、
 PodsNow の配信基盤から配信した回（REQUIREMENTS.md FR-PUB-5）。正本は配信基盤（乗り換え前は旧配信元の RSS）。
 
-`episodes` とは分ける。`episodes` は「PodsNow で作っている回（録音と編集の作業場所）」で、
-配信済みの回を入れると音声の無い行がホームの一覧と「続き」に混ざる。【事実】
+`episodes` とは分ける。`episodes` は「PodsNow で作っている回（録音と編集の作業場所）」、
+`feed_episodes` は「配信済みの回のカタログ」であり、同じ回でも責務とライフサイクルが異なる。
+Home のサービス層だけが両方を 1 一覧へ投影する。`episode_id` の明示リンクを最優先し、次に GUID 完全一致だけを同じ回として統合する。題名や話数では自動統合しない。【事実: Issue #135】
 
 - 再取り込みは `guid` で突き合わせて上書きし、`id` / `episode_id` / `created_at` は残す。
 - フィードから消えた行は消さない。最新 N 件しか RSS に載せないホスティングがあるため。
-- 音声（`enclosure`）はダウンロードしない。
+- 音声（`enclosure`）はダウンロードせず、Home からの再生時に URL をストリーミングする。
 - 話数の採番（§4.1）は `episodes` と `feed_episodes` の両方から導出する。配信済みの番号は二度と使わない（REQUIREMENTS.md §2.1.1）。
 - 乗り換え時は、ここにある過去の回を `guid` を変えずに PodsNow の配信基盤の RSS へ載せる（REQUIREMENTS.md FR-PUB-4）。
 

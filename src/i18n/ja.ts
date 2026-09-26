@@ -72,6 +72,15 @@ export const ja = {
     dismiss: '通知を閉じる',
   },
 
+  player: {
+    title: 'プレーヤー',
+    artwork: '番組アートワーク',
+    seek: '再生位置',
+    rewind: '15秒戻る',
+    forward: '30秒進む',
+    open: 'プレーヤーを開く',
+  },
+
   /** エピソードの状態（FR-EP-3）。 */
   status: {
     draft: '下書き',
@@ -150,6 +159,7 @@ Podcast: {{show_name}}
     sectionEpisodes: 'エピソード',
     badgeNew: '未録音',
     badgeEditing: '編集中',
+    badgePublished: '配信済み',
     newEpisode: '新しいエピソード',
     noEpisodes: 'まだエピソードがありません',
     recovered: (duration: string) => `未確定の録音を復元しました（${duration}）`,

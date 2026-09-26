@@ -70,6 +70,15 @@ export const en: Messages = {
     dismiss: 'Dismiss notification',
   },
 
+  player: {
+    title: 'Player',
+    artwork: 'Show artwork',
+    seek: 'Playback position',
+    rewind: 'Back 15 seconds',
+    forward: 'Forward 30 seconds',
+    open: 'Open player',
+  },
+
   status: {
     draft: 'Draft',
     ready: 'Ready',
@@ -144,6 +153,7 @@ Tag #PodsNow to share your thoughts`,
     sectionEpisodes: 'Episodes',
     badgeNew: 'Not recorded',
     badgeEditing: 'Editing',
+    badgePublished: 'Published',
     newEpisode: 'New episode',
     noEpisodes: 'No episodes yet',
     recovered: (duration: string) => `Recovered an unfinished recording (${duration})`,

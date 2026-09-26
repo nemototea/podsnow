@@ -13,7 +13,7 @@
 | DB | expo-sqlite（WAL、`PRAGMA user_version` で移行） | 【確認済み】 | https://docs.expo.dev/versions/latest/sdk/sqlite/ |
 | ORM / クエリビルダ | Drizzle ORM + drizzle-kit（expo-sqlite 公式統合あり） | 【仮説】 | 統合の存在は【確認済み】（同上）。採用可否は Phase 0 で判断 |
 | ファイル | expo-file-system（`File` / `Directory` / `Paths` / `FileHandle`） | 【確認済み】 | https://docs.expo.dev/versions/latest/sdk/filesystem/ |
-| 再生 | expo-audio（`AudioPlayer`、`setAudioModeAsync`） | 【確認済み】 | https://docs.expo.dev/versions/latest/sdk/audio/ 。**録音には使わない**（§4） |
+| 再生 | expo-audio（`AudioPlayer`、`setAudioModeAsync`） | 【確認済み】 | https://docs.expo.dev/versions/v57.0.0/sdk/audio/ 。**録音には使わない**（§4） |
 | 録音 | 自作ローカル Expo Module `podsnow-recorder`（Swift / Kotlin） | 【事実】 | §4、AUDIO_DESIGN.md |
 | 音声処理 | 自作ローカル Expo Module `podsnow-audio-engine`（波形・無音検出・ミックス・ラウドネス・エンコード） | 【事実】 | AUDIO_DESIGN.md |
 | 共有 / 保存 | expo-sharing、expo-document-picker、（Android）Storage Access Framework 相当 | 【仮説】 | 各 API の現行仕様は実装時に docs で確認 |
@@ -51,6 +51,7 @@
 原則:
 - `domain/` はネイティブにも DB にも依存しない。Jest で網羅的にテストする（タイムライン計算、範囲削除、無音カット計画、Undo の逆操作）。
 - `services/` は「1 ユースケース = 1 クラス/関数」。録音セッション、復旧、書き出しはここに状態機械を置く。
+- 再生状態はアプリ全体で `PlaybackService` 1 つだけが持つ。タイムライン試聴（ネイティブエンジン）と書き出しファイル / RSS enclosure の再生（expo-audio）は同サービスが切り替え、画面は再生実装を直接触らない。【事実: Issue #135】
 - 画面は `features/` のフックだけを呼ぶ。画面からネイティブモジュールを直接呼ばない。
 - **ユーザーに見える文言は `src/i18n/` だけに置く**（Issue #80、FR-I18N-4）。`domain/` / `services/` / `infra/` は文言を持たない:
   - エラーは `AppError` + `AppErrorCode`（`src/domain/errors.ts`）で返し、文言は UI 層が `errorText()` で引く。
@@ -110,7 +111,7 @@ expo-audio（SDK 57）の公式ドキュメントと型定義（`packages/expo-a
 | ミックスダウン / ラウドネス / ダッキング / エンコード | × | ネイティブ |
 | 無音検出・波形ピーク生成 | × | ネイティブ（ファイル解析） |
 
-**結論【事実】**: 録音と音声処理はすべて自作ネイティブモジュール。expo-audio は素材の試聴など単純再生に限定して使う。
+**結論【事実】**: 録音と音声処理はすべて自作ネイティブモジュール。expo-audio は素材と書き出し済みファイルの単純再生に限定して使う。
 
 ## 5. ネイティブモジュール
 

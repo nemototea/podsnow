@@ -1,17 +1,21 @@
 import { useCallback, useEffect, useState } from 'react';
 
-import type { EpisodeListItem } from '@/infra/db/repositories/episodesRepo';
+import type { HomeEpisodeItem } from '@/services/home/HomeService';
 
 import { useServices } from '../app/ServicesProvider';
 
 export function useHome() {
-  const { episodes, show } = useServices();
-  const [list, setList] = useState<EpisodeListItem[]>([]);
+  const { home, playback, show } = useServices();
+  const [list, setList] = useState<HomeEpisodeItem[]>([]);
+  const [playable, setPlayable] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const reload = useCallback(async () => {
-    setList(await episodes.list(show.id));
+    const nextList = await home.list(show.id);
+    const nextPlayable = await playback.availableHomeItemKeys(nextList);
+    setList(nextList);
+    setPlayable(nextPlayable);
     setLoading(false);
-  }, [episodes, show.id]);
+  }, [home, playback, show.id]);
   useEffect(() => {
     let alive = true;
     void Promise.resolve().then(() => {
@@ -21,5 +25,5 @@ export function useHome() {
       alive = false;
     };
   }, [reload]);
-  return { list, loading, reload };
+  return { list, playable, loading, reload };
 }

@@ -17,6 +17,7 @@ export {
   hitSlop,
   icon,
   motion,
+  player,
   pressScale,
   radius,
   space,
