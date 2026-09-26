@@ -7,7 +7,6 @@ import type { SqlExecutor } from '@/infra/db/executor';
 import { getAsset } from '@/infra/db/repositories/assetsRepo';
 import { loadDoc, saveDoc } from '@/infra/db/repositories/editableDocRepo';
 import {
-  getContinueEpisode,
   getEpisode,
   insertEpisode,
   listEpisodes,
@@ -52,10 +51,6 @@ export class EpisodeService {
 
   get(id: string): Promise<EpisodeRow | null> {
     return getEpisode(this.deps.db, id);
-  }
-
-  continueCandidate(showId: string): Promise<EpisodeListItem | null> {
-    return getContinueEpisode(this.deps.db, showId);
   }
 
   /** 新規エピソード。話数を採番し、Opening / Ending / BGM を配置し、概要欄テンプレートを適用する。 */

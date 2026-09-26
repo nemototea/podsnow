@@ -7,12 +7,9 @@ import { useServices } from '../app/ServicesProvider';
 export function useHome() {
   const { episodes, show } = useServices();
   const [list, setList] = useState<EpisodeListItem[]>([]);
-  const [cont, setCont] = useState<EpisodeListItem | null>(null);
   const [loading, setLoading] = useState(true);
   const reload = useCallback(async () => {
-    const [l, c] = await Promise.all([episodes.list(show.id), episodes.continueCandidate(show.id)]);
-    setList(l);
-    setCont(c);
+    setList(await episodes.list(show.id));
     setLoading(false);
   }, [episodes, show.id]);
   useEffect(() => {
@@ -24,5 +21,5 @@ export function useHome() {
       alive = false;
     };
   }, [reload]);
-  return { list, cont, loading, reload };
+  return { list, loading, reload };
 }

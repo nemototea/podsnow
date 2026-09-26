@@ -1,4 +1,3 @@
-import { useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { Platform, StyleSheet } from 'react-native';
 
@@ -63,7 +62,6 @@ const MONITOR: readonly AppSettings['monitor']['jinglePlayback'][] = [
 export default function SettingsScreen() {
   const c = useAppTheme();
   const t: Messages = useT();
-  const router = useRouter();
   const services = useServices();
   const { db, recorder, updateSettings } = services;
   const [settings, setSettings] = useState<AppSettings>(services.settings);
@@ -129,7 +127,7 @@ export default function SettingsScreen() {
       />
 
       <SectionHeader title={t.settings.recordingEyebrow} />
-      <Card style={{ paddingVertical: space.xs }}>
+      <Card rows>
         <Row
           label={t.settings.quality}
           below={
@@ -227,7 +225,7 @@ export default function SettingsScreen() {
       </Card>
 
       <SectionHeader title={t.settings.editingEyebrow} />
-      <Card style={{ paddingVertical: space.xs }}>
+      <Card rows>
         <Row
           label={t.settings.silenceLength}
           below={
@@ -302,7 +300,7 @@ export default function SettingsScreen() {
       </Card>
 
       <SectionHeader title={t.settings.exportEyebrow} />
-      <Card style={{ paddingVertical: space.xs }}>
+      <Card rows>
         <ChoiceMenu
           label={t.settings.defaultPreset}
           last
@@ -318,13 +316,8 @@ export default function SettingsScreen() {
         />
       </Card>
 
-      <SectionHeader title={t.settings.showEyebrow} />
-      <Card style={{ paddingVertical: space.xs }}>
-        <Row label={t.settings.showSettings} onPress={() => router.push('/show')} last />
-      </Card>
-
       <SectionHeader title={t.settings.storageEyebrow} />
-      <Card style={{ paddingVertical: space.xs }}>
+      <Card rows>
         <Row
           label={t.settings.recordingsSize}
           right={

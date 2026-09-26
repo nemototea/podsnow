@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
   ActivityIndicator,
   Animated,
@@ -208,26 +208,41 @@ export function SectionHeader({ title, right }: { title: string; right?: ReactNo
   );
 }
 
+const RowCardContext = createContext(false);
+
 export function Card({
   children,
   style,
   onPress,
   accessibilityLabel,
   raised,
+  rows,
 }: {
   children: ReactNode;
   style?: StyleProp<ViewStyle>;
   onPress?: () => void;
   accessibilityLabel?: string;
   raised?: boolean;
+  /** Row を並べるカード。押下面をカード端まで広げ、内容だけを共通余白で揃える。 */
+  rows?: boolean;
 }) {
   const c = useAppTheme();
   const base = raised ? c.surfaceRaised : c.surface;
-  const body = (pressed: boolean) => (
-    <View style={[s.card, { backgroundColor: pressed ? c.surfaceHover : base }, style]}>
-      {children}
-    </View>
-  );
+  const body = (pressed: boolean) => {
+    const content = (
+      <View
+        style={[
+          s.card,
+          rows ? s.rowCard : null,
+          { backgroundColor: pressed ? c.surfaceHover : base },
+          style,
+        ]}
+      >
+        {children}
+      </View>
+    );
+    return rows ? <RowCardContext.Provider value>{content}</RowCardContext.Provider> : content;
+  };
   return onPress ? (
     <Pressable
       onPress={onPress}
@@ -402,6 +417,8 @@ export function Row({
   onAccessibilityAction?: (e: AccessibilityActionEvent) => void;
 }) {
   const c = useAppTheme();
+  const inRowCard = useContext(RowCardContext);
+  const rowStyle = [s.row, inRowCard ? s.rowCardContent : null];
   const content = (
     <>
       {mono ? (
@@ -432,7 +449,7 @@ export function Row({
   if (!onPress) {
     if (!accessibilityActions?.length) {
       return (
-        <View style={[s.row, divider]}>
+        <View style={[rowStyle, divider]}>
           {content}
           {right}
         </View>
@@ -441,7 +458,7 @@ export function Row({
     // 読み上げの操作は、読み上げが止まる要素に付ける。本文をひとまとまりにし、右の操作は外に置く。
     return (
       <View style={[s.rowOuter, divider]}>
-        <View style={[s.row, s.flex]} accessible accessibilityLabel={a11y} {...a11yActions}>
+        <View style={[rowStyle, s.flex]} accessible accessibilityLabel={a11y} {...a11yActions}>
           {content}
         </View>
         {right}
@@ -461,7 +478,7 @@ export function Row({
           style={s.flex}
         >
           {({ pressed }) => (
-            <View style={[s.row, { backgroundColor: pressed ? c.surfaceHover : 'transparent' }]}>
+            <View style={[rowStyle, { backgroundColor: pressed ? c.surfaceHover : 'transparent' }]}>
               {content}
             </View>
           )}
@@ -479,7 +496,7 @@ export function Row({
     >
       {({ pressed }) => (
         <View
-          style={[s.row, divider, { backgroundColor: pressed ? c.surfaceHover : 'transparent' }]}
+          style={[rowStyle, divider, { backgroundColor: pressed ? c.surfaceHover : 'transparent' }]}
         >
           {content}
           <Icon name="arrow" color={c.textTertiary} size={icon.sm} />
@@ -891,6 +908,8 @@ const s = StyleSheet.create({
     padding: gutter,
     marginBottom: space.md,
   },
+  rowCard: { padding: 0, overflow: 'hidden' },
+  rowCardContent: { paddingHorizontal: gutter },
   button: {
     minHeight: hit.button,
     paddingVertical: space.sm,

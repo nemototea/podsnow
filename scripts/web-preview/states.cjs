@@ -48,7 +48,7 @@ const OUT = process.env.OUT || '.';
   await run('menu', '', async (p, shot) => {
     await newEp(p); await lab(p, '録音を開始').click(); await p.waitForTimeout(1200); await lab(p, '収録を終える').click(); await p.waitForTimeout(1200);
     await p.locator('[aria-label$="back"]').first().click(); await p.waitForTimeout(1200);
-    await shot('home-continue-card');
+    await shot('home-episode-list');
     await p.getByText('新しいエピソードを録る').click(); await p.waitForTimeout(1200); await p.locator('[aria-label$="back"]').first().click(); await p.waitForTimeout(1200);
     await p.getByLabel(/の操作$/).first().click(); await shot('episode-menu-sheet');
   });
