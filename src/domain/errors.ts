@@ -9,20 +9,12 @@
 export const APP_ERROR_CODES = [
   /** 声トラックが空のまま書き出そうとした */
   'voice_timeline_empty',
-  /** .podsnow でないファイルを復元しようとした */
-  'backup_manifest_missing',
-  /** バックアップの formatVersion が新しすぎる（params: version） */
-  'backup_unsupported_version',
   /** 割り込みからの録音再開に失敗した */
   'recording_resume_failed',
   /** 想定収録時間に対して空き容量が足りない（params: requiredMb, availableMb） */
   'disk_space_insufficient',
   /** 書き出し中にアプリが終了したため中断扱いにした */
   'export_app_terminated',
-  /** バックアップに音声ファイルを含めていない（復元した書き出し履歴の注記） */
-  'export_not_in_backup',
-  /** バックアップ復元時に中断扱いにした書き出し */
-  'export_cancelled_on_restore',
   /** 取り込み: HTTPS 以外の URL（リダイレクト先を含む） */
   'import_not_https',
   /** 取り込み: 通信できなかった */

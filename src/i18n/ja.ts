@@ -82,15 +82,10 @@ export const ja = {
   /** `AppErrorCode` → 表示文言。 */
   errors: {
     voice_timeline_empty: 'まだ録音がありません',
-    backup_manifest_missing: 'PodsNow のバックアップファイルではありません',
-    backup_unsupported_version: (version: string) =>
-      `対応していないバックアップ形式です（version ${version}）`,
     recording_resume_failed: '録音の再開に失敗しました',
     disk_space_insufficient: (requiredMb: string, availableMb: string) =>
       `空き容量が不足しています（必要 ${requiredMb} MB / 空き ${availableMb} MB）`,
     export_app_terminated: 'アプリが終了したため中断されました',
-    export_not_in_backup: 'バックアップにはファイルを含みません',
-    export_cancelled_on_restore: 'バックアップ復元時に中断扱い',
     import_not_https: 'https:// で始まる URL だけ読み込めます',
     import_network_failed: '接続できませんでした。通信環境を確認してください',
     import_timeout: '応答がありませんでした。しばらくしてからもう一度お試しください',
@@ -172,7 +167,6 @@ Podcast: {{show_name}}
       details: 'エピソードの詳細',
       export: '書き出し',
       duplicate: '複製して新しい回にする',
-      backup: 'バックアップ（.podsnow）',
       purgeAudio: '音声を削除',
       purgeAudioSub: '録音だけ消して容量を空ける。話数・タイトル・概要・書き出し履歴は残る',
       remove: 'エピソードを削除',
@@ -378,7 +372,6 @@ Podcast: {{show_name}}
     duplicated: (n: number) => `#${n} として複製しました`,
     menu: {
       duplicate: '複製して新しい回にする',
-      backup: 'バックアップ（.podsnow）',
       purgeAudio: '音声を削除',
       purgeAudioSub: '録音だけ消して容量を空ける。話数・タイトル・概要・書き出し履歴は残る',
       remove: 'エピソードを削除',
@@ -505,36 +498,6 @@ Podcast: {{show_name}}
     recordedAt: '収録日',
     duration: '長さ',
     file: 'ファイル',
-  },
-
-  backup: {
-    title: 'バックアップ',
-    lead: '録音・素材・編集内容を 1 つの .podsnow ファイルにまとめます',
-    run: 'バックアップを作成',
-    again: 'もう一度作成',
-    phaseWriting: '書き込み中',
-    phasePreparing: '準備中',
-    done: (megabytes: string) => `作成しました（${megabytes} MB）`,
-    shareSave: '共有・保存する',
-    dialogTitle: 'バックアップを保存',
-    skipped: (n: number) => `${n} 件のファイルが見つからずスキップしました`,
-    episodeNotFound: 'エピソードが見つかりません',
-    failed: 'バックアップを作成できませんでした',
-  },
-
-  restore: {
-    title: 'バックアップから復元',
-    lead: '.podsnow ファイルを新しいエピソードとして取り込みます',
-    pick: 'ファイルを選ぶ',
-    wrongExtension: '.podsnow ファイルを選んでください',
-    phaseDb: 'データベースへ書き込み中',
-    phaseAudio: '音声を展開中',
-    phaseReading: '読み込み中',
-    done: (episodeNumber: number) => `第${episodeNumber}回として復元しました`,
-    summary: (takes: number, reused: number, imported: number) =>
-      `録音 ${takes} 件 · 素材 再利用 ${reused} / 取り込み ${imported}`,
-    openEpisode: 'エピソードを開く',
-    failed: '復元できませんでした',
   },
 
   settings: {

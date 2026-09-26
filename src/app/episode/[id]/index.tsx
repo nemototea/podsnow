@@ -275,12 +275,6 @@ export default function EpisodeScreen() {
         ]}
         actions={[
           {
-            key: 'backup',
-            icon: 'archive',
-            label: t.episode.menu.backup,
-            onPress: () => router.push(`/episode/${episodeId}/backup` as never),
-          },
-          {
             key: 'duplicate',
             icon: 'copy',
             label: t.episode.menu.duplicate,

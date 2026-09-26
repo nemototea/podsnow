@@ -17,7 +17,7 @@ import {
   updateShow,
 } from '@/infra/db/repositories/showsRepo';
 import { TEST_SHOW_SEED } from '@/services/app/__tests__/labels';
-import { nodeFsPort } from '@/services/backup/__tests__/nodeFsPort';
+import { nodeFsPort } from '@/infra/files/__tests__/nodeFsPort';
 
 import type { HttpGetOptions, HttpPort } from '../HttpPort';
 import { PodcastImportService } from '../PodcastImportService';

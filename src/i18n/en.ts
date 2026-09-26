@@ -78,15 +78,10 @@ export const en: Messages = {
 
   errors: {
     voice_timeline_empty: 'Nothing recorded yet',
-    backup_manifest_missing: 'This is not a PodsNow backup file',
-    backup_unsupported_version: (version: string) =>
-      `Unsupported backup format (version ${version})`,
     recording_resume_failed: 'Could not resume recording',
     disk_space_insufficient: (requiredMb: string, availableMb: string) =>
       `Not enough free space (${requiredMb} MB needed, ${availableMb} MB free)`,
     export_app_terminated: 'Interrupted because the app was terminated',
-    export_not_in_backup: 'Backups do not include the audio file',
-    export_cancelled_on_restore: 'Marked as interrupted when the backup was restored',
     import_not_https: 'Only URLs starting with https:// can be loaded',
     import_network_failed: 'Could not connect. Check your connection',
     import_timeout: 'No response. Please try again later',
@@ -165,7 +160,6 @@ Tag #PodsNow to share your thoughts`,
       details: 'Episode details',
       export: 'Export',
       duplicate: 'Duplicate as a new episode',
-      backup: 'Back up (.podsnow)',
       purgeAudio: 'Delete audio',
       purgeAudioSub:
         'Free up space by deleting only the recordings. The number, title, description and export history are kept',
@@ -375,7 +369,6 @@ Tag #PodsNow to share your thoughts`,
     duplicated: (n: number) => `Duplicated as #${n}`,
     menu: {
       duplicate: 'Duplicate as a new episode',
-      backup: 'Backup (.podsnow)',
       purgeAudio: 'Delete audio',
       purgeAudioSub:
         'Frees space by deleting the recordings. Number, title, description and export history stay.',
@@ -507,36 +500,6 @@ Tag #PodsNow to share your thoughts`,
     recordedAt: 'Recorded',
     duration: 'Duration',
     file: 'File',
-  },
-
-  backup: {
-    title: 'Backup',
-    lead: 'Puts recordings, sounds and edits into one .podsnow file',
-    run: 'Create backup',
-    again: 'Create again',
-    phaseWriting: 'Writing',
-    phasePreparing: 'Preparing',
-    done: (megabytes: string) => `Created (${megabytes} MB)`,
-    shareSave: 'Share / save',
-    dialogTitle: 'Save backup',
-    skipped: (n: number) => `Skipped ${n} ${n === 1 ? 'file' : 'files'} that could not be found`,
-    episodeNotFound: 'Episode not found',
-    failed: 'Could not create the backup',
-  },
-
-  restore: {
-    title: 'Restore from backup',
-    lead: 'Imports a .podsnow file as a new episode',
-    pick: 'Choose a file',
-    wrongExtension: 'Please choose a .podsnow file',
-    phaseDb: 'Writing to the database',
-    phaseAudio: 'Extracting audio',
-    phaseReading: 'Reading',
-    done: (episodeNumber: number) => `Restored as episode ${episodeNumber}`,
-    summary: (takes: number, reused: number, imported: number) =>
-      `${takes} ${takes === 1 ? 'recording' : 'recordings'} · sounds reused ${reused} / imported ${imported}`,
-    openEpisode: 'Open episode',
-    failed: 'Could not restore',
   },
 
   settings: {

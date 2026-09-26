@@ -8,7 +8,7 @@ describe('errorCodeText', () => {
   it.each(LOCALES)('%s ですべてのコードが空でない文言になる', (locale) => {
     const t = messagesFor(locale);
     for (const code of APP_ERROR_CODES) {
-      const text = errorCodeText(t, code, { version: 3, requiredMb: 660, availableMb: 12 });
+      const text = errorCodeText(t, code, { requiredMb: 660, availableMb: 12 });
       expect(text.trim()).not.toBe('');
       // コード名がそのまま出ていない（文言の引き忘れ検知）
       expect(text).not.toBe(code);
@@ -17,7 +17,6 @@ describe('errorCodeText', () => {
 
   it('差し込みが必要なコードは値を埋める', () => {
     const t = messagesFor('ja');
-    expect(errorCodeText(t, 'backup_unsupported_version', { version: 3 })).toContain('3');
     const disk = errorCodeText(t, 'disk_space_insufficient', {
       requiredMb: 660,
       availableMb: 12,
@@ -34,10 +33,6 @@ describe('errorText', () => {
     const e = new AppError('voice_timeline_empty');
     expect(isAppError(e)).toBe(true);
     expect(errorText(t, e)).toBe(t.errors.voice_timeline_empty);
-  });
-
-  it('AppError はパラメータを差し込む', () => {
-    expect(errorText(t, new AppError('backup_unsupported_version', { version: 9 }))).toContain('9');
   });
 
   it('ふつうの Error はメッセージをそのまま出す', () => {

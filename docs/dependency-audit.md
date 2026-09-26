@@ -50,12 +50,11 @@
 | `expo-audio` | `monitor.ts` のジングル、`AssetsSection.tsx` の素材試聴。自作エンジンと責務が異なる |
 | `expo-clipboard` | `useCopy.ts` の配信情報コピー |
 | `expo-crypto` | `services/app/ids.ts` の UUID |
-| `expo-document-picker` | 復元ファイルと素材の選択 |
+| `expo-document-picker` | 素材ファイルの選択 |
 | `expo-file-system` | `infra/files/` とピークの読み込み |
 | `expo-haptics` | `hapticsAdapter.ts` → `HapticsService` → UI の操作に対する触覚フィードバック |
-| `expo-sharing` | 音声とバックアップの共有 |
+| `expo-sharing` | 書き出した音声の共有 |
 | `expo-sqlite` | DB の接続・Executor |
-| `fflate` | `infra/files/zip.ts` のバックアップ圧縮・展開 |
 
 【事実】開発依存もすべて残す。`typescript` / `@types/react` / `@types/node` は型検査、`jest` / `jest-expo` / `@types/jest` はテスト、
 `eslint` / `eslint-config-expo` / `eslint-config-prettier` / `prettier` は規約検査・整形に使う。

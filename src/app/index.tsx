@@ -115,12 +115,6 @@ export default function HomeScreen() {
       label: t.home.menu.duplicate,
       onPress: () => void duplicate(e),
     },
-    {
-      key: 'backup',
-      icon: 'archive',
-      label: t.home.menu.backup,
-      onPress: () => router.push(`/episode/${e.id}/backup`),
-    },
     ...(e.audio_purged_at
       ? []
       : [

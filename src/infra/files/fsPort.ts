@@ -1,5 +1,5 @@
 /**
- * バックアップなど大きなファイルを逐次処理するための最小ファイル抽象。
+ * 画像などのファイルを逐次処理するための最小ファイル抽象。
  * アプリでは expo-file-system の FileHandle、Jest では node:fs で実装する。
  * すべて同期（expo-file-system SDK 57 の FileHandle は同期 API）。
  */

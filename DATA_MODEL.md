@@ -27,15 +27,13 @@ podsnow/
 │   │   ├── seg-0001.wav                # Segment（連続録音の単位）
 │   │   ├── seg-0002.wav
 │   │   └── seg-0001.peaks
-│   ├── exports/<exportId>.m4a|.wav
-│   └── backup-staging/                 # バックアップ作成時の一時領域
+│   └── exports/<exportId>.m4a|.wav
 └── tmp/                                # 取り込み・レンダリングの中間ファイル（起動時に掃除）
 ```
 
 - Segment は 1 つの連続録音。一時停止ではファイルを分けず、割り込み・エラー・ルート変更（設定次第）で分ける（AUDIO_DESIGN.md §4）。
 - `.peaks`: 独自のバイナリ（ヘッダ + `Int8` の min/max ペア列、既定 100 サンプル/秒）【仮説】。
 - 番組アートワークの置き換えは別名へ書き、`shows.cover_path` を確定してから旧ファイルを消す。中断されても DB が存在しないファイルを指さないようにする。【事実: Issue #133】
-- バックアップ `.podsnow` は zip（`manifest.json` + `episode.json` + `takes/**` + `assets/**` + `show/cover.<jpg|png>`）。番組アートワークがあるときはユーザーデータとして同梱する。【事実: Issue #133】
 
 ## 3. ER 図
 
@@ -134,8 +132,8 @@ MVP は起動時に 1 行自動作成。【事実】
 `episodes`（削除されていない行）と `feed_episodes`（配信済みの回）の最大話数 + 1
 で導出する（REQUIREMENTS.md §2.1.1 / FR-EP-6）。【事実】
 
-理由: カウンターは `episodes` と二重の真実になるうえ、**ストレージクリアやクリーンインストールで失われたとき復元する手段がない**。
-導出なら状態を持たないので壊れる状態も存在せず、`.podsnow` を復元した時点で台帳が再構築される（§7）。
+理由: カウンターは `episodes` と二重の真実になり、ストレージクリアやクリーンインストールで失われる。
+導出なら状態を持たないので壊れる状態も存在しない。
 
 ### 4.2 `show_layout`（既定構成）
 | 列 | 型 | 説明 |
@@ -224,8 +222,7 @@ MVP は起動時に 1 行自動作成。【事実】
 - 保存するのは**キーだけ**。「カスタム」の中身（形式・ビットレート・チャンネル）は設定の `export.custom` に 1 つだけ持ち、回ごとには持たない。
   カスタムを選んだ回は、書き出す時点の `export.custom` で書き出す。
 - 書き出したファイルの実際の中身は `exports.preset`（§4.13）に残る。`export_preset` は「次に開いたときの選択」であって履歴ではない。
-- **複製**（FR-EP-4）と**バックアップの復元**（§7）は `export_preset` を引き継ぐ（`sound_settings` と同じ扱い）。
-  値の無い古い `.podsnow` や、知らない値は NULL として復元する（= 設定の既定で開く）。
+- **複製**（FR-EP-4）は `export_preset` を引き継ぐ（`sound_settings` と同じ扱い）。
 - 移行 0004 で追加。既存の回は NULL（= 設定の既定）から始まる。
 
 ### 4.6 `takes`
@@ -463,32 +460,7 @@ planSilenceRemoval(ranges, { padMs }): Range[]
 5. ユーザーへ「未確定の録音を復元しました（n 分 m 秒）」を表示し、該当 Take を Editor で開く。
 6. `recovery_journal` を `closed` に。
 
-## 7. バックアップ形式 `.podsnow`【事実】
-
-```
-manifest.json     { formatVersion: 3, app: "podsnow", createdAt, episodeId, showId }
-episode.json      show(アートワークの参照) / episodes / takes / take_segments / voice_segments / overlay_clips / recording_events / outline_items / exports(メタのみ) の行を JSON で
-takes/<takeId>/seg-0001.wav ...
-assets/<assetId>.wav  (オプション。既定は同梱)
-show/cover.<jpg|png>    (番組アートワークがあるとき。保存形式を維持する)
-```
-復元時、ID が衝突する場合は新 UUID を採番して参照を張り替える。
-
-番組アートワークは、復元先の Show にアートワークが無いときだけ復元する。
-既にある現在の番組のアートワークは、別の回のバックアップを戻しただけで上書きしない。
-formatVersion 1 / 2 のバックアップにはアートワークが無いので、従来どおりアートワークを変更せずに復元する。【事実: Issue #133】
-
-`episodes.guid` は引き継ぐ（配信済みの回を指す値なので）。同じ番組に同じ `guid` の回が残っている場合
-（同じバックアップを 2 回復元した等）だけ、新しい id を `guid` に使う。0004 より前のバックアップには `guid` が無いので、新しい id を使う。
-
-**話数は `episode.json` の `episode_number` をそのまま使う**（振り直さない）。同じ Show に同じ話数が既にある場合のみ
-§4.1 の式で MAX+1 に振り直し、その旨をユーザーに伝える。【事実: FR-EP-6】
-
-理由: `.podsnow` は「その回の保存」なので、復元で第 5 回が第 8 回になるのは意図に反する。
-また、ストレージクリア後に話数の台帳を再構築できるのはこの性質があるからで、振り直すと
-カウンターを廃止した意味が失われる（§4.1）。
-
-## 8. 移行戦略
+## 7. 移行戦略
 - `PRAGMA user_version` を 1 から開始。`src/infra/db/migrations/0001_init.sql` … を順に適用。
 - Drizzle 採用時は drizzle-kit の生成 SQL をそのまま使う【仮説】。
 - 破壊的変更は必ず「新列追加 → データ移送 → 旧列放置」の順。ただし 0.1.0（未公開）の間は、二重の真実を残すほうが害が大きい場合に限り旧テーブル・旧列を落とす（0003 の `topics` / `markers`、0004 の `shows.default_export_preset`）。DB ファイル自体のバックアップを移行前に `db/podsnow.db.bak-<version>` として残す。
