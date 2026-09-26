@@ -91,6 +91,22 @@ describe('PlaybackService', () => {
     expect(svc.position).toBe(48000);
   });
 
+  // Issue #134: 書き出しタブでダッキングを変えたら、聴いている位置のまま新しい設定で鳴らし直す
+  it('reloads with the latest ducking settings and keeps playing at the same position', async () => {
+    const { db, engine, svc } = await setup({ withVoice: true });
+    await svc.reload('e');
+    await svc.seek(smp(48000));
+    await svc.toggle();
+    await db.run('UPDATE episodes SET sound_settings = ? WHERE id = ?', [
+      JSON.stringify({ ducking: { enabled: false, depthDb: -20 } }),
+      'e',
+    ]);
+    await svc.reload('e');
+    expect(engine.timelines.at(-1)).toMatchObject({ ducking: { enabled: false, depthDb: -20 } });
+    expect(svc.isPlaying).toBe(true);
+    expect(svc.position).toBe(48000);
+  });
+
   it('pauses when toggled while playing', async () => {
     const { svc } = await setup({ withVoice: true });
     await svc.reload('e');

@@ -278,9 +278,9 @@ export function ExportTab({ ws, onShowToast, onDone, onGoEdit }: ExportTabProps)
   };
 
   const updateSound = (next: SoundSettings) => {
-    if (!episode) return;
+    if (!episode || !sound) return;
     setSound(next);
-    void episodes.update(episode.id, { soundSettings: JSON.stringify(next) });
+    void ws.updateSound(sound, next);
   };
 
   const start = async () => {

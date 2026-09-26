@@ -22,6 +22,7 @@ import {
 } from '@/infra/db/repositories/recordingEventsRepo';
 import { listSegments, listTakes, type TakeRow } from '@/infra/db/repositories/takesRepo';
 import { ensureTakePeaks } from '@/services/audio/PeaksService';
+import { soundAffectsPlayback, type SoundSettings } from '@/services/audio/renderDocumentFromDb';
 import { planSilenceForTimeline } from '@/services/audio/SilenceService';
 import type { EditingService } from '@/services/editing/EditingService';
 import type { SessionState } from '@/services/recording/RecordingSession';
@@ -312,6 +313,18 @@ export function useWorkspace(episodeId: string) {
     [episodeId, patch, playback, services.episodes, state.total],
   );
   const togglePlay = useCallback(() => playback.toggle(), [playback]);
+
+  /**
+   * 音の仕上げを保存する。試聴に効く変更（ダッキング）なら再生を読み直し、
+   * 聴いている位置のまま新しい設定で鳴らす（Issue #134）。
+   */
+  const updateSound = useCallback(
+    async (prev: SoundSettings, next: SoundSettings) => {
+      await services.episodes.update(episodeId, { soundSettings: JSON.stringify(next) });
+      if (soundAffectsPlayback(prev, next)) await playback.reload(episodeId).catch(() => {});
+    },
+    [episodeId, playback, services.episodes],
+  );
 
   // ---- 録音 ----
   /**
@@ -609,6 +622,7 @@ export function useWorkspace(episodeId: string) {
     redo,
     seek,
     togglePlay,
+    updateSound,
     startRecording,
     stopRecording,
     pauseRecording,

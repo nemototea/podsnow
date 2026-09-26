@@ -35,6 +35,14 @@ export function parseSoundSettings(json: string | null | undefined): SoundSettin
   };
 }
 
+/**
+ * 音の仕上げの変更が試聴に効くか。試聴の Mixer はダッキングをかけるが、ラウドネス正規化は
+ * 書き出し時だけ（AUDIO_DESIGN.md §8）。効かない変更で読み直して音を途切れさせない。
+ */
+export function soundAffectsPlayback(prev: SoundSettings, next: SoundSettings): boolean {
+  return JSON.stringify(prev.ducking) !== JSON.stringify(next.ducking);
+}
+
 /** DB からエピソードの RenderDocument を組み立てる（ネイティブは DB を読まない）。 */
 export async function renderDocumentFromDb(
   db: SqlExecutor,
