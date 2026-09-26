@@ -3,6 +3,8 @@ import {
   colors,
   concentric,
   family,
+  field,
+  fieldPadding,
   hit,
   hitSlop,
   radius,
@@ -238,6 +240,17 @@ describe('書体', () => {
     expect(hit.min).toBeGreaterThanOrEqual(48);
     expect(hit.button).toBeGreaterThanOrEqual(52);
     expect(hit.record).toBeGreaterThan(hit.button);
+  });
+
+  it('入力欄は hit.min 以上で、枠が太くなっても字の位置が動かない', () => {
+    expect(field.minHeight).toBeGreaterThanOrEqual(hit.min);
+    expect(field.borderActive).toBeGreaterThan(field.border);
+    for (const w of [field.border, field.borderActive]) {
+      const pad = fieldPadding(w);
+      expect(pad.paddingHorizontal + w).toBe(field.paddingX + field.border);
+      expect(pad.paddingVertical + w).toBe(field.paddingY + field.border);
+      expect(pad.paddingVertical).toBeGreaterThanOrEqual(0);
+    }
   });
 
   it('見出しは役割が下がるほど小さくなる', () => {

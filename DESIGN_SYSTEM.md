@@ -304,7 +304,7 @@ Issue #105 / #110: 共通 Button の primary / secondary は押下時に 2px 下
 ダークの主操作の枠だけはシトロンと区別するため濃いまま残し、明るい影との間に線として見せる。
 シトロンの色付き影は使わない（シトロンは主操作・選択の意味。§5.2）。
 無効・処理中は影と移動をなくし、「動きを減らす」では位置と影を固定して色だけで反応する。
-入力欄は通常時も 2px（ダークも #113 から）。録音・破壊・ghost 操作やネイティブ部品には装飾を広げない。
+入力欄は通常時 1px（`borderStrong`）、入力中とエラー時だけ 2px（`focusRing` / `dangerBorder`）。#113 で通常時も 2px にしたが、OS 標準の入力欄と並べて一段大きく見えたため #131 で戻した（Material 3 の Outlined TextField も通常 1dp・入力中 2dp）。録音・破壊・ghost 操作やネイティブ部品には装飾を広げない。
 【確認済み】硬い影には React Native の boxShadow を使用する。Android 9 未満では影を省き、輪郭を維持する。
 出典: https://reactnative.dev/docs/0.86/view-style-props#boxshadow
 
@@ -317,6 +317,7 @@ Issue #105 / #110: 共通 Button の primary / secondary は押下時に 2px 下
 | 行 | 最低 56（タップ領域は 48 以上） | `Row` |
 | 通常ボタン | 最低 52 高、角丸 12、左右 16、ラベルは折り返す | `hit.button`、`Button` |
 | 収録の操作 | 再生系（再生・一時停止・再開）と録音系（録音・停止）はどちらも 72。塗りと線で区別し、大きさでは区別しない | `hit.record`、`Transport` |
+| 入力欄 | 最低 48 高（`hit.min`）、角丸 8、左右 16。枠は通常 1・入力中とエラー時 2（太くなった分は余白から引き、字を動かさない）。ラベルは欄の上 | `field`、`fieldPadding()`、`Field` |
 | タップ領域 | すべて 48 以上（WCAG 2.5.8 の 24 とは別の製品基準） | `hit.min`、`IconButton`、`hitSlop()` |
 | カード | 角丸 16、内側 20。一覧をすべて囲わない | `Card` |
 | シート | 上辺 24、閉じるボタン、下端 safe area | `Sheet` |
@@ -343,7 +344,7 @@ Issue #105 / #110: 共通 Button の primary / secondary は押下時に 2px 下
 | `Sheet` | iOS はページシート（下スワイプで閉じる）、ほかは下からのシート |
 | `ReorderList` | 並べ替えはすべてこれ（FR-UI-1）。行の右端のつまみだけにドラッグを付け、行の押下・スクロールと衝突させない。間の行が避け、離すと吸い付く。読み上げには行の操作「上へ移動」「下へ移動」。操作ヒントの文は出さない（§2.3） |
 | `alerts` | `confirmDestructive` / `ask` / `notify`（自作の `Dialog`、§6.3）、`iosActionSheet`。削除はすべて `confirmDestructive` を通す（FR-UI-2）。削除・外す操作のアイコンはゴミ箱（`trash`）と `dangerText` に揃え、✕（`close`）は閉じる操作だけに使う |
-| `Field` | 常に見えるラベル、補足、エラー（読み上げに関連付け）、焦点の輪郭 |
+| `Field` | 常に見えるラベル、補足、エラー（読み上げに関連付け）、入力中だけ太く色の変わる輪郭（§6 の表） |
 | `Segmented` | タブ（iOS は `UISegmentedControl`）。選択は一段明るい面 + 輪郭 1 周 + 文字色。片側の線は引かない（§2.1）。無効時は `textDisabled` |
 | `Chip` | 高さ 40 + 上下の hitSlop で 48。選択は輪郭 2 と淡い地 |
 | `Toggle` | OS の `Switch`。オンは `accentSolid`（iOS のつまみは OS の白のまま） |
