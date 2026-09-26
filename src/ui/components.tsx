@@ -15,7 +15,8 @@ import {
   type TextStyle,
   type ViewStyle,
 } from 'react-native';
-import { Gesture, GestureDetector, ScrollView } from 'react-native-gesture-handler';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import { useReanimatedKeyboardAnimation } from 'react-native-keyboard-controller';
 import Reanimated, {
   Easing,
   FadeInDown,
@@ -30,8 +31,9 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { useT } from '@/i18n';
 
-import { BOTTOM_GAP, BottomInsetProvider, useBottomInset } from './BottomInset';
+import { BOTTOM_GAP, BottomInsetProvider, keyboardLift, useBottomInset } from './BottomInset';
 import { Icon, type IconName } from './Icon';
+import { KeyboardScroll } from './KeyboardScroll';
 import { Text, TextInput } from './Text';
 import { useAppTheme } from './ThemeContext';
 import {
@@ -108,16 +110,11 @@ function ScreenBody({
     >
       <View style={s.root}>
         {scroll ? (
-          // Gesture Handler の ScrollView にして、中のドラッグ（並べ替えのつまみ・波形のハンドル）が
-          // 先に始まったらスクロールを止められるようにする（`Sheet` と同じ）。
-          <ScrollView
-            contentContainerStyle={[inner, { paddingBottom: bottomPad }]}
-            keyboardShouldPersistTaps="handled"
-            keyboardDismissMode="interactive"
-            automaticallyAdjustKeyboardInsets
-          >
+          // キーボードが出たら入力中の欄が見えるまでずらす（Issue #132、`KeyboardScroll`）。
+          // 下部バーはキーボードの裏に隠れたままにする（入力中は使わないので、見える範囲を削らない）。
+          <KeyboardScroll contentContainerStyle={[inner, { paddingBottom: bottomPad }]}>
             {children}
-          </ScrollView>
+          </KeyboardScroll>
         ) : (
           <View style={[s.root, inner]}>{children}</View>
         )}
@@ -534,6 +531,8 @@ export function Toast({
   const g = useGutter();
   const { barHeight, setToastHeight } = useBottomInset();
   const drag = useSharedValue(0);
+  const keyboard = useReanimatedKeyboardAnimation();
+  const floor = barHeight || insets.bottom;
 
   useEffect(() => {
     if (!toast) setToastHeight(0);
@@ -554,7 +553,12 @@ export function Toast({
         }),
     [drag, onDismiss],
   );
-  const dragStyle = useAnimatedStyle(() => ({ transform: [{ translateY: drag.get() }] }));
+  // キーボードが出ている間はその上へ持ち上げる（Issue #132）。引っ張る動きは簡略モーションでは付けない。
+  const moveStyle = useAnimatedStyle(() => ({
+    transform: [
+      { translateY: (reduced ? 0 : drag.get()) + keyboardLift(keyboard.height.get(), floor) },
+    ],
+  }));
 
   if (!toast) return null;
   return (
@@ -576,9 +580,9 @@ export function Toast({
             right: g,
             backgroundColor: c.surfaceRaised,
             borderColor: c.borderStrong,
-            bottom: (barHeight || insets.bottom) + BOTTOM_GAP,
+            bottom: floor + BOTTOM_GAP,
           },
-          reduced ? null : dragStyle,
+          moveStyle,
         ]}
         accessibilityLiveRegion="polite"
         accessibilityRole="alert"

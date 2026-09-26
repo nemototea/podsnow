@@ -1,14 +1,7 @@
 import type { ReactNode } from 'react';
-import {
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
-  Pressable,
-  StyleSheet,
-  useWindowDimensions,
-  View,
-} from 'react-native';
+import { Modal, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { GestureHandlerRootView, ScrollView } from 'react-native-gesture-handler';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useT } from '@/i18n';
@@ -34,6 +27,11 @@ export interface SheetProps {
  * ジェスチャー（トークテーマのドラッグなど）が届かない。ScrollView も Gesture Handler のものにして、
  * 中のドラッグが先に始まったらスクロールを止められるようにする。
  * 出典: https://docs.swmansion.com/react-native-gesture-handler/docs/fundamentals/installation
+ *
+ * キーボードが出たら、シートごとキーボードの上へ持ち上げる（Issue #132）。edge-to-edge では
+ * `adjustResize` で画面が縮まないので、react-native-keyboard-controller の `KeyboardAvoidingView`
+ * で下に余白を足す（Modal のウィンドウのキーボードも拾える）。背景が先に縮み、足りなければ
+ * シート自身と中の ScrollView が縮む。入力中の欄は Android の ScrollView が見える位置へ送る。
  */
 export function Sheet({ visible, onClose, title, subtitle, children }: SheetProps) {
   const c = useAppTheme();
@@ -51,9 +49,11 @@ export function Sheet({ visible, onClose, title, subtitle, children }: SheetProp
       navigationBarTranslucent
     >
       <GestureHandlerRootView style={st.root}>
+        {/* シート自身が下端に safe area 分の余白を持つので、キーボードが出ている間はその分を差し引く。 */}
         <KeyboardAvoidingView
           style={st.root}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          behavior="padding"
+          keyboardVerticalOffset={-insets.bottom}
         >
           <Pressable
             style={[st.backdrop, { backgroundColor: c.overlayScrim }]}
@@ -92,7 +92,9 @@ export function Sheet({ visible, onClose, title, subtitle, children }: SheetProp
                 <IconButton name="close" label={t.a11y.close} onPress={onClose} />
               </View>
             </View>
-            <ScrollView keyboardShouldPersistTaps="handled">{children}</ScrollView>
+            <ScrollView style={st.scroll} keyboardShouldPersistTaps="handled">
+              {children}
+            </ScrollView>
           </View>
         </KeyboardAvoidingView>
         {/* シートの中から出す確認は、シートの上に出す（DESIGN_SYSTEM.md §6.3）。 */}
@@ -106,7 +108,9 @@ const st = StyleSheet.create({
   root: { flex: 1 },
   flex: { flex: 1 },
   backdrop: { flex: 1 },
+  scroll: { flexShrink: 1 },
   sheet: {
+    flexShrink: 1,
     borderTopLeftRadius: radius.xl,
     borderTopRightRadius: radius.xl,
     paddingTop: space.md,
