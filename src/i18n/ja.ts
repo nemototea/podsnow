@@ -91,6 +91,13 @@ export const ja = {
     export_app_terminated: 'アプリが終了したため中断されました',
     export_not_in_backup: 'バックアップにはファイルを含みません',
     export_cancelled_on_restore: 'バックアップ復元時に中断扱い',
+    import_not_https: 'https:// で始まる URL だけ読み込めます',
+    import_network_failed: '接続できませんでした。通信環境を確認してください',
+    import_timeout: '応答がありませんでした。しばらくしてからもう一度お試しください',
+    import_http_status: (status: string) => `番組の情報を取得できませんでした（${status}）`,
+    import_too_large: (maxMb: string) => `ファイルが大きすぎます（上限 ${maxMb} MB）`,
+    import_not_a_feed: 'ポッドキャストの RSS として読めませんでした。URL を確認してください',
+    import_no_feed_url: 'この番組は RSS の URL が公開されていないため、取り込めません',
   },
 
   /** 初回起動時に DB へ書き込む既定値。以後はユーザーのデータなので翻訳しない。 */

@@ -7,6 +7,8 @@ export const ROOT_DIR_NAME = 'podsnow';
 export const relPaths = {
   db: () => 'db/podsnow.db',
   showDir: (showId: string) => `shows/${showId}`,
+  /** 番組のアートワーク（DATA_MODEL.md §2）。拡張子は取得した画像の形式 */
+  coverFile: (showId: string, ext: 'jpg' | 'png') => `shows/${showId}/cover.${ext}`,
   assetFile: (showId: string, assetId: string) => `shows/${showId}/assets/${assetId}.wav`,
   assetPeaks: (showId: string, assetId: string) => `shows/${showId}/assets/${assetId}.peaks`,
   episodeDir: (episodeId: string) => `episodes/${episodeId}`,

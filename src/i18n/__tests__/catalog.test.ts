@@ -91,7 +91,19 @@ describe('文言カタログ', () => {
             : (v as string);
         return [path, text];
       });
-    const ACRONYMS = new Set(['AAC', 'AGC', 'BGM', 'LUFS', 'M4A', 'MVP', 'USB', 'WAV', 'YYYY']);
+    const ACRONYMS = new Set([
+      'AAC',
+      'AGC',
+      'BGM',
+      'LUFS',
+      'M4A',
+      'MVP',
+      'RSS',
+      'URL',
+      'USB',
+      'WAV',
+      'YYYY',
+    ]);
 
     it.each(LOCALES)('%s に全部大文字の語が無い（略語を除く）', (locale) => {
       const found = rendered(messagesFor(locale) as unknown as Node).flatMap(([path, text]) =>

@@ -87,6 +87,13 @@ export const en: Messages = {
     export_app_terminated: 'Interrupted because the app was terminated',
     export_not_in_backup: 'Backups do not include the audio file',
     export_cancelled_on_restore: 'Marked as interrupted when the backup was restored',
+    import_not_https: 'Only URLs starting with https:// can be loaded',
+    import_network_failed: 'Could not connect. Check your connection',
+    import_timeout: 'No response. Please try again later',
+    import_http_status: (status: string) => `Could not get the podcast information (${status})`,
+    import_too_large: (maxMb: string) => `The file is too large (limit ${maxMb} MB)`,
+    import_not_a_feed: 'This could not be read as a podcast RSS feed. Check the URL',
+    import_no_feed_url: 'This podcast does not publish an RSS URL, so it cannot be imported',
   },
 
   seed: {

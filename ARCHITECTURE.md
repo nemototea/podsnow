@@ -195,7 +195,7 @@ interface AudioEngineModule {
 | 機能 | ローカルで成立 | サーバー必須 | 現在の扱い |
 |---|---|---|---|
 | 収録・編集・仕上げ・書き出し・共有・Show Assets・テンプレート・設定 | ○ | — | MVP。ネットワーク不要 |
-| 配信中の番組の取り込み（検索 / RSS 取得） | ○（アプリから Apple の公開検索と RSS 配信元へ直接 HTTPS。API キー不要） | — | SHOULD（Issue #101）。秘密情報が要る外部 API は使わない |
+| 配信中の番組の取り込み（検索 / RSS 取得） | ○（アプリから Apple の公開検索と RSS 配信元へ直接 HTTPS。API キー不要） | — | MVP（Issue #101。配信より先に作る）。秘密情報が要る外部 API は使わない |
 | エピソードのバックアップ / 復元（`.podsnow` ファイル） | ○（ユーザーの iCloud Drive / Google Drive 等へ共有シートで保存） | — | MVP。バックアップ用のサーバーは持たない |
 | OS 標準の音声入力・音声認識 | ○（端末依存でオンライン処理される場合あり） | — | 音声入力は MVP、文字起こしは後続 |
 | ローカル LLM による要約・概要欄下書き | ○（端末内推論。無料・ローカルが前提） | — | 後続。`AiProvider` インターフェースのみ |
@@ -247,7 +247,7 @@ idle ──start──▶ preparing ──ok──▶ recording ◀──resume�
 - 配信基盤のトークンは OS の安全な保管領域に置き、SQLite とバックアップには入れない（NFR-11）。
 - 正本の分担: 制作（録音・編集）の正本は端末の SQLite。配信済みの回と RSS の正本は配信基盤。端末の `feed_episodes` はその写し（DATA_MODEL.md §4.17）。
 - 権限はマイク、（Android）通知、（Android）FGS、ファイル選択。Android の `INTERNET` は Expo の生成するマニフェストに最初から入っている【事実】（`@expo/config-plugins` の `withAndroidBaseMods.js` のテンプレート。元は https://github.com/expo/expo/blob/main/templates/expo-template-bare-minimum/android/app/src/main/AndroidManifest.xml ）。iOS は ATS により HTTPS 以外を拒否する既定のままにする。
-- 取り込みの層分け: 通信は `infra/`（`fetch`）、検索元と RSS 取得の組み立ては `services/podcast/`、XML から取り出した値の正規化（`itunes:explicit` / `itunes:duration` など）は `domain/podcast/`（純粋関数。Jest で網羅）。検索元はインターフェースの後ろに置き、Apple 以外を足せる形にする。RSS は信用しない入力として扱う（NFR-10）。
+- 取り込みの層分け: 通信は `infra/net/fetchHttp.ts`（`HttpPort`。タイムアウトとサイズ上限）、検索・取得・保存の組み立ては `services/podcast/PodcastImportService.ts`、XML の解析と値の正規化は `domain/podcast/`（純粋関数。Jest で網羅）。XML パーサーは外部ライブラリを使わず自前の最小実装（`domain/podcast/xml.ts`）にした【事実】: RSS に要る範囲が小さく、DOCTYPE の実体を**展開しない**ことを構造で保証でき、依存を増やさずに済むため。検索元はインターフェースの後ろに置き、Apple 以外を足せる形にする。RSS は信用しない入力として扱う（NFR-10）。
 - 録音ファイルはアプリの `Paths.document` 配下。iCloud バックアップ除外は【仮説】（expo-file-system に API 記載なし。必要ならネイティブで `isExcludedFromBackup` を設定）。
 
 ## 10. 未決事項

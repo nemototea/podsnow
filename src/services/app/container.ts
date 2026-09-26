@@ -13,7 +13,9 @@ import {
 } from '@/infra/files/fileSystem';
 import { createNativeAudioEngine } from '@/infra/native/audioEngineAdapter';
 import { createNativeHaptics } from '@/infra/native/hapticsAdapter';
+import { expoFsPort } from '@/infra/files/expoFsPort';
 import { createNativeRecorder } from '@/infra/native/recorderAdapter';
+import { fetchHttp } from '@/infra/net/fetchHttp';
 
 import { AssetsService } from '../assets/AssetsService';
 import type { AudioEnginePort } from '../audio/AudioEnginePort';
@@ -24,6 +26,7 @@ import { ExportService } from '../export/ExportService';
 import type { HapticsPort } from '../feedback/HapticsPort';
 import { HapticsService } from '../feedback/HapticsService';
 import { OutlineService } from '../outline/OutlineService';
+import { PodcastImportService } from '../podcast/PodcastImportService';
 import type { RecorderPort } from '../recording/RecorderPort';
 import { RecordingSession } from '../recording/RecordingSession';
 import { recoverUnfinishedTakes, type RecoveredTake } from '../recording/RecoveryService';
@@ -44,6 +47,8 @@ export interface AppServices {
   episodes: EpisodeService;
   assets: AssetsService;
   outline: OutlineService;
+  /** 配信中の番組の取り込み（Issue #101）。保存したあとは `reloadShow` で `show` を最新化する。 */
+  podcastImport: PodcastImportService;
   /** 設定の「ハプティクス」に従う触覚（DESIGN_SYSTEM.md §6.2）。 */
   haptics: HapticsService;
   /** エピソード画面を開く。取り消しの履歴は空から始まる（Issue #122）。 */
@@ -121,6 +126,14 @@ export async function bootstrap(
   });
   const assets = new AssetsService({ db, engine, root, ensureDir, newId, now });
   const outline = new OutlineService({ db, newId, now });
+  const podcastImport = new PodcastImportService({
+    db,
+    http: fetchHttp,
+    fs: expoFsPort,
+    root,
+    newId,
+    now,
+  });
   const haptics = new HapticsService({
     port: overrides.haptics ?? createNativeHaptics(),
     enabled: () => liveSettings.settings.haptics,
@@ -139,6 +152,7 @@ export async function bootstrap(
     episodes,
     assets,
     outline,
+    podcastImport,
     haptics,
     openEditing: (episodeId) => EditingService.open({ db, newId, now }, episodeId),
     resumeEditing: (episodeId) => EditingService.resume({ db, newId, now }, episodeId),

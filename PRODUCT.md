@@ -88,7 +88,7 @@
 - Show Assets（Opening / Ending / ジングル / SE / BGM の登録・お気に入り）
 - Show の既定構成（1 種類）とトークテーマのひな形（1 種類）
 - 番組・エピソードの情報を Podcast RSS の規格（RSS 2.0 + iTunes + Podcast 名前空間）に合わせて持つ
-- 配信中の番組の取り込み（番組名の検索 / RSS の URL。Issue #101。SHOULD）
+- 配信中の番組の取り込み（番組名の検索 / RSS の URL。Issue #101。配信より先に作る）
 - PodsNow の配信基盤からの配信（自分の番組 1 つ。RSS は配信基盤が生成。REQUIREMENTS.md §2.13 / Issue #107）
 - エピソードのバックアップ（書き出し / 取り込み）
 - 設定（テーマ Dark/Light/System、録音品質、モノラル、無音しきい値、ハプティクス、既定書き出し形式、ストレージ表示）
