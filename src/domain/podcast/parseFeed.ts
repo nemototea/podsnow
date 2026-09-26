@@ -238,10 +238,94 @@ function parseItem(item: View): PodcastFeedItem | null {
 }
 
 /**
+ * 保存する値の上限（docs/podcast-import-cases.md E-10）【仮説: 値】。
+ * PSP-1 の「概要 4,000 バイト」は RSS を作る側の決まりで、実際のフィードはこれを超えることが多い。
+ * 切り詰めると乗り換え先の RSS に載せる内容が欠けるので、端末とメモリを守れる程度に大きく取る。
+ */
+export const FEED_LIMITS = {
+  /** 番組名・回の題名・著者などの 1 行の文字列 */
+  line: 1_000,
+  /** 番組・回の概要 */
+  text: 100_000,
+  /** URL と guid。超えたら切り詰めずに捨てる（壊れた URL や別の guid を作らない） */
+  url: 2_048,
+  /** 回の数。RSS の先頭（通常は新しい順）から数える */
+  items: 10_000,
+} as const;
+
+/** 先頭から `max` 文字（UTF-16）で切る。サロゲートペアの途中では切らない。 */
+export function clip(s: string, max: number): string {
+  if (s.length <= max) return s;
+  const code = s.charCodeAt(max - 1);
+  return s.slice(0, code >= 0xd800 && code <= 0xdbff ? max - 1 : max);
+}
+
+function clipUrl(s: string): string {
+  return s.length > FEED_LIMITS.url ? '' : s;
+}
+
+function clipUrlOrNull(s: string | null): string | null {
+  return s === null || s.length > FEED_LIMITS.url ? null : s;
+}
+
+function clampItem(i: PodcastFeedItem): PodcastFeedItem {
+  return {
+    ...i,
+    title: clip(i.title, FEED_LIMITS.line),
+    description: clip(i.description, FEED_LIMITS.text),
+    enclosureUrl: clipUrlOrNull(i.enclosureUrl),
+    enclosureType: i.enclosureType === null ? null : clip(i.enclosureType, FEED_LIMITS.line),
+    websiteUrl: clipUrl(i.websiteUrl),
+    imageUrl: clipUrlOrNull(i.imageUrl),
+  };
+}
+
+function clampShow(s: PodcastFeed['show']): PodcastFeed['show'] {
+  const line = (v: string) => clip(v, FEED_LIMITS.line);
+  return {
+    ...s,
+    title: line(s.title),
+    description: clip(s.description, FEED_LIMITS.text),
+    author: line(s.author),
+    websiteUrl: clipUrl(s.websiteUrl),
+    language: line(s.language),
+    imageUrl: clipUrlOrNull(s.imageUrl),
+    categories: s.categories.map((c) => ({
+      category: line(c.category),
+      subcategory: line(c.subcategory),
+    })),
+    copyright: line(s.copyright),
+    ownerName: line(s.ownerName),
+    ownerEmail: line(s.ownerEmail),
+    feedUrl: clipUrl(s.feedUrl),
+    podcastGuid: s.podcastGuid === null ? null : clipUrlOrNull(s.podcastGuid),
+    funding: s.funding
+      .map((f) => ({ url: clipUrl(f.url), label: line(f.label) }))
+      .filter((f) => f.url !== ''),
+  };
+}
+
+const UTF8_LABELS = new Set(['utf-8', 'utf8', 'us-ascii', 'ascii']);
+
+/**
+ * XML 宣言の `encoding`（無ければ null）。UTF-8 以外は、文字化けさせずに取り込みを止めるために使う
+ * （docs/podcast-import-cases.md E-6）。
+ */
+export function declaredEncoding(xml: string): string | null {
+  const head = xml.slice(0, 300);
+  const m = /^\uFEFF?\s*<\?xml[^>]*?\bencoding\s*=\s*["']([^"']+)["']/i.exec(head);
+  return m ? m[1]!.trim() : null;
+}
+
+/**
  * RSS の本文を `PodcastFeed` にする。`fetchedUrl` は取得に使った URL（最終的なリダイレクト先）。
  * RSS でなければ `AppError('import_not_a_feed')`。
  */
 export function parsePodcastFeed(xml: string, fetchedUrl: string): PodcastFeed {
+  const encoding = declaredEncoding(xml);
+  if (encoding && !UTF8_LABELS.has(encoding.toLowerCase())) {
+    throw new AppError('import_unsupported_encoding', { encoding });
+  }
   let root: XmlElement;
   try {
     root = parseXml(xml);
@@ -263,15 +347,16 @@ export function parsePodcastFeed(xml: string, fetchedUrl: string): PodcastFeed {
   const items: PodcastFeedItem[] = [];
   const seen = new Set<string>();
   for (const it of channel.all('item')) {
+    if (items.length >= FEED_LIMITS.items) break;
     const parsed = parseItem(it);
-    // 同じ guid が 2 回出るフィードは、先に出た（通常は新しい）方を採る
-    if (!parsed || seen.has(parsed.guid)) continue;
+    // 同じ guid が 2 回出るフィードは、先に出た（通常は新しい）方を採る。長すぎる guid は捨てる（E-10）
+    if (!parsed || parsed.guid.length > FEED_LIMITS.url || seen.has(parsed.guid)) continue;
     seen.add(parsed.guid);
-    items.push(parsed);
+    items.push(clampItem(parsed));
   }
 
   return {
-    show: {
+    show: clampShow({
       title: nonEmpty(channel.text('title'), channel.text('itunes:title')),
       description: htmlToPlainText(
         nonEmpty(channel.text('description'), channel.text('itunes:summary')),
@@ -301,7 +386,7 @@ export function parsePodcastFeed(xml: string, fetchedUrl: string): PodcastFeed {
       ),
       podcastGuid: orNull(channel.text('podcast:guid')),
       funding: parseFunding(channel),
-    },
+    }),
     items,
   };
 }

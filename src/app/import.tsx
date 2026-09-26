@@ -9,9 +9,10 @@ import { errorText, useLocale, useT } from '@/i18n';
 import { useDeviceRegion } from '@/i18n/deviceLocale';
 import type { ImportPreview, ImportResult } from '@/services/podcast/PodcastImportService';
 import { Artwork } from '@/ui/Artwork';
-import { Button, Card, Field, Notice, Screen, SectionHeader, Text } from '@/ui/components';
+import { Button, Card, Field, Notice, Screen, SectionHeader, Text, Toast } from '@/ui/components';
 import { ScreenHeader } from '@/ui/ScreenHeader';
 import { useAppTheme } from '@/ui/ThemeContext';
+import { useToast } from '@/ui/useToast';
 import { hit, space, typography } from '@/ui/tokens';
 
 /** 一覧のアートワーク。行の高さ（hit.min）に収める */
@@ -53,6 +54,7 @@ export default function ImportScreen() {
   const [results, setResults] = useState<DirectoryResult[] | null>(null);
   const [searching, setSearching] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { toast, show: showToast, act, dismiss } = useToast();
 
   const country = region ?? (locale === 'ja' ? 'JP' : 'US');
 
@@ -133,8 +135,13 @@ export default function ImportScreen() {
             }
           : null;
     return (
-      <Screen>
-        <ScreenHeader title={t.podcastImport.title} />
+      <Screen overlay={<Toast toast={toast} onAction={act} onDismiss={dismiss} />}>
+        {/* 保存の途中で画面を離れさせない（docs/podcast-import-cases.md E-5） */}
+        <ScreenHeader
+          title={t.podcastImport.title}
+          lockBack={step.saving}
+          onLockedBack={() => showToast({ text: t.podcastImport.cannotLeave })}
+        />
         <SectionHeader
           title={step.refresh ? t.podcastImport.refreshHeader : t.podcastImport.previewHeader}
         />

@@ -1,5 +1,12 @@
 import { AppError } from '../../errors';
-import { htmlToPlainText, parsePodcastFeed, parseRfc2822Date } from '../parseFeed';
+import {
+  clip,
+  declaredEncoding,
+  FEED_LIMITS,
+  htmlToPlainText,
+  parsePodcastFeed,
+  parseRfc2822Date,
+} from '../parseFeed';
 
 const FEED = `<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0"
@@ -214,5 +221,63 @@ describe('htmlToPlainText', () => {
     expect(htmlToPlainText('A &amp; B&nbsp;C')).toBe('A & B C');
     expect(htmlToPlainText('  plain  ')).toBe('plain');
     expect(htmlToPlainText('<p>a</p>\n\n\n\n<p>b</p>')).toBe('a\n\nb');
+  });
+});
+
+describe('E-6: character encoding', () => {
+  it('reads the encoding from the XML declaration', () => {
+    expect(declaredEncoding('<?xml version="1.0" encoding="UTF-8"?><rss/>')).toBe('UTF-8');
+    expect(declaredEncoding("\uFEFF<?xml version='1.0' encoding='Shift_JIS'?>")).toBe('Shift_JIS');
+    expect(declaredEncoding('<?xml version="1.0"?><rss/>')).toBeNull();
+    expect(declaredEncoding('<rss/>')).toBeNull();
+  });
+
+  it('refuses feeds that declare a non UTF-8 encoding instead of garbling them', () => {
+    const code = (xml: string) => {
+      try {
+        parsePodcastFeed(xml, 'https://example.com/');
+        return 'ok';
+      } catch (e) {
+        return e instanceof AppError ? `${e.code}:${String(e.params.encoding ?? '')}` : 'other';
+      }
+    };
+    const body = '<rss><channel><title>t</title></channel></rss>';
+    expect(code(`<?xml version="1.0" encoding="Shift_JIS"?>${body}`)).toBe(
+      'import_unsupported_encoding:Shift_JIS',
+    );
+    expect(code(`<?xml version="1.0" encoding="EUC-JP"?>${body}`)).toBe(
+      'import_unsupported_encoding:EUC-JP',
+    );
+    expect(code(`<?xml version="1.0" encoding="utf-8"?>${body}`)).toBe('ok');
+    expect(code(`<?xml version="1.0" encoding="US-ASCII"?>${body}`)).toBe('ok');
+    expect(code(body)).toBe('ok');
+  });
+});
+
+describe('E-10: size limits', () => {
+  it('clips without splitting a surrogate pair', () => {
+    expect(clip('abc', 5)).toBe('abc');
+    expect(clip('abcdef', 3)).toBe('abc');
+    expect(clip('ab🎙c', 3)).toBe('ab');
+    expect(clip('ab🎙c', 4)).toBe('ab🎙');
+  });
+
+  it('clips long text, drops overlong URLs and guids, and caps the number of items', () => {
+    const longTitle = 'あ'.repeat(FEED_LIMITS.line + 10);
+    const longText = 'x'.repeat(FEED_LIMITS.text + 10);
+    const longUrl = `https://e.com/${'a'.repeat(FEED_LIMITS.url)}`;
+    const items = Array.from(
+      { length: FEED_LIMITS.items + 5 },
+      (_, i) => `<item><guid>g${i}</guid></item>`,
+    ).join('');
+    const xml = `<rss><channel><title>${longTitle}</title><description>${longText}</description>
+      <link>${longUrl}</link>
+      <item><guid>${'g'.repeat(FEED_LIMITS.url + 1)}</guid></item>${items}</channel></rss>`;
+    const feed = parsePodcastFeed(xml, 'https://example.com/f');
+    expect(feed.show.title).toHaveLength(FEED_LIMITS.line);
+    expect(feed.show.description).toHaveLength(FEED_LIMITS.text);
+    expect(feed.show.websiteUrl).toBe('');
+    expect(feed.items).toHaveLength(FEED_LIMITS.items);
+    expect(feed.items[0]!.guid).toBe('g0');
   });
 });

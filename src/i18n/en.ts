@@ -95,6 +95,8 @@ export const en: Messages = {
     import_not_a_feed: 'This could not be read as a podcast RSS feed. Check the URL',
     import_no_feed_url: 'This podcast does not publish an RSS URL, so it cannot be imported',
     import_other_show: 'Another show is already imported. You can have one show',
+    import_unsupported_encoding: (encoding: string) =>
+      `This RSS uses an unsupported encoding (${encoding}). Only UTF-8 feeds can be loaded`,
   },
 
   seed: {
@@ -219,6 +221,7 @@ Tag #PodsNow to share your thoughts`,
       'This replaces the name, description, author and other details. Anything the RSS leaves out keeps its current value',
     confirm: 'Import',
     back: 'Search again',
+    cannotLeave: 'Please wait until the import finishes',
     importing: 'Importing…',
     doneTitle: 'Imported',
     doneBody: (n: number) => `Imported ${n} published episodes`,

@@ -99,6 +99,8 @@ export const ja = {
     import_not_a_feed: 'ポッドキャストの RSS として読めませんでした。URL を確認してください',
     import_no_feed_url: 'この番組は RSS の URL が公開されていないため、取り込めません',
     import_other_show: 'すでに別の番組を取り込んでいます。番組は 1 つだけ持てます',
+    import_unsupported_encoding: (encoding: string) =>
+      `この RSS の文字コード（${encoding}）には対応していません。UTF-8 の RSS だけ読み込めます`,
   },
 
   /** 初回起動時に DB へ書き込む既定値。以後はユーザーのデータなので翻訳しない。 */
@@ -223,6 +225,7 @@ Podcast: {{show_name}}
       '番組名・概要・著者などを、この内容で上書きします。RSS に無い項目は今の値を残します',
     confirm: '取り込む',
     back: '探し直す',
+    cannotLeave: '取り込みが終わるまでお待ちください',
     importing: '取り込んでいます…',
     doneTitle: '取り込みました',
     doneBody: (n: number) => `配信済みの回 ${n} 本を取り込みました`,

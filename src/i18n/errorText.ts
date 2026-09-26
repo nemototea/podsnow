@@ -24,6 +24,8 @@ export function errorCodeText(
       );
     case 'import_http_status':
       return t.errors.import_http_status(String(params.status ?? '?'));
+    case 'import_unsupported_encoding':
+      return t.errors.import_unsupported_encoding(String(params.encoding ?? '?'));
     case 'import_too_large':
       return t.errors.import_too_large(String(params.maxMb ?? '?'));
     case 'voice_timeline_empty':

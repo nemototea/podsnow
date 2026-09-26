@@ -101,6 +101,7 @@ describe('文言カタログ', () => {
       'RSS',
       'URL',
       'USB',
+      'UTF',
       'WAV',
       'YYYY',
     ]);

@@ -279,7 +279,7 @@ describe('PodcastImportService.commit', () => {
       explicit: 1,
       feed_url: FEED_URL,
       cover_source_url: ART_URL,
-      cover_path: `shows/${show.id}/cover.jpg`,
+      cover_path: `shows/${show.id}/cover-5000.jpg`,
       feed_imported_at: 5000,
     });
     expect(fs.readFileSync(path.join(root, s.cover_path!))).toEqual(Buffer.from(JPEG));
@@ -327,9 +327,37 @@ describe('PodcastImportService.commit', () => {
     await svc.commit(show.id, await svc.preview(show.id, { feedUrl: FEED_URL }));
     routes[ART_URL] = { contentType: 'image/png', bytes: new Uint8Array([0x89, 0x50]) };
     await svc.commit(show.id, await svc.preview(show.id, { feedUrl: FEED_URL }));
-    expect((await getShow(db, show.id))!.cover_path).toBe(`shows/${show.id}/cover.png`);
-    expect(fs.existsSync(path.join(root, `shows/${show.id}/cover.jpg`))).toBe(false);
-    expect(fs.existsSync(path.join(root, `shows/${show.id}/cover.png`))).toBe(true);
+    expect((await getShow(db, show.id))!.cover_path).toBe(`shows/${show.id}/cover-5000.png`);
+    expect(fs.readdirSync(path.join(root, `shows/${show.id}`))).toEqual(['cover-5000.png']);
+  });
+
+  it('E-4: a failed commit leaves neither the new artwork nor a changed show', async () => {
+    const { svc, db, show, root } = await setup({
+      [FEED_URL]: { text: feedXml(item(1)) },
+      [ART_URL]: { contentType: 'image/jpeg', bytes: JPEG },
+    });
+    const p = await svc.preview(show.id, { feedUrl: FEED_URL });
+    // 書き込みの途中で DB が失敗する状況を作る
+    await db.run('DROP TABLE feed_episodes');
+    await expect(svc.commit(show.id, p)).rejects.toThrow();
+    expect((await getShow(db, show.id))!).toMatchObject({ name: show.name, cover_path: null });
+    const dir = path.join(root, `shows/${show.id}`);
+    expect(fs.existsSync(dir) ? fs.readdirSync(dir) : []).toEqual([]);
+  });
+
+  it('E-4: cleans up artwork left behind by an interrupted import', async () => {
+    const { svc, db, show, root } = await setup({
+      [FEED_URL]: { text: feedXml('') },
+      [ART_URL]: { contentType: 'image/jpeg', bytes: JPEG },
+    });
+    const dir = path.join(root, `shows/${show.id}`);
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, 'cover-1.png'), 'left over');
+    fs.writeFileSync(path.join(dir, 'cover.jpg'), 'old name');
+    fs.writeFileSync(path.join(dir, 'keep.txt'), 'not a cover');
+    await svc.commit(show.id, await svc.preview(show.id, { feedUrl: FEED_URL }));
+    expect(fs.readdirSync(dir).sort()).toEqual(['cover-5000.jpg', 'keep.txt']);
+    expect((await getShow(db, show.id))!.cover_path).toBe(`shows/${show.id}/cover-5000.jpg`);
   });
 
   it('re-importing updates episodes by guid and keeps ones missing from the feed', async () => {

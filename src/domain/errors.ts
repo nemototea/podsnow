@@ -39,6 +39,8 @@ export const APP_ERROR_CODES = [
   'import_no_feed_url',
   /** 取り込み: 今の番組とは別の番組（番組を 1 つしか持てない間は取り込めない） */
   'import_other_show',
+  /** 取り込み: UTF-8 以外の文字コードの RSS（params: encoding） */
+  'import_unsupported_encoding',
 ] as const;
 
 export type AppErrorCode = (typeof APP_ERROR_CODES)[number];

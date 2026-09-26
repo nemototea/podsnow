@@ -198,7 +198,6 @@ export class PodcastImportService {
     if (preview.identity === 'different') throw new AppError('import_other_show');
     const { db, newId, now } = this.deps;
     const { show, items } = preview.feed;
-    const prevCover = (await getShow(db, showId))?.cover_path ?? null;
     const coverPath = show.imageUrl ? await this.saveCover(showId, show.imageUrl) : null;
     const t = now();
     // 文字列は空なら今の値を残す（キーごと省く）。真偽と列挙は RSS に無ければ既定値なのでそのまま入れる
@@ -222,25 +221,28 @@ export class PodcastImportService {
       ...(coverPath ? { coverPath } : {}),
       feedImportedAt: t,
     };
-    await db.transaction(async () => {
-      await updateShow(db, showId, patch, t);
-      if (show.categories.length) await replaceCategories(db, showId, show.categories, newId);
-      if (show.funding.length) await replaceFunding(db, showId, show.funding, newId);
-      if (preview.directory) {
-        await setExternalId(
-          db,
-          showId,
-          preview.directory.provider,
-          preview.directory.externalId,
-          t,
-        );
-      }
-      await upsertFeedEpisodes(db, showId, items, newId, t);
-    });
-    // 形式が変わった（jpg → png 等）ときは、DB を書き換えたあとで古いファイルを消す
-    if (coverPath && prevCover && prevCover !== coverPath) {
-      this.deps.fs.delete(joinRoot(this.deps.root, prevCover));
+    try {
+      await db.transaction(async () => {
+        await updateShow(db, showId, patch, t);
+        if (show.categories.length) await replaceCategories(db, showId, show.categories, newId);
+        if (show.funding.length) await replaceFunding(db, showId, show.funding, newId);
+        if (preview.directory) {
+          await setExternalId(
+            db,
+            showId,
+            preview.directory.provider,
+            preview.directory.externalId,
+            t,
+          );
+        }
+        await upsertFeedEpisodes(db, showId, items, newId, t);
+      });
+    } catch (e) {
+      // DB が確定しなかったら、今回書いたアートワークも残さない（P4）
+      if (coverPath) this.deps.fs.delete(joinRoot(this.deps.root, coverPath));
+      throw e;
     }
+    await this.removeStaleCovers(showId);
     return { episodes: items.length, coverSaved: coverPath !== null };
   }
 
@@ -257,7 +259,7 @@ export class PodcastImportService {
       assertHttps(res.url);
       const ext = imageExt(res.contentType, res.url);
       if (!isOk(res.status) || !ext || res.bytes.byteLength === 0) return null;
-      const rel = relPaths.coverFile(showId, ext);
+      const rel = relPaths.coverFile(showId, String(this.deps.now()), ext);
       const abs = joinRoot(root, rel);
       fs.ensureDir(joinRoot(root, relPaths.showDir(showId)));
       const h = fs.open(abs, 'w');
@@ -269,6 +271,23 @@ export class PodcastImportService {
       return rel;
     } catch {
       return null;
+    }
+  }
+
+  /**
+   * DB が指しているもの以外の `cover-*` を消す。前回のアートワークと、途中で落ちた取り込みが
+   * 残したファイルの両方を片付ける（docs/podcast-import-cases.md E-4）。
+   */
+  private async removeStaleCovers(showId: string): Promise<void> {
+    const { fs, root, db } = this.deps;
+    try {
+      const current = (await getShow(db, showId))?.cover_path?.split('/').pop() ?? null;
+      const dir = joinRoot(root, relPaths.showDir(showId));
+      for (const name of fs.list(dir)) {
+        if (/^cover[-.]/.test(name) && name !== current) fs.delete(`${dir}/${name}`);
+      }
+    } catch {
+      // 片付けに失敗しても取り込みは成功している。次の取り込みで再び片付ける
     }
   }
 }

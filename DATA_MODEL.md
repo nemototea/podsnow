@@ -19,7 +19,7 @@
 podsnow/
 ├── db/podsnow.db                       # SQLite (+ -wal, -shm)
 ├── shows/<showId>/
-│   ├── cover.jpg|png                 # 番組のアートワーク（取り込み時にダウンロード。Issue #101）
+│   ├── cover-<時刻>.jpg|png          # 番組のアートワーク（取り込み時にダウンロード。取り込むたびに別名。Issue #101）
 │   └── assets/<assetId>.wav            # 取り込み時に 48k WAV へ変換したもの【仮説】
 │   └── assets/<assetId>.peaks          # 波形キャッシュ
 ├── episodes/<episodeId>/

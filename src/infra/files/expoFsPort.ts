@@ -40,4 +40,12 @@ export const expoFsPort: FsPort = {
     const f = new File(toUri(absPath));
     if (f.exists) f.delete();
   },
+  list: (absDir) => {
+    const d = new Directory(toUri(absDir));
+    if (!d.exists) return [];
+    return d
+      .list()
+      .filter((x) => x instanceof File)
+      .map((x) => x.name);
+  },
 };
