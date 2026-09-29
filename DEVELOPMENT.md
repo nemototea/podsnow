@@ -24,10 +24,10 @@ main ◀── PR ── release/<version> ◀── PR ── issue/<番号>-<s
 | ブランチ | 役割 | 直接コミット |
 |---|---|---|
 | `main` | **ストアリリース可能な状態のみ**。`release/<version>` からの PR マージでしか進まない。マージ = そのバージョンの公開準備完了 | 禁止（初回コミットのみ例外） |
-| `release/<version>` | そのバージョン（例: `release/0.1.0` = MVP）の統合ブランチ。Issue ブランチの PR 宛先。バージョンに必要な Issue がすべて閉じたら `main` へ PR | 禁止（Issue ブランチ経由） |
+| `release/<version>` | そのバージョン（例: `release/0.1.0` = MVP、`release/1.0.0` = ストア公開版）の統合ブランチ。Issue ブランチの PR 宛先。バージョンに必要な Issue がすべて閉じたら `main` へ PR | 禁止（Issue ブランチ経由） |
 | `issue/<番号>-<slug>` | 1 Issue = 1 ブランチ。`release/<version>` から切り、PR は同じ `release/<version>` 宛て | ここで作業 |
 
-- バージョンは SemVer。MVP = `0.1.0`。次バージョンの作業は `release/0.2.0` を `main` から切って始める。
+- バージョンは SemVer。版の切り方は PRODUCT.md §7（ユーザー判断 2026-09-29）: `0.1.0` = MVP（クローズドなドッグフーディング。TestFlight / 内部テストだけで、ストア審査に出さない）、`1.0.0` = ストア公開版（配信基盤・アカウント・課金を含む。#107 / #156 / #157）。次バージョンの作業は `release/<次の版>` を `main` から切って始める。
 - 公開後の緊急修正は `hotfix/<slug>` を `main` から切り、`main` と進行中の `release/*` の両方へ PR。
 - マージ方式は **マージコミット**（GitHub の "Create a merge commit"）。squash はしない。Issue ブランチのコミットをそのまま残し、1 Issue の作業過程を `release/*` の履歴から追えるようにする。
 - Issue ブランチはマージ後に削除。
@@ -35,10 +35,10 @@ main ◀── PR ── release/<version> ◀── PR ── issue/<番号>-<s
 ### 2.2 Issue 運用
 
 - 作業は必ず Issue から始める（MVP 外の構想も Issue にして Backlog に置く）。
-- マイルストーン: `0.1.0 (MVP)` / `Backlog`。バージョンが増えたらマイルストーンも増やす。
+- 版の振り分けはラベルで行う（マイルストーンは使っていない）。
 - ラベル:
   - `phase:0-foundation` … `phase:4-show`: DEVELOPMENT.md §6 のフェーズ
-  - `mvp` / `post-mvp`: スコープ
+  - `mvp` / `store-release` / `post-mvp`: 版（0.1.0 / 1.0.0 / それ以降）
   - `native` / `ios` / `android`: ネイティブ実装を含む
   - `spike`: 技術検証。結果は `docs/adr/` に ADR として残す
   - `data-safety`: 録音データの保全に関わる（最優先。テスト必須）
@@ -48,7 +48,7 @@ main ◀── PR ── release/<version> ◀── PR ── issue/<番号>-<s
 ### 2.3 コミット・PR
 
 - コミットメッセージ: Conventional Commits（`feat:`, `fix:`, `docs:`, `chore:`, `native:`, `spike:`）。日本語可。
-- PR タイトルは Issue タイトルに合わせる。PR は CI（§7）が緑であることを条件にマージ。
+- PR タイトルは Issue タイトルに合わせる。PR の前に `npm run lint && npm run typecheck && npm test && npm run format:check` を手元（またはエージェント）で通す。CI は置かない（§7）。
 - `.gitignore`: `node_modules/`, ルートの `/ios/` と `/android/`（prebuild 生成物。`modules/*/ios|android` は追跡する）, `.expo/`, `*.log`, `.DS_Store`, 大容量音源（`fixtures/` の小さなものは除く）
 
 ### 2.4 典型的な作業手順
@@ -107,7 +107,7 @@ npx expo run:android --variant release --device Pixel_9a --no-bundler
 - 時間の型は `Smp`（サンプル数）と `Ms` をブランド型で区別する【仮説】。
 
 ### 4.2 Lint / Format
-- ESLint（`eslint-config-expo` 基準）+ Prettier。`npm run lint` / `npm run typecheck` を CI で必須化。
+- ESLint（`eslint-config-expo` 基準）+ Prettier。`npm run lint` / `npm run typecheck` は PR の前に必ず通す（§7）。
 
 ### 4.3 ネイティブ
 - Swift: SwiftLint【仮説】。Kotlin: ktlint【仮説】。
@@ -162,12 +162,16 @@ npx expo run:android --variant release --device Pixel_9a --no-bundler
 | 2. 編集 | 波形、タイムライン再生、範囲削除、無音カット、並び替え、パンチイン、素材挿入・位置・音量、Undo/Redo 永続化 | 収録した回を編集して聴ける |
 | 3. 書き出し | ミックス、ラウドネス、ダッキング、AAC / WAV、共有・保存、Distribution Pack、書き出し履歴 | 配信サービスへ投稿できる |
 | 4. Show と仕上げ | Show Assets、既定構成、概要欄テンプレート、設定、テーマ、ストレージ管理 | 成功基準（PRODUCT.md §8）を満たす |
-| 5. 次フェーズ候補 | MP3 / FLAC、ノイズ除去、OS 音声認識、ローカル LLM、編集履歴一覧 | — |
+| 5. 0.1.0 の仕上げ | 実機チェックリスト、TestFlight / 内部テストへの配布（#53） | 成功基準 0.1.0（PRODUCT.md §8）を満たす |
+| 6. 1.0.0 ストア公開版 | 配信基盤（#107）、アカウントと運営（#157）、収益構造（#156）、複数の番組（#64 / #147）、取り込みの仕上げ（#139〜#141）、試聴への反映（#158）、容量の整理（#152）、ストア掲載素材と提出（#67 / #155） | 成功基準 1.0.0（PRODUCT.md §8）を満たし、ストア審査を通る |
+| 7. 後続候補 | MP3 / FLAC、ノイズ除去、OS 音声認識、ローカル LLM、複数テンプレート、同期 | — |
 
-## 7. CI【仮説】
+## 7. CI / CD【事実】ユーザー判断（2026-09-29）
 
-- GitHub Actions: `npm ci` → `lint` → `typecheck` → `jest`。ネイティブビルドは初期は手元のみ（macOS ランナーのコストを避ける）。必要になったら iOS/Android ビルドジョブを追加。
-- EAS Build は当面使わない（ローカルビルドで足りる）。配布時に検討。
+- **CI（PR ごとの lint / typecheck / test）は置かない。** 個人開発で、テストと構文チェックはコーディングエージェントが PR の前に必ず回す（AGENTS.md）。Issue #4 は取りやめた。
+  - 抜けうるのは、エージェントを通さない変更（手元での直接編集、スマホからのマージ）と、`release/*` で複数の PR が合わさったときの組み合わせ。これは CD の最初の段で拾う（下記）。
+- **CD（ストア提出の自動化）は 1.0.0 で作る**（Issue #67）。ワークフローの最初に `npm ci` → `format:check` → `lint` → `typecheck` → `jest` を置き、落ちたらビルド・提出しない。
+- EAS Build / Submit か fastlane かは #67 で決める。ネイティブビルドは macOS ランナーのコストがかかるので、`main` へのマージ（= 提出）のときだけ走らせる。
 
 ## 8. Claude Code / Codex での開発ルール【事実】
 
