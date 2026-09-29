@@ -333,6 +333,9 @@ final class LoudnessRenderer {
   }
 
   /// ミックス → ゲイン →（リミッター）を先頭から流し、出力のラウドネスを返す。
+  /// @inline(never): Swift 6.4（Xcode 27.0）の -O で solveGain() に展開されると
+  /// OwnershipModelEliminator の SIL 検証でコンパイラが落ちるため。
+  @inline(never)
   private func pass(gainDb: Double, limiter: Bool, tpm: TruePeakMeter?, from: Double, to: Double, phase: String,
                     write: ((UnsafeMutablePointer<Float>, Int, Int) throws -> Void)?) throws -> Double {
     mixer.reset()
