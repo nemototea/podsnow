@@ -77,6 +77,7 @@ async function setup() {
     now,
   );
   const engine = new FakeAudioEngine();
+  const deleted: string[] = [];
   let id = 0;
   const svc = new ExportService({
     db,
@@ -84,10 +85,23 @@ async function setup() {
     root: '/root',
     ensureDir: () => {},
     fileSize: () => 12345,
+    deleteFile: (abs) => deleted.push(abs),
     newId: () => `x${++id}`,
     now: () => 5000,
   });
-  return { db, engine, svc };
+  return { db, engine, svc, deleted };
+}
+
+async function insertExportRow(
+  db: Awaited<ReturnType<typeof setup>>['db'],
+  id: string,
+  status: string,
+  path: string | null,
+) {
+  await db.run(
+    'INSERT INTO exports (id, episode_id, format, preset, status, path, duration_smp, created_at) VALUES (?,?,?,?,?,?,?,?)',
+    [id, 'e', 'm4a', '{}', status, path, 96000, 2],
+  );
 }
 
 describe('ExportService', () => {
@@ -260,5 +274,96 @@ describe('episodeExportPreset (DATA_MODEL.md §4.5.1 / Issue #136)', () => {
   it("falls back to the settings' default for unknown stored values", () => {
     expect(episodeExportPreset('mp3', 'high')).toBe('high');
     expect(episodeExportPreset('', 'wav')).toBe('wav');
+  });
+
+  describe('remove (Issue #152)', () => {
+    it('deletes the row first and then the file', async () => {
+      const { db, svc, deleted } = await setup();
+      await insertExportRow(db, 'a', 'done', 'episodes/e/exports/a.m4a');
+      await svc.remove('a');
+      expect(await listExports(db, 'e')).toEqual([]);
+      expect(deleted).toEqual(['/root/episodes/e/exports/a.m4a']);
+      // 録音には触らない（FR-SAFE-7）。
+      expect(await db.get("SELECT id FROM takes WHERE id = 'T' AND deleted_at IS NULL")).toEqual({
+        id: 'T',
+      });
+    });
+
+    it('removes failed rows that have no file', async () => {
+      const { db, svc, deleted } = await setup();
+      await insertExportRow(db, 'f', 'failed', null);
+      await svc.remove('f');
+      expect(await listExports(db, 'e')).toEqual([]);
+      expect(deleted).toEqual([]);
+    });
+
+    it('refuses to remove an export that is still being written', async () => {
+      const { db, svc, deleted } = await setup();
+      await insertExportRow(db, 'r', 'rendering', null);
+      await expect(svc.remove('r')).rejects.toThrow();
+      expect((await listExports(db, 'e')).map((x) => x.id)).toEqual(['r']);
+      expect(deleted).toEqual([]);
+    });
+
+    it('does nothing for an unknown export', async () => {
+      const { svc, deleted } = await setup();
+      await svc.remove('nope');
+      expect(deleted).toEqual([]);
+    });
+  });
+
+  describe('removalImpact (Issue #152)', () => {
+    it('is not the last way to listen while the timeline still has voice', async () => {
+      const { db, svc } = await setup();
+      await insertExportRow(db, 'a', 'done', 'episodes/e/exports/a.m4a');
+      expect(await svc.removalImpact('a')).toEqual({ lastListenable: false });
+    });
+
+    it('is the last way to listen when recordings are gone and nothing is published', async () => {
+      const { db, svc } = await setup();
+      await db.run('DELETE FROM voice_segments');
+      await insertExportRow(db, 'a', 'done', 'episodes/e/exports/a.m4a');
+      expect(await svc.removalImpact('a')).toEqual({ lastListenable: true });
+    });
+
+    it('is not the last way to listen when another export remains', async () => {
+      const { db, svc } = await setup();
+      await db.run('DELETE FROM voice_segments');
+      await insertExportRow(db, 'a', 'done', 'episodes/e/exports/a.m4a');
+      await insertExportRow(db, 'b', 'done', 'episodes/e/exports/b.m4a');
+      expect(await svc.removalImpact('a')).toEqual({ lastListenable: false });
+    });
+
+    it('is not the last way to listen when the episode is published with audio', async () => {
+      const { db, svc } = await setup();
+      await db.run('DELETE FROM voice_segments');
+      await insertExportRow(db, 'a', 'done', 'episodes/e/exports/a.m4a');
+      await db.run(
+        `INSERT INTO feed_episodes (id, show_id, guid, enclosure_url, episode_id, created_at, updated_at)
+         VALUES (?,?,?,?,?,?,?)`,
+        ['f', 's', 'g', 'https://example.test/1.mp3', 'e', 1, 1],
+      );
+      expect(await svc.removalImpact('a')).toEqual({ lastListenable: false });
+    });
+
+    it('matches a published episode by GUID like Home does (FR-EP-7)', async () => {
+      const { db, svc } = await setup();
+      await db.run('DELETE FROM voice_segments');
+      await db.run("UPDATE episodes SET guid = 'g' WHERE id = 'e'");
+      await insertExportRow(db, 'a', 'done', 'episodes/e/exports/a.m4a');
+      await db.run(
+        `INSERT INTO feed_episodes (id, show_id, guid, enclosure_url, created_at, updated_at)
+         VALUES (?,?,?,?,?,?)`,
+        ['f', 's', 'g', 'https://example.test/1.mp3', 1, 1],
+      );
+      expect(await svc.removalImpact('a')).toEqual({ lastListenable: false });
+    });
+
+    it('does not warn for rows without a file', async () => {
+      const { db, svc } = await setup();
+      await db.run('DELETE FROM voice_segments');
+      await insertExportRow(db, 'f', 'failed', null);
+      expect(await svc.removalImpact('f')).toEqual({ lastListenable: false });
+    });
   });
 });

@@ -475,6 +475,13 @@ Tag #PodsNow to share your thoughts`,
     historyFailed: (message: string) => `Failed: ${message}`,
     historyCancelled: 'Cancelled',
     historyRunning: (pct: number) => `In progress ${pct}%`,
+    deleteExport: 'Delete export',
+    a11yDeleteExport: (when: string) => `Delete the export from ${when}`,
+    deleteExportMessage:
+      'Removes the exported file from this device. Copies you shared or saved to Files, and your recordings and edits, stay.',
+    deleteExportLastListenable:
+      'This export is the only way left to listen to this episode. Its recordings were deleted and it has not been published, so it can no longer be played anywhere.',
+    exportDeleted: 'Export deleted',
     failedTitle: 'Could not export the audio',
     failedBody: 'Your recordings and edits are still on this device.',
     cancel: 'Cancel export',

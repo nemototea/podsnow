@@ -196,4 +196,86 @@ describe('EpisodeService', () => {
     await svc.refreshStatus(ep.id);
     expect((await svc.get(ep.id))?.status).toBe('ready');
   });
+
+  describe('cleanupDeleted (Issue #152)', () => {
+    async function deletedWithFiles(deletedAt: number) {
+      const ctx = await setup();
+      const ep = await ctx.svc.create(ctx.show.id);
+      await addTake(ctx.db, ep.id, 'take1');
+      await ctx.db.run(
+        'INSERT INTO exports (id, episode_id, format, preset, status, path, duration_smp, created_at) VALUES (?,?,?,?,?,?,?,?)',
+        ['x1', ep.id, 'm4a', '{}', 'done', `episodes/${ep.id}/exports/x1.m4a`, 48000, 1],
+      );
+      await ctx.db.run('UPDATE episodes SET deleted_at = ? WHERE id = ?', [deletedAt, ep.id]);
+      return { ...ctx, ep };
+    }
+
+    it('removes recordings and exports of episodes deleted before the retention period', async () => {
+      const { db, svc, ep, deleted } = await deletedWithFiles(1000);
+      // now = 5000、保持期間 1000 → 4000 以前に消した回が対象。
+      expect(await svc.cleanupDeleted(1000)).toBe(1);
+      expect(deleted).toEqual([
+        `/data/episodes/${ep.id}/takes/take1/seg-0001.wav`,
+        `/data/episodes/${ep.id}/takes/take1/seg-0001.peaks`,
+        `/data/episodes/${ep.id}/exports/x1.m4a`,
+      ]);
+      // 行は残す（話数の規則・削除の記録）。取り消されても「音声なし」の回として戻る。
+      const row = await svc.get(ep.id);
+      expect(row?.deleted_at).toBe(1000);
+      expect(row?.audio_purged_at).toBe(5000);
+      expect(await db.all('SELECT id FROM exports WHERE episode_id = ?', [ep.id])).toEqual([]);
+      expect((await loadDoc(db, ep.id)).voice).toEqual([]);
+    });
+
+    it('keeps files while the episode can still be restored', async () => {
+      const { svc, deleted } = await deletedWithFiles(4500);
+      expect(await svc.cleanupDeleted(1000)).toBe(0);
+      expect(deleted).toEqual([]);
+    });
+
+    it('does not touch episodes that are not deleted', async () => {
+      const { db, show, svc, deleted } = await setup();
+      const ep = await svc.create(show.id);
+      await addTake(db, ep.id, 'take1');
+      expect(await svc.cleanupDeleted(0)).toBe(0);
+      expect(deleted).toEqual([]);
+    });
+
+    it('does not clean the same episode twice', async () => {
+      const { svc, deleted } = await deletedWithFiles(1000);
+      await svc.cleanupDeleted(1000);
+      deleted.length = 0;
+      expect(await svc.cleanupDeleted(1000)).toBe(0);
+      expect(deleted).toEqual([]);
+    });
+
+    it('keeps going when a file cannot be deleted', async () => {
+      const { db, ep } = await deletedWithFiles(1000);
+      const tried: string[] = [];
+      const svc = new EpisodeService({
+        db,
+        newId: () => 'n',
+        now: () => 5000,
+        labels: () => TEST_LABELS,
+        root: '/data',
+        deleteFile: (abs) => {
+          tried.push(abs);
+          if (abs.endsWith('.wav')) throw new Error('busy');
+        },
+      });
+      expect(await svc.cleanupDeleted(1000)).toBe(1);
+      expect(tried).toContain(`/data/episodes/${ep.id}/exports/x1.m4a`);
+      expect((await svc.get(ep.id))?.audio_purged_at).toBe(5000);
+    });
+
+    it('also removes exports left behind by an earlier purgeAudio', async () => {
+      const { svc, ep, deleted } = await deletedWithFiles(1000);
+      await svc.purgeAudio(ep.id);
+      deleted.length = 0;
+      expect(await svc.cleanupDeleted(1000)).toBe(1);
+      // 録音はもう無いので消えるのは書き出し。録音のパスも渡るが、無ければ何もしない
+      // （個別に削除したテイクのファイルもここで片付く）。
+      expect(deleted).toContain(`/data/episodes/${ep.id}/exports/x1.m4a`);
+    });
+  });
 });

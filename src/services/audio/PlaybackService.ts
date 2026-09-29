@@ -305,6 +305,23 @@ export class PlaybackService {
     return true;
   }
 
+  /**
+   * 書き出しを消す前に呼ぶ（Issue #152）。その書き出しを Home から再生中なら止めて手放す。
+   * 次に Home で再生するときは、残っている書き出し → RSS → タイムラインの順で選び直す。
+   */
+  async forgetExport(exportId: string): Promise<void> {
+    if (this.mode !== 'file') return;
+    const item = this.fileItem;
+    if (item?.kind !== 'export' || item.exportId !== exportId) return;
+    this.deps.filePlayer.pause();
+    this.fileItem = null;
+    this.mode = null;
+    this.playing = false;
+    this.frame = 0;
+    this.total = 0;
+    this.dispatch('state', { playing: false, frame: 0 });
+  }
+
   async release(): Promise<void> {
     this.subs.forEach((s) => s.remove());
     this.subs = [];

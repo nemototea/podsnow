@@ -124,7 +124,16 @@ export async function bootstrap(
     labels: () => live.labels,
   });
   const playback = new PlaybackService({ db, engine, filePlayer, fileExists, root });
-  const exporter = new ExportService({ db, engine, root, ensureDir, fileSize, newId, now });
+  const exporter = new ExportService({
+    db,
+    engine,
+    root,
+    ensureDir,
+    fileSize,
+    deleteFile: deleteIfExists,
+    newId,
+    now,
+  });
   const episodes = new EpisodeService({
     db,
     newId,
@@ -133,6 +142,9 @@ export async function bootstrap(
     root,
     deleteFile: deleteIfExists,
   });
+  // 保持期間を過ぎた削除済みエピソードのファイルを片付ける（Issue #152）。
+  // 失敗しても起動は止めない（次の起動でまた試す）。
+  await episodes.cleanupDeleted().catch(() => 0);
   const assets = new AssetsService({ db, engine, root, ensureDir, newId, now });
   const outline = new OutlineService({ db, newId, now });
   const coverArt = new CoverArtService({

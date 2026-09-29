@@ -470,6 +470,13 @@ Podcast: {{show_name}}
     historyFailed: (message: string) => `失敗: ${message}`,
     historyCancelled: '中止',
     historyRunning: (pct: number) => `進行中 ${pct}%`,
+    deleteExport: '書き出しを削除',
+    a11yDeleteExport: (when: string) => `${when} の書き出しを削除`,
+    deleteExportMessage:
+      '書き出したファイルを端末から消します。共有や「ファイル」に保存したコピーと、録音・編集は残ります。',
+    deleteExportLastListenable:
+      'この回を聴けるのは、この書き出しだけです。録音を削除済みで配信もされていないため、消すとこの回はどこからも聴けなくなります。',
+    exportDeleted: '書き出しを削除しました',
     failedTitle: '音声の書き出しに失敗しました',
     failedBody: '収録データと編集内容は端末に残っています',
     cancel: '書き出しをキャンセル',

@@ -375,6 +375,8 @@ Take の「時間軸」は Segment を `seq` 順に連結したもの。割り�
 | error | TEXT nullable | |
 | created_at / finished_at | INTEGER | |
 
+書き出し履歴からの削除（Issue #152）は、行を物理削除してからファイルを消す（進行中の `queued` / `rendering` / `encoding` は消さない）。削除済みエピソードの片付け（§6）でも、その回の行とファイルを消す。
+
 ### 4.14 `transcripts`（将来。MVP はスキーマのみ）
 | 列 | 型 | 説明 |
 |---|---|---|
@@ -453,6 +455,9 @@ planSilenceRemoval(ranges, { padMs }): Range[]
 これらは純粋関数で、Jest で網羅テストする。`RenderDocument`（ネイティブへ渡す JSON）は `Timeline` + ファイルパス + Sound 設定から生成する。
 
 ## 6. 復旧フロー（起動時）
+
+起動時の処理の順: 録音の復旧（下記）→ 進行中のまま残った書き出しを `failed` に倒す → **保持期間（7 日）を過ぎた削除済みエピソードのファイルを片付ける**（`EpisodeService.cleanupDeleted`。Issue #152）。片付けは「音声を削除」（§4.5 `audio_purged_at`）と同じ DB の更新に加えて `exports` の行を消し、DB を確定してから録音・ピーク・書き出しのファイルを消す。エピソードの行は残す。失敗しても起動は止めず、次の起動で再試行する。
+
 
 1. `recovery_journal.state='open'` を検索。
 2. 各 Segment について、ファイル実長からデータ長を計算し、WAV ヘッダを書き直す（ネイティブ `repairWavHeader(path)`）。

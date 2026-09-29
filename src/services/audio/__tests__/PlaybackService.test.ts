@@ -199,6 +199,25 @@ describe('PlaybackService', () => {
     expect(svc.source).toMatchObject({ kind: 'export', episodeId: 'e', exportId: 'x1' });
   });
 
+  it('stops and forgets an export that is being deleted (Issue #152)', async () => {
+    const { db, filePlayer, svc } = await setup({ withVoice: true });
+    await db.run(
+      'INSERT INTO exports (id, episode_id, format, preset, status, path, duration_smp, created_at) VALUES (?,?,?,?,?,?,?,?)',
+      ['x1', 'e', 'm4a', '{}', 'done', 'episodes/e/exports/x1.m4a', TOTAL, 2],
+    );
+    const states: boolean[] = [];
+    svc.on('state', (e) => states.push(e.playing));
+    await svc.toggleHome(await localHomeItem(db));
+    filePlayer.calls = [];
+    await svc.forgetExport('other');
+    expect(svc.source).toMatchObject({ kind: 'export', exportId: 'x1' });
+    await svc.forgetExport('x1');
+    expect(filePlayer.calls).toEqual(['pause']);
+    expect(svc.source).toBeNull();
+    expect(svc.isPlaying).toBe(false);
+    expect(states.at(-1)).toBe(false);
+  });
+
   it('does not expose or play an export whose file is missing', async () => {
     const { db, existing, svc } = await setup();
     existing.clear();
