@@ -35,6 +35,8 @@ export const APP_ERROR_CODES = [
   'import_unsupported_encoding',
   /** 番組アートワークの正規化または保存に失敗した */
   'cover_processing_failed',
+  /** 録音・書き出しのファイルを削除できなかった（DB は変えていない。もう一度実行すれば続きから消す） */
+  'file_delete_failed',
 ] as const;
 
 export type AppErrorCode = (typeof APP_ERROR_CODES)[number];

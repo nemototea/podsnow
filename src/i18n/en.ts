@@ -102,6 +102,7 @@ export const en: Messages = {
     import_unsupported_encoding: (encoding: string) =>
       `This RSS uses an unsupported encoding (${encoding}). Only UTF-8 feeds can be loaded`,
     cover_processing_failed: 'Could not save the artwork',
+    file_delete_failed: 'Could not delete the files. Please try again',
   },
 
   seed: {
@@ -158,8 +159,6 @@ Tag #PodsNow to share your thoughts`,
     noEpisodes: 'No episodes yet',
     recovered: (duration: string) => `Recovered an unfinished recording (${duration})`,
     removed: (n: number) => `Deleted #${n}`,
-    restored: (n: number) => `Restored #${n}`,
-    restoredRenumbered: (n: number) => `Restored as #${n}`,
     audioPurged: (n: number) => `Deleted the audio of #${n}`,
     duplicated: (n: number) => `Duplicated as #${n}`,
     badgeNoAudio: 'No audio',
@@ -172,8 +171,8 @@ Tag #PodsNow to share your thoughts`,
       purgeAudioSub:
         'Free up space by deleting only the recordings. The number, title, description and export history are kept',
       remove: 'Delete episode',
-      removeExportedNote: (n: number) =>
-        `#${n} has been exported. If you delete it, this number will be reused by the next new episode.`,
+      removeMessage:
+        'Its recordings and exported files are also removed from this device. This cannot be undone.',
     },
     episodeCode: (n: number) => `EP. ${String(n).padStart(3, '0')}`,
     newEpisodeCta: 'Record a new episode',
@@ -380,8 +379,8 @@ Tag #PodsNow to share your thoughts`,
       purgeAudioSub:
         'Frees space by deleting the recordings. Number, title, description and export history stay.',
       remove: 'Delete episode',
-      removeExportedNote: (n: number) =>
-        `#${n} has been exported. Deleting it frees the number for the next new episode.`,
+      removeMessage:
+        'Its recordings and exported files are also removed from this device. This cannot be undone.',
     },
     number: (n: number) => `Episode ${String(n).padStart(3, '0')}`,
     a11yMenu: 'Episode actions',

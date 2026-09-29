@@ -142,7 +142,7 @@ export async function bootstrap(
     root,
     deleteFile: deleteIfExists,
   });
-  // 保持期間を過ぎた削除済みエピソードのファイルを片付ける（Issue #152）。
+  // 削除済みなのにファイルが残っている回を片付ける（Issue #152 より前に消した回）。
   // 失敗しても起動は止めない（次の起動でまた試す）。
   await episodes.cleanupDeleted().catch(() => 0);
   const assets = new AssetsService({ db, engine, root, ensureDir, newId, now });

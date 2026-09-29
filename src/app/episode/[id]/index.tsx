@@ -295,12 +295,14 @@ export default function EpisodeScreen() {
             onPress: () => {
               confirmDestructive({
                 title: t.episode.menu.remove,
-                ...(episode.status === 'exported'
-                  ? { message: t.episode.menu.removeExportedNote(episode.episode_number) }
-                  : {}),
+                message: t.episode.menu.removeMessage,
                 confirmLabel: t.common.delete,
                 cancelLabel: t.common.cancel,
-                onConfirm: () => void services.episodes.remove(episodeId).then(() => router.back()),
+                onConfirm: () =>
+                  void services.episodes
+                    .remove(episodeId)
+                    .then(() => router.back())
+                    .catch((err: unknown) => showToast({ text: errorText(t, err) })),
               });
             },
           },

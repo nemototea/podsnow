@@ -277,7 +277,26 @@ describe('episodeExportPreset (DATA_MODEL.md §4.5.1 / Issue #136)', () => {
   });
 
   describe('remove (Issue #152)', () => {
-    it('deletes the row first and then the file', async () => {
+    it('keeps the row when the file cannot be deleted', async () => {
+      const { db, engine } = await setup();
+      await insertExportRow(db, 'a', 'done', 'episodes/e/exports/a.m4a');
+      const svc = new ExportService({
+        db,
+        engine,
+        root: '/root',
+        ensureDir: () => {},
+        fileSize: () => 0,
+        deleteFile: () => {
+          throw new Error('busy');
+        },
+        newId: () => 'n',
+        now: () => 5000,
+      });
+      await expect(svc.remove('a')).rejects.toMatchObject({ code: 'file_delete_failed' });
+      expect((await listExports(db, 'e')).map((x) => x.id)).toEqual(['a']);
+    });
+
+    it('deletes the file and then the row', async () => {
       const { db, svc, deleted } = await setup();
       await insertExportRow(db, 'a', 'done', 'episodes/e/exports/a.m4a');
       await svc.remove('a');

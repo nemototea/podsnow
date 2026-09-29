@@ -232,20 +232,21 @@ export class ExportService {
    * 書き出しを履歴ごと消す（Issue #152）。書き出しはアプリの内部にあり、ユーザーは「ファイル」
    * アプリから消せない（共有・保存で外に出るのはコピー）。進行中の書き出しは消さない。
    *
-   * 順序は **DB を確定してからファイルを消す**（`EpisodeService.purgeAudio` と同じ）。
-   * 逆にすると、行だけが残って無いファイルを指す状態が生まれる。
+   * 順序は **ファイルを先に消し、消せたら行を消す**（ユーザー判断 2026-09-29）。行だけ消えて
+   * ファイルが残ると、ユーザーには消す手段が無い。ファイルが消せなければ `file_delete_failed`。
    */
   async remove(exportId: string): Promise<void> {
     const row = await getExport(this.deps.db, exportId);
     if (!row) return;
     if (isExportRunning(row.status)) throw new Error('export is running');
-    await deleteExportRow(this.deps.db, exportId);
-    if (!row.path) return;
-    try {
-      this.deps.deleteFile(joinRoot(this.deps.root, row.path));
-    } catch {
-      /* 行は消えている。ファイルが残っても孤児になるだけで、どこからも参照されない */
+    if (row.path) {
+      try {
+        this.deps.deleteFile(joinRoot(this.deps.root, row.path));
+      } catch (e) {
+        throw new AppError('file_delete_failed', {}, e);
+      }
     }
+    await deleteExportRow(this.deps.db, exportId);
   }
 
   /** 書き出しを消したときに起きること。`remove` の前の確認に使う。 */

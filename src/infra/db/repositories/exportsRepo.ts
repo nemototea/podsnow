@@ -92,7 +92,7 @@ export async function getExport(db: SqlExecutor, id: string): Promise<ExportRow 
   return db.get<ExportRow>('SELECT * FROM exports WHERE id = ?', [id]);
 }
 
-/** 書き出しの行を消す（Issue #152）。ファイルの削除は呼び出し側が DB の確定後に行う。 */
+/** 書き出しの行を消す（Issue #152）。ファイルは呼び出し側が先に消す。 */
 export async function deleteExportRow(db: SqlExecutor, id: string): Promise<void> {
   await db.run('DELETE FROM exports WHERE id = ?', [id]);
 }

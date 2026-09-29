@@ -36,6 +36,7 @@ export function errorCodeText(
     case 'import_no_feed_url':
     case 'import_other_show':
     case 'cover_processing_failed':
+    case 'file_delete_failed':
       return t.errors[code];
   }
 }
