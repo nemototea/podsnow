@@ -1,4 +1,6 @@
-# ストア掲載素材（0.1.0 MVP、Issue #53 / #80 / #82）
+# ストア掲載素材（1.0.0 ストア公開版、Issue #155 / #80 / #82）
+
+> 0.1.0（MVP）はストア審査に出さない（PRODUCT.md §7）。この文書は 1.0.0 で使う。内容は 1.0.0 の機能に合わせて見直す（#155）。
 
 アプリは日本語・英語に対応している（FR-I18N-1）。ストアの掲載情報も両言語で登録する。
 
@@ -102,8 +104,8 @@ podcast, recorder, voice recorder, audio editor, recording, podcasting
 
 ## リリース手順（DEVELOPMENT.md §2 に従う）
 
-1. `release/0.1.0` の Issue がすべて閉じていることを確認（#1〜#53、#80、#82）
+1. `release/1.0.0` の Issue（ラベル `store-release`。#155 の前提の一覧）がすべて閉じていることを確認
 2. 実機チェックリスト（docs/device-checklist.md）の B / C / D / E / J / K を両 OS で合格
 3. `app.json` の `version` / `ios.buildNumber` / `android.versionCode` を確認
-4. `release/0.1.0` → `main` の PR を作成しマージ
-5. iOS: Xcode 26 で Archive → TestFlight。Android: `./gradlew :app:bundleRelease`（署名鍵は別途）→ 内部テスト
+4. `release/1.0.0` → `main` の PR を作成しマージ
+5. iOS: Xcode 27 で Archive → TestFlight。Android: `./gradlew :app:bundleRelease`（署名鍵は別途）→ 内部テスト

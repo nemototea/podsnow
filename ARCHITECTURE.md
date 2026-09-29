@@ -195,20 +195,20 @@ interface AudioEngineModule {
 | 機能 | ローカルで成立 | サーバー必須 | 現在の扱い |
 |---|---|---|---|
 | 収録・編集・仕上げ・書き出し・共有・Show Assets・テンプレート・設定 | ○ | — | MVP。ネットワーク不要 |
-| 配信中の番組の取り込み（検索 / RSS 取得） | ○（アプリから Apple の公開検索と RSS 配信元へ直接 HTTPS。API キー不要） | — | MVP（Issue #101。配信より先に作る）。秘密情報が要る外部 API は使わない |
+| 配信中の番組の取り込み（検索 / RSS 取得） | ○（アプリから Apple の公開検索と RSS 配信元へ直接 HTTPS。API キー不要） | — | 0.1.0 に実装済みのまま載せ、仕上げは 1.0.0（Issue #101 / #139〜#141）。秘密情報が要る外部 API は使わない |
 | OS 標準の音声入力・音声認識 | ○（端末依存でオンライン処理される場合あり） | — | 音声入力は MVP、文字起こしは後続 |
 | ローカル LLM による要約・概要欄下書き | ○（端末内推論。無料・ローカルが前提） | — | 後続。`AiProvider` インターフェースのみ |
 | 複数端末間の同期 | △（ファイル共有による手動同期は可） | ○（自動同期・衝突解決） | 将来。UUID / updated_at / 論理削除で道を残す |
-| PodsNow の配信基盤からの配信（RSS / 音声のホスティング） | — | ○（Cloudflare Workers + R2 + CDN。Issue #107） | MVP は開発者自身の番組 1 つ（REQUIREMENTS.md §2.13）。アプリは `SelfHostedPublisher` |
-| 他社配信サービスへの直接アップロード | — | ○（各サービスの API。有料化リスク） | 将来（Issue #66。API が無料の場合のみ）。それまでは Distribution Pack で人がコピペ |
+| PodsNow の配信基盤からの配信（RSS / 音声のホスティング） | — | ○（Cloudflare Workers + R2 + CDN。Issue #107） | 1.1.0。まず開発者自身の番組 1 つ（REQUIREMENTS.md §2.13）。アプリは `SelfHostedPublisher`（未実装） |
+| 他社配信サービスへの直接アップロード | — | ○（各サービスの API。有料化リスク） | 取りやめ（Issue #66）。配信は自前の配信基盤、他社で配信する人は Distribution Pack で人がコピペ |
 | ユーザー登録・課金・解析 | — | ○ | MVP は持たない。一般向けの配信サービスにするときに判断（REQUIREMENTS.md FR-PUB-8） |
 
 ### 7.4 将来拡張の接続点 【事実】
 | 拡張 | 接続点 |
 |---|---|
-| AI（文字起こし / 要約 / 概要欄下書き） | `services/ai/AiProvider` インターフェース（`transcribe(take)`, `suggestDescription(episode)`）。MVP 実装は `NoopAiProvider`。`transcripts` テーブルと `episodes.description_suggestion` を用意 |
+| AI（文字起こし / 要約 / 概要欄下書き） | `services/ai/AiProvider` インターフェース（`transcribe(take)`, `suggestDescription(episode)`）。`transcripts` テーブルと `episodes.description_suggestion` は用意済み。**インターフェース（`services/ai/`）はまだコードに無い**【事実: 2026-09-29 時点】。最初の実装（#62 / #63）と一緒に作る |
 | 複数端末同期 | UUID、`updated_at`、論理削除（`deleted_at`）を全主要テーブルに持たせる。番組単位の制作データ保全・端末移行として #65 で設計する。公開用のホスティング音声を制作データのバックアップとはみなさない |
-| 配信 | `services/publish/Publisher` インターフェース。`ManualPublisher`（Distribution Pack）と `SelfHostedPublisher`（PodsNow の配信基盤。MVP）。一般公開しても同じインターフェースの後ろで認証だけ差し替える |
+| 配信 | `services/publish/Publisher` インターフェース。`ManualPublisher`（Distribution Pack）と `SelfHostedPublisher`（PodsNow の配信基盤。1.1.0）。一般公開しても同じインターフェースの後ろで認証だけ差し替える。**`services/publish/` はまだコードに無い**【事実: 2026-09-29 時点】。Distribution Pack は書き出しタブが直接持っている。#107 のアプリ側と一緒に作る |
 | MP3 / FLAC | `podsnow-audio-engine` の `format` 列挙を拡張。エンコーダは Strategy で追加 |
 | 複数 Show | `shows` テーブルと `show_id` 外部キーは最初から存在。UI の Show 切替だけ後付け |
 
@@ -247,7 +247,7 @@ idle ──start──▶ preparing ──ok──▶ recording ◀──resume�
 - 正本の分担: 制作（録音・編集）の正本は端末の SQLite。配信済みの回と RSS の正本は配信基盤。端末の `feed_episodes` はその写し（DATA_MODEL.md §4.17）。
 - 権限はマイク、（Android）通知、（Android）FGS、ファイル選択。Android の `INTERNET` は Expo の生成するマニフェストに最初から入っている【事実】（`@expo/config-plugins` の `withAndroidBaseMods.js` のテンプレート。元は https://github.com/expo/expo/blob/main/templates/expo-template-bare-minimum/android/app/src/main/AndroidManifest.xml ）。iOS は ATS により HTTPS 以外を拒否する既定のままにする。
 - 取り込みの層分け: 通信は `infra/net/fetchHttp.ts`（`HttpPort`。タイムアウトとサイズ上限）、検索・取得・保存の組み立ては `services/podcast/PodcastImportService.ts`、XML の解析と値の正規化は `domain/podcast/`（純粋関数。Jest で網羅）。XML パーサーは外部ライブラリを使わず自前の最小実装（`domain/podcast/xml.ts`）にした【事実】: RSS に要る範囲が小さく、DOCTYPE の実体を**展開しない**ことを構造で保証でき、依存を増やさずに済むため。検索元はインターフェースの後ろに置き、Apple 以外を足せる形にする。RSS は信用しない入力として扱う（NFR-10）。
-- 録音ファイルはアプリの `Paths.document` 配下。iCloud バックアップ除外は【仮説】（expo-file-system に API 記載なし。必要ならネイティブで `isExcludedFromBackup` を設定）。
+- 録音ファイルはアプリの `Paths.document` 配下で、今は OS のバックアップ（iOS の iCloud / Android の自動バックアップ）から除外していない【事実】。`.podsnow` バックアップを廃止した（FR-EXP-9）ので、端末の故障・機種変更で制作データを残す手段は、今は OS のバックアップだけ。含めるか除外するかは Issue #68 で決める（1.0.0）。
 
 ## 10. 未決事項
 | # | 項目 | 決め方 |
