@@ -24,6 +24,8 @@ export const relPaths = {
   exportFile: (episodeId: string, exportId: string, ext: string) =>
     `episodes/${episodeId}/exports/${exportId}.${ext}`,
   tmp: () => 'tmp',
+  /** 共有するときの別名コピーの置き場（Issue #166）。tmp/ の下なので起動時に消える。 */
+  shareDir: () => 'tmp/share',
 };
 
 export function joinRoot(root: string, rel: string): string {

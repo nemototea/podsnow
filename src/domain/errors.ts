@@ -37,6 +37,8 @@ export const APP_ERROR_CODES = [
   'cover_processing_failed',
   /** 録音・書き出しのファイルを削除できなかった（DB は変えていない。もう一度実行すれば続きから消す） */
   'file_delete_failed',
+  /** 共有するファイルを用意（別名でコピー）できなかった。空き容量不足が多い */
+  'share_prepare_failed',
 ] as const;
 
 export type AppErrorCode = (typeof APP_ERROR_CODES)[number];

@@ -1,4 +1,3 @@
-import * as Sharing from 'expo-sharing';
 import { useCallback, useEffect, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
@@ -9,7 +8,6 @@ import { useServices } from '@/features/app/ServicesProvider';
 import { errorText, storedErrorText, useT, type Messages } from '@/i18n';
 import { isExportRunning, listExports, type ExportRow } from '@/infra/db/repositories/exportsRepo';
 import { getDefaultTemplate } from '@/infra/db/repositories/showsRepo';
-import { joinRoot } from '@/infra/files/layout';
 import { parseSoundSettings, type SoundSettings } from '@/services/audio/renderDocumentFromDb';
 import {
   CUSTOM_BITRATES,
@@ -44,6 +42,7 @@ import { DateField } from '@/ui/DateField';
 import { EpisodePlayer } from '@/ui/EpisodePlayer';
 import { useAppTheme } from '@/ui/ThemeContext';
 
+import { shareExport } from './shareExport';
 import type { Workspace } from './useWorkspace';
 
 const PRESET_KEYS: readonly ExportPresetKey[] = [
@@ -142,18 +141,8 @@ export interface ExportTabProps {
 export function ExportTab({ ws, onShowToast, onDone, onGoEdit }: ExportTabProps) {
   const c = useAppTheme();
   const t = useT();
-  const {
-    db,
-    root,
-    show,
-    coverArt,
-    episodes,
-    exporter,
-    playback,
-    settings,
-    updateSettings,
-    haptics,
-  } = useServices();
+  const { db, show, coverArt, episodes, exporter, playback, settings, updateSettings, haptics } =
+    useServices();
   const { state } = ws;
   const episode = state.episode;
 
@@ -319,16 +308,13 @@ export function ExportTab({ ws, onShowToast, onDone, onGoEdit }: ExportTabProps)
   };
 
   const share = async (row: ExportRow) => {
-    if (!row.path) return;
-    if (!(await Sharing.isAvailableAsync())) {
-      onShowToast(t.common.shareUnavailable);
-      return;
+    try {
+      const r = await shareExport(exporter, row.id);
+      if (r === 'unavailable') onShowToast(t.common.shareUnavailable);
+      else if (r === 'missing') onShowToast(t.pack.missingFile);
+    } catch (e) {
+      onShowToast(errorText(t, e));
     }
-    await Sharing.shareAsync(`file://${joinRoot(root, row.path)}`, {
-      mimeType: row.format === 'wav' ? 'audio/wav' : 'audio/mp4',
-      UTI: row.format === 'wav' ? 'com.microsoft.waveform-audio' : 'public.mpeg-4-audio',
-      dialogTitle: `episode-${String(episode?.episode_number ?? 0).padStart(3, '0')}.${row.format}`,
-    });
   };
 
   /** 書き出しを履歴ごと消す（Issue #152）。消すと聴けなくなる回は、確認の文言で伝える。 */

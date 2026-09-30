@@ -78,6 +78,8 @@ async function setup() {
   );
   const engine = new FakeAudioEngine();
   const deleted: string[] = [];
+  const copies: { src: string; dir: string; name: string }[] = [];
+  const missing = new Set<string>();
   let id = 0;
   const svc = new ExportService({
     db,
@@ -85,11 +87,16 @@ async function setup() {
     root: '/root',
     ensureDir: () => {},
     fileSize: () => 12345,
+    fileExists: (abs) => !missing.has(abs),
     deleteFile: (abs) => deleted.push(abs),
+    copyAsNamed: (src, dir, name) => {
+      copies.push({ src, dir, name });
+      return Promise.resolve(`file://${dir}/${encodeURIComponent(name)}`);
+    },
     newId: () => `x${++id}`,
     now: () => 5000,
   });
-  return { db, engine, svc, deleted };
+  return { db, engine, svc, deleted, copies, missing };
 }
 
 async function insertExportRow(
@@ -286,6 +293,8 @@ describe('episodeExportPreset (DATA_MODEL.md §4.5.1 / Issue #136)', () => {
         root: '/root',
         ensureDir: () => {},
         fileSize: () => 0,
+        fileExists: () => true,
+        copyAsNamed: () => Promise.resolve(''),
         deleteFile: () => {
           throw new Error('busy');
         },
@@ -328,6 +337,64 @@ describe('episodeExportPreset (DATA_MODEL.md §4.5.1 / Issue #136)', () => {
       const { svc, deleted } = await setup();
       await svc.remove('nope');
       expect(deleted).toEqual([]);
+    });
+  });
+
+  describe('share (Issue #166)', () => {
+    it('names the file from the show name, episode number and title', async () => {
+      const { db, svc } = await setup();
+      await db.run("UPDATE shows SET name = 'ねもとのラジオ' WHERE id = 's'");
+      await db.run("UPDATE episodes SET title = '初回/ゲスト' WHERE id = 'e'");
+      await insertExportRow(db, 'a', 'done', 'episodes/e/exports/a.m4a');
+      expect(await svc.shareFileName('a')).toBe('ねもとのラジオ - 001 - 初回 ゲスト.m4a');
+      expect(await svc.shareFileName('nope')).toBeNull();
+    });
+
+    it('copies the export under that name into tmp/share and leaves the original', async () => {
+      const { db, svc, copies, deleted } = await setup();
+      await db.run("UPDATE episodes SET title = 'T' WHERE id = 'e'");
+      await insertExportRow(db, 'a', 'done', 'episodes/e/exports/a.m4a');
+      const shared = await svc.prepareShare('a');
+      expect(copies).toEqual([
+        { src: '/root/episodes/e/exports/a.m4a', dir: '/root/tmp/share', name: '001 - T.m4a' },
+      ]);
+      expect(shared).toEqual({
+        uri: `file:///root/tmp/share/${encodeURIComponent('001 - T.m4a')}`,
+        fileName: '001 - T.m4a',
+        format: 'm4a',
+      });
+      // 書き出しの実物と行はそのまま（履歴・試聴が path で指している）。
+      expect(deleted).toEqual([]);
+      expect((await listExports(db, 'e'))[0]?.path).toBe('episodes/e/exports/a.m4a');
+    });
+
+    it('returns null when there is nothing to share', async () => {
+      const { db, svc, copies, missing } = await setup();
+      await insertExportRow(db, 'run', 'rendering', null);
+      await insertExportRow(db, 'gone', 'done', 'episodes/e/exports/gone.m4a');
+      missing.add('/root/episodes/e/exports/gone.m4a');
+      expect(await svc.prepareShare('run')).toBeNull();
+      expect(await svc.prepareShare('gone')).toBeNull();
+      expect(await svc.prepareShare('nope')).toBeNull();
+      expect(copies).toEqual([]);
+    });
+
+    it('reports share_prepare_failed when the copy fails', async () => {
+      const { db, engine } = await setup();
+      await insertExportRow(db, 'a', 'done', 'episodes/e/exports/a.m4a');
+      const svc = new ExportService({
+        db,
+        engine,
+        root: '/root',
+        ensureDir: () => {},
+        fileSize: () => 0,
+        fileExists: () => true,
+        deleteFile: () => {},
+        copyAsNamed: () => Promise.reject(new Error('ENOSPC')),
+        newId: () => 'n',
+        now: () => 5000,
+      });
+      await expect(svc.prepareShare('a')).rejects.toMatchObject({ code: 'share_prepare_failed' });
     });
   });
 

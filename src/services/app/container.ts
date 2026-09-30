@@ -4,6 +4,7 @@ import { failStaleExports } from '@/infra/db/repositories/exportsRepo';
 import { loadSettings, saveSetting, type AppSettings } from '@/infra/db/repositories/settingsRepo';
 import { ensureDefaultShow, type ShowRow } from '@/infra/db/repositories/showsRepo';
 import {
+  copyAsNamed,
   dataRoot,
   deleteIfExists,
   ensureDir,
@@ -130,7 +131,9 @@ export async function bootstrap(
     root,
     ensureDir,
     fileSize,
+    fileExists,
     deleteFile: deleteIfExists,
+    copyAsNamed,
     newId,
     now,
   });

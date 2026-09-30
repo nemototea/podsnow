@@ -107,6 +107,8 @@ export const ja = {
       `この RSS の文字コード（${encoding}）には対応していません。UTF-8 の RSS だけ読み込めます`,
     cover_processing_failed: 'アートワークを保存できませんでした',
     file_delete_failed: 'ファイルを削除できませんでした。もう一度お試しください',
+    share_prepare_failed:
+      '共有するファイルを用意できませんでした。空き容量を確かめて、もう一度お試しください',
   },
 
   /** 初回起動時に DB へ書き込む既定値。以後はユーザーのデータなので翻訳しない。 */
@@ -494,8 +496,7 @@ Podcast: {{show_name}}
     a11yCopied: (label: string) => `${label} をコピーしました`,
     olderExport: (when: string, format: string) =>
       `${when} に書き出した ${format} を表示しています`,
-    missingFile: '音声ファイルが見つかりません',
-    exportAgain: 'もう一度書き出す',
+    missingFile: '音声ファイルが見つかりません。エピソードへ戻って、もう一度書き出してください',
     belowTargetNote: (target: number) => `音が小さく、目標の ${target} LUFS に届いていません`,
     copyFailed: 'コピーできませんでした',
   },

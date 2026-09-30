@@ -44,6 +44,20 @@ export function resetTmpDir(): string {
   return stripScheme(d.uri);
 }
 
+/**
+ * `absSrc` を `absDir/name` へコピーし、コピーの file:// URI を返す（共有用の別名コピー。Issue #166）。
+ * `absDir` は毎回空にしてから作り直す（前回の共有で作ったコピーを残さない）。
+ * `name` は URI に埋めず File に名前として渡す（日本語・空白を含む名前の符号化は expo-file-system に任せる）。
+ */
+export async function copyAsNamed(absSrc: string, absDir: string, name: string): Promise<string> {
+  const dir = new Directory(toUri(absDir));
+  if (dir.exists) dir.delete();
+  dir.create({ intermediates: true });
+  const dest = new File(dir, name);
+  await new File(toUri(absSrc)).copy(dest);
+  return dest.uri;
+}
+
 export function availableDiskBytes(): number {
   return Paths.availableDiskSpace;
 }

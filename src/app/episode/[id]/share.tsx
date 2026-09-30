@@ -1,5 +1,4 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import * as Sharing from 'expo-sharing';
 import { useCallback, useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
@@ -7,9 +6,10 @@ import { formatAllMetadata } from '@/domain/metadata/template';
 import { formatClock, smp } from '@/domain/time';
 import { useServices } from '@/features/app/ServicesProvider';
 import { formatBytes, loudnessText } from '@/features/episode/ExportTab';
+import { shareExport } from '@/features/episode/shareExport';
 import { useCopy } from '@/features/episode/useCopy';
 import { useEpisode } from '@/features/episode/useEpisode';
-import { useT } from '@/i18n';
+import { errorText, useT } from '@/i18n';
 import { listExports, type ExportRow } from '@/infra/db/repositories/exportsRepo';
 import { fileExists } from '@/infra/files/fileSystem';
 import { joinRoot } from '@/infra/files/layout';
@@ -66,22 +66,25 @@ export default function DistributionPackScreen() {
   const c = useAppTheme();
   const t = useT();
   const router = useRouter();
-  const { db, root } = useServices();
+  const { db, root, exporter } = useServices();
   const { episode } = useEpisode(episodeId);
   const { copied, copy } = useCopy();
   const { toast, show: showToast, act, dismiss } = useToast();
   const [row, setRow] = useState<ExportRow | null | undefined>(undefined);
   const [latestId, setLatestId] = useState<string | null>(null);
   const [exists, setExists] = useState(true);
+  const [fileName, setFileName] = useState('');
 
   const load = useCallback(async () => {
     const all = await listExports(db, episodeId);
     const done = all.filter((e) => e.status === 'done');
     const r = (exportId ? done.find((e) => e.id === exportId) : done[0]) ?? null;
+    // 共有で実際に付く名前と同じもの（Issue #166）
+    setFileName(r ? ((await exporter.shareFileName(r.id)) ?? '') : '');
     setLatestId(done[0]?.id ?? null);
     setRow(r);
     setExists(r?.path ? fileExists(joinRoot(root, r.path)) : false);
-  }, [db, episodeId, exportId, root]);
+  }, [db, episodeId, exportId, exporter, root]);
 
   useEffect(() => {
     let alive = true;
@@ -95,7 +98,6 @@ export default function DistributionPackScreen() {
 
   if (!episode || row === undefined) return <Loading label={t.common.loading} />;
 
-  const fileName = `episode-${String(episode.episode_number).padStart(3, '0')}.${row?.format ?? 'm4a'}`;
   const durationLabel = formatClock(smp(row?.duration_smp ?? 0));
   const shortOfTarget = row ? (exportLoudness(row)?.shortOfTarget ?? null) : null;
   const allMeta = formatAllMetadata({
@@ -110,20 +112,14 @@ export default function DistributionPackScreen() {
   });
 
   const share = async () => {
-    if (!row?.path) return;
-    if (!fileExists(joinRoot(root, row.path))) {
-      setExists(false);
-      return;
+    if (!row) return;
+    try {
+      const r = await shareExport(exporter, row.id);
+      if (r === 'missing') setExists(false);
+      else if (r === 'unavailable') showToast({ text: t.common.shareUnavailable });
+    } catch (e) {
+      showToast({ text: errorText(t, e) });
     }
-    if (!(await Sharing.isAvailableAsync())) {
-      showToast({ text: t.common.shareUnavailable });
-      return;
-    }
-    await Sharing.shareAsync(`file://${joinRoot(root, row.path)}`, {
-      mimeType: row.format === 'wav' ? 'audio/wav' : 'audio/mp4',
-      UTI: row.format === 'wav' ? 'com.microsoft.waveform-audio' : 'public.mpeg-4-audio',
-      dialogTitle: fileName,
-    });
   };
 
   const doCopy = (key: string, text: string) =>
@@ -152,7 +148,7 @@ export default function DistributionPackScreen() {
               title={t.pack.missingFile}
               action={
                 <Button
-                  label={t.pack.exportAgain}
+                  label={t.pack.toExport}
                   kind="secondary"
                   compact
                   onPress={() => router.back()}

@@ -37,6 +37,7 @@ export function errorCodeText(
     case 'import_other_show':
     case 'cover_processing_failed':
     case 'file_delete_failed':
+    case 'share_prepare_failed':
       return t.errors[code];
   }
 }
