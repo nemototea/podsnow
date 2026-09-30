@@ -33,14 +33,14 @@ export const artwork = {
   settingsPreview: 128,
   player: 184,
   miniPlayer: 44,
-  homeAspectRatio: 4 / 3,
-  homeFadeStart: 0.45,
+  /** Home の CD ジャケットの一辺の上限（#190）。狭い画面ではディスクまで収まる大きさに縮む。 */
+  homeJacket: 240,
 } as const;
 
 /** 音声プレーヤー（Issue #135）。 */
 export const player = {
-  seekTrack: 4,
-  seekThumb: 16,
+  seekTrack: 10,
+  seekThumb: 22,
   miniBottom: space.sm,
 } as const;
 

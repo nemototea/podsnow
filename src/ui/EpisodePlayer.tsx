@@ -7,10 +7,10 @@ import { StyleSheet, View } from 'react-native';
 import { formatClock, smp, type Smp } from '@/domain/time';
 import { useT } from '@/i18n';
 
-import { Artwork } from './Artwork';
 import { IconButton, Text } from './components';
+import { Cassette, Jacket } from './media';
 import { useAppTheme } from './ThemeContext';
-import { artwork, hit, player, radius, space, tabularNums, typography } from './tokens';
+import { artwork, hit, player, radius, space, stroke, tabularNums, typography } from './tokens';
 
 function SeekBar({
   value,
@@ -54,12 +54,16 @@ function SeekBar({
         accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]}
         onAccessibilityAction={onAccessibilityAction}
       >
-        <View style={[s.track, { backgroundColor: c.borderStrong }]}>
+        <View style={[s.track, { backgroundColor: c.surface, borderColor: c.controlBorder }]}>
           <View style={[s.fill, { width: `${ratio * 100}%`, backgroundColor: c.accentSolid }]} />
           <View
             style={[
               s.thumb,
-              { left: `${ratio * 100}%`, backgroundColor: c.accentSolid, borderColor: c.surface },
+              {
+                left: `${ratio * 100}%`,
+                backgroundColor: c.brandAccent,
+                borderColor: c.controlBorder,
+              },
             ]}
           />
         </View>
@@ -68,7 +72,14 @@ function SeekBar({
   );
 }
 
+/**
+ * 再生の見立て（DESIGN_SYSTEM.md §2.6）。編集中のタイムライン（`timeline`）はカセット、
+ * 書き出したファイル・配信中の音声（`export` / `rss`）は CD ジャケット。
+ */
+export type PlayerMedium = 'tape' | 'disc';
+
 export function EpisodePlayer({
+  medium,
   artworkUri,
   title,
   episodeNumber,
@@ -78,6 +89,7 @@ export function EpisodePlayer({
   onToggle,
   onSeek,
 }: {
+  medium: PlayerMedium;
   artworkUri: string | null;
   title: string;
   episodeNumber: number | null;
@@ -89,17 +101,29 @@ export function EpisodePlayer({
 }) {
   const c = useAppTheme();
   const t = useT();
+  const [width, setWidth] = useState(0);
+  const code = episodeNumber === null ? null : t.home.episodeCode(episodeNumber);
   return (
-    <View style={s.player}>
-      <Artwork uri={artworkUri} size={artwork.player} label={t.player.artwork} />
+    <View style={s.player} onLayout={(e) => setWidth(e.nativeEvent.layout.width)}>
+      {medium === 'tape' ? (
+        width > 0 ? (
+          <Cassette
+            width={Math.min(width - space.sm, CASSETTE_MAX)}
+            progress={duration > 0 ? position / duration : 0}
+            playing={playing}
+            title={title || t.home.untitled}
+            code={code}
+          />
+        ) : null
+      ) : (
+        <Jacket uri={artworkUri} size={artwork.player} playing={playing} label={t.player.artwork} />
+      )}
       <View style={s.titleBlock}>
         <Text style={[typography.heading, { color: c.textPrimary }]} numberOfLines={2}>
           {title || t.home.untitled}
         </Text>
-        {episodeNumber === null ? null : (
-          <Text style={[typography.caption, { color: c.textSecondary }]}>
-            {t.home.episodeCode(episodeNumber)}
-          </Text>
+        {code === null ? null : (
+          <Text style={[typography.numeric, { color: c.accentText }]}>{code}</Text>
         )}
       </View>
       <View style={s.seekBlock}>
@@ -134,21 +158,25 @@ export function EpisodePlayer({
   );
 }
 
+/** カセットの原寸（DESIGN_SYSTEM.md §2.6）。広い画面でもこれより大きくしない。 */
+const CASSETTE_MAX = 358;
+
 const s = StyleSheet.create({
   player: { alignItems: 'center', gap: space.lg },
   titleBlock: { alignItems: 'center', gap: space.xs },
   seekBlock: { width: '100%' },
   seekHit: { minHeight: hit.min, justifyContent: 'center' },
-  track: { height: player.seekTrack, borderRadius: radius.pill },
+  track: { height: player.seekTrack, borderRadius: radius.pill, borderWidth: stroke.selected },
   fill: { height: '100%', borderRadius: radius.pill },
   thumb: {
     position: 'absolute',
     width: player.seekThumb,
     height: player.seekThumb,
     marginLeft: -player.seekThumb / 2,
-    marginTop: -(player.seekThumb - player.seekTrack) / 2,
+    // 線の内側（高さ seekTrack − 線 2 本）の中心に置く
+    marginTop: -(player.seekThumb - (player.seekTrack - stroke.selected * 2)) / 2,
     borderRadius: radius.pill,
-    borderWidth: player.seekTrack / 2,
+    borderWidth: stroke.selected,
   },
   times: { flexDirection: 'row', justifyContent: 'space-between' },
   controls: { flexDirection: 'row', alignItems: 'center', gap: space.xl },
