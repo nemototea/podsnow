@@ -226,5 +226,33 @@ export const motion = {
 /** 押し込みの縮小率（better-ui: 0.95 より小さいと大げさに見える）。 */
 export const pressScale = 0.96;
 
-/** Button の硬い影と押し込み。配置は動かさず描画だけを移動する。 */
-export const buttonDepth = { offsetX: 2, offsetY: 3, travel: 2, pressedOffsetY: 1 } as const;
+/**
+ * 押せる物の硬い影と押し込み（DESIGN_SYSTEM.md §6、#190）。右下へずらしたぼかさない影で、
+ * 押すと影の分だけ沈む。小は副操作・ステッカー、大は主操作と録音の丸。配置は動かさず描画だけを移動する。
+ */
+export const buttonDepth = {
+  offset: 3,
+  offsetLarge: 5,
+  travel: 2,
+  travelLarge: 4,
+  pressedOffset: 1,
+} as const;
+
+/**
+ * ステッカーの傾き（度、DESIGN_SYSTEM.md §2.5）。項目ごとに固定し、押しても変えない。
+ * 一覧では添字で順に使う（`stickerTilt(i)`）。
+ */
+export const sticker = { tilts: [-4, 3, -2, 4, -3, 6], lamp: -4 } as const;
+
+/** 版ズレ（DESIGN_SYSTEM.md §2.5）。大きな数字の右下にずらす影。 */
+export const misreg = { x: 3, y: 2 } as const;
+
+/** 網点（DESIGN_SYSTEM.md §2.5）。面の飾りだけに使い、文字の下に置かない。 */
+export const halftone = { pitch: 7, dot: 1.3 } as const;
+
+/** 再生の見立て（§2.6）。リールとディスクが 1 回転する時間（ms）。 */
+export const spin = { reel: 2400, disc: 3200 } as const;
+
+export function stickerTilt(i: number): number {
+  return sticker.tilts[((i % sticker.tilts.length) + sticker.tilts.length) % sticker.tilts.length]!;
+}

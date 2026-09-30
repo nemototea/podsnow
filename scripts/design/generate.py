@@ -66,6 +66,8 @@ def checks(t: dict[str, str], theme: str) -> list[tuple[str, str, float, str]]:
         ('dangerOnSolid', 'dangerSolid', 4.5, '破壊的操作のラベル'),
         ('dangerOnSolid', 'dangerSolidPressed', 4.5, '押下中も読める'),
         ('recOnSolid', 'recSolid', 4.5, '録音ボタンの記号'),
+        ('insertOnSolid', 'insertSolid', 4.5, '素材のステッカーの名前（#190）'),
+        ('musicOnSolid', 'musicSolid', 4.5, 'BGM のステッカーの名前（#190）'),
         ('textPrimary', 'accentSubtle', 4.5, 'チップの地の上のラベル'),
         ('successSolid', 'bg', 3.0, 'WCAG 1.4.11 完了の印'),
         ('dangerSolid', 'bg', 3.0, 'WCAG 1.4.11 塗りだけで形が分かる'),

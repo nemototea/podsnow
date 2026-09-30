@@ -6,7 +6,16 @@ import type { Range } from '@/domain/timeline/types';
 import { useT, type Messages } from '@/i18n';
 import type { AssetRow } from '@/infra/db/repositories/assetsRepo';
 import type { SessionState } from '@/services/recording/RecordingSession';
-import { icon, radius, space, tabularNums, typography } from '@/ui/tokens';
+import {
+  icon,
+  misreg,
+  radius,
+  space,
+  stickerTilt,
+  stroke,
+  tabularNums,
+  typography,
+} from '@/ui/tokens';
 import {
   Button,
   Card,
@@ -24,6 +33,7 @@ import {
   type IconName,
 } from '@/ui/components';
 import { ask, confirmDestructive } from '@/ui/alerts';
+import { AssetSticker, OnAirLamp } from '@/ui/media';
 import { useAppTheme } from '@/ui/ThemeContext';
 
 import { LevelMeter } from './LevelMeter';
@@ -190,7 +200,11 @@ export function StudioTab({
       {/* 待機中も行の高さは取っておく。録音を始めた瞬間に下がずれないように。 */}
       <View style={st.statusRow}>
         <View style={st.stateLabel} accessibilityLiveRegion="polite">
-          {label?.icon ? <Icon name={label.icon} color={stateColor} size={icon.sm} /> : null}
+          {/* 看板の ON AIR。点灯は recording だけで、ほかは消灯（DESIGN_SYSTEM.md §2.4） */}
+          <OnAirLamp lit={s === 'recording'} />
+          {label?.icon && s !== 'recording' ? (
+            <Icon name={label.icon} color={stateColor} size={icon.sm} />
+          ) : null}
           {label ? (
             <Text style={[typography.label, { color: stateColor }]}>{label.text}</Text>
           ) : null}
@@ -207,7 +221,13 @@ export function StudioTab({
           style={[
             compact ? typography.timerCompact : typography.timer,
             tabularNums,
-            { color: c.textPrimary },
+            {
+              color: c.brandInk,
+              // 版ズレ（§2.5）。収録中の大きな時間だけに付ける
+              textShadowColor: c.brandShadow,
+              textShadowOffset: { width: misreg.x, height: misreg.y },
+              textShadowRadius: 0,
+            },
           ]}
           accessibilityLabel={t.record.a11yElapsed(formatClock(smp(state.recFrames)))}
         >
@@ -234,7 +254,7 @@ export function StudioTab({
         </View>
       )}
 
-      <View style={[st.panel, { backgroundColor: c.surface }]}>
+      <View style={[st.panel, { backgroundColor: c.surface, borderColor: c.controlBorder }]}>
         <Waveform
           voice={state.doc.voice}
           peaksByTake={state.peaksByTake}
@@ -424,20 +444,26 @@ export function StudioTab({
           onPress={onOpenAssets}
         />
       ) : (
-        <View style={st.assets}>
-          {favorites.slice(0, 4).map((a) => (
-            <Chip
-              key={a.id}
-              icon="music"
-              label={a.name}
-              accessibilityLabel={
-                isRec ? t.record.a11yInsertNow(a.name) : t.record.a11yInsertAt(a.name)
-              }
-              onPress={() => onInsertAsset(a)}
-            />
-          ))}
+        <>
+          <View style={st.assets}>
+            {favorites.slice(0, 4).map((a, i) => (
+              <AssetSticker
+                key={a.id}
+                label={a.name}
+                kind="insert"
+                tilt={stickerTilt(i)}
+                accessibilityLabel={
+                  isRec ? t.record.a11yInsertNow(a.name) : t.record.a11yInsertAt(a.name)
+                }
+                onPress={() => onInsertAsset(a)}
+              />
+            ))}
+            {Array.from({ length: Math.max(0, 4 - favorites.length) }, (_, i) => (
+              <View key={`gap${i}`} style={st.assetGap} />
+            ))}
+          </View>
           <Chip label={t.record.moreAssets} onPress={() => setSheet('insert')} />
-        </View>
+        </>
       )}
 
       {live || state.total === 0 ? null : (
@@ -606,13 +632,22 @@ const st = StyleSheet.create({
     justifyContent: 'space-between',
     gap: space.sm,
     minHeight: typography.label.lineHeight,
+    marginTop: space.xs,
   },
-  stateLabel: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
+  stateLabel: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   clock: { flexDirection: 'row', alignItems: 'baseline', gap: space.sm, flexShrink: 1 },
   empty: { marginTop: space.md },
   inputRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm, marginTop: space.md },
-  assets: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
-  panel: { borderRadius: radius.lg, paddingTop: space.md, marginTop: space.sm, overflow: 'hidden' },
+  // 素材のステッカーは 4 つ並べる。足りない分は空けて、大きさをそろえる。
+  assets: { flexDirection: 'row', gap: space.md, marginBottom: space.md },
+  assetGap: { flex: 1 },
+  panel: {
+    borderRadius: radius.lg,
+    borderWidth: stroke.selected,
+    paddingTop: space.md,
+    marginTop: space.sm,
+    overflow: 'hidden',
+  },
   zoom: { flexDirection: 'row', justifyContent: 'flex-end' },
   fields: { flexDirection: 'row', gap: space.md, marginTop: space.lg },
   field: { flex: 1 },

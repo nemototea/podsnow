@@ -106,10 +106,16 @@ describe('文言カタログ', () => {
       'YYYY',
     ]);
 
-    it.each(LOCALES)('%s に全部大文字の語が無い（略語を除く）', (locale) => {
+    // 看板の語（DESIGN_SYSTEM.md §2.4）。ステッカーやランプに書く語だけ、決まった場所で許す。
+    const SIGNS: Record<string, readonly string[]> = {
+      'record.onAir': ['AIR'],
+      'record.cue': ['CUE'],
+    };
+
+    it.each(LOCALES)('%s に全部大文字の語が無い（略語と看板の語を除く）', (locale) => {
       const found = rendered(messagesFor(locale) as unknown as Node).flatMap(([path, text]) =>
         (text.match(/\b[A-Z][A-Z0-9]{2,}\b/g) ?? [])
-          .filter((w) => !ACRONYMS.has(w))
+          .filter((w) => !ACRONYMS.has(w) && !SIGNS[path]?.includes(w))
           .map((w) => `${path}: ${w}`),
       );
       expect(found).toEqual([]);

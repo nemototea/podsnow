@@ -2,10 +2,12 @@ import { useCallback, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { moveItem } from '@/domain/outline';
+import { formatClock } from '@/domain/time';
 import { useT } from '@/i18n';
-import { icon, radius, space, stroke, tabularNums, typography } from '@/ui/tokens';
+import { icon, radius, space, stickerTilt, stroke, tabularNums, typography } from '@/ui/tokens';
 import { Button, Field, Icon, IconButton, Row, SectionHeader, Sheet, Text } from '@/ui/components';
 import { confirmDestructive } from '@/ui/alerts';
+import { Sticker } from '@/ui/media';
 import { ReorderList } from '@/ui/ReorderList';
 import { useAppTheme } from '@/ui/ThemeContext';
 
@@ -32,6 +34,7 @@ export function TopicsSection({
   const [body, setBody] = useState('');
 
   const current = ws.outlineCurrent === null ? null : (state.outline[ws.outlineCurrent] ?? null);
+  const cueAt = new Map(ws.chaptersOnTimeline.map((ch) => [ch.item.id, ch.at] as const));
   const done = state.outline.filter((i) => i.recordedTakeId !== null).length;
 
   const { haptics } = useServices();
@@ -75,6 +78,9 @@ export function TopicsSection({
           {state.outline.map((item, i) => {
             const isCurrent = current?.id === item.id;
             const passed = item.recordedTakeId !== null && !isCurrent;
+            // CUE は「次へ」で送った位置（チャプターの始まり）がある項目だけ（DESIGN_SYSTEM.md §2.4）
+            const at = cueAt.get(item.id);
+            const cue = at === undefined ? null : formatClock(at);
             return (
               <View
                 key={item.id}
@@ -86,7 +92,7 @@ export function TopicsSection({
                       i === state.outline.length - 1 ? 0 : StyleSheet.hairlineWidth,
                   },
                 ]}
-                accessibilityLabel={`${item.heading}${passed ? `, ${t.record.a11yTalked}` : isCurrent ? `, ${t.record.talkingNow}` : ''}`}
+                accessibilityLabel={`${item.heading}${passed ? `, ${t.record.a11yTalked}` : isCurrent ? `, ${t.record.talkingNow}` : ''}${cue ? `, ${t.record.a11yCue(cue)}` : ''}`}
               >
                 <View
                   style={[
@@ -112,6 +118,15 @@ export function TopicsSection({
                     <Text style={[typography.body, { color: c.textSecondary }]}>{item.body}</Text>
                   ) : null}
                 </View>
+                {cue ? (
+                  <Sticker
+                    label={t.record.cue(cue)}
+                    fill={c.brandAccent}
+                    ink={c.isDark ? c.bg : c.textPrimary}
+                    tilt={stickerTilt(i)}
+                    numeric
+                  />
+                ) : null}
               </View>
             );
           })}

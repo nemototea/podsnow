@@ -2,7 +2,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 
 import { Text } from './Text';
 import { useAppTheme } from './ThemeContext';
-import { concentric, hit, radius, space, stroke, typography } from './tokens';
+import { hit, radius, space, stroke, typography } from './tokens';
 
 export interface SegmentedProps<T extends string> {
   value: T;
@@ -21,7 +21,7 @@ export function Segmented<T extends string>({
   const c = useAppTheme();
   return (
     <View
-      style={[st.segmented, { backgroundColor: c.surface, borderColor: c.border }]}
+      style={[st.segmented, { backgroundColor: c.surface, borderColor: c.controlBorder }]}
       accessibilityRole="tablist"
     >
       {options.map((o) => {
@@ -36,12 +36,7 @@ export function Segmented<T extends string>({
             style={({ pressed }) => [
               st.segment,
               {
-                backgroundColor: active
-                  ? c.surfaceHover
-                  : pressed
-                    ? c.surfaceRaised
-                    : 'transparent',
-                borderColor: active ? c.borderStrong : 'transparent',
+                backgroundColor: active ? c.textPrimary : pressed ? c.surfaceHover : 'transparent',
               },
             ]}
           >
@@ -49,7 +44,7 @@ export function Segmented<T extends string>({
               style={[
                 typography.label,
                 st.center,
-                { color: active ? c.textPrimary : off ? c.textDisabled : c.textSecondary },
+                { color: active ? c.bg : off ? c.textDisabled : c.textPrimary },
               ]}
             >
               {o.label}
@@ -63,10 +58,11 @@ export function Segmented<T extends string>({
 
 const st = StyleSheet.create({
   center: { alignItems: 'center', justifyContent: 'center', textAlign: 'center' },
+  // 丸い端の枠に、選択中だけ本文色（墨 / 紙）で塗った丸いつまみ（#190）。
   segmented: {
     flexDirection: 'row',
-    borderRadius: radius.md,
-    borderWidth: 1,
+    borderRadius: radius.pill,
+    borderWidth: stroke.selected,
     padding: space.xs,
     gap: space.xs,
   },
@@ -74,8 +70,7 @@ const st = StyleSheet.create({
     flex: 1,
     minHeight: hit.min,
     justifyContent: 'center',
-    borderRadius: concentric(radius.md, space.xs),
-    borderWidth: stroke.hairline,
+    borderRadius: radius.pill,
     paddingHorizontal: space.sm,
   },
 });

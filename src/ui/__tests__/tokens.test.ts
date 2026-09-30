@@ -90,6 +90,8 @@ describe.each(THEMES)('%s テーマの色', (theme) => {
       expect(contrast(c[`${role}OnSolid`], c[`${role}SolidPressed`])).toBeGreaterThanOrEqual(4.5);
     }
     expect(contrast(c.recOnSolid, c.recSolid)).toBeGreaterThanOrEqual(4.5);
+    expect(contrast(c.insertOnSolid, c.insertSolid)).toBeGreaterThanOrEqual(4.5);
+    expect(contrast(c.musicOnSolid, c.musicSolid)).toBeGreaterThanOrEqual(4.5);
   });
 
   it('ロゴの文字は表示先の地で読め、黄の点は輪郭か地から 3:1 以上で見分けられる', () => {

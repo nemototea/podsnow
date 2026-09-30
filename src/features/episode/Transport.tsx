@@ -4,10 +4,10 @@ import Animated, { useAnimatedStyle, withTiming } from 'react-native-reanimated'
 
 import { useT, type Messages } from '@/i18n';
 import {
+  buttonDepth,
   hit,
   icon,
   motion,
-  pressScale,
   radius,
   space,
   stroke,
@@ -54,14 +54,22 @@ function RoundButton({
   const [held, setHeld] = useState(false);
   const off = disabled || busy;
   const fg = off ? c.textDisabled : filled ? c.recOnSolid : c.textPrimary;
-  // 録音・停止は塗りの色が変わらないので、縮小が唯一の押下の手応えになる。
+  // 押せる丸は硬い影を持ち、押すと影の分だけ沈む（DESIGN_SYSTEM.md §6、#190）。
+  const down = held && !off && !reduced;
+  const travel = buttonDepth.travelLarge;
   const pressStyle = useAnimatedStyle(() => ({
     transform: [
       {
-        scale: reduced || off ? 1 : withTiming(held ? pressScale : 1, { duration: motion.instant }),
+        translateX:
+          reduced || off ? 0 : withTiming(down ? travel : 0, { duration: motion.instant }),
+      },
+      {
+        translateY:
+          reduced || off ? 0 : withTiming(down ? travel : 0, { duration: motion.instant }),
       },
     ],
   }));
+  const offset = down ? buttonDepth.pressedOffset : buttonDepth.offsetLarge;
   return (
     <View style={st.slot}>
       <Pressable
@@ -81,14 +89,25 @@ function RoundButton({
                 pressStyle,
                 st.circle,
                 {
-                  borderColor: off ? c.border : filled ? c.recSolid : c.borderStrong,
+                  borderColor: off ? c.border : c.controlBorder,
                   backgroundColor: off
                     ? c.surfaceRaised
                     : filled
                       ? c.recSolid
                       : pressed
                         ? c.surfaceHover
-                        : 'transparent',
+                        : c.surface,
+                  boxShadow:
+                    off || (Platform.OS === 'android' && Number(Platform.Version) < 28)
+                      ? []
+                      : [
+                          {
+                            offsetX: offset,
+                            offsetY: offset,
+                            blurRadius: 0,
+                            color: c.controlShadow,
+                          },
+                        ],
                 },
               ]}
             >

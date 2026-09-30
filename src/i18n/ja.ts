@@ -79,6 +79,9 @@ export const ja = {
     rewind: '15秒戻る',
     forward: '30秒進む',
     open: 'プレーヤーを開く',
+    /** カセットの A 面の印（DESIGN_SYSTEM.md §2.6）。 */
+    sideA: 'A',
+    tape: '編集中のタイムライン',
   },
 
   /** エピソードの状態（FR-EP-3）。 */
@@ -309,6 +312,13 @@ Podcast: {{show_name}}
     a11yLevel: (db: number) => `入力レベル ${db} dB`,
     a11yLevelIdle: '入力レベル（録音していません）',
     clipped: '音が割れています。マイクから少し離れてください',
+    /** 看板の語（DESIGN_SYSTEM.md §2.4）。recording のときだけ点灯する。読み上げには使わない。 */
+    onAir: 'ON AIR',
+    /** 看板の語。LevelEvent.clipped で点くランプ。 */
+    clipLamp: '音割れ',
+    /** 看板の語。「次へ」で送った位置（チャプターの始まり）。 */
+    cue: (time: string) => `CUE ${time}`,
+    a11yCue: (time: string) => `${time} から`,
     permTitle: 'マイクへのアクセス',
     permBody: '声を収録するために、マイクへのアクセスを許可してください',
     permAllow: '許可する',
