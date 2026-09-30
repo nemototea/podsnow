@@ -1,4 +1,5 @@
 import { AppError } from '@/domain/errors';
+import { exportFileName } from '@/domain/metadata/fileName';
 import type { SqlExecutor } from '@/infra/db/executor';
 import { parseEpisodeExportPreset } from '@/infra/db/repositories/episodesRepo';
 import {
@@ -136,10 +137,25 @@ export interface ExportDeps {
   root: string;
   ensureDir: (absDir: string) => void;
   fileSize: (absPath: string) => number;
+  fileExists: (absPath: string) => boolean;
   /** 絶対パスのファイルを消す（無ければ何もしない）。書き出しの削除に使う。 */
   deleteFile: (absPath: string) => void;
+  /**
+   * `absSrc` を `absDir/name` へコピーし、コピーの file:// URI を返す。`absDir` は先に空にする。
+   * 共有の別名コピーに使う（Issue #166）。
+   */
+  copyAsNamed: (absSrc: string, absDir: string, name: string) => Promise<string>;
   newId: () => string;
   now: () => number;
+}
+
+/** 共有シートへ渡すファイル（Issue #166）。 */
+export interface SharedExportFile {
+  /** 別名コピーの file:// URI。 */
+  uri: string;
+  /** 共有先で見えるファイル名（配信の準備画面の表示と同じ）。 */
+  fileName: string;
+  format: ExportFormat;
 }
 
 /** 書き出しを消したときに起きること（確認の文言を選ぶため）。 */
@@ -273,6 +289,62 @@ export class ExportService {
       [row.episode_id],
     );
     return { lastListenable: (feed?.n ?? 0) === 0 };
+  }
+
+  /**
+   * 共有・保存するときのファイル名（Issue #166）。番組名・話数・タイトルから作る。
+   * 画面の表示と `prepareShare` の実物で同じ名前になるよう、どちらもここを通す。
+   */
+  async shareFileName(exportId: string): Promise<string | null> {
+    const row = await this.deps.db.get<{
+      format: ExportFormat;
+      title: string;
+      episode_number: number;
+      show_name: string | null;
+    }>(
+      `SELECT x.format, e.title, e.episode_number, s.name AS show_name
+         FROM exports x
+         JOIN episodes e ON e.id = x.episode_id
+         LEFT JOIN shows s ON s.id = e.show_id
+        WHERE x.id = ?`,
+      [exportId],
+    );
+    if (!row) return null;
+    return exportFileName({
+      showName: row.show_name ?? '',
+      episodeNumber: row.episode_number,
+      title: row.title,
+      ext: row.format,
+    });
+  }
+
+  /**
+   * 書き出したファイルを、分かる名前のコピーにして共有シートへ渡せるようにする（Issue #166）。
+   *
+   * 書き出しの実物は `<exportId>.<ext>` のまま動かさない（履歴・試聴・削除が path で指している）。
+   * コピーは `tmp/share/` に 1 つだけ置き、次の共有と起動時の tmp/ の掃除で消える。
+   * 共有シートを閉じた直後に消さないのは、Android では受け取る側のアプリが後から読むことがあるため。
+   *
+   * 書き出しが無い・終わっていない・ファイルが無いときは null。コピーできなければ `share_prepare_failed`
+   * （WAV は大きく、空き容量が足りないことがある）。
+   */
+  async prepareShare(exportId: string): Promise<SharedExportFile | null> {
+    const row = await getExport(this.deps.db, exportId);
+    if (!row || row.status !== 'done' || !row.path) return null;
+    const src = joinRoot(this.deps.root, row.path);
+    if (!this.deps.fileExists(src)) return null;
+    const fileName = await this.shareFileName(exportId);
+    if (!fileName) return null;
+    try {
+      const uri = await this.deps.copyAsNamed(
+        src,
+        joinRoot(this.deps.root, relPaths.shareDir()),
+        fileName,
+      );
+      return { uri, fileName, format: row.format };
+    } catch (e) {
+      throw new AppError('share_prepare_failed', {}, e);
+    }
   }
 
   cancel(exportId: string): void {

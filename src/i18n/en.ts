@@ -103,6 +103,8 @@ export const en: Messages = {
       `This RSS uses an unsupported encoding (${encoding}). Only UTF-8 feeds can be loaded`,
     cover_processing_failed: 'Could not save the artwork',
     file_delete_failed: 'Could not delete the files. Please try again',
+    share_prepare_failed:
+      'Could not prepare the file for sharing. Check your free storage and try again',
   },
 
   seed: {
@@ -500,8 +502,7 @@ Tag #PodsNow to share your thoughts`,
     a11yCopy: (label: string) => `Copy ${label}`,
     a11yCopied: (label: string) => `Copied ${label}`,
     olderExport: (when: string, format: string) => `Showing the ${format} exported on ${when}`,
-    missingFile: 'Audio file not found',
-    exportAgain: 'Export again',
+    missingFile: 'Audio file not found. Go back to the episode and export it again',
     belowTargetNote: (target: number) => `Too quiet to reach the ${target} LUFS target`,
     copyFailed: 'Could not copy',
   },
