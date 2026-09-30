@@ -7,6 +7,8 @@ import Reanimated, {
   withTiming,
 } from 'react-native-reanimated';
 
+import Svg, { Polygon } from 'react-native-svg';
+
 import { Text } from '../Text';
 import { useAppTheme } from '../ThemeContext';
 import { buttonDepth, radius, space, stickerTilt, stroke, typography } from '../tokens';
@@ -45,8 +47,16 @@ const FLIP_DEG = 95;
 /** 下に重なって見えるページの数の上限と、1 枚ごとのずれ。 */
 const STACK_MAX = 3;
 const STACK_STEP = 5;
-const BAND_SHARE = 0.3;
-const MOTIF = [0, 1, 2, 3, 4];
+/**
+ * 表紙の塗り分け（viewBox 100 x 100）。左辺の上から 36% の点と左下の角から、中心より右下にずらした
+ * 交点 (60, 56) を通る 2 本の線で分け、右と左の三角をからし色にする。左上は題名を置くので緑のまま。
+ */
+const CROSS = { x: 60, y: 56 };
+const LEFT_TOP = 36;
+const EDGE_A = LEFT_TOP + ((CROSS.y - LEFT_TOP) / CROSS.x) * 100;
+const EDGE_B = 100 - ((100 - CROSS.y) / CROSS.x) * 100;
+const COVER_RIGHT = `100,${EDGE_B} 100,${EDGE_A} ${CROSS.x},${CROSS.y}`;
+const COVER_LEFT = `0,${LEFT_TOP} ${CROSS.x},${CROSS.y} 0,100`;
 
 /**
  * トークテーマのカンペ（DESIGN_SYSTEM.md §2.7、#190）。上にリングの付いたスケッチブックで、
@@ -110,24 +120,19 @@ export function Sketchbook({
         accessible
         accessibilityLabel={f.cover.a11y}
       >
-        <View style={[s.label, { backgroundColor: c.sketchPaper, borderColor: c.sketchInk }]}>
-          <Text style={[typography.sign, { color: c.sketchInk }]}>{f.cover.title}</Text>
-          <Text style={[typography.numeric, { color: c.sketchInkSoft }]}>{f.cover.count}</Text>
-        </View>
-        <View
-          style={[
-            s.band,
-            {
-              backgroundColor: c.sketchBand,
-              borderTopColor: c.sketchInk,
-              height: `${BAND_SHARE * 100}%`,
-            },
-          ]}
+        {/* 斜めの 2 本の線を中心からずらした点で交差させ、4 つの三角に塗り分ける（§2.7） */}
+        <Svg
+          width="100%"
+          height="100%"
+          viewBox="0 0 100 100"
+          preserveAspectRatio="none"
+          style={StyleSheet.absoluteFill}
         >
-          {MOTIF.map((i) => (
-            <View key={i} style={[s.motif, { borderColor: c.sketchCover }]} />
-          ))}
-        </View>
+          <Polygon points={COVER_RIGHT} fill={c.sketchCoverAlt} />
+          <Polygon points={COVER_LEFT} fill={c.sketchCoverAlt} />
+        </Svg>
+        <Text style={[typography.display, { color: c.sketchPaper }]}>{f.cover.title}</Text>
+        <Text style={[typography.numeric, { color: c.sketchPaper }]}>{f.cover.count}</Text>
       </View>
     ) : (
       <View style={[s.sheet, s.page, { backgroundColor: c.sketchPaper, borderColor: c.sketchInk }]}>
@@ -286,32 +291,10 @@ const s = StyleSheet.create({
   },
   center: { textAlign: 'center' },
   flex: { flex: 1 },
-  cover: { justifyContent: 'center', alignItems: 'center' },
-  label: {
-    borderWidth: stroke.selected,
-    borderRadius: radius.xs,
-    paddingHorizontal: space.lg,
-    paddingVertical: space.sm,
-    alignItems: 'center',
+  cover: {
+    paddingTop: space.xl,
+    paddingHorizontal: space.xl,
     gap: space.xs,
-    marginBottom: space.xxl,
-  },
-  band: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    borderTopWidth: stroke.selected,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: space.md,
-  },
-  motif: {
-    width: space.lg,
-    height: space.lg,
-    borderRadius: radius.pill,
-    borderWidth: stroke.focus,
   },
   leaving: { position: 'absolute', left: 0, right: 0, top: 0, transformOrigin: 'top' },
   rings: {

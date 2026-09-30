@@ -257,7 +257,8 @@ Podcast: {{show_name}}
     upNext: (heading: string) => `次: ${heading}`,
     next: '次へ',
     openList: '一覧',
-    advanced: (heading: string) => `「${heading}」へ進みました`,
+    /** 話題を進めたときの読み上げ。画面の通知は出さない（#190）。 */
+    a11yAdvanced: (heading: string) => `「${heading}」へ進みました`,
     topicsTitle: 'トークテーマと台本',
     topicsPlaceholder: '話すことを 1 行ずつ。貼り付けもできます',
     addScript: 'タップして台本を書く',

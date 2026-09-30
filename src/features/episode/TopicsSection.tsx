@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { AccessibilityInfo, StyleSheet, View } from 'react-native';
 
 import { moveItem } from '@/domain/outline';
 import { formatClock } from '@/domain/time';
@@ -18,13 +18,7 @@ import type { Workspace } from './useWorkspace';
  * 話すこと（トークテーマと台本、FR-REC-6）。録音前・録音中・録音後のいつでも見られる。
  * 録音中は今の項目の台本を開き、次の項目へ送れる（FR-OUT-4）。
  */
-export function TopicsSection({
-  ws,
-  onShowToast,
-}: {
-  ws: Workspace;
-  onShowToast: (text: string) => void;
-}) {
+export function TopicsSection({ ws }: { ws: Workspace }) {
   const c = useAppTheme();
   const t = useT();
   const { state } = ws;
@@ -120,7 +114,12 @@ export function TopicsSection({
               onPress={() =>
                 void ws
                   .advanceOutline()
-                  .then((it) => it && onShowToast(t.record.advanced(it.heading)))
+                  // 画面の通知は出さない（ページがめくれるので見て分かる）。読み上げにだけ伝える
+                  .then(
+                    (it) =>
+                      it &&
+                      AccessibilityInfo.announceForAccessibility(t.record.a11yAdvanced(it.heading)),
+                  )
               }
             />
           ) : null}

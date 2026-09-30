@@ -433,7 +433,7 @@ export function StudioTab({
         </View>
       )}
 
-      <TopicsSection ws={ws} onShowToast={(text) => onShowToast(text)} />
+      <TopicsSection ws={ws} />
 
       <SectionHeader title={t.record.assetsTitle} />
       {favorites.length === 0 ? (
