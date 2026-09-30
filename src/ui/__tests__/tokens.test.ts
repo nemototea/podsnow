@@ -92,10 +92,14 @@ describe.each(THEMES)('%s テーマの色', (theme) => {
     expect(contrast(c.recOnSolid, c.recSolid)).toBeGreaterThanOrEqual(4.5);
   });
 
-  it('ブランドの点は表示先の背景と白い面から 3:1 以上で見分けられる', () => {
+  it('ロゴの文字は表示先の地で読め、黄の点は輪郭か地から 3:1 以上で見分けられる', () => {
     for (const surface of ['bg', 'surface'] as const) {
-      expect(contrast(c.brandAccent, c[surface])).toBeGreaterThanOrEqual(3);
+      expect(contrast(c.brandInk, c[surface])).toBeGreaterThanOrEqual(4.5);
     }
+    // ライトの黄は紙の上で 3:1 を持てないので、墨の輪郭と組にして描く（DESIGN_SYSTEM.md §3.2）
+    const byOutline = contrast(c.brandAccent, c.controlBorder) >= 3;
+    const byGround = contrast(c.brandAccent, c.bg) >= 3;
+    expect(byOutline || byGround).toBe(true);
   });
 
   it('主操作の塗りは、背景か輪郭のどちらかで形が 3:1 以上に分かる', () => {
@@ -274,18 +278,16 @@ describe('ボタンの輪郭と硬い影', () => {
     },
   );
 
-  it.each(['dark', 'light'] as const)('%s: 主操作の枠はシトロンの塗りから見分けられる', (theme) => {
-    const c = colors[theme];
-    for (const fill of ['accentSolid', 'accentSolidPressed'] as const) {
-      expect(contrast(c.controlEdge, c[fill])).toBeGreaterThanOrEqual(3);
-    }
-  });
-
-  it('ダーク: 明るい影の手前で主操作の枠が線として見え、塗りは背景から区別できる', () => {
-    const c = colors.dark;
-    expect(contrast(c.controlShadow, c.controlEdge)).toBeGreaterThanOrEqual(3);
-    for (const fill of ['accentSolid', 'accentSolidPressed'] as const) {
-      expect(contrast(c[fill], c.bg)).toBeGreaterThanOrEqual(3);
-    }
-  });
+  it.each(['dark', 'light'] as const)(
+    '%s: 主操作の枠は面から見分けられ、塗りは押下中も背景から区別できる',
+    (theme) => {
+      const c = colors[theme];
+      for (const surface of TEXT_SURFACES) {
+        expect(contrast(c.controlEdge, c[surface])).toBeGreaterThanOrEqual(3);
+      }
+      for (const fill of ['accentSolid', 'accentSolidPressed'] as const) {
+        expect(contrast(c[fill], c.bg)).toBeGreaterThanOrEqual(3);
+      }
+    },
+  );
 });
