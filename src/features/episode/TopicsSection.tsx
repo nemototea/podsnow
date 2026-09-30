@@ -4,10 +4,10 @@ import { StyleSheet, View } from 'react-native';
 import { moveItem } from '@/domain/outline';
 import { formatClock } from '@/domain/time';
 import { useT } from '@/i18n';
-import { icon, radius, space, stickerTilt, stroke, tabularNums, typography } from '@/ui/tokens';
+import { icon, radius, space, stroke, tabularNums, typography } from '@/ui/tokens';
 import { Button, Field, Icon, IconButton, Row, SectionHeader, Sheet, Text } from '@/ui/components';
 import { confirmDestructive } from '@/ui/alerts';
-import { Sticker } from '@/ui/media';
+import { Sketchbook } from '@/ui/media';
 import { ReorderList } from '@/ui/ReorderList';
 import { useAppTheme } from '@/ui/ThemeContext';
 
@@ -33,8 +33,14 @@ export function TopicsSection({
   const [editing, setEditing] = useState<string | null>(null);
   const [body, setBody] = useState('');
 
-  const current = ws.outlineCurrent === null ? null : (state.outline[ws.outlineCurrent] ?? null);
+  const currentIndex = ws.outlineCurrent;
+  const current = currentIndex === null ? null : (state.outline[currentIndex] ?? null);
+  const nextItem = ws.outlineNext === null ? null : (state.outline[ws.outlineNext] ?? null);
   const cueAt = new Map(ws.chaptersOnTimeline.map((ch) => [ch.item.id, ch.at] as const));
+  const cueOf = (id: string): string | null => {
+    const at = cueAt.get(id);
+    return at === undefined ? null : formatClock(at);
+  };
   const done = state.outline.filter((i) => i.recordedTakeId !== null).length;
 
   const { haptics } = useServices();
@@ -75,61 +81,33 @@ export function TopicsSection({
         />
       ) : (
         <View>
-          {state.outline.map((item, i) => {
-            const isCurrent = current?.id === item.id;
-            const passed = item.recordedTakeId !== null && !isCurrent;
-            // CUE は「次へ」で送った位置（チャプターの始まり）がある項目だけ（DESIGN_SYSTEM.md §2.4）
-            const at = cueAt.get(item.id);
-            const cue = at === undefined ? null : formatClock(at);
-            return (
-              <View
-                key={item.id}
-                style={[
-                  st.topic,
-                  {
-                    borderBottomColor: c.border,
-                    borderBottomWidth:
-                      i === state.outline.length - 1 ? 0 : StyleSheet.hairlineWidth,
-                  },
-                ]}
-                accessibilityLabel={`${item.heading}${passed ? `, ${t.record.a11yTalked}` : isCurrent ? `, ${t.record.talkingNow}` : ''}${cue ? `, ${t.record.a11yCue(cue)}` : ''}`}
-              >
-                <View
-                  style={[
-                    st.check,
-                    {
-                      borderColor: passed || isCurrent ? c.accentBorder : c.borderStrong,
-                      backgroundColor: passed ? c.accentSubtle : 'transparent',
-                    },
-                  ]}
-                >
-                  {passed ? <Icon name="check" color={c.accentText} size={icon.sm} /> : null}
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text
-                    style={[
-                      isCurrent ? typography.bodyStrong : typography.body,
-                      { color: passed ? c.textSecondary : c.textPrimary },
-                    ]}
-                  >
-                    {item.heading}
-                  </Text>
-                  {isCurrent && item.body.trim() ? (
-                    <Text style={[typography.body, { color: c.textSecondary }]}>{item.body}</Text>
-                  ) : null}
-                </View>
-                {cue ? (
-                  <Sticker
-                    label={t.record.cue(cue)}
-                    fill={c.brandAccent}
-                    ink={c.isDark ? c.bg : c.textPrimary}
-                    tilt={stickerTilt(i)}
-                    numeric
-                  />
-                ) : null}
-              </View>
-            );
-          })}
+          {/* カンペ（DESIGN_SYSTEM.md §2.7）。話し始める前は表紙、話し始めたら今の話題の 1 ページ */}
+          <Sketchbook
+            page={
+              current && currentIndex !== null
+                ? {
+                    key: current.id,
+                    no: t.record.pageNo(currentIndex + 1),
+                    progress: t.record.progress(currentIndex + 1, state.outline.length),
+                    heading: current.heading,
+                    body: current.body,
+                    placeholder: t.record.addScript,
+                    cue: cueOf(current.id) === null ? null : t.record.cue(cueOf(current.id)!),
+                    next: nextItem ? t.record.upNext(nextItem.heading) : null,
+                    a11y: `${t.record.talkingNow}, ${current.heading}${current.body.trim() ? `, ${current.body.trim()}` : ''}`,
+                  }
+                : null
+            }
+            cover={{
+              title: t.record.talkingPoints,
+              count: t.record.coverCount(state.outline.length),
+              a11y: t.record.a11yCover(state.outline.length),
+            }}
+            remaining={
+              currentIndex === null ? state.outline.length : state.outline.length - 1 - currentIndex
+            }
+            {...(current ? { onPressPage: () => openBody(current.id, current.body) } : {})}
+          />
           {ws.outlineNext !== null ? (
             <Button
               label={
@@ -146,6 +124,59 @@ export function TopicsSection({
               }
             />
           ) : null}
+          {/* 全部の話題の目次。送った項目には時刻（CUE の位置）を並べる */}
+          <View style={[st.index, { borderTopColor: c.controlBorder }]}>
+            {state.outline.map((item, i) => {
+              const isCurrent = current?.id === item.id;
+              const passed = item.recordedTakeId !== null && !isCurrent;
+              const cue = cueOf(item.id);
+              return (
+                <View
+                  key={item.id}
+                  style={[
+                    st.topic,
+                    {
+                      borderBottomColor: c.border,
+                      borderBottomWidth:
+                        i === state.outline.length - 1 ? 0 : StyleSheet.hairlineWidth,
+                    },
+                  ]}
+                  accessibilityLabel={`${item.heading}${passed ? `, ${t.record.a11yTalked}` : isCurrent ? `, ${t.record.talkingNow}` : ''}${cue ? `, ${t.record.a11yCue(cue)}` : ''}`}
+                >
+                  <Text style={[typography.numeric, st.no, { color: c.textSecondary }]}>
+                    {String(i + 1).padStart(2, '0')}
+                  </Text>
+                  <View
+                    style={[
+                      st.check,
+                      {
+                        borderColor: c.controlBorder,
+                        backgroundColor: passed
+                          ? c.textPrimary
+                          : isCurrent
+                            ? c.brandShadow
+                            : 'transparent',
+                      },
+                    ]}
+                  >
+                    {passed ? <Icon name="check" color={c.bg} size={icon.sm} /> : null}
+                  </View>
+                  <Text
+                    style={[
+                      isCurrent ? typography.bodyStrong : typography.body,
+                      st.flex,
+                      { color: passed ? c.textSecondary : c.textPrimary },
+                    ]}
+                  >
+                    {item.heading}
+                  </Text>
+                  {cue ? (
+                    <Text style={[typography.numeric, { color: c.textSecondary }]}>{cue}</Text>
+                  ) : null}
+                </View>
+              );
+            })}
+          </View>
         </View>
       )}
 
@@ -225,16 +256,19 @@ export function TopicsSection({
 
 const st = StyleSheet.create({
   headRight: { flexDirection: 'row', alignItems: 'center', gap: space.xs, marginRight: -space.md },
+  index: { borderTopWidth: stroke.selected, marginTop: space.lg },
   topic: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     gap: space.md,
-    paddingVertical: space.md,
+    paddingVertical: space.sm,
+    minHeight: space.section,
   },
+  no: { minWidth: space.xl },
+  flex: { flex: 1 },
   check: {
     width: icon.md,
     height: icon.md,
-    marginTop: space.hair,
     borderRadius: radius.xs,
     borderWidth: stroke.selected,
     alignItems: 'center',

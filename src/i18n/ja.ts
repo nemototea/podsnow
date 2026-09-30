@@ -319,6 +319,11 @@ Podcast: {{show_name}}
     /** 看板の語。「次へ」で送った位置（チャプターの始まり）。 */
     cue: (time: string) => `CUE ${time}`,
     a11yCue: (time: string) => `${time} から`,
+    /** カンペのページ番号（DESIGN_SYSTEM.md §2.7）。 */
+    pageNo: (n: number) => `No.${n}`,
+    /** カンペの表紙のラベル。話し始める前に見せる。 */
+    coverCount: (n: number) => `${n} ページ`,
+    a11yCover: (n: number) => `話すこと ${n} ページ。まだ始めていません`,
     permTitle: 'マイクへのアクセス',
     permBody: '声を収録するために、マイクへのアクセスを許可してください',
     permAllow: '許可する',
