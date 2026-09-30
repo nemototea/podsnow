@@ -72,7 +72,8 @@
               "./assets/fonts/NotoSansJP-Regular.ttf",
               "./assets/fonts/NotoSansJP-Medium.ttf",
               "./assets/fonts/NotoSansJP-SemiBold.ttf",
-              "./assets/fonts/NotoSansJP-Bold.ttf"
+              "./assets/fonts/NotoSansJP-Bold.ttf",
+              "./assets/fonts/DelaGothicOne-Regular.ttf"
             ]
           },
           "android": {
@@ -116,6 +117,15 @@
                   {
                     "path": "./assets/fonts/NotoSansJP-Bold.ttf",
                     "weight": 700
+                  }
+                ]
+              },
+              {
+                "fontFamily": "Dela Gothic One",
+                "fontDefinitions": [
+                  {
+                    "path": "./assets/fonts/DelaGothicOne-Regular.ttf",
+                    "weight": 400
                   }
                 ]
               }

@@ -64,7 +64,7 @@ PodsNow は「スマートフォンの小さな DAW」ではなく、ポッド�
 | 線 | 操作部品とカードは 2px の墨（ダークは紙の色）。行の区切りは 1px の破線 | 片側だけの線（§2.1） |
 | 影 | 押せる物だけ、右下にぼかさないベタ（§6） | ぼかした影、押せない物の影 |
 | 主操作 | リソの青の塗り。1 画面に原則 1 つ | すべての操作を塗る |
-| 文字 | 本文は今の Noto Sans JP / Manrope。ロゴと番組名は Dela Gothic One、時間と数値は Space Mono（§4） | 見出しごとの書体の変更、手書き体、ドット文字 |
+| 文字 | 本文は今の Noto Sans JP / Manrope。ロゴ・番組名・看板の語は Dela Gothic One、時間と数値は Manrope の等幅数字（§4） | 見出しごとの書体の変更、手書き体、ドット文字 |
 | 飾り | 網点・版ズレ・ステッカー・キラキラ（§2.5） | 意味のない飾りの波形、常時点滅する REC |
 | 動き | 押下の沈み込み、再生中のリール・ディスクの回転（§2.6） | 跳ねるボタン、状態と無関係なアニメーション |
 
@@ -199,10 +199,12 @@ python3 scripts/brand/extract_glyphs.py path/to/DelaGothicOne-Regular.ttf   # �
 
 ## 4. タイポグラフィ
 
-【事実】Issue #190: 本文の書体は変えない（日本語 Noto Sans JP、英語 Manrope）。足すのは 2 本だけ。
-**Dela Gothic One**（ロゴと番組名）と **Space Mono**（時間・数値。等幅なので桁が揺れない）。
-手書き体・ドット文字は使わない。#110 で数字を Manrope に揃えたのは「点付きゼロ」を避けるためだった。
-【仮説】Space Mono の `0` の字形がこの条件を満たすかを、書体を入れるときに確かめる（満たさなければ数字は Manrope のまま）。
+【事実】Issue #190: 本文の書体は変えない（日本語 Noto Sans JP、英語 Manrope）。足すのは **Dela Gothic One**（ロゴ・番組名・看板の語）の 1 本だけ。
+手書き体・ドット文字は使わない。
+
+【事実】原案は時間・数値に Space Mono を使っていたが、採らなかった。Space Mono の `0` は輪郭が 3 つ（中に点か斜線）で、
+#110 で避けた点付きゼロに当たり、中が空いた `0` の代替字形（GSUB）も持たない（`scripts/fonts/.cache` で確認、2026-09-30）。
+時間・数値は今の Manrope の等幅数字のままにし、収録中の時間（`timer` / `clock`）だけ 700 に上げて版ズレに負けない太さにする。
 
 ### 4.1 書体【事実】
 
@@ -210,15 +212,15 @@ python3 scripts/brand/extract_glyphs.py path/to/DelaGothicOne-Regular.ttf   # �
 |---|---|---|
 | 欧文 UI（英語表示） | Manrope | 400 / 500 / 600 / 700 |
 | 和文 UI（日本語表示） | Noto Sans JP | 400 / 500 / 600 / 700 |
-| 番組名・大見出し（`display`） | Dela Gothic One | 400（1 ウェイトだけの書体） |
-| 時間・計測値（`timer` / `clock` / `numeric` / `tick`） | Space Mono | 400 / 700 |
+| 番組名・看板の語（`display` / `sign`） | Dela Gothic One | 400（1 ウェイトだけの書体。静的フォントをそのまま同梱） |
+| 時間・計測値（`timer` / `clock` / `numeric` / `tick`） | Manrope（等幅数字） | 500 / 700 |
 | ロゴ輪郭 | Dela Gothic One（輪郭として焼き込み） | — |
 
 - すべて SIL OFL 1.1。原本・出典・ライセンス文は `assets/fonts/README.md` と `assets/fonts/*-OFL.txt`。
 - React Native は可変フォントの軸を指定できないので、**使う太さだけを静的 TTF に切り出して同梱**する
   （`scripts/fonts/generate.py`、fontTools が必要）。疑似太字に頼らない。
 - 起動時に外部 CDN から取得しない。ビルド時に `expo-font` の config plugin で埋め込む（`app.json`）。
-- 【仮説】Dela Gothic One は和文を含むので容量が増える。入れるときに実測して §13 に書く。
+- 【事実】Dela Gothic One は和文を含み、1 ファイル 2.5 MB（2,508,848 バイト）がアプリに加わる。
 
 ### 4.2 役割尺度【事実】
 
@@ -226,8 +228,8 @@ python3 scripts/brand/extract_glyphs.py path/to/DelaGothicOne-Regular.ttf   # �
 
 | 役割 | サイズ / 行高 | 書体 / 太さ | 用途 |
 |---|---|---|---|
-| `timer` | 48 / 58 | Space Mono 700 | 収録中の時間。版ズレを付ける。幅 360 未満では `timerCompact` 40 / 48 |
-| `clock` | 32 / 40 | Space Mono 700 | 編集の再生位置。狭い画面では `clockCompact` 24 / 32 |
+| `timer` | 48 / 58 | Manrope 700 / 等幅数字 | 収録中の時間。版ズレを付ける。幅 360 未満では `timerCompact` 40 / 48 |
+| `clock` | 32 / 40 | Manrope 700 / 等幅数字 | 編集の再生位置。狭い画面では `clockCompact` 24 / 32 |
 | `display` | 32 / 40 | Dela Gothic One | 番組名 |
 | `title` | 24 / 34 | UI 700 | 画面の大見出し |
 | `heading` | 20 / 28 | UI 700 | セクション見出し |
@@ -235,11 +237,11 @@ python3 scripts/brand/extract_glyphs.py path/to/DelaGothicOne-Regular.ttf   # �
 | `label` | 14 / 21 | UI 700 | ボタン、設定項目 |
 | `caption` | 13 / 20 | UI 500 | 日時、補助情報 |
 | `overline` | 12 / 18 | UI 600 | 波形のレーン名など、図の中の短い名札。見出しの上には置かない（§2.1） |
-| `numeric` | 14 / 20 | Space Mono 400 | 行の中の時間・話数（`EP. 012`）・サイズ |
-| `tick` | 11 / 14 | Space Mono 700 | 波形とレベルメーターの目盛りだけ |
+| `numeric` | 14 / 20 | Manrope 500 / 等幅数字 | 行の中の時間・話数（`EP. 012`）・サイズ |
+| `tick` | 11 / 14 | Manrope 500 / 等幅数字 | 波形とレベルメーターの目盛りだけ |
 | `sign` | 20 / 24 | Dela Gothic One | 看板の語（§2.4）とステッカーの文字 |
 
-- 動く時間は等幅。収録中は `mm:ss`、1 時間以上は `h:mm:ss`（`formatClock`）。小数は出さない。
+- 動く時間は等幅数字（tabular-nums）。収録中は `mm:ss`、1 時間以上は `h:mm:ss`（`formatClock`）。小数は出さない。
 - 操作ラベルは折り返せる（Button は 1 行に固定しない）。
 
 ### 4.3 書体の選び方と退避【事実】
@@ -568,7 +570,7 @@ iOS だけ OS のアラートにすると 2 つの見た目が混ざるので、
 `docs/device-checklist.md` の K-1〜K-6、DS-1〜DS-11。Dynamic Type 最大 / Android 200%、VoiceOver / TalkBack、
 アイコンのマスク、書体の実ウェイト、屋外での視認性は、Web 描画では確かめられない。
 #190 で増えた確認: Android の硬い影、網点の描画負荷、傾けたステッカーの文字の滲み、Dela Gothic One の和文表示、
-Space Mono の `0` の字形、小さいアイコンでの版ズレの見え方、リール・ディスクの回転と「動きを減らす」。
+小さいアイコンでの版ズレの見え方、リール・ディスクの回転と「動きを減らす」。
 
 ## 11. セキュリティ・プライバシー上の表示【事実】
 
@@ -605,6 +607,6 @@ npx expo prebuild --clean             # アイコン・書体を変えたらネ�
 
 - **実機での確認**。§10.2 の項目はすべて未検証。
 - **Noto Sans JP の容量**（約 23 MB）。縮める案は `docs/design-refresh/README.md` §7。
-- **Dela Gothic One と Space Mono の容量**（#190）。入れるときに実測してここに書く。
+- **Dela Gothic One の容量**（#190）。2.5 MB。和文の字形を使う所（番組名）があるので部分集合化はしていない。
 - **ストレージの整理**（設定の「書き出し済みエピソードの元データを整理」）は従来どおり案内のみ。削除は
   Home のメニューの「音声を削除」「エピソードを削除」で行う。

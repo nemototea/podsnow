@@ -225,13 +225,21 @@ describe('書体', () => {
     }
   });
 
-  it('数値の役割に等幅数字を組み込み、同梱済みの Manrope 500 を使う', () => {
+  it('数値の役割に等幅数字を組み込み、同梱済みの Manrope 500 / 700 を使う', () => {
     for (const role of Object.values(typography)) {
       if ('fontFamily' in role && role.fontFamily === family.numeric) {
-        expect(role.fontWeight).toBe('500');
+        expect(['500', '700']).toContain(role.fontWeight);
         expect(role.fontVariant).toContain('tabular-nums');
       }
     }
+  });
+
+  it('Dela Gothic One の役割は同梱した 400 だけを使う（1 ウェイトの書体）', () => {
+    const roles = Object.values(typography).filter(
+      (role) => 'fontFamily' in role && role.fontFamily === family.display,
+    );
+    expect(roles.length).toBeGreaterThan(0);
+    for (const role of roles) expect(role.fontWeight).toBe('400');
   });
 
   it('UI の役割は同梱した 400 / 500 / 600 / 700 のどれか', () => {

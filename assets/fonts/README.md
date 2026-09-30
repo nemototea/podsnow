@@ -1,9 +1,10 @@
-# 同梱書体（Issue #94）
+# 同梱書体（Issue #94 / #190）
 
 | ファイル | 書体 | 太さ | 出典 | ライセンス |
 |---|---|---|---|---|
 | `Manrope-{Regular,Medium,SemiBold,Bold}.ttf` | Manrope | 400 / 500 / 600 / 700 | https://github.com/google/fonts/tree/main/ofl/manrope | SIL OFL 1.1（`Manrope-OFL.txt`） |
 | `NotoSansJP-{Regular,Medium,SemiBold,Bold}.ttf` | Noto Sans JP | 400 / 500 / 600 / 700 | https://github.com/google/fonts/tree/main/ofl/notosansjp | SIL OFL 1.1（`NotoSansJP-OFL.txt`） |
+| `DelaGothicOne-Regular.ttf` | Dela Gothic One | 400 | https://github.com/google/fonts/tree/main/ofl/delagothicone | SIL OFL 1.1（`DelaGothicOne-OFL.txt`） |
 
 【事実】Manrope と Noto Sans JP は Google Fonts の可変フォント（`[wght]`）から、使う太さだけを静的な
 インスタンスとして切り出した（`scripts/fonts/generate.py`、fontTools の `instantiateVariableFont`）。
@@ -15,9 +16,12 @@
 予約フォント名（Reserved Font Name）を名乗れない。各 OFL.txt の冒頭で、Noto Sans JP は `Source` が予約されている。
 切り出した Noto Sans JP は `Noto Sans JP` の名前のままで `Source`
 を含まない。Manrope に予約フォント名は無い。
+
+【事実】Dela Gothic One（#190）は静的フォントで、原本を変更せずにそのまま同梱している（Modified Version ではない）。
+OFL.txt の冒頭に予約フォント名の指定は無い。番組名・看板の語に使い、ロゴの輪郭もこの字形から作る。
 【仮説】この解釈は OFL 1.1 の条文（第 3 条）に基づく。法的な確認はしていない。
 
-ロゴ `PodsNow.` の輪郭は Manrope 800 から作っている（`scripts/brand/glyphs.py`）。800 の書体ファイルは同梱しない。
+ロゴ `PodsNow.` の輪郭は #190 から Dela Gothic One から作る（`scripts/brand/glyphs.py`）。
 
 再生成:
 

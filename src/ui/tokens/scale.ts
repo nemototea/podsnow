@@ -63,9 +63,11 @@ export const family = {
   latin: 'Manrope',
   ja: 'Noto Sans JP',
   numeric: 'Manrope',
+  /** 番組名・看板の語（DESIGN_SYSTEM.md §4、#190）。和文も持つので日英で同じ書体。 */
+  display: 'Dela Gothic One',
 } as const;
 
-export type FamilyRole = 'ui' | 'numeric';
+export type FamilyRole = 'ui' | 'numeric' | 'display';
 
 /** 数字だけ幅を揃える。本文全体を等幅書体にはしない。 */
 export const tabularNums = { fontVariant: ['tabular-nums' as const] };
@@ -78,47 +80,49 @@ export const tabularNums = { fontVariant: ['tabular-nums' as const] };
  * - 11px は波形の目盛りだけ（`tick`）。説明やボタンに使わない。
  */
 export const typography = {
-  /** 収録中の時間。幅 320 では `timerCompact`。 */
+  /** 収録中の時間。幅 320 では `timerCompact`。版ズレに負けないよう太くする（#190）。 */
   timer: {
     fontSize: 48,
     lineHeight: 58,
-    fontWeight: '500',
+    fontWeight: '700',
     fontFamily: family.numeric,
     ...tabularNums,
   },
   timerCompact: {
     fontSize: 40,
     lineHeight: 48,
-    fontWeight: '500',
+    fontWeight: '700',
     fontFamily: family.numeric,
     ...tabularNums,
   },
   clock: {
     fontSize: 32,
     lineHeight: 40,
-    fontWeight: '500',
+    fontWeight: '700',
     fontFamily: family.numeric,
     ...tabularNums,
   },
   clockCompact: {
     fontSize: 24,
     lineHeight: 32,
-    fontWeight: '500',
+    fontWeight: '700',
     fontFamily: family.numeric,
     ...tabularNums,
   },
-  /** 番組名、短い主要見出し。 */
-  display: { fontSize: 32, lineHeight: 40, fontWeight: '700' },
+  /** 番組名、短い主要見出し。Dela Gothic One は 1 ウェイトだけなので 400。 */
+  display: { fontSize: 32, lineHeight: 40, fontWeight: '400', fontFamily: family.display },
+  /** 看板の語（ON AIR、CUE）とステッカーの文字（DESIGN_SYSTEM.md §2.4）。 */
+  sign: { fontSize: 20, lineHeight: 24, fontWeight: '400', fontFamily: family.display },
   /** 画面タイトル。 */
   title: { fontSize: 24, lineHeight: 34, fontWeight: '700' },
   /** セクション見出し。 */
-  heading: { fontSize: 20, lineHeight: 28, fontWeight: '600' },
+  heading: { fontSize: 20, lineHeight: 28, fontWeight: '700' },
   /** 本文。説明、トークテーマ。 */
   body: { fontSize: 16, lineHeight: 26, fontWeight: '400' },
   /** 本文の強調。大きさは変えず太さだけ一段上げる。 */
   bodyStrong: { fontSize: 16, lineHeight: 26, fontWeight: '600' },
   /** ボタン・設定項目。 */
-  label: { fontSize: 14, lineHeight: 21, fontWeight: '600' },
+  label: { fontSize: 14, lineHeight: 21, fontWeight: '700' },
   /** 日時、補助情報。 */
   caption: { fontSize: 13, lineHeight: 20, fontWeight: '500' },
   /** 小見出し、分類。 */
