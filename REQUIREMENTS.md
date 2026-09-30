@@ -195,7 +195,7 @@ SELECT MAX(
 
 | ID | 要件 | 優先度 |
 |---|---|---|
-| FR-SET-1 | テーマ: Dark / Light / System | MUST |
+| FR-SET-1 | テーマ: Dark / Light / System。初期値は System（ユーザー判断 2026-09-30、#190） | MUST |
 | FR-SET-2 | 録音品質、モノラル/ステレオ、入力ソースの既定 | MUST |
 | FR-SET-3 | 無音しきい値（長さ・音量）、無音を自動で詰めるか | MUST |
 | FR-SET-4 | ハプティクス ON/OFF | SHOULD |

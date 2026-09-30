@@ -29,7 +29,7 @@ export interface AppSettings {
 
 export const DEFAULT_SETTINGS: AppSettings = {
   language: 'system',
-  theme: 'dark',
+  theme: 'system',
   recording: {
     sampleRate: 48000,
     channels: 2,
