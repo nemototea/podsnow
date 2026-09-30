@@ -10,6 +10,7 @@ import Svg, { Line, Path, Text as SvgText } from 'react-native-svg';
 
 import { useT } from '@/i18n';
 import { Text } from '@/ui/components';
+import { useFontFamily } from '@/ui/Text';
 import { Halftone, METER, meterAngle, onArc } from '@/ui/media';
 import { useAppTheme } from '@/ui/ThemeContext';
 import { radius, space, stroke, typography } from '@/ui/tokens';
@@ -45,6 +46,8 @@ export function LevelMeter({ level }: { level: LevelEvent | null }) {
   const c = useAppTheme();
   const t = useT();
   const reduced = useReducedMotion();
+  // SVG の文字は Text を通らないので、書体を名前で渡す（読み込めていなければ OS の書体）
+  const numericFamily = useFontFamily('numeric');
   const [w, setW] = useState(0);
   const k = w / VB_W;
   const angle = useSharedValue(meterAngle(null));
@@ -102,6 +105,7 @@ export function LevelMeter({ level }: { level: LevelEvent | null }) {
                 textAnchor="middle"
                 fontSize={typography.tick.fontSize}
                 fontWeight="700"
+                {...(numericFamily ? { fontFamily: numericFamily } : {})}
                 fill={c.textPrimary}
               >
                 {String(db)}
@@ -114,6 +118,7 @@ export function LevelMeter({ level }: { level: LevelEvent | null }) {
             textAnchor="middle"
             fontSize={typography.heading.fontSize}
             fontWeight="700"
+            {...(numericFamily ? { fontFamily: numericFamily } : {})}
             fill={c.textPrimary}
           >
             dB

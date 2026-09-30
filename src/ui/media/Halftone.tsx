@@ -10,6 +10,8 @@ export function Halftone({ color }: { color: string }) {
   const p = halftone.pitch;
   return (
     <Svg
+      width="100%"
+      height="100%"
       style={StyleSheet.absoluteFill}
       pointerEvents="none"
       accessibilityElementsHidden
