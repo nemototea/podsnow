@@ -79,6 +79,7 @@ export const en: Messages = {
     open: 'Open player',
     sideA: 'A',
     tape: 'Timeline in progress',
+    stop: 'Stop and close player',
   },
 
   status: {

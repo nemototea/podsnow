@@ -82,6 +82,7 @@ export const ja = {
     /** カセットの A 面の印（DESIGN_SYSTEM.md §2.6）。 */
     sideA: 'A',
     tape: '編集中のタイムライン',
+    stop: '再生を止めて閉じる',
   },
 
   /** エピソードの状態（FR-EP-3）。 */

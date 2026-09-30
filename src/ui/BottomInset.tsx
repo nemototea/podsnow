@@ -1,4 +1,11 @@
-import { createContext, useContext, useMemo, useState, type ReactNode } from 'react';
+import {
+  createContext,
+  useContext,
+  useMemo,
+  useState,
+  useSyncExternalStore,
+  type ReactNode,
+} from 'react';
 
 import { space } from './tokens';
 
@@ -57,4 +64,40 @@ export const BOTTOM_GAP = space.md;
 export function keyboardLift(keyboardHeight: number, floor: number): number {
   'worklet';
   return Math.min(0, keyboardHeight + floor);
+}
+
+/**
+ * 画面の外（ルート）に浮かぶ要素が、画面下部のどれだけを覆っているか（Issue #164）。
+ *
+ * ミニプレーヤーは `Screen` の外にあるので、`BottomInsetProvider` では配れない。
+ * 覆っている高さ（safe area より上の分）をここに置き、`Screen` が下部バーや内容の下に同じだけ空ける。
+ */
+export interface FloatingInsetStore {
+  subscribe: (listener: () => void) => () => void;
+  get: () => number;
+  set: (h: number) => void;
+}
+
+export function createFloatingInsetStore(): FloatingInsetStore {
+  let value = 0;
+  const listeners = new Set<() => void>();
+  return {
+    subscribe: (listener) => {
+      listeners.add(listener);
+      return () => void listeners.delete(listener);
+    },
+    get: () => value,
+    set: (h) => {
+      const next = Math.max(0, Math.round(h));
+      if (next === value) return;
+      value = next;
+      listeners.forEach((l) => l());
+    },
+  };
+}
+
+export const floatingInset = createFloatingInsetStore();
+
+export function useFloatingInset(): number {
+  return useSyncExternalStore(floatingInset.subscribe, floatingInset.get);
 }

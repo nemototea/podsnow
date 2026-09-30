@@ -313,6 +313,27 @@ export class PlaybackService {
     if (this.mode !== 'file') return;
     const item = this.fileItem;
     if (item?.kind !== 'export' || item.exportId !== exportId) return;
+    this.releaseFile();
+  }
+
+  /**
+   * Home から始めた再生を止めて手放す（Issue #164）。ミニプレーヤーの「閉じる」と、
+   * エピソード画面を開いたとき（再生音が録音に入らないように）に呼ぶ。
+   * 状態は await の前に書き換える。直後の `reload()` が再生を続けないように。
+   */
+  async stopHome(): Promise<void> {
+    if (!this.source?.homeKey) return;
+    if (this.mode === 'file') {
+      this.releaseFile();
+      return;
+    }
+    this.timelineItem = null;
+    this.playing = false;
+    this.dispatch('state', { playing: false, frame: this.frame });
+    await this.deps.engine.pause();
+  }
+
+  private releaseFile(): void {
     this.deps.filePlayer.pause();
     this.fileItem = null;
     this.mode = null;

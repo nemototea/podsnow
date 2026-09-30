@@ -32,6 +32,7 @@ export function usePlayback() {
     toggleHome: (item: HomeEpisodeItem) => playback.toggleHome(item),
     toggleCurrent: () => playback.toggleCurrentHome(),
     stop: () => playback.pause(),
+    stopHome: () => playback.stopHome(),
     rewind: () => playback.seekHome(smp(Math.max(0, state.position - 15 * 48000))),
     forward: () => playback.seekHome(smp(Math.min(state.duration, state.position + 30 * 48000))),
     restart: () => playback.seekHome(ZERO_SMP),

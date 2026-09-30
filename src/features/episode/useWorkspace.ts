@@ -198,6 +198,9 @@ export function useWorkspace(episodeId: string) {
   useEffect(() => {
     let alive = true;
     void services.episodes.touch(episodeId);
+    // Home から再生していたら止める。鳴ったまま録ると再生音が録音に入る（Issue #164）。
+    // 状態は同期的に止まるので、続く `reloadAll()` の読み込み直しで鳴り続けない
+    void playback.stopHome();
     // 読み込みはマイクロタスクへ逃がし、アンマウント後や episodeId 切替後には開始しない。
     // （`reloadAll()` は最初の文が await なので setState は同期的には走らないが、
     //   react-hooks/set-state-in-effect は await の先まで追えないため直接呼びは弾かれる）
