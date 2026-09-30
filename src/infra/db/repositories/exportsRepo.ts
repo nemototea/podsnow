@@ -87,3 +87,19 @@ export async function failStaleExports(db: SqlExecutor, now: number): Promise<nu
   );
   return r.changes;
 }
+
+export async function getExport(db: SqlExecutor, id: string): Promise<ExportRow | null> {
+  return db.get<ExportRow>('SELECT * FROM exports WHERE id = ?', [id]);
+}
+
+/** 書き出しの行を消す（Issue #152）。ファイルは呼び出し側が先に消す。 */
+export async function deleteExportRow(db: SqlExecutor, id: string): Promise<void> {
+  await db.run('DELETE FROM exports WHERE id = ?', [id]);
+}
+
+/** 進行中（ネイティブが書いている最中）の状態。これらの行は消さない。 */
+export const RUNNING_EXPORT_STATUSES: readonly ExportStatus[] = ['queued', 'rendering', 'encoding'];
+
+export function isExportRunning(status: ExportStatus): boolean {
+  return RUNNING_EXPORT_STATUSES.includes(status);
+}

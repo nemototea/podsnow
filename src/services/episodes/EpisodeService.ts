@@ -1,3 +1,4 @@
+import { AppError } from '@/domain/errors';
 import type { EditableDoc } from '@/domain/editing/doc';
 import { renderTemplate } from '@/domain/metadata/template';
 import { newItem } from '@/domain/outline';
@@ -12,7 +13,6 @@ import {
   listEpisodes,
   markAudioPurged,
   nextEpisodeNumber,
-  restoreEpisode,
   softDeleteEpisode,
   updateEpisode,
   type EpisodeListItem,
@@ -167,37 +167,89 @@ export class EpisodeService {
     if (status !== ep.status) await updateEpisode(this.deps.db, id, { status }, this.deps.now());
   }
 
-  /** エピソードを削除（FR-EP-4）。論理削除で Undo 可。話数は次の新規作成で再利用される。 */
-  async remove(id: string): Promise<void> {
-    await softDeleteEpisode(this.deps.db, id, this.deps.now());
-  }
-
   /**
-   * 削除の取り消し。話数は元のまま戻すが、待っている間に新規作成されて衝突した場合だけ
-   * 採番し直す。振り直したかどうかを呼び出し側（UI）へ返す。
+   * エピソードを削除（FR-EP-4）。録音・ピーク・書き出しのファイルもすぐに消す（Issue #152、
+   * ユーザー判断 2026-09-29）。アプリの内部にしかないファイルは、ユーザーが取り出せないので残さない。
+   * 取り消しはできない（削除の前に確認する。FR-UI-2）。話数は次の新規作成で再利用される。
+   *
+   * 行は `deleted_at` を立てて残す（将来の同期で削除を伝えるため。DATA_MODEL.md §1）。
+   * ファイルが消せなければ `file_delete_failed` を投げ、DB は変えない。
    */
-  async restore(id: string): Promise<{ episodeNumber: number; renumbered: boolean }> {
-    return restoreEpisode(this.deps.db, id, this.deps.now());
+  async remove(id: string): Promise<void> {
+    const ep = await getEpisode(this.deps.db, id);
+    if (!ep) throw new Error('episode not found');
+    await this.purgeFiles(id, { exports: true, markDeleted: true });
   }
 
   /**
    * 音声を削除（FR-EP-4）。録音ファイルと takes を消し、行・話数・メタデータ・書き出し履歴は残す。
    * 容量を空ける目的の削除はこちら。話数は消費したままになる。
-   *
-   * 順序は **DB を確定してからファイルを消す**。逆にすると、DB だけが残って実体の無い
-   * 録音を指す状態（再生も復旧もできない行）が生まれる。この順なら最悪でも孤児ファイルが
-   * 残るだけで、録音データの参照は壊れない。
+   * ファイルが消せなければ `file_delete_failed` を投げ、DB は変えない。
    */
   async purgeAudio(id: string): Promise<void> {
-    const { db, root, deleteFile, now } = this.deps;
-    const ep = await getEpisode(db, id);
+    const ep = await getEpisode(this.deps.db, id);
     if (!ep) throw new Error('episode not found');
+    await this.purgeFiles(id, { exports: false, markDeleted: false });
+  }
+
+  /**
+   * 削除済みなのにファイルが残っている回を片付ける。起動時に呼ぶ。
+   * 削除でファイルをすぐ消すようになる前（Issue #152 より前）に消した回が対象。
+   * 失敗した回は飛ばし、次の起動でまた試す。
+   *
+   * @returns 片付けた回の数
+   */
+  async cleanupDeleted(): Promise<number> {
+    const rows = await this.deps.db.all<{ id: string }>(
+      `SELECT e.id FROM episodes e
+        WHERE e.deleted_at IS NOT NULL
+          AND (e.audio_purged_at IS NULL
+               OR EXISTS (SELECT 1 FROM exports x WHERE x.episode_id = e.id))`,
+    );
+    let n = 0;
+    for (const r of rows) {
+      try {
+        await this.purgeFiles(r.id, { exports: true, markDeleted: false });
+        n++;
+      } catch {
+        /* 次の起動で再試行する */
+      }
+    }
+    return n;
+  }
+
+  /**
+   * 録音（と、指定すれば書き出し）のファイルを消し、DB をそれに合わせる。
+   *
+   * 順序は **ファイルを先に消し、全部消せたら DB を確定する**（ユーザー判断 2026-09-29）。
+   * DB だけ消えてファイルが残ると、どこからも参照されない容量が残り、ユーザーには消す手段が無い。
+   * 途中で失敗したら `file_delete_failed` を投げ、DB は変えない。消すのは「無ければ何もしない」
+   * なので、もう一度実行すれば残りを消して DB まで進む。
+   */
+  private async purgeFiles(
+    id: string,
+    opts: { exports: boolean; markDeleted: boolean },
+  ): Promise<void> {
+    const { db, root, deleteFile, now } = this.deps;
+    // 個別に削除したテイク（論理削除）のファイルも含めて消す。
     const files = await db.all<{ path: string; peaks_path: string | null }>(
       `SELECT s.path, s.peaks_path FROM take_segments s
          JOIN takes t ON t.id = s.take_id
         WHERE t.episode_id = ?`,
       [id],
     );
+    const exportFiles = opts.exports
+      ? await db.all<{ path: string | null }>('SELECT path FROM exports WHERE episode_id = ?', [id])
+      : [];
+    const rels = [
+      ...files.flatMap((f) => (f.peaks_path ? [f.path, f.peaks_path] : [f.path])),
+      ...exportFiles.flatMap((x) => (x.path ? [x.path] : [])),
+    ];
+    try {
+      for (const rel of rels) deleteFile(joinRoot(root, rel));
+    } catch (e) {
+      throw new AppError('file_delete_failed', {}, e);
+    }
     const t = now();
     await db.transaction(async () => {
       const doc = await loadDoc(db, id);
@@ -218,12 +270,10 @@ export class EpisodeService {
       // 編集履歴は消えた声を指すので、Undo で復元できないようにここで捨てる。
       await db.run('DELETE FROM edit_ops WHERE episode_id = ?', [id]);
       await db.run('UPDATE episodes SET undo_cursor = 0 WHERE id = ?', [id]);
+      if (opts.exports) await db.run('DELETE FROM exports WHERE episode_id = ?', [id]);
       await markAudioPurged(db, id, t);
+      if (opts.markDeleted) await softDeleteEpisode(db, id, t);
     });
-    for (const f of files) {
-      deleteFile(joinRoot(root, f.path));
-      if (f.peaks_path) deleteFile(joinRoot(root, f.peaks_path));
-    }
   }
 
   /**

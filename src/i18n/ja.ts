@@ -106,6 +106,7 @@ export const ja = {
     import_unsupported_encoding: (encoding: string) =>
       `この RSS の文字コード（${encoding}）には対応していません。UTF-8 の RSS だけ読み込めます`,
     cover_processing_failed: 'アートワークを保存できませんでした',
+    file_delete_failed: 'ファイルを削除できませんでした。もう一度お試しください',
   },
 
   /** 初回起動時に DB へ書き込む既定値。以後はユーザーのデータなので翻訳しない。 */
@@ -164,8 +165,6 @@ Podcast: {{show_name}}
     noEpisodes: 'まだエピソードがありません',
     recovered: (duration: string) => `未確定の録音を復元しました（${duration}）`,
     removed: (n: number) => `#${n} を削除しました`,
-    restored: (n: number) => `#${n} を戻しました`,
-    restoredRenumbered: (n: number) => `#${n} として戻しました`,
     audioPurged: (n: number) => `#${n} の音声を削除しました`,
     duplicated: (n: number) => `#${n} として複製しました`,
     badgeNoAudio: '音声なし',
@@ -177,8 +176,7 @@ Podcast: {{show_name}}
       purgeAudio: '音声を削除',
       purgeAudioSub: '録音だけ消して容量を空ける。話数・タイトル・概要・書き出し履歴は残る',
       remove: 'エピソードを削除',
-      removeExportedNote: (n: number) =>
-        `#${n} は書き出し済みです。削除すると、この話数は次の新規作成で再利用されます`,
+      removeMessage: '録音と書き出したファイルも、この端末から消えます。元に戻せません',
     },
     episodeCode: (n: number) => `EP. ${String(n).padStart(3, '0')}`,
     newEpisodeCta: '新しいエピソードを録る',
@@ -381,8 +379,7 @@ Podcast: {{show_name}}
       purgeAudio: '音声を削除',
       purgeAudioSub: '録音だけ消して容量を空ける。話数・タイトル・概要・書き出し履歴は残る',
       remove: 'エピソードを削除',
-      removeExportedNote: (n: number) =>
-        `#${n} は書き出し済みです。削除すると、この話数は次の新規作成で再利用されます`,
+      removeMessage: '録音と書き出したファイルも、この端末から消えます。元に戻せません',
     },
     number: (n: number) => `エピソード ${String(n).padStart(3, '0')}`,
     a11yMenu: 'エピソードの操作',
@@ -470,6 +467,13 @@ Podcast: {{show_name}}
     historyFailed: (message: string) => `失敗: ${message}`,
     historyCancelled: '中止',
     historyRunning: (pct: number) => `進行中 ${pct}%`,
+    deleteExport: '書き出しを削除',
+    a11yDeleteExport: (when: string) => `${when} の書き出しを削除`,
+    deleteExportMessage:
+      '書き出したファイルを端末から消します。共有や「ファイル」に保存したコピーと、録音・編集は残ります。',
+    deleteExportLastListenable:
+      'この回を聴けるのは、この書き出しだけです。録音を削除済みで配信もされていないため、消すとこの回はどこからも聴けなくなります。',
+    exportDeleted: '書き出しを削除しました',
     failedTitle: '音声の書き出しに失敗しました',
     failedBody: '収録データと編集内容は端末に残っています',
     cancel: '書き出しをキャンセル',

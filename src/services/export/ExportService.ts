@@ -2,9 +2,12 @@ import { AppError } from '@/domain/errors';
 import type { SqlExecutor } from '@/infra/db/executor';
 import { parseEpisodeExportPreset } from '@/infra/db/repositories/episodesRepo';
 import {
+  deleteExportRow,
   failExport,
   finishExport,
+  getExport,
   insertExport,
+  isExportRunning,
   updateExportProgress,
   type ExportFormat,
 } from '@/infra/db/repositories/exportsRepo';
@@ -133,8 +136,19 @@ export interface ExportDeps {
   root: string;
   ensureDir: (absDir: string) => void;
   fileSize: (absPath: string) => number;
+  /** 絶対パスのファイルを消す（無ければ何もしない）。書き出しの削除に使う。 */
+  deleteFile: (absPath: string) => void;
   newId: () => string;
   now: () => number;
+}
+
+/** 書き出しを消したときに起きること（確認の文言を選ぶため）。 */
+export interface ExportRemovalImpact {
+  /**
+   * これが、この回を聴ける最後の手段か。ほかに書き出しが無く、声のタイムラインも空で
+   * （録音を消した回）、配信済みの音声（RSS の enclosure）も無い。消すとどこからも聴けない。
+   */
+  lastListenable: boolean;
 }
 
 export interface ExportEvents {
@@ -212,6 +226,53 @@ export class ExportService {
     this.jobs.set(jobId, { exportId, episodeId, relPath });
     await updateExportProgress(this.deps.db, exportId, 'rendering', 0);
     return exportId;
+  }
+
+  /**
+   * 書き出しを履歴ごと消す（Issue #152）。書き出しはアプリの内部にあり、ユーザーは「ファイル」
+   * アプリから消せない（共有・保存で外に出るのはコピー）。進行中の書き出しは消さない。
+   *
+   * 順序は **ファイルを先に消し、消せたら行を消す**（ユーザー判断 2026-09-29）。行だけ消えて
+   * ファイルが残ると、ユーザーには消す手段が無い。ファイルが消せなければ `file_delete_failed`。
+   */
+  async remove(exportId: string): Promise<void> {
+    const row = await getExport(this.deps.db, exportId);
+    if (!row) return;
+    if (isExportRunning(row.status)) throw new Error('export is running');
+    if (row.path) {
+      try {
+        this.deps.deleteFile(joinRoot(this.deps.root, row.path));
+      } catch (e) {
+        throw new AppError('file_delete_failed', {}, e);
+      }
+    }
+    await deleteExportRow(this.deps.db, exportId);
+  }
+
+  /** 書き出しを消したときに起きること。`remove` の前の確認に使う。 */
+  async removalImpact(exportId: string): Promise<ExportRemovalImpact> {
+    const { db } = this.deps;
+    const row = await getExport(db, exportId);
+    if (!row || row.status !== 'done' || !row.path) return { lastListenable: false };
+    const others = await db.get<{ n: number }>(
+      `SELECT COUNT(*) AS n FROM exports
+        WHERE episode_id = ? AND id <> ? AND status = 'done' AND path IS NOT NULL`,
+      [row.episode_id, exportId],
+    );
+    if ((others?.n ?? 0) > 0) return { lastListenable: false };
+    const voice = await db.get<{ n: number }>(
+      'SELECT COUNT(*) AS n FROM voice_segments WHERE episode_id = ?',
+      [row.episode_id],
+    );
+    if ((voice?.n ?? 0) > 0) return { lastListenable: false };
+    // Home と同じ対応付け: 明示リンク、または同じ番組の GUID 完全一致（FR-EP-7）。
+    const feed = await db.get<{ n: number }>(
+      `SELECT COUNT(*) AS n FROM feed_episodes f JOIN episodes e ON e.id = ?
+        WHERE f.enclosure_url IS NOT NULL
+          AND (f.episode_id = e.id OR (f.show_id = e.show_id AND f.guid = e.guid))`,
+      [row.episode_id],
+    );
+    return { lastListenable: (feed?.n ?? 0) === 0 };
   }
 
   cancel(exportId: string): void {

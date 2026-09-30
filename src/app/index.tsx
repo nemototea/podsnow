@@ -7,7 +7,7 @@ import { useServices } from '@/features/app/ServicesProvider';
 import { useHome } from '@/features/home/useHome';
 import { usePlayback } from '@/features/player/usePlayback';
 import { HomeArtwork } from '@/features/home/HomeArtwork';
-import { useT, type Messages } from '@/i18n';
+import { errorText, useT, type Messages } from '@/i18n';
 import type { EpisodeListItem } from '@/infra/db/repositories/episodesRepo';
 import type { HomeEpisodeItem } from '@/services/home/HomeService';
 import { icon, space, tabularNums, typography } from '@/ui/tokens';
@@ -79,28 +79,25 @@ export default function HomeScreen() {
     }
   };
 
+  /** 録音と書き出しのファイルもすぐ消えるので、取り消しは出さない（Issue #152）。 */
   const remove = async (e: EpisodeListItem) => {
-    await episodes.remove(e.id);
+    try {
+      await episodes.remove(e.id);
+      showToast({ text: t.home.removed(e.episode_number) });
+    } catch (err) {
+      showToast({ text: errorText(t, err) });
+    }
     await reload();
-    showToast({
-      text: t.home.removed(e.episode_number),
-      action: t.common.undo,
-      onAction: async () => {
-        const r = await episodes.restore(e.id);
-        await reload();
-        showToast({
-          text: r.renumbered
-            ? t.home.restoredRenumbered(r.episodeNumber)
-            : t.home.restored(r.episodeNumber),
-        });
-      },
-    });
   };
 
   const purgeAudio = async (e: EpisodeListItem) => {
-    await episodes.purgeAudio(e.id);
+    try {
+      await episodes.purgeAudio(e.id);
+      showToast({ text: t.home.audioPurged(e.episode_number) });
+    } catch (err) {
+      showToast({ text: errorText(t, err) });
+    }
     await reload();
-    showToast({ text: t.home.audioPurged(e.episode_number) });
   };
 
   const duplicate = async (e: EpisodeListItem) => {
@@ -141,9 +138,7 @@ export default function HomeScreen() {
       onPress: () =>
         confirmDestructive({
           title: t.home.menu.remove,
-          ...(e.status === 'exported'
-            ? { message: t.home.menu.removeExportedNote(e.episode_number) }
-            : {}),
+          message: t.home.menu.removeMessage,
           confirmLabel: t.common.delete,
           cancelLabel: t.common.cancel,
           onConfirm: () => void remove(e),

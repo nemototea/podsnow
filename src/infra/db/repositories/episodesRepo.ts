@@ -205,28 +205,6 @@ export async function softDeleteEpisode(db: SqlExecutor, id: string, now: number
 }
 
 /**
- * 論理削除からの復元。削除トーストの Undo を待つ間に新規作成されると話数が衝突しうるので、
- * そのときだけ採番し直す（REQUIREMENTS.md §2.1.1 の受け入れ基準）。
- */
-export async function restoreEpisode(
-  db: SqlExecutor,
-  id: string,
-  now: number,
-): Promise<{ episodeNumber: number; renumbered: boolean }> {
-  return db.transaction(async () => {
-    const ep = await getEpisode(db, id);
-    if (!ep) throw new Error('episode not found');
-    const taken = await episodeNumberTaken(db, ep.show_id, ep.episode_number, id);
-    const episodeNumber = taken ? await nextEpisodeNumber(db, ep.show_id) : ep.episode_number;
-    await db.run(
-      'UPDATE episodes SET deleted_at = NULL, episode_number = ?, updated_at = ? WHERE id = ?',
-      [episodeNumber, now, id],
-    );
-    return { episodeNumber, renumbered: taken };
-  });
-}
-
-/**
  * 「音声を削除」の DB 側（FR-EP-4）。takes を論理削除し、`audio_purged_at` を立てる。
  * 行・話数・タイトル・概要・書き出し履歴は残す。ファイルの削除は呼び出し側（EpisodeService）。
  */
