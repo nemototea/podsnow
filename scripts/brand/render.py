@@ -72,6 +72,19 @@ def _edges(polys):
     return edges
 
 
+def circles(items, k: float):
+    """網点の円（cx, cy, r）を出力 px の多角形の列にする。"""
+    import math
+
+    out = []
+    n = QUAD_STEPS * 2
+    for cx, cy, r in items:
+        out.append(
+            [(k * (cx + r * math.cos(2 * math.pi * i / n)), k * (cy + r * math.sin(2 * math.pi * i / n))) for i in range(n)]
+        )
+    return out
+
+
 def polygons(lines, k: float):
     """配置済みの行（geometry.line の戻り値）を、出力 px の多角形の列にする。"""
     out = []
@@ -203,8 +216,11 @@ def path_d(lines) -> str:
     return ''.join(parts)
 
 
-def svg(width: int, height: int, groups, background: str | None = None, title='PodsNow.') -> str:
-    """groups: [(lines, 字の色, 点の色)]。"""
+def svg_layers(width: int, height: int, layers, background: str | None = None, dots=None, title='PodsNow.') -> str:
+    """
+    layers: [(lines, 色)] を下から順に描く。字は path、点は rect。
+    dots: (円の列, 色) があれば、背景の上に網点として描く。
+    """
     out = [
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" '
         f'viewBox="0 0 {width} {height}" role="img" aria-label="{title}">',
@@ -213,14 +229,22 @@ def svg(width: int, height: int, groups, background: str | None = None, title='P
     ]
     if background:
         out.append(f'  <rect width="{width}" height="{height}" fill="{background}"/>')
-    for lines, ink, dot_color in groups:
-        out.append(f'  <path fill="{ink}" d="{path_d(lines)}"/>')
+    if dots:
+        items, color = dots
+        out.append(f'  <g fill="{color}">')
+        for cx, cy, r in items:
+            out.append(f'    <circle cx="{_num(cx)}" cy="{_num(cy)}" r="{_num(r)}"/>')
+        out.append('  </g>')
+    for lines, color in layers:
+        d = path_d(lines)
+        if d:
+            out.append(f'  <path fill="{color}" d="{d}"/>')
         for ln in lines:
             if ln['dot']:
                 x, y, size, r = ln['dot']
                 out.append(
                     f'  <rect x="{_num(x)}" y="{_num(y)}" width="{_num(size)}" '
-                    f'height="{_num(size)}" rx="{_num(r)}" fill="{dot_color}"/>'
+                    f'height="{_num(size)}" rx="{_num(r)}" fill="{color}"/>'
                 )
     out.append('</svg>')
     return '\n'.join(out) + '\n'

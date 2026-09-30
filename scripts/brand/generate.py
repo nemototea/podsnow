@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 アプリアイコン・スプラッシュ・favicon・ロゴの SVG と、アプリ内ロゴのデータを生成する
-（DESIGN_SYSTEM.md §3、Issue #94）。
+（DESIGN_SYSTEM.md §3、Issue #94 / #190）。
 
     python3 scripts/brand/generate.py
 
@@ -32,19 +32,28 @@ ADAPTIVE_SAFE_RADIUS = g.CANVAS * 0.66 / 2
 ANDROID_SPLASH_SAFE_RADIUS_DP = 192 / 2 - 6
 
 
-def split(lines):
-    """字と点を別の層にする（色が違うため）。"""
-    ink = [{'contours': ln['contours'], 'dot': None} for ln in lines]
-    dots = [{'contours': [], 'dot': ln['dot']} for ln in lines if ln['dot']]
-    return ink, dots
+def stack(lines, ink, shadow=None, dot=None, edge=None):
+    """層（下から 版ズレ → 字 → 点の輪郭 → 点）と色の組。色が None の層は描かない。"""
+    ls = g.layers(lines, misreg=shadow is not None, edge=edge is not None)
+    out = []
+    if shadow:
+        out.append((ls['shadow'], shadow))
+    out.append((ls['ink'], ink))
+    if edge:
+        out.append((ls['edge'], edge))
+    out.append((ls['dot'], dot or ink))
+    return out
 
 
-def png(name, lines, size, ink, dot, background, scale_from=g.CANVAS, height=None):
+def png(name, stacked, size, background, scale_from=g.CANVAS, height=None, dots=None):
     w = size
     h = height or size
     k = w / scale_from
-    a, b = split(lines)
-    rows = r.compose([(r.polygons(a, k), ink), (r.polygons(b, k), dot)], w, h, background)
+    layers = []
+    if dots:
+        layers.append((r.circles(dots[0], k), dots[1]))
+    layers += [(r.polygons(lines, k), color) for lines, color in stacked]
+    rows = r.compose(layers, w, h, background)
     path = os.path.join(IMAGES, name)
     r.write_png(path, rows, w, h, background is None)
     print('書き出し', os.path.relpath(path, ROOT), f'({w}x{h})')
@@ -60,11 +69,19 @@ def write(path: str, text: str) -> None:
 def app_wordmark() -> str:
     lines = [g.wordmark(*g.WORDMARK_LINE)]
     x, y, size, rad = lines[0]['dot']
+    dx, dy = lines[0]['misreg']
     data = {
         'width': g.WORDMARK_W,
         'height': g.WORDMARK_H,
         'd': r.path_d(lines),
-        'dot': {'x': round(x, 2), 'y': round(y, 2), 'size': round(size, 2), 'r': round(rad, 2)},
+        'misreg': {'dx': round(dx, 2), 'dy': round(dy, 2)},
+        'dot': {
+            'x': round(x, 2),
+            'y': round(y, 2),
+            'size': round(size, 2),
+            'r': round(rad, 2),
+            'edge': round(lines[0]['edge'], 2),
+        },
     }
     return (
         '// scripts/brand/generate.py が生成。直接編集せず scripts/brand/geometry.py を直すこと。\n'
@@ -138,37 +155,37 @@ def main() -> int:
     small = g.two_lines(g.SMALL_LINES)
     mark = [g.wordmark(*g.WORDMARK_LINE)]
     splash = [g.wordmark(*g.SPLASH_LINE)]
+    dots = (g.halftone(), g.HALFTONE)
+
+    # 横組み（§3.2）。ライトの黄の点だけ墨の輪郭を付ける。
+    mark_dark = stack(mark, g.INK, g.SHADOW, g.DOT)
+    mark_light = stack(mark, g.LIGHT_INK, g.LIGHT_SHADOW, g.LIGHT_DOT, g.EDGE)
+    mark_mono = stack(mark, g.MONO)
+    # アイコン。網点は 60px 以下では描かない。版ズレは 32px 以下（icon-small）では描かない。
+    icon_full = stack(icon, g.ICON_INK, g.ICON_SHADOW, g.LIGHT_DOT, g.EDGE)
+    icon_small = stack(small, g.ICON_INK, None, g.LIGHT_DOT, g.EDGE)
+    icon_favicon = stack(small, g.ICON_INK, g.ICON_SHADOW, g.LIGHT_DOT, g.EDGE)
+    fg = stack(adaptive, g.ICON_INK, g.ICON_SHADOW, g.LIGHT_DOT, g.EDGE)
+    mono = stack(adaptive, g.MONO)
 
     W, H = g.WORDMARK_W, g.WORDMARK_H
-    write(os.path.join(BRAND, 'wordmark-dark.svg'), r.svg(W, H, [(mark, g.INK, g.DOT)]))
-    write(
-        os.path.join(BRAND, 'wordmark-light.svg'),
-        r.svg(W, H, [(mark, g.LIGHT_INK, g.LIGHT_DOT)]),
-    )
-    write(os.path.join(BRAND, 'wordmark-mono.svg'), r.svg(W, H, [(mark, g.MONO, g.MONO)]))
     C = g.CANVAS
-    write(os.path.join(BRAND, 'app-icon.svg'), r.svg(C, C, [(icon, g.ICON_INK, g.ICON_INK)], g.ICON_BG))
-    write(os.path.join(BRAND, 'icon-small.svg'), r.svg(C, C, [(small, g.ICON_INK, g.ICON_INK)], g.ICON_BG))
-    write(
-        os.path.join(BRAND, 'android-foreground.svg'),
-        r.svg(C, C, [(adaptive, g.ICON_INK, g.ICON_INK)]),
-    )
-    write(
-        os.path.join(BRAND, 'android-monochrome.svg'),
-        r.svg(C, C, [(adaptive, g.MONO, g.MONO)]),
-    )
+    write(os.path.join(BRAND, 'wordmark-dark.svg'), r.svg_layers(W, H, mark_dark))
+    write(os.path.join(BRAND, 'wordmark-light.svg'), r.svg_layers(W, H, mark_light))
+    write(os.path.join(BRAND, 'wordmark-mono.svg'), r.svg_layers(W, H, mark_mono))
+    write(os.path.join(BRAND, 'app-icon.svg'), r.svg_layers(C, C, icon_full, g.ICON_BG, dots))
+    write(os.path.join(BRAND, 'icon-small.svg'), r.svg_layers(C, C, icon_small, g.ICON_BG))
+    write(os.path.join(BRAND, 'android-foreground.svg'), r.svg_layers(C, C, fg))
+    write(os.path.join(BRAND, 'android-monochrome.svg'), r.svg_layers(C, C, mono))
     write(APP_WORDMARK, app_wordmark())
 
-    png('icon.png', icon, 1024, g.ICON_INK, g.ICON_INK, g.ICON_BG)
-    png('android-icon-foreground.png', adaptive, 1024, g.ICON_INK, g.ICON_INK, None)
-    png('android-icon-monochrome.png', adaptive, 1024, g.MONO, g.MONO, None)
-    png('favicon.png', small, 48, g.ICON_INK, g.ICON_INK, g.ICON_BG)
-    png('splash-icon-light.png', splash, g.SPLASH_W, g.LIGHT_INK, g.LIGHT_DOT, None, g.SPLASH_W, g.SPLASH_H)
-    png('splash-icon.png', splash, g.SPLASH_W, g.INK, g.DOT, None, g.SPLASH_W, g.SPLASH_H)
-
-    path = os.path.join(IMAGES, 'android-icon-background.png')
-    r.write_png(path, r.solid(1024, 1024, g.ICON_BG), 1024, 1024, True)
-    print('書き出し', os.path.relpath(path, ROOT), '(1024x1024, 単色)')
+    png('icon.png', icon_full, 1024, g.ICON_BG, dots=dots)
+    png('android-icon-foreground.png', fg, 1024, None)
+    png('android-icon-monochrome.png', mono, 1024, None)
+    png('favicon.png', icon_favicon, 48, g.ICON_BG)
+    png('splash-icon-light.png', stack(splash, g.LIGHT_INK, g.LIGHT_SHADOW, g.LIGHT_DOT, g.EDGE), g.SPLASH_W, None, g.SPLASH_W, g.SPLASH_H)
+    png('splash-icon.png', stack(splash, g.INK, g.SHADOW, g.DOT), g.SPLASH_W, None, g.SPLASH_W, g.SPLASH_H)
+    png('android-icon-background.png', [], 1024, g.ICON_BG, dots=dots)
     return 0
 
 

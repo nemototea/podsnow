@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """
-ロゴタイプの字形を Manrope ExtraBold（800）から取り出し、`glyphs.py` に書く（Issue #94）。
+ロゴタイプの字形を Dela Gothic One から取り出し、`glyphs.py` に書く（Issue #94 / #190）。
 
     python3 -m pip install fonttools
-    python3 scripts/brand/extract_glyphs.py path/to/Manrope[wght].ttf
+    python3 scripts/brand/extract_glyphs.py assets/fonts/DelaGothicOne-Regular.ttf
+
+可変フォントを渡したときだけ `WEIGHT` のインスタンスを切り出す（Design system 2 の Manrope 800）。
 
 字形を変えるときだけ実行する。通常の再生成（`generate.py`）は `glyphs.py` を読むだけで、
 fontTools もフォントも要らない。
@@ -23,12 +25,15 @@ WEIGHT = 800
 
 
 def main() -> int:
-    font = instantiateVariableFont(TTFont(sys.argv[1]), {'wght': WEIGHT}, inplace=False)
+    font = TTFont(sys.argv[1])
+    if 'fvar' in font:
+        font = instantiateVariableFont(font, {'wght': WEIGHT}, inplace=False)
+    name = font['name'].getDebugName(4)
     glyphs = font.getGlyphSet()
     cmap = font.getBestCmap()
     lines = [
         '# scripts/brand/extract_glyphs.py が生成。直接編集しない。',
-        f'# Manrope wght={WEIGHT}（SIL Open Font License 1.1、assets/fonts/Manrope-OFL.txt）。',
+        f'# {name}（SIL Open Font License 1.1、assets/fonts/ の *-OFL.txt）。',
         '# 座標はフォント単位（unitsPerEm = %d）、y は上向き。' % font['head'].unitsPerEm,
         '',
         'GLYPHS = {',
