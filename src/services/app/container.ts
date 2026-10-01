@@ -118,7 +118,6 @@ export async function bootstrap(
       channels: liveSettings.settings.recording.channels,
       inputUid: liveSettings.settings.recording.preferredInputUid,
       autoResumeAfterInterruption: liveSettings.settings.recording.autoResumeAfterInterruption,
-      expectedMinutes: liveSettings.settings.recording.expectedMinutes,
       diskLowThresholdBytes: 30 * 1024 * 1024,
       androidAudioSource: liveSettings.settings.recording.androidAudioSource,
     }),

@@ -1,10 +1,7 @@
 import { useEffect, useState } from 'react';
 
-import { estimateRecordable, type RecordableEstimate } from '@/domain/storage';
-import {
-  DEFAULT_RECORDING_SETTINGS,
-  type SessionState,
-} from '@/services/recording/RecordingSession';
+import type { RecordableEstimate } from '@/domain/storage';
+import type { SessionState } from '@/services/recording/RecordingSession';
 
 import type { AudioInput } from '../../../modules/podsnow-recorder/src/PodsnowRecorder.types';
 import { useServices } from '../app/ServicesProvider';
@@ -64,15 +61,11 @@ export function useRecordingContext(state: SessionState): RecordingContext {
         .checkDiskSpace()
         .then((d) => {
           if (!alive) return;
-          setEstimate(
-            estimateRecordable(d.availableBytes, {
-              sampleRate: settings.recording.sampleRate,
-              channels: settings.recording.channels,
-              reserveBytes: DEFAULT_RECORDING_SETTINGS.diskLowThresholdBytes,
-            }),
-          );
+          // 開始の判定と同じ計算（FR-SAFE-5、Issue #165）
+          setEstimate(d.estimate);
         })
         .catch(() => alive && setEstimate(null));
+    // 音質（レート・チャンネル）を変えたら測り直す。録れる時間が変わる
     void measure();
     const h = active ? setInterval(() => void measure(), REFRESH_MS) : null;
     return () => {

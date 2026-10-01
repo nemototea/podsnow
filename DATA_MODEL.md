@@ -477,5 +477,5 @@ planSilenceRemoval(ranges, { padMs }): Range[]
 
 ## 9. ストレージ見積り
 - 48 kHz / 16 bit / mono = 96 KB/s ≈ 5.8 MB/分 ≈ **345 MB/時間**。ステレオは 2 倍。
-- 録音開始時の必要空き容量チェック: `Paths.availableDiskSpace`【確認済み】 ≥ (想定 60 分 × レート) + 200 MB 余裕。不足時は分数を示して警告。
+- 録音開始時の空き容量チェック: 録れる時間 =（`Paths.availableDiskSpace`【確認済み】 − 停止のしきい値）÷ レート。1 分未満なら始めない。収録タブの「残り約 ◯ 分」も同じ計算（`src/domain/storage.ts`、Issue #165）。想定時間ぶんを先に要求する判定と「想定する収録時間」の設定は持たない。
 - 録音中の監視: 残り 5 分相当（≈ 30 MB）を下回ったら `diskLow` → 安全停止。【仮説: しきい値】

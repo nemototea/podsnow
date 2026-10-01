@@ -91,8 +91,7 @@ export const en: Messages = {
   errors: {
     voice_timeline_empty: 'Nothing recorded yet',
     recording_resume_failed: 'Could not resume recording',
-    disk_space_insufficient: (requiredMb: string, availableMb: string) =>
-      `Not enough free space (${requiredMb} MB needed, ${availableMb} MB free)`,
+    disk_space_insufficient: 'Not enough free space on this device',
     export_app_terminated: 'Interrupted because the app was terminated',
     import_not_https: 'Only URLs starting with https:// can be loaded',
     import_network_failed: 'Could not connect. Check your connection',
@@ -243,6 +242,7 @@ Tag #PodsNow to share your thoughts`,
     subtitleSaved: 'Saved',
     cannotLeave: 'Stop the recording before leaving.',
     diskLow: 'Recording stopped: not enough free space',
+    cannotStartTitle: "Can't start recording",
     interrupted: 'An interruption stopped the recording. Everything so far is saved.',
     builtInMic: 'Built-in mic',
     routeChanged: (input: string) => `Input switched to ${input}`,
@@ -564,8 +564,6 @@ Tag #PodsNow to share your thoughts`,
     lowQualitySuffix: ' · lower quality',
     noInputs: 'Could not read the input devices (microphone permission is required)',
     autoResume: 'Resume automatically after an interruption',
-    expectedLength: 'Expected recording length',
-    minutes: (n: number) => `${n} min`,
     androidSource: 'Android audio source',
     sources: {
       voice_recognition: {

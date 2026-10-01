@@ -12,7 +12,6 @@ export interface AppSettings {
     channels: 1 | 2;
     preferredInputUid: string | null;
     autoResumeAfterInterruption: boolean;
-    expectedMinutes: number;
     androidAudioSource: 'mic' | 'voice_recognition' | 'unprocessed' | 'camcorder';
   };
   silence: { minDurationMs: number; thresholdDb: number; padMs: number; autoApply: boolean };
@@ -35,7 +34,6 @@ export const DEFAULT_SETTINGS: AppSettings = {
     channels: 2,
     preferredInputUid: null,
     autoResumeAfterInterruption: false,
-    expectedMinutes: 60,
     androidAudioSource: 'voice_recognition',
   },
   silence: { minDurationMs: 1500, thresholdDb: -45, padMs: 250, autoApply: false },

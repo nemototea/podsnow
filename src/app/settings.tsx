@@ -36,7 +36,6 @@ interface Loaded {
 /** 表示テーマと同じく「システム」を最後に置く。 */
 const LANGUAGES: readonly AppSettings['language'][] = ['ja', 'en', 'system'];
 const THEMES: readonly AppSettings['theme'][] = ['dark', 'light', 'system'];
-const MINUTES = [30, 60, 90, 120];
 const SILENCE_LEN = [1000, 1500, 2000, 3000];
 const SILENCE_DB = [-40, -45, -50, -55];
 const SILENCE_PAD = [100, 250, 400];
@@ -184,27 +183,12 @@ export default function SettingsScreen() {
         ) : null}
         <Row
           label={t.settings.autoResume}
+          last={Platform.OS !== 'android'}
           right={
             <Toggle
               value={settings.recording.autoResumeAfterInterruption}
               onChange={(v) => setRec({ autoResumeAfterInterruption: v })}
             />
-          }
-        />
-        <Row
-          label={t.settings.expectedLength}
-          last={Platform.OS !== 'android'}
-          below={
-            <>
-              {MINUTES.map((m) => (
-                <Chip
-                  key={m}
-                  label={t.settings.minutes(m)}
-                  active={settings.recording.expectedMinutes === m}
-                  onPress={() => setRec({ expectedMinutes: m })}
-                />
-              ))}
-            </>
           }
         />
         {Platform.OS === 'android' ? (

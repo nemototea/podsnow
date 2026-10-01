@@ -2,6 +2,7 @@ import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Linking, Platform, StyleSheet, View } from 'react-native';
 
+import { isAppError } from '@/domain/errors';
 import { formatSmp, smp, type Smp } from '@/domain/time';
 import { useServices } from '@/features/app/ServicesProvider';
 import { ExportTab } from '@/features/episode/ExportTab';
@@ -49,7 +50,8 @@ export default function EpisodeScreen() {
   const live = isRec || interrupted || busy;
 
   const showError = useCallback(
-    (message: string) => notify({ title: t.common.error, message, okLabel: t.common.close }),
+    (message: string, title: string = t.common.error) =>
+      notify({ title, message, okLabel: t.common.close }),
     [t],
   );
 
@@ -168,7 +170,9 @@ export default function EpisodeScreen() {
       }
       await start();
     } catch (e) {
-      showError(errorText(t, e));
+      // 容量不足は「エラー」ではなく、何ができないかを題にする（Issue #165）
+      const diskFull = isAppError(e) && e.code === 'disk_space_insufficient';
+      showError(errorText(t, e), diskFull ? t.record.cannotStartTitle : undefined);
     }
   }, [
     askOpenSettings,

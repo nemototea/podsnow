@@ -96,8 +96,7 @@ export const ja = {
   errors: {
     voice_timeline_empty: 'まだ録音がありません',
     recording_resume_failed: '録音の再開に失敗しました',
-    disk_space_insufficient: (requiredMb: string, availableMb: string) =>
-      `空き容量が不足しています（必要 ${requiredMb} MB / 空き ${availableMb} MB）`,
+    disk_space_insufficient: '端末の空き容量が足りません',
     export_app_terminated: 'アプリが終了したため中断されました',
     import_not_https: 'https:// で始まる URL だけ読み込めます',
     import_network_failed: '接続できませんでした。通信環境を確認してください',
@@ -246,6 +245,8 @@ Podcast: {{show_name}}
     subtitleSaved: '自動保存済み',
     cannotLeave: '録音中は戻れません。停止してください',
     diskLow: '空き容量が少ないため録音を停止しました',
+    /** 録音を始められなかったときのダイアログの題（Issue #165）。 */
+    cannotStartTitle: '録音を始められません',
     interrupted: '割り込みで録音が止まりました。ここまでは保存済みです',
     builtInMic: '内蔵マイク',
     routeChanged: (input: string) => `入力が ${input} に切り替わりました`,
@@ -564,8 +565,6 @@ Podcast: {{show_name}}
     lowQualitySuffix: ' · 低音質',
     noInputs: '入力デバイスを取得できませんでした（マイク権限が必要です）',
     autoResume: '割り込み後に自動で再開',
-    expectedLength: '想定する収録時間',
-    minutes: (n: number) => `${n}分`,
     androidSource: 'Android の録音ソース',
     sources: {
       voice_recognition: { label: '標準（推奨）', sub: 'AGC なし・軽いノイズ抑制' },

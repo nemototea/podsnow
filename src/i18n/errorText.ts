@@ -15,11 +15,6 @@ export function errorCodeText(
   params: Readonly<Record<string, string | number>> = {},
 ): string {
   switch (code) {
-    case 'disk_space_insufficient':
-      return t.errors.disk_space_insufficient(
-        String(params.requiredMb ?? '?'),
-        String(params.availableMb ?? '?'),
-      );
     case 'import_http_status':
       return t.errors.import_http_status(String(params.status ?? '?'));
     case 'import_unsupported_encoding':
@@ -28,6 +23,7 @@ export function errorCodeText(
       return t.errors.import_too_large(String(params.maxMb ?? '?'));
     case 'voice_timeline_empty':
     case 'recording_resume_failed':
+    case 'disk_space_insufficient':
     case 'export_app_terminated':
     case 'import_not_https':
     case 'import_network_failed':
