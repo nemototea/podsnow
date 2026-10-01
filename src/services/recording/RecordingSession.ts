@@ -193,9 +193,7 @@ export class RecordingSession {
       const s = this.deps.settings();
       const disk = await this.checkDiskSpace();
       if (!disk.ok) {
-        throw new AppError('disk_space_insufficient', {
-          availableMb: Math.round(Math.max(0, disk.availableBytes) / 1048576),
-        });
+        throw new AppError('disk_space_insufficient');
       }
       await this.deps.recorder.prepare({
         sampleRate: s.sampleRate,

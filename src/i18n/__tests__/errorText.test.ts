@@ -15,12 +15,9 @@ describe('errorCodeText', () => {
     }
   });
 
-  it('差し込みが必要なコードは値を埋める', () => {
+  it('容量不足は理由だけを短く出す（題が「録音を始められません」なので。Issue #165）', () => {
     const t = messagesFor('ja');
-    // 想定時間ぶんの「必要量」は出さず、空きと次の操作を示す（Issue #165）
-    const disk = errorCodeText(t, 'disk_space_insufficient', { availableMb: 12 });
-    expect(disk).toContain('12');
-    expect(disk).toContain('空きを作って');
+    expect(errorCodeText(t, 'disk_space_insufficient')).toBe('端末の空き容量が足りません');
   });
 });
 

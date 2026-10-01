@@ -96,8 +96,7 @@ export const ja = {
   errors: {
     voice_timeline_empty: 'まだ録音がありません',
     recording_resume_failed: '録音の再開に失敗しました',
-    disk_space_insufficient: (availableMb: string) =>
-      `端末の空き容量が足りないため、録音を始められません（空き ${availableMb} MB）。写真や使っていないアプリを消して空きを作ってから、もう一度録音してください`,
+    disk_space_insufficient: '端末の空き容量が足りません',
     export_app_terminated: 'アプリが終了したため中断されました',
     import_not_https: 'https:// で始まる URL だけ読み込めます',
     import_network_failed: '接続できませんでした。通信環境を確認してください',

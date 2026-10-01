@@ -114,7 +114,6 @@ describe('RecordingSession', () => {
     // 文言ではなく AppErrorCode で判定する（表示文言は UI 層の i18n、Issue #80）。
     await expect(session.start('e')).rejects.toMatchObject({
       code: 'disk_space_insufficient',
-      params: { availableMb: 0 },
     });
     expect(session.current).toBe('idle');
     expect(recorder.calls).toEqual([]);

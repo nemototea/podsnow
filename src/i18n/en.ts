@@ -91,8 +91,7 @@ export const en: Messages = {
   errors: {
     voice_timeline_empty: 'Nothing recorded yet',
     recording_resume_failed: 'Could not resume recording',
-    disk_space_insufficient: (availableMb: string) =>
-      `There isn't enough free space on this device to start recording (${availableMb} MB free). Delete photos or apps you don't use to free up space, then try again.`,
+    disk_space_insufficient: 'Not enough free space on this device',
     export_app_terminated: 'Interrupted because the app was terminated',
     import_not_https: 'Only URLs starting with https:// can be loaded',
     import_network_failed: 'Could not connect. Check your connection',
