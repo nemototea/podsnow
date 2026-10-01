@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import Reanimated, {
+  LinearTransition,
   runOnJS,
   useAnimatedStyle,
   useSharedValue,
@@ -30,6 +31,16 @@ export interface SketchPage {
   a11y: string;
 }
 
+/** ページの右端の付箋（DESIGN_SYSTEM.md §2.7）。押しても話題は進まない（全体を見るだけ）。 */
+export interface SketchTab {
+  key: string;
+  label: string;
+  a11y: string;
+  /** 済み・今・これから。「＋数」の付箋は、まとめた側（前 = 済み、後ろ = これから）。 */
+  state: 'done' | 'now' | 'next';
+  onPress: () => void;
+}
+
 /** 話し始める前の表紙。 */
 export interface SketchCover {
   title: string;
@@ -40,6 +51,9 @@ export interface SketchCover {
 type Face = { kind: 'page'; page: SketchPage } | { kind: 'cover'; cover: SketchCover };
 
 const RING_PITCH = 22;
+/** 付箋がページの右から飛び出す長さと、ページの下に隠れる長さ。 */
+const TAB_OUT = 22;
+const TAB_TUCK = 8;
 const RING_H = 26;
 const PAGE_MIN_H = 280;
 const FLIP_MS = 380;
@@ -68,12 +82,15 @@ export function Sketchbook({
   cover,
   remaining,
   onPressPage,
+  tabs = [],
 }: {
   page: SketchPage | null;
   cover: SketchCover;
   /** このページより後ろに残っているページ数（重なりの見た目だけに使う）。 */
   remaining: number;
   onPressPage?: () => void;
+  /** 全体の進み具合の読み上げは、ページの `a11y` に含める。 */
+  tabs?: readonly SketchTab[];
 }) {
   const c = useAppTheme();
   const reduced = useReducedMotion();
@@ -110,7 +127,8 @@ export function Sketchbook({
     transform: [{ perspective: 1200 }, { rotateX: `${-FLIP_DEG * flip.get()}deg` }],
   }));
 
-  const rings = Math.max(0, Math.floor((width - space.xl) / RING_PITCH));
+  const tabRoom = tabs.length ? TAB_OUT : 0;
+  const rings = Math.max(0, Math.floor((width - tabRoom - space.xl) / RING_PITCH));
   const stack = Math.min(STACK_MAX, Math.max(0, remaining));
 
   const renderFace = (f: Face) =>
@@ -169,8 +187,51 @@ export function Sketchbook({
     );
 
   return (
-    <View style={s.root} onLayout={(e) => setWidth(e.nativeEvent.layout.width)}>
+    <View
+      style={[s.root, { paddingRight: tabRoom }]}
+      onLayout={(e) => setWidth(e.nativeEvent.layout.width)}
+    >
       <View style={s.book}>
+        {tabs.length ? (
+          <View style={s.tabs}>
+            {tabs.map((tab) => {
+              const fill =
+                tab.state === 'now'
+                  ? c.brandShadow
+                  : tab.state === 'done'
+                    ? c.sketchInk
+                    : c.sketchPaper;
+              const ink = tab.state === 'done' ? c.sketchPaper : c.sketchInk;
+              return (
+                <Reanimated.View
+                  key={tab.key}
+                  {...(reduced ? {} : { layout: LinearTransition.duration(FLIP_MS) })}
+                  style={s.tabSlot}
+                >
+                  <Pressable
+                    onPress={tab.onPress}
+                    accessibilityRole="button"
+                    accessibilityLabel={tab.a11y}
+                    hitSlop={{ left: space.xs, right: space.lg }}
+                    style={[
+                      s.tab,
+                      {
+                        width:
+                          tab.state === 'now' ? TAB_OUT + TAB_TUCK : TAB_OUT + TAB_TUCK - space.xs,
+                        backgroundColor: fill,
+                        borderColor: c.sketchInk,
+                      },
+                    ]}
+                  >
+                    <Text style={[typography.tick, { color: ink }]} numberOfLines={1}>
+                      {tab.label}
+                    </Text>
+                  </Pressable>
+                </Reanimated.View>
+              );
+            })}
+          </View>
+        ) : null}
         <View
           style={[
             s.layer,
@@ -241,7 +302,7 @@ export function Sketchbook({
         ) : null}
       </View>
       <View
-        style={s.rings}
+        style={[s.rings, { right: space.md + tabRoom }]}
         pointerEvents="none"
         accessibilityElementsHidden
         importantForAccessibility="no-hide-descendants"
@@ -295,6 +356,24 @@ const s = StyleSheet.create({
     paddingTop: space.xl,
     paddingHorizontal: space.xl,
     gap: space.xs,
+  },
+  tabs: {
+    position: 'absolute',
+    right: -TAB_OUT,
+    top: RING_H,
+    bottom: space.md,
+    width: TAB_OUT + TAB_TUCK,
+    gap: space.xs,
+  },
+  tabSlot: { flex: 1, alignItems: 'flex-end' },
+  tab: {
+    flex: 1,
+    borderWidth: stroke.selected,
+    borderTopRightRadius: radius.sm,
+    borderBottomRightRadius: radius.sm,
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+    paddingRight: space.hair,
   },
   leaving: { position: 'absolute', left: 0, right: 0, top: 0, transformOrigin: 'top' },
   rings: {

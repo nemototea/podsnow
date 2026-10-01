@@ -38,3 +38,45 @@ export function onArc(cx: number, cy: number, r: number, deg: number): { x: numb
   const a = (deg * Math.PI) / 180;
   return { x: cx + r * Math.sin(a), y: cy - r * Math.cos(a) };
 }
+
+/** カンペの付箋（DESIGN_SYSTEM.md §2.7）。番号の付箋か、外れた分をまとめた「＋数」の付箋。 */
+export type IndexTab =
+  | { kind: 'topic'; index: number }
+  | { kind: 'before'; from: number; count: number }
+  | { kind: 'after'; from: number; count: number };
+
+/** 付箋の枠の数。ページの高さに、押せる大きさを保って並べられる上限。 */
+export const INDEX_SLOTS = 7;
+
+/**
+ * 付箋の並びを決める（DESIGN_SYSTEM.md §2.7）。
+ *
+ * - 話題が枠の数以下なら全部を番号で出す。
+ * - 多いときは今の話題が上から 3 番目に来る範囲を番号で出し、外れた分を前後の「＋数」1 枚にまとめる。
+ * - 「＋1」は作らない（1 本ならその付箋を出すのと同じ場所を取る）。終わりに近づいたら範囲を下端で止める。
+ *
+ * `current` は今の話題の添字。話し始める前は null（先頭から並べる）。
+ */
+export function indexTabs(total: number, current: number | null, slots = INDEX_SLOTS): IndexTab[] {
+  const topics = (from: number, to: number): IndexTab[] =>
+    Array.from({ length: Math.max(0, to - from) }, (_, i) => ({ kind: 'topic', index: from + i }));
+  if (total <= slots) return topics(0, total);
+  const anchor = current ?? 0;
+  const start = Math.max(0, anchor - 2);
+  // 前にまとめる話題が 1 本以下なら、前の「＋」は作らず先頭から並べる
+  if (start <= 1) {
+    const shown = slots - 1;
+    return [...topics(0, shown), { kind: 'after', from: shown, count: total - shown }];
+  }
+  const width = slots - 2;
+  // 後ろにまとめる話題が 1 本以下なら、後ろの「＋」は作らず下端で止める
+  if (start + width >= total - 1) {
+    const from = total - (slots - 1);
+    return [{ kind: 'before', from: 0, count: from }, ...topics(from, total)];
+  }
+  return [
+    { kind: 'before', from: 0, count: start },
+    ...topics(start, start + width),
+    { kind: 'after', from: start + width, count: total - start - width },
+  ];
+}

@@ -4,10 +4,10 @@ import { AccessibilityInfo, StyleSheet, View } from 'react-native';
 import { moveItem } from '@/domain/outline';
 import { formatClock } from '@/domain/time';
 import { useT } from '@/i18n';
-import { icon, radius, space, stroke, tabularNums, typography } from '@/ui/tokens';
-import { Button, Field, Icon, IconButton, Row, SectionHeader, Sheet, Text } from '@/ui/components';
+import { space, tabularNums, typography } from '@/ui/tokens';
+import { Button, Field, IconButton, Row, SectionHeader, Sheet, Text } from '@/ui/components';
 import { confirmDestructive } from '@/ui/alerts';
-import { Sketchbook } from '@/ui/media';
+import { indexTabs, Sketchbook } from '@/ui/media';
 import { ReorderList } from '@/ui/ReorderList';
 import { useAppTheme } from '@/ui/ThemeContext';
 
@@ -26,6 +26,12 @@ export function TopicsSection({ ws }: { ws: Workspace }) {
   const [draft, setDraft] = useState('');
   const [editing, setEditing] = useState<string | null>(null);
   const [body, setBody] = useState('');
+  // 付箋から開いたときに、押した話題を全体のシートで示す（見るだけで、話題は進めない）
+  const [focus, setFocus] = useState<string | null>(null);
+  const openOverview = (id: string | null) => {
+    setFocus(id);
+    setOpen(true);
+  };
 
   const currentIndex = ws.outlineCurrent;
   const current = currentIndex === null ? null : (state.outline[currentIndex] ?? null);
@@ -88,7 +94,7 @@ export function TopicsSection({ ws }: { ws: Workspace }) {
                     placeholder: t.record.addScript,
                     cue: cueOf(current.id) === null ? null : t.record.cue(cueOf(current.id)!),
                     next: nextItem ? t.record.upNext(nextItem.heading) : null,
-                    a11y: `${t.record.talkingNow}, ${current.heading}${current.body.trim() ? `, ${current.body.trim()}` : ''}`,
+                    a11y: `${t.record.talkingNow}, ${current.heading}${current.body.trim() ? `, ${current.body.trim()}` : ''}. ${t.record.a11yIndex(currentIndex + 1, state.outline.length, done, state.outline.length - 1 - currentIndex)}`,
                   }
                 : null
             }
@@ -101,6 +107,43 @@ export function TopicsSection({ ws }: { ws: Workspace }) {
               currentIndex === null ? state.outline.length : state.outline.length - 1 - currentIndex
             }
             {...(current ? { onPressPage: () => openBody(current.id, current.body) } : {})}
+            tabs={indexTabs(state.outline.length, currentIndex).map((tab) => {
+              if (tab.kind !== 'topic') {
+                const target = state.outline[tab.from];
+                return {
+                  key: tab.kind,
+                  label: t.record.moreTab(tab.count),
+                  a11y:
+                    tab.kind === 'before'
+                      ? t.record.a11yMoreBefore(tab.count)
+                      : t.record.a11yMoreAfter(tab.count),
+                  state: tab.kind === 'before' ? 'done' : 'next',
+                  onPress: () => openOverview(target?.id ?? null),
+                };
+              }
+              const item = state.outline[tab.index]!;
+              const tabState =
+                tab.index === currentIndex
+                  ? 'now'
+                  : currentIndex !== null && tab.index < currentIndex
+                    ? 'done'
+                    : 'next';
+              return {
+                key: item.id,
+                label: String(tab.index + 1),
+                a11y: t.record.a11yTab(
+                  tab.index + 1,
+                  item.heading,
+                  tabState === 'now'
+                    ? t.record.talkingNow
+                    : tabState === 'done'
+                      ? t.record.a11yTalked
+                      : t.record.a11yUpcoming,
+                ),
+                state: tabState,
+                onPress: () => openOverview(item.id),
+              };
+            })}
           />
           {ws.outlineNext !== null ? (
             <Button
@@ -123,63 +166,17 @@ export function TopicsSection({ ws }: { ws: Workspace }) {
               }
             />
           ) : null}
-          {/* 全部の話題の目次。送った項目には時刻（CUE の位置）を並べる */}
-          <View style={[st.index, { borderTopColor: c.controlBorder }]}>
-            {state.outline.map((item, i) => {
-              const isCurrent = current?.id === item.id;
-              const passed = item.recordedTakeId !== null && !isCurrent;
-              const cue = cueOf(item.id);
-              return (
-                <View
-                  key={item.id}
-                  style={[
-                    st.topic,
-                    {
-                      borderBottomColor: c.border,
-                      borderBottomWidth:
-                        i === state.outline.length - 1 ? 0 : StyleSheet.hairlineWidth,
-                    },
-                  ]}
-                  accessibilityLabel={`${item.heading}${passed ? `, ${t.record.a11yTalked}` : isCurrent ? `, ${t.record.talkingNow}` : ''}${cue ? `, ${t.record.a11yCue(cue)}` : ''}`}
-                >
-                  <Text style={[typography.numeric, st.no, { color: c.textSecondary }]}>
-                    {String(i + 1).padStart(2, '0')}
-                  </Text>
-                  <View
-                    style={[
-                      st.check,
-                      {
-                        borderColor: c.controlBorder,
-                        backgroundColor: passed
-                          ? c.textPrimary
-                          : isCurrent
-                            ? c.brandShadow
-                            : 'transparent',
-                      },
-                    ]}
-                  >
-                    {passed ? <Icon name="check" color={c.bg} size={icon.sm} /> : null}
-                  </View>
-                  <Text
-                    style={[
-                      isCurrent ? typography.bodyStrong : typography.body,
-                      st.flex,
-                      { color: passed ? c.textSecondary : c.textPrimary },
-                    ]}
-                  >
-                    {item.heading}
-                  </Text>
-                  {cue ? (
-                    <Text style={[typography.numeric, { color: c.textSecondary }]}>{cue}</Text>
-                  ) : null}
-                </View>
-              );
-            })}
-          </View>
         </View>
       )}
 
-      <Sheet visible={open} onClose={() => setOpen(false)} title={t.record.topicsTitle}>
+      <Sheet
+        visible={open}
+        onClose={() => {
+          setOpen(false);
+          setFocus(null);
+        }}
+        title={t.record.topicsTitle}
+      >
         <ReorderList
           items={state.outline}
           keyOf={(item) => item.id}
@@ -188,33 +185,45 @@ export function TopicsSection({ ws }: { ws: Workspace }) {
           onPick={pick}
           onCross={cross}
           renderItem={(item, i, { grip, a11y }) => (
-            <Row
-              label={item.heading}
-              sub={item.body.trim() ? item.body.trim() : t.record.addScript}
-              onPress={() => openBody(item.id, item.body)}
-              last={i === state.outline.length - 1}
-              {...a11y}
-              right={
-                <View style={st.rowActions}>
-                  <IconButton
-                    name="trash"
-                    label={t.record.a11yDeleteTopic(item.heading)}
-                    color={c.dangerText}
-                    onPress={() =>
-                      confirmDestructive({
-                        title: t.record.confirmDeleteTopic(item.heading),
-                        ...(item.body.trim() ? { message: t.record.confirmDeleteTopicNote } : {}),
-                        confirmLabel: t.common.delete,
-                        cancelLabel: t.common.cancel,
-                        onConfirm: () =>
-                          void ws.saveOutline(state.outline.filter((x) => x.id !== item.id)),
-                      })
-                    }
-                  />
-                  {grip}
-                </View>
-              }
-            />
+            <View
+              style={{
+                backgroundColor:
+                  item.id === focus
+                    ? c.mistakeSubtle
+                    : item.id === current?.id
+                      ? c.accentSubtle
+                      : 'transparent',
+              }}
+            >
+              <Row
+                mono={String(i + 1).padStart(2, '0')}
+                label={item.heading}
+                sub={`${cueOf(item.id) ? `${cueOf(item.id)} · ` : ''}${item.body.trim() ? item.body.trim() : t.record.addScript}`}
+                onPress={() => openBody(item.id, item.body)}
+                last={i === state.outline.length - 1}
+                {...a11y}
+                right={
+                  <View style={st.rowActions}>
+                    <IconButton
+                      name="trash"
+                      label={t.record.a11yDeleteTopic(item.heading)}
+                      color={c.dangerText}
+                      onPress={() =>
+                        confirmDestructive({
+                          title: t.record.confirmDeleteTopic(item.heading),
+                          ...(item.body.trim() ? { message: t.record.confirmDeleteTopicNote } : {}),
+                          confirmLabel: t.common.delete,
+                          cancelLabel: t.common.cancel,
+                          onConfirm: () =>
+                            void ws.saveOutline(state.outline.filter((x) => x.id !== item.id)),
+                        })
+                      }
+                    />
+                    {grip}
+                  </View>
+                }
+              />
+            </View>
           )}
         />
         <View style={{ marginTop: space.md }}>
@@ -255,24 +264,6 @@ export function TopicsSection({ ws }: { ws: Workspace }) {
 
 const st = StyleSheet.create({
   headRight: { flexDirection: 'row', alignItems: 'center', gap: space.xs, marginRight: -space.md },
-  index: { borderTopWidth: stroke.selected, marginTop: space.lg },
-  topic: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.md,
-    paddingVertical: space.sm,
-    minHeight: space.section,
-  },
-  no: { minWidth: space.xl },
-  flex: { flex: 1 },
-  check: {
-    width: icon.md,
-    height: icon.md,
-    borderRadius: radius.xs,
-    borderWidth: stroke.selected,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   nextTopic: { marginTop: space.md },
   rowActions: { flexDirection: 'row', alignItems: 'center', marginRight: -space.md },
 });

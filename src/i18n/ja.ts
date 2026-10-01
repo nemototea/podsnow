@@ -325,6 +325,14 @@ Podcast: {{show_name}}
     /** カンペの表紙のラベル。話し始める前に見せる。 */
     coverCount: (n: number) => `${n} ページ`,
     a11yCover: (n: number) => `話すこと ${n} ページ。まだ始めていません`,
+    /** カンペの付箋（DESIGN_SYSTEM.md §2.7）。外れた話題をまとめた付箋の文字。 */
+    moreTab: (n: number) => `+${n}`,
+    a11yIndex: (current: number, total: number, done: number, left: number) =>
+      `話題 ${current} / ${total}。済み ${done}、残り ${left}`,
+    a11yTab: (n: number, heading: string, state: string) => `${n}. ${heading}、${state}`,
+    a11yUpcoming: 'これから',
+    a11yMoreBefore: (n: number) => `済んだ話題 ${n} 本`,
+    a11yMoreAfter: (n: number) => `これからの話題 ${n} 本`,
     permTitle: 'マイクへのアクセス',
     permBody: '声を収録するために、マイクへのアクセスを許可してください',
     permAllow: '許可する',

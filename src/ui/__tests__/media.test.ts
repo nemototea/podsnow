@@ -1,4 +1,4 @@
-import { METER, meterAngle, packRadius, PACK } from '../media/geometry';
+import { indexTabs, INDEX_SLOTS, METER, meterAngle, packRadius, PACK } from '../media/geometry';
 import { sticker, stickerTilt } from '../tokens';
 
 describe('カセットのテープ（DESIGN_SYSTEM.md §2.6）', () => {
@@ -54,4 +54,43 @@ describe('ステッカーの傾き（DESIGN_SYSTEM.md §2.5）', () => {
     expect(stickerTilt(1)).toBe(stickerTilt(1 + sticker.tilts.length));
     expect(stickerTilt(-1)).toBe(sticker.tilts[sticker.tilts.length - 1]);
   });
+});
+
+describe('カンペの付箋（DESIGN_SYSTEM.md §2.7）', () => {
+  /** 例と同じ書き方（1 始まりの番号、まとめは ＋数）に直す。 */
+  const show = (total: number, current: number | null) =>
+    indexTabs(total, current)
+      .map((t) => (t.kind === 'topic' ? String(t.index + 1) : `+${t.count}`))
+      .join(' ');
+
+  it('7 本以下は全部を番号で出す', () => {
+    expect(show(5, 1)).toBe('1 2 3 4 5');
+    expect(show(7, 6)).toBe('1 2 3 4 5 6 7');
+    expect(show(0, null)).toBe('');
+  });
+
+  it('12 本のときの並び（話し始める前から最後まで）', () => {
+    expect(show(12, null)).toBe('1 2 3 4 5 6 +6');
+    expect(show(12, 2)).toBe('1 2 3 4 5 6 +6');
+    expect(show(12, 3)).toBe('1 2 3 4 5 6 +6');
+    expect(show(12, 4)).toBe('+2 3 4 5 6 7 +5');
+    expect(show(12, 7)).toBe('+5 6 7 8 9 10 +2');
+    expect(show(12, 8)).toBe('+6 7 8 9 10 11 12');
+    expect(show(12, 9)).toBe('+6 7 8 9 10 11 12');
+    expect(show(12, 11)).toBe('+6 7 8 9 10 11 12');
+  });
+
+  it.each(Array.from({ length: 30 }, (_, i) => i + 8))(
+    '%i 本でも枠は常に 7 つで、今の話題が必ず番号で見え、全部の話題をちょうど 1 回ずつ数える',
+    (total) => {
+      for (let cur = 0; cur < total; cur++) {
+        const tabs = indexTabs(total, cur);
+        expect(tabs).toHaveLength(INDEX_SLOTS);
+        expect(tabs).toContainEqual({ kind: 'topic', index: cur });
+        const counted = tabs.reduce((n, t) => n + (t.kind === 'topic' ? 1 : t.count), 0);
+        expect(counted).toBe(total);
+        for (const t of tabs) if (t.kind !== 'topic') expect(t.count).toBeGreaterThanOrEqual(2);
+      }
+    },
+  );
 });

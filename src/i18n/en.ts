@@ -315,6 +315,15 @@ Tag #PodsNow to share your thoughts`,
     a11yCue: (time: string) => `From ${time}`,
     pageNo: (n: number) => `No.${n}`,
     coverCount: (n: number) => (n === 1 ? '1 page' : `${n} pages`),
+    moreTab: (n: number) => `+${n}`,
+    a11yIndex: (current: number, total: number, done: number, left: number) =>
+      `Talking point ${current} of ${total}. ${done} done, ${left} left`,
+    a11yTab: (n: number, heading: string, state: string) => `${n}. ${heading}, ${state}`,
+    a11yUpcoming: 'Up next',
+    a11yMoreBefore: (n: number) =>
+      n === 1 ? '1 finished talking point' : `${n} finished talking points`,
+    a11yMoreAfter: (n: number) =>
+      n === 1 ? '1 upcoming talking point' : `${n} upcoming talking points`,
     a11yCover: (n: number) =>
       n === 1 ? '1 talking point, not started' : `${n} talking points, not started`,
     permTitle: 'Microphone access',
