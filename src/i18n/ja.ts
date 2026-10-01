@@ -173,7 +173,7 @@ Podcast: {{show_name}}
     audioPurged: (n: number) => `#${n} の音声を削除しました`,
     duplicated: (n: number) => `#${n} として複製しました`,
     badgeNoAudio: '音声なし',
-    untitled: '（タイトル未設定）',
+    untitled: 'タイトル未設定',
     menu: {
       details: 'エピソードの詳細',
       export: '書き出し',
