@@ -1,4 +1,4 @@
-import { keyboardLift } from '../BottomInset';
+import { createFloatingInsetStore, keyboardLift } from '../BottomInset';
 
 describe('keyboardLift', () => {
   it('キーボードが無ければ動かさない', () => {
@@ -15,5 +15,34 @@ describe('keyboardLift', () => {
 
   it('キーボードが下部バーより低ければ動かさない（バーの上に出ているまま）', () => {
     expect(keyboardLift(-40, 96)).toBe(0);
+  });
+});
+
+describe('createFloatingInsetStore', () => {
+  it('変わったときだけ知らせる', () => {
+    const store = createFloatingInsetStore();
+    const listener = jest.fn();
+    store.subscribe(listener);
+    store.set(72);
+    store.set(72);
+    expect(store.get()).toBe(72);
+    expect(listener).toHaveBeenCalledTimes(1);
+  });
+
+  it('小数は丸め、負の値は 0 にする', () => {
+    const store = createFloatingInsetStore();
+    store.set(71.6);
+    expect(store.get()).toBe(72);
+    store.set(-4);
+    expect(store.get()).toBe(0);
+  });
+
+  it('購読をやめたら知らせない', () => {
+    const store = createFloatingInsetStore();
+    const listener = jest.fn();
+    const off = store.subscribe(listener);
+    off();
+    store.set(10);
+    expect(listener).not.toHaveBeenCalled();
   });
 });

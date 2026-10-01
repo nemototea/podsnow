@@ -31,7 +31,13 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { useT } from '@/i18n';
 
-import { BOTTOM_GAP, BottomInsetProvider, keyboardLift, useBottomInset } from './BottomInset';
+import {
+  BOTTOM_GAP,
+  BottomInsetProvider,
+  keyboardLift,
+  useBottomInset,
+  useFloatingInset,
+} from './BottomInset';
 import { Icon, type IconName } from './Icon';
 import { KeyboardScroll } from './KeyboardScroll';
 import { Text, TextInput } from './Text';
@@ -101,8 +107,10 @@ function ScreenBody({
   const insets = useSafeAreaInsets();
   const g = useGutter();
   const { barHeight, setBarHeight, toastHeight } = useBottomInset();
+  // ミニプレーヤーが出ている間は、その高さだけ下部バー・内容の下を空けて覆わせない（Issue #164）
+  const floating = useFloatingInset();
   const inner = padded ? [{ paddingHorizontal: g, paddingTop: space.sm }, style] : style;
-  const bottomPad = space.xxxl + (bottomBar ? 0 : insets.bottom) + toastHeight;
+  const bottomPad = space.xxxl + (bottomBar ? 0 : insets.bottom + floating) + toastHeight;
   return (
     <SafeAreaView
       style={[s.root, { backgroundColor: c.bg }]}
@@ -123,7 +131,7 @@ function ScreenBody({
             style={[
               s.bottomBar,
               {
-                paddingBottom: insets.bottom + space.sm,
+                paddingBottom: insets.bottom + space.sm + floating,
                 paddingHorizontal: g,
                 backgroundColor: c.bg,
                 borderTopColor: c.border,
@@ -552,9 +560,11 @@ export function Toast({
   const reduced = useReducedMotion();
   const g = useGutter();
   const { barHeight, setToastHeight } = useBottomInset();
+  const floating = useFloatingInset();
   const drag = useSharedValue(0);
   const keyboard = useReanimatedKeyboardAnimation();
-  const floor = barHeight || insets.bottom;
+  // 下部バーの実測高さはミニプレーヤーの分を含む。バーが無ければミニプレーヤーの上に出す
+  const floor = barHeight || insets.bottom + floating;
 
   useEffect(() => {
     if (!toast) setToastHeight(0);

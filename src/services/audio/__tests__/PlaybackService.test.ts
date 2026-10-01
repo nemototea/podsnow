@@ -218,6 +218,48 @@ describe('PlaybackService', () => {
     expect(states.at(-1)).toBe(false);
   });
 
+  // Issue #164: エピソード画面を開いたら Home の再生を止め、再生音が録音に入らないようにする
+  it('stops and releases exported-file playback started from Home', async () => {
+    const { db, filePlayer, svc } = await setup({ withVoice: true });
+    await db.run(
+      'INSERT INTO exports (id, episode_id, format, preset, status, path, duration_smp, created_at) VALUES (?,?,?,?,?,?,?,?)',
+      ['x1', 'e', 'm4a', '{}', 'done', 'episodes/e/exports/x1.m4a', TOTAL, 2],
+    );
+    const states: boolean[] = [];
+    svc.on('state', (e) => states.push(e.playing));
+    await svc.toggleHome(await localHomeItem(db));
+    filePlayer.calls = [];
+    await svc.stopHome();
+    expect(filePlayer.calls).toEqual(['pause']);
+    expect(svc.source).toBeNull();
+    expect(svc.isPlaying).toBe(false);
+    expect(states.at(-1)).toBe(false);
+  });
+
+  it('stops Home timeline playback and does not resume it when the editor reloads', async () => {
+    const { db, engine, svc } = await setup({ withVoice: true });
+    await svc.toggleHome(await localHomeItem(db));
+    expect(engine.playing).toBe(true);
+    const stopping = svc.stopHome();
+    // 画面はすぐに読み込み直す。await を待たずに状態が止まっていること
+    expect(svc.isPlaying).toBe(false);
+    await stopping;
+    await svc.reload('e');
+    expect(engine.playing).toBe(false);
+    expect(svc.isPlaying).toBe(false);
+    expect(svc.source?.homeKey).toBeUndefined();
+    expect(svc.source).toMatchObject({ kind: 'timeline', episodeId: 'e' });
+  });
+
+  it('leaves editor playback alone when nothing was started from Home', async () => {
+    const { engine, svc } = await setup({ withVoice: true });
+    await svc.reload('e');
+    await svc.toggle();
+    await svc.stopHome();
+    expect(engine.playing).toBe(true);
+    expect(svc.isPlaying).toBe(true);
+  });
+
   it('does not expose or play an export whose file is missing', async () => {
     const { db, existing, svc } = await setup();
     existing.clear();
