@@ -234,7 +234,7 @@ export function Card({
         style={[
           s.card,
           rows ? s.rowCard : null,
-          { backgroundColor: pressed ? c.surfaceHover : base },
+          { backgroundColor: pressed ? c.surfaceHover : base, borderColor: c.controlBorder },
           style,
         ]}
       >
@@ -283,8 +283,11 @@ export function Button({
   const reduced = useReducedMotion();
   const off = disabled || busy;
   const [pressed, setPressed] = useState(false);
-  // 形のあるボタンは硬い影と押し込み。ghost だけは縮小で返す。
+  // 形のあるボタンは硬い影と押し込み。ghost だけは縮小で返す。主操作は大きい影（§6、#190）。
   const tactile = kind !== 'ghost';
+  const large = kind === 'primary';
+  const offset = large ? buttonDepth.offsetLarge : buttonDepth.offset;
+  const travel = large ? buttonDepth.travelLarge : buttonDepth.travel;
   const depressed = pressed && !off && tactile && !reduced;
   const pressStyle = useAnimatedStyle(() => ({
     transform: [
@@ -295,10 +298,12 @@ export function Button({
             : withTiming(pressed ? pressScale : 1, { duration: motion.instant }),
       },
       {
+        translateX:
+          reduced || off ? 0 : withTiming(depressed ? travel : 0, { duration: motion.instant }),
+      },
+      {
         translateY:
-          reduced || off
-            ? 0
-            : withTiming(depressed ? buttonDepth.travel : 0, { duration: motion.instant }),
+          reduced || off ? 0 : withTiming(depressed ? travel : 0, { duration: motion.instant }),
       },
     ],
   }));
@@ -358,7 +363,7 @@ export function Button({
         s.button,
         compact ? s.buttonCompact : null,
         // 字形の脇には余白が入っているので、アイコン側の余白を 2 だけ詰めて光学的に釣り合わせる。
-        busy || iconName ? { paddingLeft: (compact ? space.md : space.lg) - OPTICAL_NUDGE } : null,
+        busy || iconName ? { paddingLeft: (compact ? space.md : gutter) - OPTICAL_NUDGE } : null,
         {
           backgroundColor: l.bg,
           borderColor: l.border,
@@ -366,8 +371,8 @@ export function Button({
           boxShadow: hardShadow
             ? [
                 {
-                  offsetX: depressed ? 0 : buttonDepth.offsetX,
-                  offsetY: depressed ? buttonDepth.pressedOffsetY : buttonDepth.offsetY,
+                  offsetX: depressed ? buttonDepth.pressedOffset : offset,
+                  offsetY: depressed ? buttonDepth.pressedOffset : offset,
                   blurRadius: 0,
                   color: c.controlShadow,
                 },
@@ -684,7 +689,7 @@ export function Chip({
         {
           paddingLeft: iconName ? pad - OPTICAL_NUDGE : pad,
           paddingRight: pad,
-          borderColor: disabled ? c.border : active ? t.border : c.borderStrong,
+          borderColor: disabled ? c.border : active ? c.controlBorder : c.borderStrong,
           borderWidth: border,
           backgroundColor: active ? t.subtle : pressed ? c.surfaceHover : 'transparent',
         },
@@ -788,7 +793,7 @@ export function Notice({
     <View
       style={[
         s.notice,
-        { backgroundColor: tn ? tn.subtle : c.surface, borderColor: tn ? tn.border : c.border },
+        { backgroundColor: tn ? tn.subtle : c.surface, borderColor: c.controlBorder },
       ]}
       accessibilityRole={kind === 'error' ? 'alert' : undefined}
     >
@@ -903,8 +908,10 @@ const s = StyleSheet.create({
     marginBottom: space.sm,
     gap: space.sm,
   },
+  // カードは 2px の線だけで影を付けない。押せる物だけが影を持つ（DESIGN_SYSTEM.md §6、#190）。
   card: {
     borderRadius: radius.lg,
+    borderWidth: stroke.selected,
     padding: gutter,
     marginBottom: space.md,
   },
@@ -913,8 +920,8 @@ const s = StyleSheet.create({
   button: {
     minHeight: hit.button,
     paddingVertical: space.sm,
-    paddingHorizontal: space.lg,
-    borderRadius: radius.md,
+    paddingHorizontal: gutter,
+    borderRadius: radius.pill,
     borderWidth: 1,
     flexDirection: 'row',
     alignItems: 'center',
@@ -966,8 +973,8 @@ const s = StyleSheet.create({
   notice: {
     flexDirection: 'row',
     gap: space.md,
-    borderWidth: 1,
-    borderRadius: radius.md,
+    borderWidth: stroke.selected,
+    borderRadius: radius.lg,
     padding: space.lg,
     marginBottom: space.md,
     alignItems: 'flex-start',

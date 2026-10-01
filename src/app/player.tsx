@@ -13,6 +13,7 @@ export default function PlayerScreen() {
   return (
     <Screen>
       <EpisodePlayer
+        medium={source.kind === 'timeline' ? 'tape' : 'disc'}
         artworkUri={services.coverArt.uri(services.show.cover_path)}
         title={source.title || t.home.untitled}
         episodeNumber={source.episodeNumber ?? null}

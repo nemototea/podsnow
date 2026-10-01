@@ -8,15 +8,19 @@
 モジュール名）は小文字の `podsnow` のままで、これは綴りであって
 「Snow」の意味は持たせない。
 
-## ロゴ（Issue #94）
+## ロゴ（Issue #94 → #190）
 
-**サービス名そのものをロゴにする。** Manrope ExtraBold（800、SIL OFL 1.1）の字形を土台に、
+**サービス名そのものをロゴにする。** #190 から **Dela Gothic One**（SIL OFL 1.1）の字形を土台に、
 `Po / od / ds / sN / No / ow` の字間を調整し、末尾の点を独立した角丸正方形として描く。
+文字には**版ズレ**（右下へずらした同じ形の蛍光ピンクの影）を付ける（単色版を除く）。
 字形は輪郭（パス）として焼き込むので、通常のテキストで打ち直して近似しない。
 
 - 横組み `PodsNow.`: Home の上部、スプラッシュ、ストア素材。改行しない。`Pods` と `Now` の間に空白を入れない。
 - 2 段 `Pods` / `Now.`: アプリアイコン。2 段でも全文を残し、両行の見かけの幅をそろえて左端を共有する。
+  文字の塊は**縦横とも中央**に置く。地はリソの青に紙の色の網点（案 A。ユーザー判断 2026-09-30）。
+  右下に網点の円を足す案は採らない。
 - 点は録音ランプ・通知・エラーに転用しない。常時点灯やアニメーションをしない。
+- 版ズレのピンクは録音と同じインクだが、ロゴでは状態の意味を持たない。
 
 ### 使わないモチーフ
 
@@ -31,17 +35,17 @@
 ## 色
 
 ロゴのために別の色を作らない。`scripts/brand/geometry.py` がトークンの生成元（`scripts/design/ramps.py`）を
-直接読むので、トークンを変えればロゴも追従する。
+直接読むので、トークンを変えればロゴも追従する（DESIGN_SYSTEM.md §3.2）。
 
-| 用途 | 文字 | 点 | 背景 |
-|---|---|---|---|
-| 横組み（ダーク） | `textPrimary` | `brandAccent`（シトロン） | 透過（スプラッシュは `bg`） |
-| 横組み（ライト） | light `textPrimary` | light `brandAccent` | 透過（スプラッシュは light `bg`） |
-| アプリアイコン | `accentOnSolid` | `accentOnSolid` | `accentSolid` |
-| 単色 | 黒 | 黒 | 透過 |
+| 用途 | 文字 | 版ズレ | 点 | 背景 |
+|---|---|---|---|---|
+| 横組み（ライト） | `brandInk`（リソの青） | `brandShadow` | `brandAccent`（黄）+ 墨の輪郭 | 透過（スプラッシュは light `bg`） |
+| 横組み（ダーク） | `brandInk`（紙の色） | `brandShadow` | `brandAccent` | 透過（スプラッシュは dark `bg`） |
+| アプリアイコン | 紙の色 | `brandShadow` | `brandAccent` + 墨の輪郭 | リソの青 + 紙の色の網点 |
+| 単色 | 黒 | なし | 黒 | 透過 |
 
-背景を変えたら `app.json`（スプラッシュはライト `#F7F6F3` / ダーク `#111416`、アダプティブ背景 `#D8F36A`）も合わせる。
-ずれていると `generate.py` が失敗する。
+- 網点は 60px 以下（`icon-small`、Android のテーマアイコン）では描かない。版ズレは 32px 以下では描かない。
+- 背景を変えたら `app.json`（スプラッシュ、アダプティブ背景）も合わせる。ずれていると `generate.py` が失敗する。
 
 ## ファイル
 
@@ -61,13 +65,13 @@ python3 scripts/brand/generate.py
 ```
 
 標準ライブラリだけで動く。PNG・SVG・`src/ui/brand/wordmark.ts` をまとめて上書きする。**直接編集しない。**
-字形そのものを変えるときだけ `python3 scripts/brand/extract_glyphs.py <Manrope[wght].ttf>`（fontTools が必要）で
+字形そのものを変えるときだけ `python3 scripts/brand/extract_glyphs.py <DelaGothicOne-Regular.ttf>`（fontTools が必要）で
 `scripts/brand/glyphs.py` を作り直す。
 
 ## 安全域
 
 Android のアダプティブアイコンは前景の**中央 66%（半径 338px / 1024px 中）**しか見える保証がない。
-`generate.py` は生成前にこれを検査し、はみ出していれば失敗する（現在の前景は最大 300px）。
+`generate.py` は生成前にこれを検査し、はみ出していれば失敗する（現在の前景は版ズレを含めて最大 288px）。
 
 アイコンの 2 段組は、`geometry.py` の `ICON_LINES` などで行の大きさと行間だけを決め、位置は
 `two_lines` が**実際の描画範囲の中心をキャンバス中心に合わせて**決める。`top` / `left` を手で

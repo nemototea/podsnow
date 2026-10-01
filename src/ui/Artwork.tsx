@@ -15,6 +15,7 @@ export function Artwork({
   size,
   label,
   transition = 0,
+  frameless,
 }: {
   /** `https://` または `file://` */
   uri: string | null;
@@ -23,16 +24,19 @@ export function Artwork({
   label?: string;
   /** 画像の入れ替え時間。動きを減らすときは 0。 */
   transition?: number;
+  /** 枠と角丸を持たない（CD ジャケットのケースの中に置くとき。#190）。 */
+  frameless?: boolean;
 }) {
   const c = useAppTheme();
   const [failed, setFailed] = useState<string | null>(null);
-  const corner = size >= 96 ? radius.lg : radius.sm;
+  const corner = frameless ? 0 : size >= 96 ? radius.lg : radius.sm;
   const box = [
     s.box,
     {
       width: size,
       height: size,
       borderRadius: corner,
+      borderWidth: frameless ? 0 : stroke.hairline,
       backgroundColor: c.surfaceRaised,
       borderColor: c.border,
     },
@@ -64,6 +68,6 @@ export function Artwork({
 }
 
 const s = StyleSheet.create({
-  box: { overflow: 'hidden', borderWidth: stroke.hairline },
+  box: { overflow: 'hidden' },
   center: { alignItems: 'center', justifyContent: 'center' },
 });

@@ -10,7 +10,7 @@ import { HomeArtwork } from '@/features/home/HomeArtwork';
 import { errorText, useT, type Messages } from '@/i18n';
 import type { EpisodeListItem } from '@/infra/db/repositories/episodesRepo';
 import type { HomeEpisodeItem } from '@/services/home/HomeService';
-import { icon, space, tabularNums, typography } from '@/ui/tokens';
+import { icon, space, stickerTilt, tabularNums, typography, type Colors } from '@/ui/tokens';
 import {
   Button,
   Card,
@@ -22,7 +22,6 @@ import {
   SectionHeader,
   Text,
   Toast,
-  type IconName,
 } from '@/ui/components';
 import { useAppTheme } from '@/ui/ThemeContext';
 import { useToast } from '@/ui/useToast';
@@ -30,15 +29,20 @@ import { confirmDestructive } from '@/ui/alerts';
 import type { MenuAction } from '@/ui/menuTypes';
 import { MoreMenu } from '@/ui/MoreMenu';
 import { Wordmark } from '@/ui/Wordmark';
+import { Sticker } from '@/ui/media';
 
 /** 状態はアイコンで示す（DESIGN_SYSTEM.md §2.3）。文字は読み上げにだけ使う。 */
-function statusIcon(item: HomeEpisodeItem): IconName {
+/**
+ * エピソードの状態のステッカーの色（DESIGN_SYSTEM.md §2.5、#190）。文字は必ず出し、
+ * 色は淡い地と同じ系統の文字（tone）の組でコントラストを保つ。
+ */
+function statusTone(c: Colors, item: HomeEpisodeItem): { fill: string; ink: string } {
   const e = item.local;
-  if (!e || item.feed) return 'check';
-  if (e.audio_purged_at) return 'volume';
-  if (e.take_count === 0) return 'mic';
-  if (e.status === 'exported') return 'check';
-  return 'edit';
+  if (!e || item.feed) return { fill: c.successSubtle, ink: c.successText };
+  if (e.audio_purged_at) return { fill: c.surfaceRaised, ink: c.textSecondary };
+  if (e.take_count === 0) return { fill: c.surface, ink: c.textPrimary };
+  if (e.status === 'exported') return { fill: c.accentSubtle, ink: c.accentText };
+  return { fill: c.mistakeSubtle, ink: c.mistakeText };
 }
 
 function statusText(t: Messages, item: HomeEpisodeItem): string {
@@ -180,7 +184,10 @@ export default function HomeScreen() {
       </View>
 
       {!showOnboarding && show.cover_path ? (
-        <HomeArtwork uri={services.coverArt.uri(show.cover_path)!} />
+        <HomeArtwork
+          uri={services.coverArt.uri(show.cover_path)!}
+          playing={player.playing && player.source?.kind !== 'timeline'}
+        />
       ) : null}
 
       {showOnboarding ? (
@@ -209,7 +216,7 @@ export default function HomeScreen() {
           <View style={st.showCardTop}>
             <View style={st.showCardText}>
               <Text
-                style={[typography.heading, { color: c.textPrimary }]}
+                style={[typography.display, { color: c.textPrimary }]}
                 accessibilityRole="header"
                 numberOfLines={2}
               >
@@ -265,12 +272,20 @@ export default function HomeScreen() {
             const e = item.local;
             const number = item.episodeNumber;
             const active = player.source?.homeKey === item.key;
+            const tone = statusTone(c, item);
             return (
               <Row
                 key={item.key}
                 {...(number === null ? {} : { mono: String(number).padStart(3, '0') })}
-                icon={statusIcon(item)}
                 label={item.title || t.home.untitled}
+                below={
+                  <Sticker
+                    label={statusText(t, item)}
+                    fill={tone.fill}
+                    ink={tone.ink}
+                    tilt={stickerTilt(i)}
+                  />
+                }
                 sub={
                   e?.audio_purged_at && !item.feed
                     ? t.home.badgeNoAudio

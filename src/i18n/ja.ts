@@ -79,6 +79,9 @@ export const ja = {
     rewind: '15秒戻る',
     forward: '30秒進む',
     open: 'プレーヤーを開く',
+    /** カセットの A 面の印（DESIGN_SYSTEM.md §2.6）。 */
+    sideA: 'A',
+    tape: '編集中のタイムライン',
   },
 
   /** エピソードの状態（FR-EP-3）。 */
@@ -254,7 +257,8 @@ Podcast: {{show_name}}
     upNext: (heading: string) => `次: ${heading}`,
     next: '次へ',
     openList: '一覧',
-    advanced: (heading: string) => `「${heading}」へ進みました`,
+    /** 話題を進めたときの読み上げ。画面の通知は出さない（#190）。 */
+    a11yAdvanced: (heading: string) => `「${heading}」へ進みました`,
     topicsTitle: 'トークテーマと台本',
     topicsPlaceholder: '話すことを 1 行ずつ。貼り付けもできます',
     addScript: 'タップして台本を書く',
@@ -309,6 +313,26 @@ Podcast: {{show_name}}
     a11yLevel: (db: number) => `入力レベル ${db} dB`,
     a11yLevelIdle: '入力レベル（録音していません）',
     clipped: '音が割れています。マイクから少し離れてください',
+    /** 看板の語（DESIGN_SYSTEM.md §2.4）。recording のときだけ点灯する。読み上げには使わない。 */
+    onAir: 'ON AIR',
+    /** 看板の語。LevelEvent.clipped で点くランプ。 */
+    clipLamp: '音割れ',
+    /** 看板の語。「次へ」で送った位置（チャプターの始まり）。 */
+    cue: (time: string) => `CUE ${time}`,
+    a11yCue: (time: string) => `${time} から`,
+    /** カンペのページ番号（DESIGN_SYSTEM.md §2.7）。 */
+    pageNo: (n: number) => `No.${n}`,
+    /** カンペの表紙のラベル。話し始める前に見せる。 */
+    coverCount: (n: number) => `${n} ページ`,
+    a11yCover: (n: number) => `話すこと ${n} ページ。まだ始めていません`,
+    /** カンペの付箋（DESIGN_SYSTEM.md §2.7）。外れた話題をまとめた付箋の文字。 */
+    moreTab: (n: number) => `+${n}`,
+    a11yIndex: (current: number, total: number, done: number, left: number) =>
+      `話題 ${current} / ${total}。済み ${done}、残り ${left}`,
+    a11yTab: (n: number, heading: string, state: string) => `${n}. ${heading}、${state}`,
+    a11yUpcoming: 'これから',
+    a11yMoreBefore: (n: number) => `済んだ話題 ${n} 本`,
+    a11yMoreAfter: (n: number) => `これからの話題 ${n} 本`,
     permTitle: 'マイクへのアクセス',
     permBody: '声を収録するために、マイクへのアクセスを許可してください',
     permAllow: '許可する',

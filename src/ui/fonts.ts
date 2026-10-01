@@ -24,7 +24,8 @@ export function resolveFamily(
   loaded: LoadedFonts,
 ): string | undefined {
   if (role === 'numeric' && hasFamily(loaded, family.numeric)) return family.numeric;
-  // 数字の書体が無ければ、その言語の通常書体へ退避。コード用等幅には戻さない。
+  if (role === 'display' && hasFamily(loaded, family.display)) return family.display;
+  // 数字・看板の書体が無ければ、その言語の通常書体へ退避。コード用等幅には戻さない。
   const name = locale === 'ja' ? family.ja : family.latin;
   return hasFamily(loaded, name) ? name : undefined;
 }

@@ -1,47 +1,30 @@
-import { Image } from 'expo-image';
-import { LinearGradient } from 'expo-linear-gradient';
-import { useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, useWindowDimensions, View } from 'react-native';
 
 import { useGutter } from '@/ui/components';
-import { useAppTheme } from '@/ui/ThemeContext';
-import { artwork, motion, space } from '@/ui/tokens';
-import { useReducedMotion } from '@/ui/useReducedMotion';
+import { Jacket, jacketWidth } from '@/ui/media';
+import { artwork, space } from '@/ui/tokens';
 
-/** 文字を置かず、番組アートワークを不透明な Home 背景へ溶かす。 */
-export function HomeArtwork({ uri }: { uri: string }) {
-  const c = useAppTheme();
-  const reduced = useReducedMotion();
+/**
+ * Home の番組アートワーク（DESIGN_SYSTEM.md §2.6、§8、#190）。CD ジャケットに入れ、
+ * 書き出したファイルや配信中の音声を再生している間だけディスクを回す。画像の上には何も重ねない。
+ * #133 の幅いっぱいのフェードはやめた。
+ */
+export function HomeArtwork({ uri, playing }: { uri: string; playing: boolean }) {
+  const { width } = useWindowDimensions();
   const gutter = useGutter();
-  const [failedUri, setFailedUri] = useState<string | null>(null);
-  if (failedUri === uri) return null;
+  const room = width - gutter * 2;
+  const size = Math.min(artwork.homeJacket, Math.floor(room / jacketWidth(1)));
   return (
     <View
-      style={[s.frame, { marginHorizontal: -gutter }]}
+      style={s.frame}
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants"
     >
-      <Image
-        source={uri}
-        contentFit="cover"
-        transition={reduced ? 0 : motion.quick}
-        onError={() => setFailedUri(uri)}
-        style={StyleSheet.absoluteFill}
-      />
-      <LinearGradient
-        colors={['transparent', c.bg]}
-        locations={[artwork.homeFadeStart, 1]}
-        style={StyleSheet.absoluteFill}
-        pointerEvents="none"
-      />
+      <Jacket uri={uri} size={size} playing={playing} />
     </View>
   );
 }
 
 const s = StyleSheet.create({
-  frame: {
-    aspectRatio: artwork.homeAspectRatio,
-    marginTop: space.sm,
-    overflow: 'hidden',
-  },
+  frame: { marginTop: space.lg, marginBottom: space.sm },
 });

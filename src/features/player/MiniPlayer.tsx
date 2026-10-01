@@ -5,10 +5,18 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { formatClock } from '@/domain/time';
 import { useServices } from '@/features/app/ServicesProvider';
 import { useT } from '@/i18n';
-import { Artwork } from '@/ui/Artwork';
 import { IconButton, Text, useGutter } from '@/ui/components';
+import { Jacket, MiniCassette } from '@/ui/media';
 import { useAppTheme } from '@/ui/ThemeContext';
-import { artwork, player as playerToken, radius, space, stroke, typography } from '@/ui/tokens';
+import {
+  artwork,
+  buttonDepth,
+  player as playerToken,
+  radius,
+  space,
+  stroke,
+  typography,
+} from '@/ui/tokens';
 
 import { usePlayback } from './usePlayback';
 
@@ -32,7 +40,15 @@ export function MiniPlayer() {
           right: gutter,
           bottom: insets.bottom + playerToken.miniBottom,
           backgroundColor: c.surfaceRaised,
-          borderColor: c.borderStrong,
+          borderColor: c.controlBorder,
+          boxShadow: [
+            {
+              offsetX: buttonDepth.offset,
+              offsetY: buttonDepth.offset,
+              blurRadius: 0,
+              color: c.controlShadow,
+            },
+          ],
         },
       ]}
     >
@@ -42,12 +58,21 @@ export function MiniPlayer() {
         accessibilityLabel={t.player.open}
         style={({ pressed }) => [s.main, pressed ? { backgroundColor: c.surfaceHover } : null]}
       >
-        <Artwork uri={services.coverArt.uri(services.show.cover_path)} size={artwork.miniPlayer} />
+        {/* 再生の見立て（DESIGN_SYSTEM.md §2.6） */}
+        {source.kind === 'timeline' ? (
+          <MiniCassette size={artwork.miniPlayer} playing={player.playing} />
+        ) : (
+          <Jacket
+            uri={services.coverArt.uri(services.show.cover_path)}
+            size={artwork.miniPlayer}
+            playing={player.playing}
+          />
+        )}
         <View style={s.text}>
           <Text style={[typography.label, { color: c.textPrimary }]} numberOfLines={1}>
             {source.title || t.home.untitled}
           </Text>
-          <Text style={[typography.caption, { color: c.textSecondary }]}>
+          <Text style={[typography.numeric, { color: c.textSecondary }]}>
             {formatClock(player.position)} / {formatClock(player.duration)}
           </Text>
         </View>
@@ -66,9 +91,10 @@ const s = StyleSheet.create({
     position: 'absolute',
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: stroke.hairline,
+    borderWidth: stroke.selected,
     borderRadius: radius.lg,
     padding: space.xs,
+    paddingLeft: space.sm,
     zIndex: 10,
   },
   main: {

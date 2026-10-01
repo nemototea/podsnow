@@ -46,33 +46,35 @@ def checks(t: dict[str, str], theme: str) -> list[tuple[str, str, float, str]]:
     for role in ('accent', 'danger', 'voice', 'music', 'insert', 'mistake'):
         for s in TEXT_SURFACES + (f'{role}Subtle',):
             out.append((f'{role}Border', s, 3.0, 'WCAG 1.4.11 輪郭'))
+    # ロゴの文字は表示先の地で読める。黄の点は墨の輪郭と組にするので、輪郭との比を測る（§3.2）。
     for s in ('bg', 'surface'):
-        out.append(('brandAccent', s, 3.0, 'ブランドの点の製品基準'))
-    # ボタンの輪郭と硬い影（DESIGN_SYSTEM.md §6）。影は bg に置いた下部バーの上にも出る。
-    for s in TEXT_SURFACES:
-        out.append(('controlBorder', s, 3.0, 'WCAG 1.4.11 副操作の輪郭'))
-        out.append(('controlShadow', s, 3.0, '硬い影が面から見える'))
-    for s in ('accentSolid', 'accentSolidPressed'):
-        out.append(('controlEdge', s, 3.0, '主操作の枠がシトロンの塗りから見分けられる'))
+        out.append(('brandInk', s, 4.5, 'ロゴの文字'))
     if theme == 'light':
-        for s in TEXT_SURFACES:
-            out.append(('controlEdge', s, 3.0, 'WCAG 1.4.11 ライトの主操作の輪郭'))
+        out.append(('brandAccent', 'controlBorder', 3.0, 'ロゴの点とステッカーの黄は墨の輪郭で形を示す'))
+    else:
+        out.append(('brandAccent', 'bg', 3.0, 'ロゴの点が黒い紙から見える'))
+    # 線と硬い影（DESIGN_SYSTEM.md §6）。影は bg に置いた下部バーの上にも出る。
+    for s in TEXT_SURFACES:
+        out.append(('controlBorder', s, 3.0, 'WCAG 1.4.11 操作部品とカードの輪郭'))
+        out.append(('controlShadow', s, 3.0, '硬い影が面から見える'))
+        out.append(('controlEdge', s, 3.0, 'WCAG 1.4.11 主操作の輪郭'))
+    for s in ('accentSolid', 'accentSolidPressed'):
+        out.append((s, 'bg', 3.0, 'WCAG 1.4.11 主操作の塗りだけで形が分かる'))
     out += [
         ('accentOnSolid', 'accentSolid', 4.5, '主操作のラベル'),
         ('accentOnSolid', 'accentSolidPressed', 4.5, '押下中も読める'),
         ('dangerOnSolid', 'dangerSolid', 4.5, '破壊的操作のラベル'),
         ('dangerOnSolid', 'dangerSolidPressed', 4.5, '押下中も読める'),
         ('recOnSolid', 'recSolid', 4.5, '録音ボタンの記号'),
+        ('insertOnSolid', 'insertSolid', 4.5, '素材のステッカーの名前（#190）'),
+        ('sketchInk', 'sketchPaper', 4.5, 'カンペの話題名（#190）'),
+        ('sketchInkSoft', 'sketchPaper', 4.5, 'カンペの台本とページ番号（#190）'),
+        ('sketchPaper', 'sketchCover', 4.5, 'スケッチブックの表紙のラベル（#190）'),
+        ('musicOnSolid', 'musicSolid', 4.5, 'BGM のステッカーの名前（#190）'),
         ('textPrimary', 'accentSubtle', 4.5, 'チップの地の上のラベル'),
         ('successSolid', 'bg', 3.0, 'WCAG 1.4.11 完了の印'),
         ('dangerSolid', 'bg', 3.0, 'WCAG 1.4.11 塗りだけで形が分かる'),
     ]
-    if theme == 'dark':
-        out.append(('controlShadow', 'controlEdge', 3.0, '明るい影の手前で主操作の枠が線として見える'))
-        out.append(('accentSolid', 'bg', 3.0, 'WCAG 1.4.11 塗りだけで形が分かる'))
-    else:
-        # ライトではシトロンの塗りが白地に 3:1 を持てない。形は輪郭 accentBorder が運ぶ。
-        out.append(('accentBorder', 'accentSolid', 3.0, 'ライトの主操作は輪郭で形を示す'))
     for role in TRACKS:
         out.append((f'{role}Solid', 'bg', 3.0, 'WCAG 1.4.11 波形のマーカー'))
         out.append((f'{role}Solid', f'{role}Fill', 3.0, '波形の棒がトラックの地から見分けられる'))

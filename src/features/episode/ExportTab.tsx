@@ -364,6 +364,7 @@ export function ExportTab({ ws, onShowToast, onDone, onGoEdit }: ExportTabProps)
     <View>
       <Card>
         <EpisodePlayer
+          medium="tape"
           artworkUri={coverArt.uri(show.cover_path)}
           title={episode.title}
           episodeNumber={episode.episode_number}

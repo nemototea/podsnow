@@ -10,10 +10,10 @@
 - **文字と境界**は彩度と色相だけを決め、明度は目標コントラスト比から逆算する。面を動かしても
   勝手に追従し、読めない組み合わせが残らない。
 
-Design system 2（Issue #94）で、面をグラファイト、主操作をシトロン、録音をコーラル、
-破壊的操作をローズにした。値は受け取った設計の色をそのまま再現する OKLCh にしてあり、
-文字と境界の目標比はその設計が実際に持っていた比（小数第 2 位で切り捨て）。
-生成結果と設計値の差は DESIGN_SYSTEM.md §5.4 に記録している。
+Design system 3（Issue #190「リソグラフの深夜ラジオ」）で、面を紙（ダークは黒い紙）、線と影を墨、
+主操作をリソの青、録音を蛍光ピンク、破壊的操作を朱にした。値はデザインキャンバスの色を再現する OKLCh。
+ただしライトの録音（`recSolid`）は、紙の上で 3:1 を持てる所まで明度を下げてある。ロゴの版ズレに
+使う蛍光ピンク（`brandShadow`）は飾りなので原案のまま（DESIGN_SYSTEM.md §3.2）。
 
 出典（【確認済み】）:
 - 段ごとの役割: https://www.radix-ui.com/colors/docs/palette-composition/understanding-the-scale
@@ -24,16 +24,16 @@ import color as k
 
 THEMES = ('dark', 'light')
 
-# ひとつの色相にひとつの意味。代表色相（塗りの色相）で 40° 以上離す（generate.py が検査）。
-# `voice` は無彩色に近いミネラルなので色相の比較から外す（彩度が低く、色相で区別させない）。
+# ひとつの色相にひとつの意味。代表色相（塗りの色相）で 30° 以上離す（generate.py が検査）。
+# `voice` は墨（ダークは紙の色）で無彩色なので色相の比較から外す。
 HUES = {
-    'danger': 2.4,  # ローズ。破壊的操作
-    'rec': 35.7,  # コーラル。録音中
-    'mistake': 68.5,  # アンバー。注意・編集の目印
-    'accent': 119.1,  # シトロン。主操作・選択状態
-    'success': 162.5,  # グリーン。完了
-    'insert': 230.9,  # ブルー。差し込み素材
-    'music': 288.8,  # ライラック。BGM
+    'rec': 355.3,  # 蛍光ピンク。録音中・ON AIR
+    'danger': 31.6,  # 朱。破壊的操作
+    'mistake': 90.0,  # 黄（ライトの塗りは黄土）。注意・割り込み
+    'success': 151.0,  # 緑。完了
+    'insert': 206.0,  # ティール。差し込み素材
+    'accent': 261.5,  # リソの青。主操作・選択状態
+    'music': 294.0,  # 紫。BGM
 }
 NEAR_NEUTRAL = ('voice',)
 
@@ -41,80 +41,111 @@ NEAR_NEUTRAL = ('voice',)
 
 FIXED = {
     'dark': {
-        'controlEdge': (0.12, 0.0062, 236.9),
-        'bg': (0.1889, 0.0062, 236.9),
-        'surface': (0.2397, 0.0094, 234.1),
-        'surfaceRaised': (0.2848, 0.0112, 237.0),
-        'surfaceHover': (0.3318, 0.0119, 232.8),
-        'border': (0.3850, 0.0135, 235.2),
-        'textPrimary': (0.9615, 0.0057, 128.5),
-        'accentSolid': (0.9177, 0.1645, 119.1),
-        'accentSolidPressed': (0.8259, 0.1592, 119.1),
-        'accentOnSolid': (0.2277, 0.0448, 126.2),
-        'accentSubtle': (0.3314, 0.0463, 125.4),
-        'recSolid': (0.7539, 0.1504, 35.7),
-        'recOnSolid': (0.2148, 0.0315, 36.3),
-        'recSubtle': (0.2930, 0.0385, 34.7),
-        'dangerSolid': (0.7887, 0.1096, 2.4),
-        'dangerSolidPressed': (0.7201, 0.1148, 2.7),
-        'dangerOnSolid': (0.2323, 0.0510, 358.7),
-        'dangerSubtle': (0.2818, 0.0435, 353.3),
-        'voiceSolid': (0.9010, 0.0112, 226.0),
-        'voiceFill': (0.3482, 0.0200, 233.7),
-        'voiceFillAlt': (0.3933, 0.0215, 235.1),
-        'voiceSubtle': (0.3020, 0.0197, 236.2),
-        'musicSolid': (0.7935, 0.1028, 288.8),
-        'musicFill': (0.3385, 0.0471, 292.2),
-        'musicFillAlt': (0.3924, 0.0539, 293.8),
-        'musicSubtle': (0.2928, 0.0344, 291.4),
-        'insertSolid': (0.8231, 0.0880, 230.9),
-        'insertFill': (0.3536, 0.0393, 234.0),
-        'insertFillAlt': (0.4038, 0.0429, 231.8),
-        'insertSubtle': (0.3003, 0.0270, 238.0),
-        'mistakeSolid': (0.8415, 0.0944, 68.5),
-        'mistakeFill': (0.3615, 0.0317, 72.3),
-        'mistakeFillAlt': (0.4163, 0.0380, 72.7),
-        'mistakeSubtle': (0.3051, 0.0226, 66.8),
-        'successSolid': (0.8236, 0.0901, 162.5),
-        'successSubtle': (0.3155, 0.0316, 169.4),
+        'controlEdge': (0.9528, 0.0127, 86.8),
+        'bg': (0.1822, 0.0000, 0.0),
+        'surface': (0.2225, 0.0041, 84.6),
+        'surfaceRaised': (0.2655, 0.0062, 78.2),
+        'surfaceHover': (0.3109, 0.0082, 75.3),
+        'border': (0.3381, 0.0095, 80.7),
+        'textPrimary': (0.9528, 0.0127, 86.8),
+        'accentSolid': (0.6648, 0.1771, 264.6),
+        'accentSolidPressed': (0.6090, 0.1813, 264.3),
+        'accentOnSolid': (0.1638, 0.0000, 0.0),
+        'accentSubtle': (0.2882, 0.0525, 265.1),
+        'recSolid': (0.7113, 0.2113, 353.1),
+        'recOnSolid': (0.1822, 0.0000, 0.0),
+        'recSubtle': (0.2790, 0.0500, 345.5),
+        'dangerSolid': (0.7057, 0.1877, 32.9),
+        'dangerSolidPressed': (0.6528, 0.1927, 32.9),
+        'dangerOnSolid': (0.1822, 0.0000, 0.0),
+        'dangerSubtle': (0.2741, 0.0434, 31.3),
+        'voiceSolid': (0.9528, 0.0127, 86.8),
+        'voiceFill': (0.3109, 0.0082, 75.3),
+        'voiceFillAlt': (0.3381, 0.0095, 80.7),
+        'voiceSubtle': (0.2655, 0.0062, 78.2),
+        'musicSolid': (0.7091, 0.1656, 291.5),
+        'musicOnSolid': (0.1822, 0.0000, 0.0),
+        'musicFill': (0.3039, 0.0554, 293.2),
+        'musicFillAlt': (0.3330, 0.0645, 293.8),
+        'musicSubtle': (0.2547, 0.0376, 295.1),
+        'insertSolid': (0.7510, 0.1190, 202.6),
+        'insertOnSolid': (0.1822, 0.0000, 0.0),
+        'insertFill': (0.3015, 0.0350, 210.5),
+        'insertFillAlt': (0.3378, 0.0399, 210.8),
+        'insertSubtle': (0.2687, 0.0289, 210.5),
+        'mistakeSolid': (0.9135, 0.1643, 98.4),
+        'mistakeFill': (0.3238, 0.0457, 97.9),
+        'mistakeFillAlt': (0.3624, 0.0530, 98.2),
+        'mistakeSubtle': (0.2996, 0.0418, 98.7),
+        'successSolid': (0.7714, 0.1652, 152.4),
+        'successSubtle': (0.2826, 0.0451, 153.8),
     },
     'light': {
-        'controlEdge': (0.2500, 0.0040, 150.0),
-        'bg': (0.9730, 0.0040, 95.0),
-        'surface': (1.0000, 0.0000, 89.9),
-        'surfaceRaised': (0.9410, 0.0040, 95.0),
-        'surfaceHover': (0.9130, 0.0040, 95.0),
-        'border': (0.8100, 0.0040, 95.0),
-        'textPrimary': (0.2500, 0.0040, 150.0),
-        'accentSolid': (0.9177, 0.1645, 119.1),
-        'accentSolidPressed': (0.8259, 0.1592, 119.1),
-        'accentOnSolid': (0.2277, 0.0448, 126.2),
-        'accentSubtle': (0.9309, 0.0433, 120.0),
-        'recSolid': (0.5097, 0.1519, 35.9),
-        'recOnSolid': (1.0000, 0.0000, 89.9),
-        'recSubtle': (0.9377, 0.0229, 57.0),
-        'dangerSolid': (0.4637, 0.1558, 6.9),
-        'dangerSolidPressed': (0.3952, 0.1342, 7.6),
-        'dangerOnSolid': (1.0000, 0.0000, 89.9),
-        'dangerSubtle': (0.9396, 0.0232, 357.4),
-        'voiceSolid': (0.4394, 0.0324, 230.0),
-        'voiceFill': (0.9193, 0.0111, 226.0),
-        'voiceFillAlt': (0.8800, 0.0157, 222.7),
-        'voiceSubtle': (0.9451, 0.0070, 219.6),
-        'musicSolid': (0.4965, 0.1131, 295.4),
-        'musicFill': (0.9195, 0.0237, 301.9),
-        'musicFillAlt': (0.8789, 0.0366, 301.4),
-        'musicSubtle': (0.9474, 0.0168, 304.8),
-        'insertSolid': (0.5086, 0.0969, 237.2),
-        'insertFill': (0.9312, 0.0193, 230.7),
-        'insertFillAlt': (0.8878, 0.0229, 233.4),
-        'insertSubtle': (0.9524, 0.0134, 233.7),
-        'mistakeSolid': (0.4865, 0.0943, 68.1),
-        'mistakeFill': (0.9225, 0.0313, 75.2),
-        'mistakeFillAlt': (0.8853, 0.0390, 80.0),
-        'mistakeSubtle': (0.9524, 0.0210, 79.1),
-        'successSolid': (0.4865, 0.0898, 162.4),
-        'successSubtle': (0.9425, 0.0182, 161.1),
+        'controlEdge': (0.2002, 0.0000, 0.0),
+        'bg': (0.9528, 0.0127, 86.8),
+        'surface': (0.9823, 0.0069, 88.6),
+        'surfaceRaised': (0.9289, 0.0157, 86.4),
+        'surfaceHover': (0.9165, 0.0170, 88.0),
+        'border': (0.8128, 0.0250, 85.8),
+        'textPrimary': (0.2002, 0.0000, 0.0),
+        'accentSolid': (0.5196, 0.1943, 261.5),
+        'accentSolidPressed': (0.4651, 0.1730, 261.5),
+        'accentOnSolid': (1.0000, 0.0000, 0.0),
+        'accentSubtle': (0.9208, 0.0276, 265.4),
+        'recSolid': (0.6295, 0.2227, 355.3),
+        'recOnSolid': (0.2002, 0.0000, 0.0),
+        'recSubtle': (0.9321, 0.0334, 349.1),
+        'dangerSolid': (0.5421, 0.1860, 31.6),
+        'dangerSolidPressed': (0.4829, 0.1665, 31.8),
+        'dangerOnSolid': (1.0000, 0.0000, 0.0),
+        'dangerSubtle': (0.9339, 0.0274, 31.7),
+        'voiceSolid': (0.2002, 0.0000, 0.0),
+        'voiceFill': (0.9018, 0.0187, 86.2),
+        'voiceFillAlt': (0.8650, 0.0230, 87.2),
+        'voiceSubtle': (0.9289, 0.0157, 86.4),
+        'musicSolid': (0.5552, 0.1562, 294.0),
+        'musicOnSolid': (1.0000, 0.0000, 0.0),
+        'musicFill': (0.9157, 0.0305, 300.3),
+        'musicFillAlt': (0.8728, 0.0462, 299.3),
+        'musicSubtle': (0.9423, 0.0207, 301.1),
+        'insertSolid': (0.5510, 0.0943, 206.2),
+        'insertOnSolid': (1.0000, 0.0000, 0.0),
+        'insertFill': (0.9041, 0.0318, 204.0),
+        'insertFillAlt': (0.8932, 0.0351, 205.5),
+        'insertSubtle': (0.9526, 0.0170, 201.4),
+        'mistakeSolid': (0.5602, 0.1170, 77.5),
+        'mistakeFill': (0.9135, 0.1643, 98.4),
+        'mistakeFillAlt': (0.8745, 0.1694, 97.2),
+        'mistakeSubtle': (0.9135, 0.1643, 98.4),
+        'successSolid': (0.5702, 0.1421, 151.0),
+        'successSubtle': (0.9398, 0.0273, 157.4),
+    },
+}
+
+# ロゴと飾りの色（DESIGN_SYSTEM.md §3.2、§2.5）。文字の下に置かないので逆算しない。
+# sketch* はトークテーマのカンペ（スケッチブック、§2.7）。紙はテーマに関係なく紙の色で、墨の文字を載せる。
+BRAND = {
+    'dark': {
+        'brandShadow': (0.7113, 0.2113, 353.1),
+        'brandAccent': (0.9135, 0.1643, 98.4),
+        'halftone': (0.4241, 0.1200, 263.8),
+        'sketchCover': (0.2543, 0.0365, 158.5),
+        'sketchCoverAlt': (0.7822, 0.1571, 77.5),
+        'sketchPaper': (0.9435, 0.0303, 90.3),
+        'sketchBoard': (0.3958, 0.0127, 81.8),
+        'sketchInk': (0.2002, 0.0000, 0.0),
+        'sketchInkSoft': (0.3694, 0.0129, 81.7),
+    },
+    'light': {
+        'brandShadow': (0.6950, 0.2229, 355.3),
+        'brandAccent': (0.9135, 0.1643, 98.4),
+        'halftone': (0.7819, 0.0830, 263.9),
+        'sketchCover': (0.2543, 0.0365, 158.5),
+        'sketchCoverAlt': (0.7822, 0.1571, 77.5),
+        'sketchPaper': (0.9735, 0.0180, 89.4),
+        'sketchBoard': (0.6686, 0.0261, 85.8),
+        'sketchInk': (0.2002, 0.0000, 0.0),
+        'sketchInkSoft': (0.3731, 0.0079, 75.3),
     },
 }
 
@@ -125,51 +156,51 @@ TEXT_SURFACES = ('bg', 'surface', 'surfaceRaised', 'surfaceHover')
 
 SOLVED = {
     'dark': {
-        'textSecondary': (0.0114, 226.0, 7.04),
-        'textTertiary': (0.0151, 231.3, 5.52),
-        'textDisabled': (0.0164, 229.1, 4.04),
-        'borderStrong': (0.0166, 229.1, 3.69),
-        'dangerText': (0.1018, 2.4, 6.82),
-        'dangerBorder': (0.1087, 1.3, 4.25),
-        'recText': (0.1060, 37.9, 6.61),
-        'musicText': (0.0775, 289.6, 7.61),
-        'musicBorder': (0.0866, 290.9, 4.81),
-        'insertText': (0.0670, 234.3, 8.48),
-        'insertBorder': (0.0720, 230.3, 5.05),
-        'mistakeText': (0.0761, 66.6, 8.14),
-        'mistakeBorder': (0.0844, 70.7, 5.12),
-        'voiceBorder': (0.0291, 232.8, 5.19),
-        'successText': (0.0701, 163.3, 8.45),
+        'textSecondary': (0.0120, 85.0, 7.00),
+        'textTertiary': (0.0140, 85.0, 5.50),
+        'textDisabled': (0.0140, 85.0, 3.40),
+        'borderStrong': (0.0140, 85.0, 3.60),
+        'accentText': (0.1500, 264.6, 6.00),
+        'accentBorder': (0.1700, 264.6, 3.60),
+        'focusRing': (0.1700, 264.6, 4.50),
+        'dangerText': (0.1500, 32.9, 6.00),
+        'dangerBorder': (0.1700, 32.9, 3.60),
+        'recText': (0.1700, 353.1, 6.00),
+        'musicText': (0.1400, 291.5, 6.00),
+        'musicBorder': (0.1500, 291.5, 3.60),
+        'insertText': (0.1100, 202.6, 6.00),
+        'insertBorder': (0.1100, 202.6, 3.60),
+        'mistakeText': (0.1500, 98.4, 7.00),
+        'mistakeBorder': (0.1500, 98.4, 3.60),
+        'voiceBorder': (0.0140, 85.0, 3.60),
+        'successText': (0.1500, 152.4, 6.00),
     },
     'light': {
-        'textSecondary': (0.0040, 150.0, 6.93),
-        'textTertiary': (0.0040, 150.0, 5.59),
-        'textDisabled': (0.0040, 150.0, 3.77),
-        'borderStrong': (0.0040, 150.0, 6.00),
-        'accentText': (0.0933, 124.5, 6.96),
-        'accentBorder': (0.1111, 123.8, 4.23),
-        'focusRing': (0.1073, 125.4, 5.37),
-        'dangerText': (0.1529, 7.4, 6.60),
-        'dangerBorder': (0.1601, 7.5, 5.31),
-        'recText': (0.1388, 35.9, 6.12),
-        'voiceText': (0.0354, 228.5, 8.63),
-        'voiceBorder': (0.0364, 229.9, 3.74),
-        'musicText': (0.1147, 293.8, 6.96),
-        'musicBorder': (0.0974, 297.0, 3.73),
-        'insertText': (0.0904, 238.4, 5.84),
-        'insertBorder': (0.0808, 235.0, 3.77),
-        'mistakeText': (0.0871, 67.0, 6.66),
-        'mistakeBorder': (0.0917, 71.4, 3.84),
-        'successText': (0.0835, 161.1, 6.11),
+        'textSecondary': (0.0080, 85.0, 8.00),
+        'textTertiary': (0.0100, 85.0, 5.60),
+        'textDisabled': (0.0100, 85.0, 3.40),
+        'borderStrong': (0.0100, 85.0, 4.50),
+        'accentText': (0.1900, 261.5, 5.50),
+        'accentBorder': (0.1900, 261.5, 3.60),
+        'focusRing': (0.1900, 261.5, 4.50),
+        'dangerText': (0.1800, 31.6, 5.50),
+        'dangerBorder': (0.1900, 31.6, 3.60),
+        'recText': (0.2000, 355.3, 5.50),
+        'voiceText': (0.0000, 0.0, 12.00),
+        'voiceBorder': (0.0000, 0.0, 4.00),
+        'musicText': (0.1500, 294.0, 5.50),
+        'musicBorder': (0.1500, 294.0, 3.60),
+        'insertText': (0.0990, 206.4, 5.50),
+        'insertBorder': (0.0990, 206.4, 3.60),
+        'mistakeText': (0.1100, 77.5, 5.50),
+        'mistakeBorder': (0.1170, 77.5, 3.60),
+        'successText': (0.1400, 150.9, 5.50),
     },
 }
 
 # dark では塗りそのものが文字・輪郭として十分に明るいので、同じ値を使う（別の段を作らない）。
 SAME_AS = {
     'dark': {
-        'accentText': 'accentSolid',
-        'accentBorder': 'accentSolidPressed',
-        'focusRing': 'accentSolid',
         'voiceText': 'voiceSolid',
     },
     'light': {},
@@ -219,11 +250,13 @@ def build(theme: str) -> dict[str, str]:
     for role, src in SAME_AS[theme].items():
         t[role] = t[src]
 
-    # ブランドの点は本文色から独立。表示先 bg / surface に対して 3:1 を守る。
-    t['brandAccent'] = t['accentSolid'] if lighter else _solve(0.18, HUES['accent'], 3.1, [t['bg'], t['surface']], False)
-    # ネオブルータリズムの輪郭と硬い影は本文と同じインクで描く。ダークでは明るいインクになり、
-    # 暗い面の上でも影が見える（#113。濃い影は bg と 1.1:1 で溶けていた）。主操作の枠 `controlEdge`
-    # だけはシトロンの塗りと区別するため濃いまま残し、ダークでは明るい影との間の線になる。
+    # ロゴと飾り（§3.2、§2.5）。点（brandAccent）は黄で、ライトの紙の上では 3:1 を持てないので、
+    # 必ず墨の輪郭（controlBorder）と組にして描く（generate.py が輪郭との比を検査する）。
+    for role, lch in BRAND[theme].items():
+        t[role] = _hex(lch)
+    t['brandInk'] = t['textPrimary'] if lighter else t['accentSolid']
+    # 線と影は本文と同じインク。ライトは墨、ダークは紙の色（DESIGN_SYSTEM.md §6）。
+    # Design system 3 では主操作の枠も同じ線で描く（controlEdge = textPrimary）。
     t['controlBorder'] = t['textPrimary']
     t['controlShadow'] = t['textPrimary']
 

@@ -1,1 +1,1 @@
-module.exports = { getLoadedFonts: () => ['Manrope', 'Noto Sans JP'], isLoaded: () => true, loadAsync: async () => {} };
+module.exports = { getLoadedFonts: () => ['Manrope', 'Noto Sans JP', 'Dela Gothic One'], isLoaded: () => true, loadAsync: async () => {} };

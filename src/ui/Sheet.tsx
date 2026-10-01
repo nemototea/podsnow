@@ -8,6 +8,7 @@ import { useT } from '@/i18n';
 
 import { IconButton, useGutter } from './components';
 import { DialogHost } from './Dialog';
+import { useSheetScroll } from './sheetScroll';
 import { Text } from './Text';
 import { useAppTheme } from './ThemeContext';
 import { radius, space, typography } from './tokens';
@@ -18,6 +19,8 @@ export interface SheetProps {
   title?: string;
   subtitle?: string;
   children: ReactNode;
+  /** 開いたときに中身をここまで送る（中身の上端からの距離）。null なら送らない。 */
+  scrollTo?: number | null;
 }
 
 /**
@@ -33,8 +36,9 @@ export interface SheetProps {
  * で下に余白を足す（Modal のウィンドウのキーボードも拾える）。背景が先に縮み、足りなければ
  * シート自身と中の ScrollView が縮む。入力中の欄は Android の ScrollView が見える位置へ送る。
  */
-export function Sheet({ visible, onClose, title, subtitle, children }: SheetProps) {
+export function Sheet({ visible, onClose, title, subtitle, children, scrollTo }: SheetProps) {
   const c = useAppTheme();
+  const scrollRef = useSheetScroll(visible, scrollTo);
   const t = useT();
   const insets = useSafeAreaInsets();
   const g = useGutter();
@@ -92,7 +96,13 @@ export function Sheet({ visible, onClose, title, subtitle, children }: SheetProp
                 <IconButton name="close" label={t.a11y.close} onPress={onClose} />
               </View>
             </View>
-            <ScrollView style={st.scroll} keyboardShouldPersistTaps="handled">
+            <ScrollView
+              ref={(r) => {
+                scrollRef.current = r;
+              }}
+              style={st.scroll}
+              keyboardShouldPersistTaps="handled"
+            >
               {children}
             </ScrollView>
           </View>

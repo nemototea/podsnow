@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-アプリに同梱する書体を生成する（DESIGN_SYSTEM.md §4、Issue #94）。
+アプリに同梱する書体を生成する（DESIGN_SYSTEM.md §4、Issue #94 / #190）。
 
     python3 -m pip install fonttools
     python3 scripts/fonts/generate.py [--source-dir DIR]
@@ -41,6 +41,14 @@ SOURCES = [
         'c2f3b4d463500a2ddcd3849cded1fceeb9fd6d1c32e6cbecd568453ba50fc68f',
         'NotoSansJP',
         (400, 500, 600, 700),
+    ),
+    (
+        # 番組名とロゴ（DESIGN_SYSTEM.md §4、Issue #190）。1 ウェイトだけの静的フォントなのでそのまま使う。
+        'DelaGothicOne-Regular.ttf',
+        f'{BASE}/delagothicone/DelaGothicOne-Regular.ttf',
+        '4ff87a0965f1b0505e5a2c58424bc6ad3cff27e56a82f21c2fc9d6b0e3857ee2',
+        'DelaGothicOne',
+        None,
     ),
 ]
 
