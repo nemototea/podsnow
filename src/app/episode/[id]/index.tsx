@@ -248,13 +248,14 @@ export default function EpisodeScreen() {
     >
       <ScreenHeader
         title={t.episode.number(episode.episode_number)}
-        subtitle={episode.title || t.episode.untitled}
+        // 題が未設定なら 2 行目は出さない。括弧書きの仮の題は未完成に見える（Issue #195）
+        {...(episode.title ? { subtitle: episode.title } : {})}
         lockBack={live}
         onLockedBack={() => showToast({ text: t.record.cannotLeave })}
       />
       <HeaderMenu
         label={t.episode.a11yMenu}
-        title={episode.title || t.episode.untitled}
+        title={episode.title || t.episode.number(episode.episode_number)}
         disabled={live}
         // 取り消しはどのタブからも使える。録音中は押せない（FR-EDIT-7、Issue #122）
         buttons={[

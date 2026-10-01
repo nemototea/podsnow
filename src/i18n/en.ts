@@ -388,7 +388,6 @@ Tag #PodsNow to share your thoughts`,
   },
 
   episode: {
-    untitled: '(Untitled)',
     tabs: {
       studio: 'Studio',
       export: 'Export',

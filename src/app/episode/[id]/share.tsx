@@ -129,7 +129,11 @@ export default function DistributionPackScreen() {
     <Screen overlay={<Toast toast={toast} onAction={act} onDismiss={dismiss} />}>
       <ScreenHeader
         title={t.pack.title}
-        subtitle={`${t.episode.number(episode.episode_number)} · ${episode.title || t.episode.untitled}`}
+        subtitle={
+          episode.title
+            ? `${t.episode.number(episode.episode_number)} · ${episode.title}`
+            : t.episode.number(episode.episode_number)
+        }
       />
 
       <View style={st.top} />
