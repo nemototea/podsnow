@@ -7,7 +7,7 @@ import { formatClock } from '@/domain/time';
 import { useServices } from '@/features/app/ServicesProvider';
 import { useT } from '@/i18n';
 import { floatingInset } from '@/ui/BottomInset';
-import { IconButton, Text, useGutter } from '@/ui/components';
+import { IconButton, Text, useCompact, useGutter } from '@/ui/components';
 import { Jacket, MiniCassette } from '@/ui/media';
 import { useAppTheme } from '@/ui/ThemeContext';
 import {
@@ -31,6 +31,8 @@ export function MiniPlayer() {
   const pathname = usePathname();
   const insets = useSafeAreaInsets();
   const gutter = useGutter();
+  // 幅の狭い端末では、題が読めなくなるので見立ての絵を省く（Issue #199）
+  const compact = useCompact();
   const source = player.source?.homeKey ? player.source : null;
   const visible = !!source && pathname !== '/player';
   // 出ていない間は、画面に空けさせていた分を返す（Issue #164）
@@ -72,7 +74,7 @@ export function MiniPlayer() {
         style={({ pressed }) => [s.main, pressed ? { backgroundColor: c.surfaceHover } : null]}
       >
         {/* 再生の見立て（DESIGN_SYSTEM.md §2.6） */}
-        {source.kind === 'timeline' ? (
+        {compact ? null : source.kind === 'timeline' ? (
           <MiniCassette size={artwork.miniPlayer} playing={player.playing} />
         ) : (
           <Jacket
@@ -86,7 +88,7 @@ export function MiniPlayer() {
           <Text style={[typography.label, { color: c.textPrimary }]} numberOfLines={1}>
             {source.title || t.home.untitled}
           </Text>
-          <Text style={[typography.numeric, { color: c.textSecondary }]}>
+          <Text style={[typography.numeric, { color: c.textSecondary }]} numberOfLines={1}>
             {formatClock(player.position)} / {formatClock(player.duration)}
           </Text>
         </View>
@@ -96,7 +98,10 @@ export function MiniPlayer() {
         label={player.playing ? t.a11y.pause : t.a11y.play}
         onPress={() => void player.toggleCurrent()}
       />
-      <IconButton name="close" label={t.player.stop} onPress={() => void player.stopHome()} />
+      {/* 閉じるのは一時停止中だけ。再生中に押し間違えないように（Issue #199） */}
+      {player.playing ? null : (
+        <IconButton name="close" label={t.player.stop} onPress={() => void player.stopHome()} />
+      )}
     </View>
   );
 }
@@ -114,10 +119,12 @@ const s = StyleSheet.create({
   },
   main: {
     flex: 1,
+    // 長い題でも再生ボタンを押し出さず、題のほうを省略する
+    minWidth: 0,
     flexDirection: 'row',
     alignItems: 'center',
     gap: space.sm,
     borderRadius: radius.md,
   },
-  text: { flex: 1 },
+  text: { flex: 1, minWidth: 0 },
 });
