@@ -33,6 +33,7 @@ import {
 } from '@/ui/tokens';
 import { useAppTheme } from '@/ui/ThemeContext';
 
+import { liveColumns, type LivePeak } from './livePeaks';
 import { sampleVoiceColumns, type TakePeaks } from './peaks';
 
 const SAMPLE_RATE = 48000;
@@ -57,6 +58,8 @@ export interface WaveformProps {
   recFrames: number;
   /** 録音を差し込んでいる位置。省略時は末尾（Issue #122）。 */
   recordAt?: Smp | null;
+  /** 録音中のレベル（`useLivePeaks`）。録っている帯の中に波形として描く。 */
+  livePeaks?: readonly LivePeak[];
   onSeek: (to: Smp) => void;
   onSelectOverlay: (id: string | null) => void;
   onChapterPress: (item: OutlineItem) => void;
@@ -133,7 +136,8 @@ export const Waveform = memo(function Waveform(p: WaveformProps) {
   const from = Math.max(0, scrollX - viewW);
   const to = Math.min(contentW, scrollX + viewW * 2);
   const columns = useMemo(() => {
-    if (viewW === 0) return null;
+    // 録音を止めた直後など、内容が縮んでスクロール位置が追いつく前は範囲が空になる
+    if (viewW === 0 || to <= from) return null;
     const n = Math.ceil((to - from) / COL_W);
     const fromSmp = Math.floor((from / p.pps) * SAMPLE_RATE);
     const toSmp = Math.floor((to / p.pps) * SAMPLE_RATE);
@@ -141,6 +145,32 @@ export const Waveform = memo(function Waveform(p: WaveformProps) {
   }, [from, to, viewW, p.pps, voice, p.peaksByTake]);
 
   const xOf = (s: number) => (s / SAMPLE_RATE) * p.pps;
+
+  // 録音中は録っている先端を画面の右寄りに保つ。止めたら位置はそのまま（手で動かせる）
+  const recHeadX = p.recording ? xOf(recFrom + p.recFrames) : null;
+  useEffect(() => {
+    if (recHeadX === null || viewW === 0) return;
+    const target = Math.max(0, recHeadX - viewW * 0.75);
+    if (target > scrollX + 1 || target < scrollX - viewW) {
+      scrollRef.current?.scrollTo({ x: target, animated: false });
+      setScrollX(target);
+    }
+  }, [recHeadX, viewW, scrollX]);
+
+  // 録っている帯の中の波形。見えている範囲だけ柱にする
+  const liveBars = useMemo(() => {
+    if (!p.recording || !p.livePeaks || p.livePeaks.length === 0 || p.recFrames <= 0) return null;
+    const bandX = (recFrom / SAMPLE_RATE) * p.pps;
+    const bandW = (p.recFrames / SAMPLE_RATE) * p.pps;
+    const x0 = Math.max(bandX, from);
+    const x1 = Math.min(bandX + bandW, to);
+    if (x1 <= x0) return null;
+    const first = Math.floor((x0 - bandX) / COL_W);
+    const n = Math.ceil((x1 - bandX) / COL_W) - first;
+    const framesPerCol = (COL_W / p.pps) * SAMPLE_RATE;
+    const amps = liveColumns(p.livePeaks, first * framesPerCol, (first + n) * framesPerCol, n);
+    return { x: bandX + first * COL_W, amps };
+  }, [p.recording, p.livePeaks, p.recFrames, p.pps, recFrom, from, to]);
   const placed = useMemo(
     () => placeVoice(voice).filter((x) => x.segment.id !== LIVE_SEGMENT_ID),
     [voice],
@@ -299,6 +329,26 @@ export const Waveform = memo(function Waveform(p: WaveformProps) {
                 ]}
               />
             ) : null}
+            {liveBars
+              ? Array.from(liveBars.amps, (a, i) => {
+                  const h = Math.max(2, a * height);
+                  return (
+                    <View
+                      key={`live-${i}`}
+                      pointerEvents="none"
+                      style={{
+                        position: 'absolute',
+                        left: liveBars.x + i * COL_W,
+                        top: (height - h) / 2,
+                        width: COL_W - 1,
+                        height: h,
+                        backgroundColor: c.recSolid,
+                        borderRadius: 1,
+                      }}
+                    />
+                  );
+                })
+              : null}
             {/* 塊の切れ目。選べる単位が目で分かるようにする */}
             {p.blocks?.map((b) => (
               <View
