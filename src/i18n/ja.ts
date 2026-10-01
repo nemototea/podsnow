@@ -394,7 +394,6 @@ Podcast: {{show_name}}
   },
 
   episode: {
-    untitled: '（タイトル未設定）',
     tabs: {
       studio: '収録',
       export: '書き出し',

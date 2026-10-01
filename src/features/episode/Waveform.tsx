@@ -422,7 +422,8 @@ export const Waveform = memo(function Waveform(p: WaveformProps) {
         <>
           <Text
             pointerEvents="none"
-            style={[styles.lane, styles.laneRight, { top: 0, color: c.textSecondary }]}
+            // 目盛りの行には置かない。スクロールで時刻と重なる（Issue #195）
+            style={[styles.lane, styles.laneLeft, { top: 16 + space.xs, color: c.textSecondary }]}
           >
             {t.edit.laneVoice}
           </Text>
@@ -446,7 +447,6 @@ const styles = StyleSheet.create({
   root: { width: '100%' },
   lane: { position: 'absolute', ...typography.overline },
   laneLeft: { left: space.sm },
-  laneRight: { right: space.sm },
   tick: { position: 'absolute', top: 0, ...typography.tick },
   voiceTrack: {
     position: 'absolute',
