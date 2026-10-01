@@ -166,7 +166,7 @@ Tag #PodsNow to share your thoughts`,
     audioPurged: (n: number) => `Deleted the audio of #${n}`,
     duplicated: (n: number) => `Duplicated as #${n}`,
     badgeNoAudio: 'No audio',
-    untitled: '(Untitled)',
+    untitled: 'Untitled',
     menu: {
       details: 'Episode details',
       export: 'Export',
