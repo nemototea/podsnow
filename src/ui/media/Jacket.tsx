@@ -26,8 +26,11 @@ export function Jacket({
   size,
   playing = false,
   label,
+  name,
 }: {
   uri: string | null;
+  /** 画像が無いときの表紙に組む番組名（§2.6、Issue #193）。 */
+  name?: string | undefined;
   size: number;
   playing?: boolean;
   /** 読み上げ用。飾りなら省く */
@@ -118,7 +121,7 @@ export function Jacket({
               ))}
             </Svg>
           </View>
-          <Artwork uri={uri} size={inner} frameless {...(label ? { label } : {})} />
+          <Artwork uri={uri} name={name} size={inner} frameless {...(label ? { label } : {})} />
         </View>
       </View>
     </View>
