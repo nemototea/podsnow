@@ -114,9 +114,29 @@ describe('RecordingSession', () => {
     // 文言ではなく AppErrorCode で判定する（表示文言は UI 層の i18n、Issue #80）。
     await expect(session.start('e')).rejects.toMatchObject({
       code: 'disk_space_insufficient',
+      params: { availableMb: 0 },
     });
     expect(session.current).toBe('idle');
     expect(recorder.calls).toEqual([]);
+  });
+
+  // Issue #165: 想定時間（60 分）ぶんの空きを先に要求しない。1 分録れれば始め、少なくなったら安全停止に任せる
+  it('starts when there is room for at least a minute, even far below an hour', async () => {
+    const { recorder, session } = await setup();
+    const perSecond = 48000 * 2 * 2;
+    recorder.availableBytes = 30 * 1024 * 1024 + 90 * perSecond;
+    const disk = await session.checkDiskSpace();
+    expect(disk.ok).toBe(true);
+    expect(disk.estimate).toMatchObject({ unit: 'minutes', value: 1 });
+    await expect(session.start('e')).resolves.toEqual(expect.any(String));
+  });
+
+  it('reports the same estimate it uses to refuse', async () => {
+    const { recorder, session } = await setup();
+    recorder.availableBytes = 30 * 1024 * 1024 + 30 * 48000 * 2 * 2;
+    const disk = await session.checkDiskSpace();
+    expect(disk.ok).toBe(false);
+    expect(disk.estimate).toMatchObject({ value: 0 });
   });
 
   it('interruption closes the segment; manual resume opens a new segment with an offset and a marker', async () => {

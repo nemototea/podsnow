@@ -1,4 +1,5 @@
 import { AppError, type AppErrorCode } from '@/domain/errors';
+import { canStartRecording, estimateRecordable, type RecordableEstimate } from '@/domain/storage';
 import { smp, type Smp } from '@/domain/time';
 import type { EditableDoc } from '@/domain/editing/doc';
 import { insertAt, totalDuration } from '@/domain/timeline/voice';
@@ -42,8 +43,6 @@ export interface RecordingSettings {
   inputUid: string | null;
   /** 割り込み終了後に OS が再開を推奨していれば自動で再開する。 */
   autoResumeAfterInterruption: boolean;
-  /** 録音前に必要とみなす想定時間（分）。 */
-  expectedMinutes: number;
   /** この空き容量を下回ったら開始を拒否 / 停止する（bytes）。 */
   diskLowThresholdBytes: number;
   androidAudioSource?: 'mic' | 'voice_recognition' | 'unprocessed' | 'camcorder';
@@ -54,7 +53,6 @@ export const DEFAULT_RECORDING_SETTINGS: RecordingSettings = {
   channels: 2,
   inputUid: null,
   autoResumeAfterInterruption: false,
-  expectedMinutes: 60,
   diskLowThresholdBytes: 30 * 1024 * 1024,
 };
 
@@ -162,16 +160,23 @@ export class RecordingSession {
     }
   }
 
-  /** 録音に必要な空き容量（bytes）。 */
-  requiredBytes(): number {
+  /**
+   * 空き容量と、そこから録れる時間。開始の判定（`ok`）と収録タブの残り時間の表示は
+   * 同じ `estimate` を使う（FR-SAFE-5、Issue #165）。停止のしきい値の分は録れる時間に数えない。
+   */
+  async checkDiskSpace(): Promise<{
+    ok: boolean;
+    availableBytes: number;
+    estimate: RecordableEstimate | null;
+  }> {
     const s = this.deps.settings();
-    return s.expectedMinutes * 60 * s.sampleRate * s.channels * 2 + 200 * 1024 * 1024;
-  }
-
-  async checkDiskSpace(): Promise<{ ok: boolean; availableBytes: number; requiredBytes: number }> {
     const availableBytes = await this.deps.recorder.getAvailableDiskBytes(this.deps.root);
-    const requiredBytes = this.requiredBytes();
-    return { ok: availableBytes >= requiredBytes, availableBytes, requiredBytes };
+    const estimate = estimateRecordable(availableBytes, {
+      sampleRate: s.sampleRate,
+      channels: s.channels,
+      reserveBytes: s.diskLowThresholdBytes,
+    });
+    return { ok: canStartRecording(estimate), availableBytes, estimate };
   }
 
   /**
@@ -189,8 +194,7 @@ export class RecordingSession {
       const disk = await this.checkDiskSpace();
       if (!disk.ok) {
         throw new AppError('disk_space_insufficient', {
-          requiredMb: Math.round(disk.requiredBytes / 1048576),
-          availableMb: Math.round(disk.availableBytes / 1048576),
+          availableMb: Math.round(Math.max(0, disk.availableBytes) / 1048576),
         });
       }
       await this.deps.recorder.prepare({

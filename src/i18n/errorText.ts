@@ -16,10 +16,7 @@ export function errorCodeText(
 ): string {
   switch (code) {
     case 'disk_space_insufficient':
-      return t.errors.disk_space_insufficient(
-        String(params.requiredMb ?? '?'),
-        String(params.availableMb ?? '?'),
-      );
+      return t.errors.disk_space_insufficient(String(params.availableMb ?? '?'));
     case 'import_http_status':
       return t.errors.import_http_status(String(params.status ?? '?'));
     case 'import_unsupported_encoding':

@@ -17,12 +17,10 @@ describe('errorCodeText', () => {
 
   it('差し込みが必要なコードは値を埋める', () => {
     const t = messagesFor('ja');
-    const disk = errorCodeText(t, 'disk_space_insufficient', {
-      requiredMb: 660,
-      availableMb: 12,
-    });
-    expect(disk).toContain('660');
+    // 想定時間ぶんの「必要量」は出さず、空きと次の操作を示す（Issue #165）
+    const disk = errorCodeText(t, 'disk_space_insufficient', { availableMb: 12 });
     expect(disk).toContain('12');
+    expect(disk).toContain('空きを作って');
   });
 });
 
