@@ -7,6 +7,7 @@ import { useT } from '@/i18n';
 import { IconButton, useGutter } from './components';
 import { DialogHost } from './Dialog';
 import { KeyboardScroll } from './KeyboardScroll';
+import { useSheetScroll, type Scrollable } from './sheetScroll';
 import type { SheetProps } from './Sheet';
 import { Text } from './Text';
 import { useAppTheme } from './ThemeContext';
@@ -19,8 +20,9 @@ export type { SheetProps };
  * 閉じる操作（スワイプ・閉じるボタン）はどちらも `onClose` に集める。
  * 中身のジェスチャーとスクロールの関係は `Sheet.tsx` と揃える。
  */
-export function Sheet({ visible, onClose, title, subtitle, children }: SheetProps) {
+export function Sheet({ visible, onClose, title, subtitle, children, scrollTo }: SheetProps) {
   const c = useAppTheme();
+  const scrollRef = useSheetScroll(visible, scrollTo);
   const t = useT();
   const insets = useSafeAreaInsets();
   const g = useGutter();
@@ -54,6 +56,9 @@ export function Sheet({ visible, onClose, title, subtitle, children }: SheetProp
         </View>
         {/* キーボードが出たら入力中の欄が見えるまでずらす（Issue #132、`Screen` と同じ部品）。 */}
         <KeyboardScroll
+          ref={(r: Scrollable | null) => {
+            scrollRef.current = r;
+          }}
           contentContainerStyle={{ paddingHorizontal: g, paddingBottom: insets.bottom + space.xl }}
         >
           {children}

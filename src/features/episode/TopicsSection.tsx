@@ -28,6 +28,14 @@ export function TopicsSection({ ws }: { ws: Workspace }) {
   const [body, setBody] = useState('');
   // 付箋から開いたときに、押した話題を全体のシートで示す（見るだけで、話題は進めない）
   const [focus, setFocus] = useState<string | null>(null);
+  // 全体のシートの行の高さ。押した話題の上端（= それより前の行の高さの和）まで送るのに使う
+  const [rowHeights, setRowHeights] = useState<Record<string, number>>({});
+  const focusIndex = focus === null ? -1 : state.outline.findIndex((i) => i.id === focus);
+  const before = focusIndex < 0 ? [] : state.outline.slice(0, focusIndex);
+  const scrollTo =
+    focusIndex < 0 || before.some((i) => rowHeights[i.id] === undefined)
+      ? null
+      : before.reduce((y, i) => y + rowHeights[i.id]!, 0);
   const openOverview = (id: string | null) => {
     setFocus(id);
     setOpen(true);
@@ -176,6 +184,7 @@ export function TopicsSection({ ws }: { ws: Workspace }) {
           setFocus(null);
         }}
         title={t.record.topicsTitle}
+        scrollTo={scrollTo}
       >
         <ReorderList
           items={state.outline}
@@ -186,6 +195,10 @@ export function TopicsSection({ ws }: { ws: Workspace }) {
           onCross={cross}
           renderItem={(item, i, { grip, a11y }) => (
             <View
+              onLayout={(e) => {
+                const h = e.nativeEvent.layout.height;
+                setRowHeights((prev) => (prev[item.id] === h ? prev : { ...prev, [item.id]: h }));
+              }}
               style={{
                 backgroundColor:
                   item.id === focus
