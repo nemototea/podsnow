@@ -81,6 +81,7 @@ export type PlayerMedium = 'tape' | 'disc';
 export function EpisodePlayer({
   medium,
   artworkUri,
+  showName,
   title,
   episodeNumber,
   position,
@@ -91,6 +92,8 @@ export function EpisodePlayer({
 }: {
   medium: PlayerMedium;
   artworkUri: string | null;
+  /** アートワークが無いときのジャケットの表紙に使う（Issue #193）。 */
+  showName?: string | undefined;
   title: string;
   episodeNumber: number | null;
   position: Smp;
@@ -116,7 +119,13 @@ export function EpisodePlayer({
           />
         ) : null
       ) : (
-        <Jacket uri={artworkUri} size={artwork.player} playing={playing} label={t.player.artwork} />
+        <Jacket
+          uri={artworkUri}
+          name={showName}
+          size={artwork.player}
+          playing={playing}
+          label={t.player.artwork}
+        />
       )}
       <View style={s.titleBlock}>
         <Text style={[typography.heading, { color: c.textPrimary }]} numberOfLines={2}>

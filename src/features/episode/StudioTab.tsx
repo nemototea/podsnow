@@ -37,6 +37,7 @@ import { AssetSticker, OnAirLamp } from '@/ui/media';
 import { useAppTheme } from '@/ui/ThemeContext';
 
 import { LevelMeter } from './LevelMeter';
+import { useLivePeaks } from './livePeaks';
 import { parseSeconds, validateRange } from './selectionInput';
 import { TopicsSection } from './TopicsSection';
 import { Waveform } from './Waveform';
@@ -99,6 +100,7 @@ export function StudioTab({
   // 素材は、割り込みで止まっている間も録音中のテイクの位置に入る
   const isRec = s === 'recording' || s === 'paused' || s === 'interrupted';
   const label = stateLabel(t, s);
+  const livePeaks = useLivePeaks(state.level, live);
   const stateColor =
     s === 'recording' ? c.recText : s === 'interrupted' ? c.mistakeText : c.textSecondary;
   const favorites = state.assets.filter(
@@ -270,6 +272,7 @@ export function StudioTab({
           recording={live}
           recFrames={state.recFrames}
           recordAt={state.recAt}
+          livePeaks={livePeaks}
           blocks={ws.blocks}
           // 録音中・一時停止中は位置を動かせない。位置を変えるときは止める（Issue #122）
           {...(live

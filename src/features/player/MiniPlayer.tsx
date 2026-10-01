@@ -64,6 +64,7 @@ export function MiniPlayer() {
         ) : (
           <Jacket
             uri={services.coverArt.uri(services.show.cover_path)}
+            name={services.show.name}
             size={artwork.miniPlayer}
             playing={player.playing}
           />
