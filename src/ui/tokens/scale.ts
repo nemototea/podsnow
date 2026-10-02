@@ -33,7 +33,7 @@ export const artwork = {
   settingsPreview: 128,
   player: 184,
   miniPlayer: 44,
-  /** Home の CD ジャケットの一辺の上限（#190）。狭い画面ではディスクまで収まる大きさに縮む。 */
+  /** Home のレコードジャケットの一辺の上限（#190）。狭い画面では盤まで収まる大きさに縮む。 */
   homeJacket: 240,
 } as const;
 
@@ -250,7 +250,7 @@ export const misreg = { x: 3, y: 2 } as const;
 /** 網点（DESIGN_SYSTEM.md §2.5）。面の飾りだけに使い、文字の下に置かない。 */
 export const halftone = { pitch: 7, dot: 1.3 } as const;
 
-/** 再生の見立て（§2.6）。リールとディスクが 1 回転する時間（ms）。 */
+/** 再生の見立て（§2.6）。リールとレコード盤が 1 回転する時間（ms）。 */
 export const spin = { reel: 2400, disc: 3200 } as const;
 
 export function stickerTilt(i: number): number {
