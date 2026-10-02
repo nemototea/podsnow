@@ -15,6 +15,11 @@ Design system 3（Issue #190「リソグラフの深夜ラジオ」）で、面�
 ただしライトの録音（`recSolid`）は、紙の上で 3:1 を持てる所まで明度を下げてある。ロゴの版ズレに
 使う蛍光ピンク（`brandShadow`）は飾りなので原案のまま（DESIGN_SYSTEM.md §3.2）。
 
+Issue #205 で、ダークの `bg` を無彩色の `#121212` からライトの紙と同じ色相の暖かい黒（L 0.24）に
+持ち上げた。面の段と淡い地（`*Subtle` / `*Fill`）も同じだけ上げて段差を保つ。線と影の決まりは変えない。
+面が明るくなった分、ダークの補助文字（`textSecondary` / `textTertiary`）は目標比を下げ、
+本文との明るさの差を #190 と同じくらいに保つ（いちばん明るい面 `surfaceHover` の上で 6:1 / 4.8:1）。
+
 出典（【確認済み】）:
 - 段ごとの役割: https://www.radix-ui.com/colors/docs/palette-composition/understanding-the-scale
 - コントラスト要件 1.4.3 / 1.4.11: https://www.w3.org/TR/WCAG22/#contrast-minimum
@@ -42,43 +47,43 @@ NEAR_NEUTRAL = ('voice',)
 FIXED = {
     'dark': {
         'controlEdge': (0.9528, 0.0127, 86.8),
-        'bg': (0.1822, 0.0000, 0.0),
-        'surface': (0.2225, 0.0041, 84.6),
-        'surfaceRaised': (0.2655, 0.0062, 78.2),
-        'surfaceHover': (0.3109, 0.0082, 75.3),
-        'border': (0.3381, 0.0095, 80.7),
+        'bg': (0.2400, 0.0080, 86.8),
+        'surface': (0.2800, 0.0090, 84.6),
+        'surfaceRaised': (0.3200, 0.0100, 78.2),
+        'surfaceHover': (0.3600, 0.0110, 75.3),
+        'border': (0.3900, 0.0120, 80.7),
         'textPrimary': (0.9528, 0.0127, 86.8),
         'accentSolid': (0.6648, 0.1771, 264.6),
         'accentSolidPressed': (0.6090, 0.1813, 264.3),
         'accentOnSolid': (0.1638, 0.0000, 0.0),
-        'accentSubtle': (0.2882, 0.0525, 265.1),
+        'accentSubtle': (0.3432, 0.0525, 265.1),
         'recSolid': (0.7113, 0.2113, 353.1),
         'recOnSolid': (0.1822, 0.0000, 0.0),
-        'recSubtle': (0.2790, 0.0500, 345.5),
+        'recSubtle': (0.3340, 0.0500, 345.5),
         'dangerSolid': (0.7057, 0.1877, 32.9),
         'dangerSolidPressed': (0.6528, 0.1927, 32.9),
         'dangerOnSolid': (0.1822, 0.0000, 0.0),
-        'dangerSubtle': (0.2741, 0.0434, 31.3),
+        'dangerSubtle': (0.3291, 0.0434, 31.3),
         'voiceSolid': (0.9528, 0.0127, 86.8),
-        'voiceFill': (0.3109, 0.0082, 75.3),
-        'voiceFillAlt': (0.3381, 0.0095, 80.7),
-        'voiceSubtle': (0.2655, 0.0062, 78.2),
+        'voiceFill': (0.3600, 0.0110, 75.3),
+        'voiceFillAlt': (0.3900, 0.0120, 80.7),
+        'voiceSubtle': (0.3200, 0.0100, 78.2),
         'musicSolid': (0.7091, 0.1656, 291.5),
         'musicOnSolid': (0.1822, 0.0000, 0.0),
-        'musicFill': (0.3039, 0.0554, 293.2),
-        'musicFillAlt': (0.3330, 0.0645, 293.8),
-        'musicSubtle': (0.2547, 0.0376, 295.1),
+        'musicFill': (0.3589, 0.0554, 293.2),
+        'musicFillAlt': (0.3880, 0.0645, 293.8),
+        'musicSubtle': (0.3097, 0.0376, 295.1),
         'insertSolid': (0.7510, 0.1190, 202.6),
         'insertOnSolid': (0.1822, 0.0000, 0.0),
-        'insertFill': (0.3015, 0.0350, 210.5),
-        'insertFillAlt': (0.3378, 0.0399, 210.8),
-        'insertSubtle': (0.2687, 0.0289, 210.5),
+        'insertFill': (0.3565, 0.0350, 210.5),
+        'insertFillAlt': (0.3928, 0.0399, 210.8),
+        'insertSubtle': (0.3237, 0.0289, 210.5),
         'mistakeSolid': (0.9135, 0.1643, 98.4),
-        'mistakeFill': (0.3238, 0.0457, 97.9),
-        'mistakeFillAlt': (0.3624, 0.0530, 98.2),
-        'mistakeSubtle': (0.2996, 0.0418, 98.7),
+        'mistakeFill': (0.3788, 0.0457, 97.9),
+        'mistakeFillAlt': (0.4174, 0.0530, 98.2),
+        'mistakeSubtle': (0.3546, 0.0418, 98.7),
         'successSolid': (0.7714, 0.1652, 152.4),
-        'successSubtle': (0.2826, 0.0451, 153.8),
+        'successSubtle': (0.3376, 0.0451, 153.8),
     },
     'light': {
         'controlEdge': (0.2002, 0.0000, 0.0),
@@ -156,8 +161,8 @@ TEXT_SURFACES = ('bg', 'surface', 'surfaceRaised', 'surfaceHover')
 
 SOLVED = {
     'dark': {
-        'textSecondary': (0.0120, 85.0, 7.00),
-        'textTertiary': (0.0140, 85.0, 5.50),
+        'textSecondary': (0.0120, 85.0, 6.00),
+        'textTertiary': (0.0140, 85.0, 4.80),
         'textDisabled': (0.0140, 85.0, 3.40),
         'borderStrong': (0.0140, 85.0, 3.60),
         'accentText': (0.1500, 264.6, 6.00),
@@ -259,6 +264,11 @@ def build(theme: str) -> dict[str, str]:
     # Design system 3 では主操作の枠も同じ線で描く（controlEdge = textPrimary）。
     t['controlBorder'] = t['textPrimary']
     t['controlShadow'] = t['textPrimary']
+    # 副操作（secondary）の影だけは弱いインク（Issue #173）。主操作と収録の丸の影と差をつけ、
+    # 1 画面に何本も並んでも騒がしくしない。両テーマとも、本文が載る面すべてから 3:1 で逆算する。
+    t['controlShadowSoft'] = _solve(
+        0.0120, 85.0, 3.0, [t[s] for s in TEXT_SURFACES], lighter
+    )
 
     t['overlayScrim'] = '#00000099' if theme == 'dark' else '#00000066'
 

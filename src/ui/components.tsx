@@ -299,6 +299,7 @@ export function Button({
   const off = disabled || busy;
   const [pressed, setPressed] = useState(false);
   // 形のあるボタンは硬い影と押し込み。ghost だけは縮小で返す。主操作は大きい影（§6、#190）。
+  // 副操作の影は弱いインク。何本も並んでも主操作より目立たせない（#173）。
   const tactile = kind !== 'ghost';
   const large = kind === 'primary';
   const offset = large ? buttonDepth.offsetLarge : buttonDepth.offset;
@@ -389,7 +390,7 @@ export function Button({
                   offsetX: depressed ? buttonDepth.pressedOffset : offset,
                   offsetY: depressed ? buttonDepth.pressedOffset : offset,
                   blurRadius: 0,
-                  color: c.controlShadow,
+                  color: kind === 'secondary' ? c.controlShadowSoft : c.controlShadow,
                 },
               ]
             : [],

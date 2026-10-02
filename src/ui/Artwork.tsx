@@ -97,7 +97,7 @@ export function Artwork({
   name?: string | undefined;
   /** 画像の入れ替え時間。動きを減らすときは 0。 */
   transition?: number;
-  /** 枠と角丸を持たない（CD ジャケットのケースの中に置くとき。#190）。 */
+  /** 枠と角丸を持たない（レコードジャケットの中に置くとき。#190、#203）。 */
   frameless?: boolean;
 }) {
   const c = useAppTheme();
