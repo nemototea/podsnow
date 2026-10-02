@@ -74,7 +74,7 @@ function SeekBar({
 
 /**
  * 再生の見立て（DESIGN_SYSTEM.md §2.6）。編集中のタイムライン（`timeline`）はカセット、
- * 書き出したファイル・配信中の音声（`export` / `rss`）は CD ジャケット。
+ * 書き出したファイル・配信中の音声（`export` / `rss`）はレコードジャケット（#203）。
  */
 export type PlayerMedium = 'tape' | 'disc';
 
