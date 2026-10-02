@@ -284,6 +284,7 @@ describe('ボタンの輪郭と硬い影', () => {
       for (const surface of TEXT_SURFACES) {
         expect(contrast(c.controlBorder, c[surface])).toBeGreaterThanOrEqual(3);
         expect(contrast(c.controlShadow, c[surface])).toBeGreaterThanOrEqual(3);
+        expect(contrast(c.controlShadowSoft, c[surface])).toBeGreaterThanOrEqual(3);
       }
     },
   );
