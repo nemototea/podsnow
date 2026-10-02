@@ -39,6 +39,10 @@ export const APP_ERROR_CODES = [
   'file_delete_failed',
   /** 共有するファイルを用意（別名でコピー）できなかった。空き容量不足が多い */
   'share_prepare_failed',
+  /** 配信（RSS）の音声を読み込めなかった。通信できない・URL が切れている（Issue #185） */
+  'playback_stream_failed',
+  /** 書き出したファイルを再生できなかった（Issue #185） */
+  'playback_file_failed',
 ] as const;
 
 export type AppErrorCode = (typeof APP_ERROR_CODES)[number];

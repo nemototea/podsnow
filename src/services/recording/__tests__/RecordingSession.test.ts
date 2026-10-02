@@ -95,6 +95,49 @@ describe('RecordingSession', () => {
     expect(doc.voice[0]).toMatchObject({ takeId, srcStart: 0, srcEnd: 480000 });
   });
 
+  describe('収録日の既定（Issue #167）', () => {
+    const recordedAt = async (db: Awaited<ReturnType<typeof setup>>['db']) =>
+      (
+        await db.get<{ recorded_at: number | null }>(
+          'SELECT recorded_at FROM episodes WHERE id = ?',
+          ['e'],
+        )
+      )?.recorded_at;
+
+    it('作成時の既定のままなら、最初のテイクを録った日時にする', async () => {
+      const { db, recorder, session } = await setup();
+      await db.run('UPDATE episodes SET recorded_at = created_at WHERE id = ?', ['e']);
+      await session.start('e');
+      recorder.frames = 48000;
+      await session.stop();
+      const first = await recordedAt(db);
+      expect(first).toBeGreaterThan(1_000);
+
+      // 2 本目のテイクでは変えない
+      await session.start('e');
+      recorder.frames = 48000;
+      await session.stop();
+      expect(await recordedAt(db)).toBe(first);
+    });
+
+    it('未設定なら最初のテイクを録った日時にする', async () => {
+      const { db, recorder, session } = await setup();
+      await session.start('e');
+      recorder.frames = 48000;
+      await session.stop();
+      expect(await recordedAt(db)).toBeGreaterThan(1_000);
+    });
+
+    it('ユーザーが選んだ日は変えない', async () => {
+      const { db, recorder, session } = await setup();
+      await db.run('UPDATE episodes SET recorded_at = ? WHERE id = ?', [500, 'e']);
+      await session.start('e');
+      recorder.frames = 48000;
+      await session.stop();
+      expect(await recordedAt(db)).toBe(500);
+    });
+  });
+
   it('stop pressed twice finalizes the take once', async () => {
     const { db, recorder, session } = await setup();
     const finalized: string[] = [];

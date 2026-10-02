@@ -1,3 +1,4 @@
+import type { AppErrorCode } from '@/domain/errors';
 import { ZERO_SMP, type Smp } from '@/domain/time';
 import type { SqlExecutor } from '@/infra/db/executor';
 
@@ -42,6 +43,8 @@ export interface TimelinePlaybackItem {
 
 export type PlaybackSource = TimelinePlaybackItem | ExportPlaybackItem | RssPlaybackItem;
 type PlaybackMode = 'timeline' | 'file' | null;
+/** ファイル再生の読み込み状態（Issue #185）。 */
+type FileLoadState = 'loading' | 'ready' | 'failed';
 
 /** タイムラインと完成ファイルの再生状態をアプリ全体で 1 つだけ所有する。 */
 export class PlaybackService {
@@ -55,6 +58,10 @@ export class PlaybackService {
   private playing = false;
   private mode: PlaybackMode = null;
   private fileItem: ExportPlaybackItem | RssPlaybackItem | null = null;
+  private fileUri: string | null = null;
+  private fileLoad: FileLoadState = 'ready';
+  /** 後から始めた読み込みが先の読み込みの結果で上書きされないように数える。 */
+  private fileLoadSeq = 0;
   private timelineItem: TimelinePlaybackItem | null = null;
 
   constructor(
@@ -82,7 +89,16 @@ export class PlaybackService {
       }),
       deps.filePlayer.onStatus((e) => {
         if (this.mode !== 'file') return;
-        this.playing = e.playing;
+        if (e.failed) {
+          this.fileLoad = 'failed';
+          this.playing = false;
+        } else if (e.loading) {
+          // 読み込み中・バッファ待ちの間は、押された操作（再生したいか）をそのまま保つ
+          if (this.fileLoad !== 'failed') this.fileLoad = 'loading';
+        } else {
+          this.fileLoad = 'ready';
+          this.playing = e.playing;
+        }
         this.frame = e.position;
         this.total = e.duration;
         this.dispatch('state', { playing: e.playing, frame: e.position, ended: e.ended });
@@ -124,6 +140,15 @@ export class PlaybackService {
     }
     return null;
   }
+  /** 再生したいのに、音声の読み込み・バッファ待ちで音が出ていない（Issue #185）。 */
+  get isLoading(): boolean {
+    return this.mode === 'file' && this.fileLoad === 'loading' && this.playing;
+  }
+  /** ファイル再生の読み込みに失敗した理由。次に再生を押すと読み込み直す（Issue #185）。 */
+  get error(): AppErrorCode | null {
+    if (this.mode !== 'file' || this.fileLoad !== 'failed' || !this.fileItem) return null;
+    return this.fileItem.kind === 'rss' ? 'playback_stream_failed' : 'playback_file_failed';
+  }
   get loadedEpisodeId(): string | null {
     return this.loadedEpisode;
   }
@@ -157,8 +182,14 @@ export class PlaybackService {
   }
 
   async pause(): Promise<void> {
-    if (this.mode === 'file') this.deps.filePlayer.pause();
-    else await this.deps.engine.pause();
+    if (this.mode === 'file') {
+      this.deps.filePlayer.pause();
+      // 読み込み中は状態の通知が来ないことがあるので、止めたことを自分で流す
+      if (this.playing) {
+        this.playing = false;
+        this.dispatch('state', { playing: false, frame: this.frame });
+      }
+    } else await this.deps.engine.pause();
   }
 
   async pauseTimeline(): Promise<void> {
@@ -279,29 +310,54 @@ export class PlaybackService {
 
   async toggleCurrentHome(): Promise<boolean> {
     if (!this.source?.homeKey) return false;
+    if (this.mode === 'file' && this.fileLoad === 'failed' && this.fileItem && this.fileUri) {
+      // 失敗した読み込みをやり直す（Issue #185）
+      return this.startFile(this.fileItem, this.fileUri, this.frame as Smp);
+    }
     if (this.playing) await this.pause();
     else if (this.mode === 'timeline') {
       await this.play(this.timelineFrame >= this.timelineTotal ? ZERO_SMP : undefined);
     } else {
-      if (this.frame >= this.total) await this.deps.filePlayer.seek(ZERO_SMP);
+      if (this.total > 0 && this.frame >= this.total) await this.deps.filePlayer.seek(ZERO_SMP);
+      this.playing = true;
       this.deps.filePlayer.play();
+      this.dispatch('state', { playing: true, frame: this.frame });
     }
     return true;
   }
 
+  /**
+   * 完成ファイル・配信の音声を読み込んで再生する。読み込みを待つ前に「読み込み中」を流し、
+   * 失敗しても例外は投げず「失敗」の状態にする（Issue #185）。配信の音声は通信するので遅れることがある。
+   */
   private async startFile(
     source: ExportPlaybackItem | RssPlaybackItem,
     uri: string,
+    at: Smp = ZERO_SMP,
   ): Promise<boolean> {
+    const seq = ++this.fileLoadSeq;
     await this.deps.engine.pause();
-    await this.deps.filePlayer.load(uri, source.duration);
     this.fileItem = source;
+    this.fileUri = uri;
     this.mode = 'file';
-    this.frame = 0;
+    this.fileLoad = 'loading';
+    this.frame = at;
     this.total = source.duration;
     this.playing = true;
-    this.deps.filePlayer.play();
-    this.dispatch('state', { playing: true, frame: 0 });
+    this.dispatch('state', { playing: true, frame: at });
+    try {
+      await this.deps.filePlayer.load(uri, source.duration);
+      if (seq !== this.fileLoadSeq || this.mode !== 'file') return true;
+      // 位置合わせの失敗は読み込みの失敗とはみなさない（その場合は先頭から鳴る）
+      if (at > 0) await this.deps.filePlayer.seek(at).catch(() => undefined);
+      if (seq !== this.fileLoadSeq || this.mode !== 'file' || !this.playing) return true;
+      this.deps.filePlayer.play();
+    } catch {
+      if (seq !== this.fileLoadSeq || this.mode !== 'file') return true;
+      this.fileLoad = 'failed';
+      this.playing = false;
+      this.dispatch('state', { playing: false, frame: this.frame });
+    }
     return true;
   }
 
@@ -335,7 +391,10 @@ export class PlaybackService {
 
   private releaseFile(): void {
     this.deps.filePlayer.pause();
+    this.fileLoadSeq++;
     this.fileItem = null;
+    this.fileUri = null;
+    this.fileLoad = 'ready';
     this.mode = null;
     this.playing = false;
     this.frame = 0;

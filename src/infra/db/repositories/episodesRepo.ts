@@ -112,6 +112,22 @@ export async function episodeGuidTaken(
   return (r?.n ?? 0) > 0;
 }
 
+/**
+ * 収録日を最初の録音の日時にする（Issue #167）。作成時の既定（`recorded_at = created_at`）か
+ * 未設定のときだけ書き換え、ユーザーが選んだ日（その日の 0 時になる）は変えない。
+ */
+export async function fillRecordedAtFromFirstTake(
+  db: SqlExecutor,
+  id: string,
+  now: number,
+): Promise<void> {
+  await db.run(
+    `UPDATE episodes SET recorded_at = ?, updated_at = ?
+      WHERE id = ? AND deleted_at IS NULL AND (recorded_at IS NULL OR recorded_at = created_at)`,
+    [now, now, id],
+  );
+}
+
 export async function insertEpisode(
   db: SqlExecutor,
   e: {

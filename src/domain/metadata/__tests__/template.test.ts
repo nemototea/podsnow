@@ -14,6 +14,27 @@ describe('renderTemplate', () => {
     );
     expect(out).toBe('T #24 S2\n・a\n・b\nS {{nope}}');
   });
+
+  const empty = { title: 'T', episodeNumber: 1, season: 1, topics: [], showName: 'S' };
+
+  it('トークテーマが空なら、その行を消して先頭・末尾に空行を残さない（Issue #167）', () => {
+    expect(renderTemplate('{{topics}}\n\n本文\n\n{{topics}}\n', empty)).toBe('本文');
+  });
+
+  it('消した行の上下が空行なら、空行を 1 つにまとめる', () => {
+    expect(renderTemplate('前\n\n{{topics}}\n\n後', empty)).toBe('前\n\n後');
+    expect(renderTemplate('前\n{{topics}}\n後', empty)).toBe('前\n後');
+  });
+
+  it('ユーザーが入れた空行は何行でも残す', () => {
+    expect(renderTemplate('一\n\n\n\n二\n\n\n{{title}}', empty)).toBe('一\n\n\n\n二\n\n\nT');
+    // 上に 2 行・下に 2 行の空行で間の行が消えたときは、継ぎ目の 1 行だけまとめて 3 行にする
+    expect(renderTemplate('一\n\n\n{{topics}}\n\n\n二', empty)).toBe('一\n\n\n\n二');
+  });
+
+  it('未知の変数だけの行や、空でない変数の行は消さない', () => {
+    expect(renderTemplate('{{nope}}\n{{title}}', empty)).toBe('{{nope}}\nT');
+  });
 });
 
 describe('insertTopics', () => {

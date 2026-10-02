@@ -6,10 +6,15 @@ export interface DateFieldProps {
   value: string;
   onChange: (v: string) => void;
   help?: string;
+  /** 読めない値のときの文言（文字入力だけで使う。ピッカーは読めない値を作らない）。 */
+  error?: string | null;
 }
 
-/** 日付の入力（Android と Web は `YYYY-MM-DD` の文字入力。iOS は `DateField.ios.tsx`）。 */
-export function DateField({ label, value, onChange, help }: DateFieldProps) {
+/**
+ * 日付の入力（Web は `YYYY-MM-DD` の文字入力。iOS は `DateField.ios.tsx`、
+ * Android は `DateField.android.tsx` で OS の日付ピッカー。Issue #167）。
+ */
+export function DateField({ label, value, onChange, help, error }: DateFieldProps) {
   return (
     <Field
       label={label}
@@ -17,6 +22,7 @@ export function DateField({ label, value, onChange, help }: DateFieldProps) {
       onChangeText={onChange}
       placeholder="YYYY-MM-DD"
       {...(help ? { help } : {})}
+      {...(error ? { error } : {})}
     />
   );
 }

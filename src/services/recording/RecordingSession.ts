@@ -5,6 +5,7 @@ import type { EditableDoc } from '@/domain/editing/doc';
 import { insertAt, totalDuration } from '@/domain/timeline/voice';
 import type { SqlExecutor } from '@/infra/db/executor';
 import { loadDoc } from '@/infra/db/repositories/editableDocRepo';
+import { fillRecordedAtFromFirstTake } from '@/infra/db/repositories/episodesRepo';
 import {
   insertRecordingEvent,
   type RecordingEvent,
@@ -219,6 +220,8 @@ export class RecordingSession {
         inputLabel: input?.name ?? null,
         now,
       });
+      // 最初のテイクなら、収録日を作成日から録音した日へ寄せる（Issue #167）
+      if (n === 1) await fillRecordedAtFromFirstTake(this.deps.db, episodeId, now);
       this.active = {
         episodeId,
         takeId,

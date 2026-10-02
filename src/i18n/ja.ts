@@ -22,7 +22,9 @@ export const ja = {
     open: '開く',
     close: '閉じる',
     save: '保存',
-    saved: '保存済み',
+    done: '完了',
+    /** 日付などの値が未設定のとき（Issue #167）。 */
+    notSet: '未設定',
     add: '追加',
     delete: '削除',
     rename: '名前を変更',
@@ -83,6 +85,10 @@ export const ja = {
     sideA: 'A',
     tape: '編集中のタイムライン',
     stop: '再生を止めて閉じる',
+    /** 再生を押してから音が出るまで（Issue #185）。配信の音声は通信することを示す。 */
+    loadingStream: '配信から読み込み中…',
+    loadingFile: '読み込み中…',
+    retry: 'もう一度読み込む',
   },
 
   /** エピソードの状態（FR-EP-3）。 */
@@ -112,6 +118,9 @@ export const ja = {
     file_delete_failed: 'ファイルを削除できませんでした。もう一度お試しください',
     share_prepare_failed:
       '共有するファイルを用意できませんでした。空き容量を確かめて、もう一度お試しください',
+    playback_stream_failed:
+      '配信の音声を読み込めませんでした。通信できるか確かめて、もう一度再生してください',
+    playback_file_failed: '書き出したファイルを再生できませんでした。もう一度書き出してください',
   },
 
   /** 初回起動時に DB へ書き込む既定値。以後はユーザーのデータなので翻訳しない。 */
@@ -433,6 +442,8 @@ Podcast: {{show_name}}
     numberTaken: 'ほかの回と同じ話数です',
     undoTemplate: 'テンプレートの適用を取り消す',
     dateHelp: '例：2026-09-23',
+    /** 保存ボタンをなくした代わりに、自動で保存されることを伝える（Issue #167）。 */
+    autosaveHelp: '入力した内容は自動で保存されます',
   },
 
   sound: {
@@ -610,7 +621,7 @@ Podcast: {{show_name}}
     showEyebrow: '番組',
     editShowInfo: '番組情報を編集',
     a11yEditShowInfo: '番組名、概要、著者、既定のシーズンを編集',
-    a11ySaveShowInfo: '番組情報を保存',
+    a11ySaveShowInfo: '完了して番組情報を保存',
     showInfoSaved: '番組情報を保存しました',
     name: '番組名',
     description: '概要',

@@ -450,7 +450,7 @@ Issue #190: 押せる物は **2px の線と、右下へずらしたぼかさな�
 | `Row` | ラベル・補足・右側・下段（選択肢）。押せる行は読み上げに補足も含める。右側の操作は行の押下の外に置く（入れ子にしない） |
 | `MoreMenu` / `HeaderMenu` | 「…」の操作。iOS はネイティブのメニュー、ほかはシート |
 | `ChoiceMenu` | 値を 1 つ選ぶ行。iOS はメニュー形式のピッカー、ほかはシート（選択中にチェック） |
-| `DateField` | 日付。iOS はコンパクトな日付ピッカー、ほかは `YYYY-MM-DD` の文字入力 |
+| `DateField` | 日付。iOS はコンパクトな日付ピッカー、Android は押すと OS の日付ピッカーが開く（Issue #167）、Web は `YYYY-MM-DD` の文字入力 |
 | `Sheet` | iOS はページシート（下スワイプで閉じる）、ほかは下からのシート |
 | `ReorderList` | 並べ替えはすべてこれ（FR-UI-1）。行の右端のつまみだけにドラッグを付け、行の押下・スクロールと衝突させない。間の行が避け、離すと吸い付く。読み上げには行の操作「上へ移動」「下へ移動」。操作ヒントの文は出さない（§2.3） |
 | `alerts` | `confirmDestructive` / `ask` / `notify`（自作の `Dialog`、§6.3）、`iosActionSheet`。削除はすべて `confirmDestructive` を通す（FR-UI-2）。削除・外す操作のアイコンはゴミ箱（`trash`）と `dangerText` に揃え、✕（`close`）は閉じる操作だけに使う |
@@ -484,7 +484,7 @@ Issue #190: 押せる物は **2px の線と、右下へずらしたぼかさな�
 | スイッチ | `Switch` | オン `accentSolid` | 同じ |
 | エピソードのタブ | `UISegmentedControl` | 書体、選択面 `surfaceRaised` | 現行の `Segmented` |
 | アイコン | SF Symbols（`expo-symbols`） | 太さ medium、色はトークン | 現行の SVG（線幅 2） |
-| 収録日 | `@react-native-community/datetimepicker`（compact） | `accentText` の色合い | 文字入力（`YYYY-MM-DD`） |
+| 収録日 | `@react-native-community/datetimepicker`（compact） | `accentText` の色合い | 同じライブラリの `DateTimePickerAndroid.open`（ダイアログ。Issue #167） |
 | 触覚 | `expo-haptics`（`services.haptics`、設定でオフにできる） | 録音の開始・停止は impact、タブや選択は selection、完了は success | Android も同じ API |
 | 押下・通知の動き | Reanimated（UI スレッド）と Gesture Handler | `motion` の時間、`pressScale`。動きを減らす設定では動かさない | 同じ |
 
