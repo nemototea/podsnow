@@ -964,7 +964,8 @@ const s = StyleSheet.create({
     gap: space.md,
   },
   rowOuter: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
-  rowMono: { minWidth: space.xxl },
+  // 話数（`#12`）は桁数で幅が変わるので、3 桁（`#999`）が入る幅にして題の行頭を揃える（Issue #170）。
+  rowMono: { minWidth: space.xxxl },
   rowBelow: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm, marginTop: space.sm },
   toast: {
     position: 'absolute',
