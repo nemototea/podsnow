@@ -87,7 +87,7 @@ export default function HomeScreen() {
   const remove = async (e: EpisodeListItem) => {
     try {
       await episodes.remove(e.id);
-      showToast({ text: t.home.removed(e.episode_number) });
+      showToast({ text: t.home.removed(t.episode.number(e.episode_number)) });
     } catch (err) {
       showToast({ text: errorText(t, err) });
     }
@@ -97,7 +97,7 @@ export default function HomeScreen() {
   const purgeAudio = async (e: EpisodeListItem) => {
     try {
       await episodes.purgeAudio(e.id);
-      showToast({ text: t.home.audioPurged(e.episode_number) });
+      showToast({ text: t.home.audioPurged(t.episode.number(e.episode_number)) });
     } catch (err) {
       showToast({ text: errorText(t, err) });
     }
@@ -107,14 +107,14 @@ export default function HomeScreen() {
   const duplicate = async (e: EpisodeListItem) => {
     const d = await episodes.duplicate(e.id);
     await reload();
-    showToast({ text: t.home.duplicated(d.episode_number) });
+    showToast({ text: t.episode.duplicated(t.episode.number(d.episode_number)) });
   };
 
   const episodeActions = (e: EpisodeListItem): MenuAction[] => [
     {
       key: 'duplicate',
       icon: 'copy',
-      label: t.home.menu.duplicate,
+      label: t.episode.menu.duplicate,
       onPress: () => void duplicate(e),
     },
     ...(e.audio_purged_at
@@ -123,11 +123,11 @@ export default function HomeScreen() {
           {
             key: 'purge',
             icon: 'volume' as const,
-            label: t.home.menu.purgeAudio,
+            label: t.episode.menu.purgeAudio,
             onPress: () =>
               confirmDestructive({
-                title: t.home.menu.purgeAudio,
-                message: t.home.menu.purgeAudioSub,
+                title: t.episode.menu.purgeAudio,
+                message: t.episode.menu.purgeAudioSub,
                 confirmLabel: t.common.delete,
                 cancelLabel: t.common.cancel,
                 onConfirm: () => void purgeAudio(e),
@@ -137,12 +137,12 @@ export default function HomeScreen() {
     {
       key: 'remove',
       icon: 'trash',
-      label: t.home.menu.remove,
+      label: t.episode.menu.remove,
       destructive: true,
       onPress: () =>
         confirmDestructive({
-          title: t.home.menu.remove,
-          message: t.home.menu.removeMessage,
+          title: t.episode.menu.remove,
+          message: t.episode.menu.removeMessage,
           confirmLabel: t.common.delete,
           cancelLabel: t.common.cancel,
           onConfirm: () => void remove(e),
@@ -276,8 +276,9 @@ export default function HomeScreen() {
             return (
               <Row
                 key={item.key}
-                {...(number === null ? {} : { mono: String(number).padStart(3, '0') })}
+                {...(number === null ? {} : { mono: t.episode.number(number) })}
                 label={item.title || t.home.untitled}
+                labelMuted={!item.title}
                 below={
                   <Sticker
                     label={statusText(t, item)}
@@ -328,7 +329,7 @@ export default function HomeScreen() {
                     {e ? (
                       <MoreMenu
                         label={t.home.a11yEpisodeMenu(e.episode_number)}
-                        title={`${t.home.episodeCode(e.episode_number)} ${e.title || t.home.untitled}`}
+                        title={`${t.episode.number(e.episode_number)} ${e.title || t.home.untitled}`}
                         actions={episodeActions(e)}
                       />
                     ) : null}

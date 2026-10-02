@@ -9,7 +9,7 @@ import { formatBytes, loudnessText } from '@/features/episode/ExportTab';
 import { shareExport } from '@/features/episode/shareExport';
 import { useCopy } from '@/features/episode/useCopy';
 import { useEpisode } from '@/features/episode/useEpisode';
-import { errorText, useT } from '@/i18n';
+import { errorText, formatDateTime, useLocale, useT } from '@/i18n';
 import { listExports, type ExportRow } from '@/infra/db/repositories/exportsRepo';
 import { fileExists } from '@/infra/files/fileSystem';
 import { joinRoot } from '@/infra/files/layout';
@@ -19,12 +19,6 @@ import { Button, Card, Loading, Notice, Screen, Text, Toast } from '@/ui/compone
 import { ScreenHeader } from '@/ui/ScreenHeader';
 import { useAppTheme } from '@/ui/ThemeContext';
 import { useToast } from '@/ui/useToast';
-
-function formatWhen(ms: number): string {
-  const d = new Date(ms);
-  const p = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
-}
 
 function CopyBlock({
   label,
@@ -65,6 +59,7 @@ export default function DistributionPackScreen() {
   const episodeId = id ?? '';
   const c = useAppTheme();
   const t = useT();
+  const locale = useLocale();
   const router = useRouter();
   const { db, root, exporter } = useServices();
   const { episode } = useEpisode(episodeId);
@@ -142,7 +137,10 @@ export default function DistributionPackScreen() {
         <>
           {row.id !== latestId ? (
             <Notice
-              title={t.pack.olderExport(formatWhen(row.created_at), row.format.toUpperCase())}
+              title={t.pack.olderExport(
+                formatDateTime(row.created_at, locale),
+                row.format.toUpperCase(),
+              )}
             />
           ) : null}
 

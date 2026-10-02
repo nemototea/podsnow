@@ -175,7 +175,7 @@ export default function ImportScreen() {
             </Text>
             <Text style={[typography.caption, { color: c.textSecondary }]}>
               {step.nextNumber !== null
-                ? t.podcastImport.nextNumber(step.nextNumber)
+                ? t.podcastImport.nextNumber(t.episode.number(step.nextNumber))
                 : t.podcastImport.noEpisodeNumbers}
             </Text>
           </View>

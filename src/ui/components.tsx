@@ -422,8 +422,11 @@ export function Row({
   below,
   accessibilityActions,
   onAccessibilityAction,
+  labelMuted,
 }: {
   label: string;
+  /** 題が未設定で、代わりの文言（「タイトル未設定」）を出しているとき。弱い色にする（Issue #170）。 */
+  labelMuted?: boolean;
   sub?: string;
   below?: ReactNode;
   right?: ReactNode;
@@ -451,7 +454,12 @@ export function Row({
         <Icon name={iconName} color={danger ? c.dangerText : c.textSecondary} size={icon.sm} />
       ) : null}
       <View style={s.flex}>
-        <Text style={[typography.body, { color: danger ? c.dangerText : c.textPrimary }]}>
+        <Text
+          style={[
+            typography.body,
+            { color: danger ? c.dangerText : labelMuted ? c.textSecondary : c.textPrimary },
+          ]}
+        >
           {label}
         </Text>
         {sub ? <Text style={[typography.caption, { color: c.textSecondary }]}>{sub}</Text> : null}

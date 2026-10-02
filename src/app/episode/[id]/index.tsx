@@ -286,7 +286,7 @@ export default function EpisodeScreen() {
             onPress: () =>
               void services.episodes.duplicate(episodeId).then((d) =>
                 showToast({
-                  text: t.episode.duplicated(d.episode_number),
+                  text: t.episode.duplicated(t.episode.number(d.episode_number)),
                   action: t.common.open,
                   onAction: () => router.push(`/episode/${d.id}` as never),
                 }),

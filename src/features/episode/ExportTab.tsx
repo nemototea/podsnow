@@ -5,7 +5,7 @@ import { insertTopics, renderTemplate } from '@/domain/metadata/template';
 import { headings } from '@/domain/outline';
 import { formatSmp, smp } from '@/domain/time';
 import { useServices } from '@/features/app/ServicesProvider';
-import { errorText, storedErrorText, useT, type Messages } from '@/i18n';
+import { errorText, formatDateTime, storedErrorText, useLocale, useT, type Messages } from '@/i18n';
 import { isExportRunning, listExports, type ExportRow } from '@/infra/db/repositories/exportsRepo';
 import { getDefaultTemplate } from '@/infra/db/repositories/showsRepo';
 import { parseSoundSettings, type SoundSettings } from '@/services/audio/renderDocumentFromDb';
@@ -70,12 +70,6 @@ export function formatBytes(b: number): string {
   return mb < 10 ? `${mb.toFixed(1)} MB` : `${Math.round(mb)} MB`;
 }
 
-function formatWhen(ms: number): string {
-  const d = new Date(ms);
-  const p = (n: number) => String(n).padStart(2, '0');
-  return `${d.getMonth() + 1}/${d.getDate()} ${p(d.getHours())}:${p(d.getMinutes())}`;
-}
-
 function Stepper({
   label,
   value,
@@ -132,6 +126,7 @@ export interface ExportTabProps {
 export function ExportTab({ ws, onShowToast, onDone, onGoEdit }: ExportTabProps) {
   const c = useAppTheme();
   const t = useT();
+  const locale = useLocale();
   const { db, show, coverArt, episodes, exporter, playback, settings, updateSettings, haptics } =
     useServices();
   const { state } = ws;
@@ -783,7 +778,7 @@ export function ExportTab({ ws, onShowToast, onDone, onGoEdit }: ExportTabProps)
       {history.map((h, i) => (
         <Row
           key={h.id}
-          label={`${formatWhen(h.created_at)} · ${h.format.toUpperCase()}`}
+          label={`${formatDateTime(h.created_at, locale)} · ${h.format.toUpperCase()}`}
           sub={
             h.status === 'done'
               ? [formatSmp(smp(h.duration_smp)), formatBytes(h.bytes ?? 0), loudnessText(t, h)]
@@ -799,7 +794,7 @@ export function ExportTab({ ws, onShowToast, onDone, onGoEdit }: ExportTabProps)
           {...(h.status === 'done'
             ? {
                 onPress: () => onDone(h.id),
-                accessibilityLabel: t.export.a11yOpenHandoff(formatWhen(h.created_at)),
+                accessibilityLabel: t.export.a11yOpenHandoff(formatDateTime(h.created_at, locale)),
               }
             : {})}
           {...(isExportRunning(h.status)
@@ -816,7 +811,7 @@ export function ExportTab({ ws, onShowToast, onDone, onGoEdit }: ExportTabProps)
                     ) : null}
                     <IconButton
                       name="trash"
-                      label={t.export.a11yDeleteExport(formatWhen(h.created_at))}
+                      label={t.export.a11yDeleteExport(formatDateTime(h.created_at, locale))}
                       onPress={() => void removeExport(h)}
                     />
                   </View>
