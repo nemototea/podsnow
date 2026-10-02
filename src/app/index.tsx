@@ -5,7 +5,7 @@ import { StyleSheet, View } from 'react-native';
 import { formatClock, formatSmp, smp } from '@/domain/time';
 import { useServices } from '@/features/app/ServicesProvider';
 import { useHome } from '@/features/home/useHome';
-import { usePlayback } from '@/features/player/usePlayback';
+import { usePlaybackStatus } from '@/features/player/usePlayback';
 import { HomeArtwork } from '@/features/home/HomeArtwork';
 import { errorText, useT, type Messages } from '@/i18n';
 import type { EpisodeListItem } from '@/infra/db/repositories/episodesRepo';
@@ -60,7 +60,7 @@ export default function HomeScreen() {
   const services = useServices();
   const { show, episodes, recovered } = services;
   const { list, playable, loading, reload } = useHome();
-  const player = usePlayback();
+  const player = usePlaybackStatus();
   const [onboardingDone, setOnboardingDone] = useState(services.settings.onboardingDone);
   const { toast, show: showToast, act, dismiss } = useToast();
   const [creating, setCreating] = useState(false);
