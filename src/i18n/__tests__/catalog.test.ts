@@ -181,7 +181,7 @@ describe('文言カタログ', () => {
       ja: [
         [/カット/, [], '音を消す操作は「削除」'],
         [/無音を削除/, [], '無音は「詰める」'],
-        [/ダッキング|しゃべり中/, [], 'BGM は「声の間は下げる」'],
+        [/しゃべり中|声に合わせて|声の間は/, [], 'BGM を声の間だけ下げるのは「ダッキング」'],
         [/話すこと|話題/, ['showSettings.topicTemplatePlaceholder'], '「トークテーマ」'],
         [
           /収録/,
@@ -204,7 +204,7 @@ describe('文言カタログ', () => {
       ],
       en: [
         [/\bcut\b(?! off)/i, [], 'Removing audio is “Delete”'],
-        [/duck/i, [], 'BGM is “lowered under voice”'],
+        [/lower(ed|s)? (music|BGM )?(under|while)/i, [], 'Call it “ducking”'],
         [/\btakes?\b/i, [], 'Say “recording”'],
         [/\basset/i, [], 'Say “sound”'],
         [/· (mono|stereo|uncompressed)\b/, [], 'Spec lines capitalise each item'],
