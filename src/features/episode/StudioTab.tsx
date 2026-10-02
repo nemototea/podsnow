@@ -452,7 +452,7 @@ export function StudioTab({
       )}
 
       {live || state.total === 0 ? null : (
-        <Button label={t.edit.toExport} kind="secondary" style={st.next} onPress={onGoExport} />
+        <Button label={t.edit.toExport} style={st.next} onPress={onGoExport} />
       )}
 
       <Sheet
