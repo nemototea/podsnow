@@ -1,6 +1,6 @@
 import { useServices } from '@/features/app/ServicesProvider';
 import { usePlayback } from '@/features/player/usePlayback';
-import { useT } from '@/i18n';
+import { errorCodeText, useT } from '@/i18n';
 import { EpisodePlayer } from '@/ui/EpisodePlayer';
 import { Screen } from '@/ui/components';
 
@@ -21,6 +21,9 @@ export default function PlayerScreen() {
         position={player.position}
         duration={player.duration}
         playing={player.playing}
+        loading={player.loading}
+        loadingLabel={source.kind === 'rss' ? t.player.loadingStream : t.player.loadingFile}
+        errorMessage={player.error ? errorCodeText(t, player.error) : null}
         onToggle={() => void player.toggleCurrent()}
         onSeek={(to) => void player.seek(to)}
       />

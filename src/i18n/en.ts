@@ -80,6 +80,9 @@ export const en: Messages = {
     sideA: 'A',
     tape: 'Timeline in progress',
     stop: 'Stop and close player',
+    loadingStream: 'Loading from your feed…',
+    loadingFile: 'Loading…',
+    retry: 'Load again',
   },
 
   status: {
@@ -107,6 +110,9 @@ export const en: Messages = {
     file_delete_failed: 'Could not delete the files. Please try again',
     share_prepare_failed:
       'Could not prepare the file for sharing. Check your free storage and try again',
+    playback_stream_failed:
+      'Could not load the episode audio. Check your connection and play it again',
+    playback_file_failed: 'Could not play the exported file. Please export it again',
   },
 
   seed: {

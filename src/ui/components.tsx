@@ -164,6 +164,7 @@ export function IconButton({
   showLabel,
   selected,
   corner,
+  busy,
 }: {
   name: IconName;
   label: string;
@@ -174,6 +175,8 @@ export function IconButton({
   selected?: boolean;
   /** 押下面の角丸。角丸の面の内側に置くときは `concentric(外側, 余白)` を渡す。 */
   corner?: number;
+  /** 処理中。アイコンの代わりに回転表示を出す（押せるまま。押すと取り消しなどに使う）。 */
+  busy?: boolean;
 }) {
   const c = useAppTheme();
   const fg = disabled ? c.textDisabled : (color ?? c.textPrimary);
@@ -183,14 +186,18 @@ export function IconButton({
       disabled={disabled}
       accessibilityRole="button"
       accessibilityLabel={label}
-      accessibilityState={{ disabled: !!disabled, ...(selected ? { selected } : {}) }}
+      accessibilityState={{
+        disabled: !!disabled,
+        ...(selected ? { selected } : {}),
+        ...(busy ? { busy } : {}),
+      }}
       style={({ pressed }) => [
         showLabel ? s.iconButtonLabeled : s.iconButton,
         corner === undefined ? null : { borderRadius: corner },
         { backgroundColor: pressed ? c.surfaceHover : 'transparent' },
       ]}
     >
-      <Icon name={name} color={fg} />
+      {busy ? <ActivityIndicator color={fg} /> : <Icon name={name} color={fg} />}
       {showLabel ? (
         <Text style={[typography.caption, { color: disabled ? c.textDisabled : c.textSecondary }]}>
           {label}

@@ -18,6 +18,9 @@ export function createExpoFilePlayback(): FilePlaybackPort {
       position: smp(Math.round(status.currentTime * SAMPLE_RATE)),
       duration,
       ended: status.didJustFinish,
+      // expo-audio 57.0.5 の AudioStatus: isLoaded / isBuffering / error（Issue #185）
+      loading: !status.isLoaded || status.isBuffering,
+      failed: status.error !== null && status.error !== undefined,
     };
     listeners.forEach((fn) => fn(payload));
   });
@@ -26,7 +29,9 @@ export function createExpoFilePlayback(): FilePlaybackPort {
       player.pause();
       player.replace({ uri });
       duration = nextDuration;
-      await player.seekTo(0);
+      // 読み込み前の位置合わせが失敗しても、読み込みの失敗とはみなさない。
+      // 本当の失敗（URL が切れている・通信できない）は status.error で届く（Issue #185）
+      await player.seekTo(0).catch(() => undefined);
     },
     play: () => player.play(),
     pause: () => player.pause(),

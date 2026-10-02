@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { formatClock } from '@/domain/time';
 import { useServices } from '@/features/app/ServicesProvider';
-import { useT } from '@/i18n';
+import { errorCodeText, useT } from '@/i18n';
 import { floatingInset } from '@/ui/BottomInset';
 import { IconButton, Text, useCompact, useGutter } from '@/ui/components';
 import { Jacket, MiniCassette } from '@/ui/media';
@@ -41,6 +41,14 @@ export function MiniPlayer() {
   }, [visible]);
   useEffect(() => () => floatingInset.set(0), []);
   if (!source || !visible) return null;
+  // 読み込み中・失敗は位置の代わりに出す（Issue #185）
+  const status = player.error
+    ? errorCodeText(t, player.error)
+    : player.loading
+      ? source.kind === 'rss'
+        ? t.player.loadingStream
+        : t.player.loadingFile
+      : `${formatClock(player.position)} / ${formatClock(player.duration)}`;
   return (
     <View
       // 覆っている高さ（safe area より上）を `Screen` へ知らせ、下部の操作を覆わせない（Issue #164）。
@@ -88,14 +96,22 @@ export function MiniPlayer() {
           <Text style={[typography.label, { color: c.textPrimary }]} numberOfLines={1}>
             {source.title || t.home.untitled}
           </Text>
-          <Text style={[typography.numeric, { color: c.textSecondary }]} numberOfLines={1}>
-            {formatClock(player.position)} / {formatClock(player.duration)}
+          <Text
+            style={[
+              player.error || player.loading ? typography.caption : typography.numeric,
+              { color: player.error ? c.dangerText : c.textSecondary },
+            ]}
+            numberOfLines={player.error ? 2 : 1}
+            accessibilityLiveRegion="polite"
+          >
+            {status}
           </Text>
         </View>
       </Pressable>
       <IconButton
-        name={player.playing ? 'pause' : 'play'}
-        label={player.playing ? t.a11y.pause : t.a11y.play}
+        name={player.error ? 'refresh' : player.playing ? 'pause' : 'play'}
+        label={player.error ? t.player.retry : player.playing ? t.a11y.pause : t.a11y.play}
+        busy={player.loading}
         onPress={() => void player.toggleCurrent()}
       />
       {/* 閉じるのは一時停止中だけ。再生中に押し間違えないように（Issue #199） */}

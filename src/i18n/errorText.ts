@@ -34,6 +34,8 @@ export function errorCodeText(
     case 'cover_processing_failed':
     case 'file_delete_failed':
     case 'share_prepare_failed':
+    case 'playback_stream_failed':
+    case 'playback_file_failed':
       return t.errors[code];
   }
 }

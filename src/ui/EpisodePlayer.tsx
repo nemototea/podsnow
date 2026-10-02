@@ -87,6 +87,9 @@ export function EpisodePlayer({
   position,
   duration,
   playing,
+  loading = false,
+  loadingLabel,
+  errorMessage = null,
   onToggle,
   onSeek,
 }: {
@@ -99,6 +102,11 @@ export function EpisodePlayer({
   position: Smp;
   duration: Smp;
   playing: boolean;
+  /** 音声の読み込み・バッファ待ち（Issue #185）。再生ボタンが回転表示になる。 */
+  loading?: boolean;
+  loadingLabel?: string | undefined;
+  /** 読み込みに失敗した理由と次の操作。出ている間、再生ボタンは「読み込み直す」になる。 */
+  errorMessage?: string | null;
   onToggle: () => void;
   onSeek: (to: Smp) => void;
 }) {
@@ -145,6 +153,18 @@ export function EpisodePlayer({
             −{formatClock(smp(Math.max(0, duration - position)))}
           </Text>
         </View>
+        {errorMessage || (loading && loadingLabel) ? (
+          <Text
+            style={[
+              typography.caption,
+              s.status,
+              { color: errorMessage ? c.dangerText : c.textSecondary },
+            ]}
+            accessibilityLiveRegion="polite"
+          >
+            {errorMessage ?? loadingLabel}
+          </Text>
+        ) : null}
       </View>
       <View style={s.controls}>
         <IconButton
@@ -153,8 +173,9 @@ export function EpisodePlayer({
           onPress={() => onSeek(smp(Math.max(0, position - 15 * 48000)))}
         />
         <IconButton
-          name={playing ? 'pause' : 'play'}
-          label={playing ? t.a11y.pause : t.a11y.play}
+          name={errorMessage ? 'refresh' : playing ? 'pause' : 'play'}
+          label={errorMessage ? t.player.retry : playing ? t.a11y.pause : t.a11y.play}
+          busy={loading}
           onPress={onToggle}
         />
         <IconButton
@@ -188,5 +209,6 @@ const s = StyleSheet.create({
     borderWidth: stroke.selected,
   },
   times: { flexDirection: 'row', justifyContent: 'space-between' },
+  status: { textAlign: 'center', marginTop: space.sm },
   controls: { flexDirection: 'row', alignItems: 'center', gap: space.xl },
 });

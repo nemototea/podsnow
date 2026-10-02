@@ -2,9 +2,19 @@ import { useCallback, useEffect, useState } from 'react';
 
 import { smp, ZERO_SMP, type Smp } from '@/domain/time';
 import { useServices } from '@/features/app/ServicesProvider';
+import type { PlaybackService } from '@/services/audio/PlaybackService';
 import type { HomeEpisodeItem } from '@/services/home/HomeService';
 
 import { samePlaybackStatus, type PlaybackStatus } from './playbackStatus';
+
+function statusOf(playback: PlaybackService): PlaybackStatus {
+  return {
+    source: playback.source,
+    playing: playback.isPlaying,
+    loading: playback.isLoading,
+    error: playback.error,
+  };
+}
 
 /**
  * 再生元と再生中かだけを購読する。位置の更新（250ms ごと）では描き直さない。
@@ -12,13 +22,10 @@ import { samePlaybackStatus, type PlaybackStatus } from './playbackStatus';
  */
 export function usePlaybackStatus() {
   const { playback } = useServices();
-  const [state, setState] = useState<PlaybackStatus>(() => ({
-    source: playback.source,
-    playing: playback.isPlaying,
-  }));
+  const [state, setState] = useState<PlaybackStatus>(() => statusOf(playback));
   useEffect(() => {
     const update = () => {
-      const next = { source: playback.source, playing: playback.isPlaying };
+      const next = statusOf(playback);
       setState((prev) => (samePlaybackStatus(prev, next) ? prev : next));
     };
     const sub = playback.on('state', update);
@@ -36,8 +43,7 @@ export function usePlayback() {
   const { playback } = useServices();
   const snapshot = useCallback(
     () => ({
-      source: playback.source,
-      playing: playback.isPlaying,
+      ...statusOf(playback),
       position: playback.position,
       duration: playback.duration,
     }),

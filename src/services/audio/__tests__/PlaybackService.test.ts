@@ -13,8 +13,28 @@ const TOTAL = 96000;
 class FakeFilePlayer implements FilePlaybackPort {
   calls: string[] = [];
   listener: ((s: FilePlaybackStatus) => void) | null = null;
+  /** 次の load を失敗させる */
+  failNextLoad = false;
+  /** 設定すると、load はこの Promise が解決するまで待つ（読み込みの遅い回線） */
+  gate: Promise<void> | null = null;
   async load(uri: string) {
     this.calls.push(`load:${uri}`);
+    if (this.gate) await this.gate;
+    if (this.failNextLoad) {
+      this.failNextLoad = false;
+      throw new Error('load failed');
+    }
+  }
+  emit(patch: Partial<FilePlaybackStatus>) {
+    this.listener?.({
+      playing: false,
+      position: smp(0),
+      duration: smp(TOTAL),
+      ended: false,
+      loading: false,
+      failed: false,
+      ...patch,
+    });
   }
   play() {
     this.calls.push('play');
@@ -357,5 +377,98 @@ describe('PlaybackService', () => {
     expect(filePlayer.calls).toContain('load:file:///root/episodes/e/exports/x1.m4a');
     expect(filePlayer.calls).not.toContain('load:https://example.test/episode.mp3');
     expect(svc.source).toMatchObject({ kind: 'export', exportId: 'x1' });
+  });
+
+  describe('loading and failure of file playback (Issue #185)', () => {
+    it('reports loading before the audio is ready, then playing once it is loaded', async () => {
+      const { db, filePlayer, svc } = await setup();
+      const item = await insertFeedEpisode(db);
+      const states: boolean[] = [];
+      svc.on('state', () => states.push(svc.isLoading));
+      expect(await svc.toggleHome(item)).toBe(true);
+      expect(states[0]).toBe(true);
+      expect(svc.isPlaying).toBe(true);
+
+      // 読み込み中・バッファ待ちの通知（expo-audio は playing=false を返すことがある）
+      filePlayer.emit({ loading: true, playing: false });
+      expect(svc.isLoading).toBe(true);
+      expect(svc.isPlaying).toBe(true);
+
+      filePlayer.emit({ loading: false, playing: true, position: smp(4800) });
+      expect(svc.isLoading).toBe(false);
+      expect(svc.isPlaying).toBe(true);
+      expect(svc.error).toBeNull();
+    });
+
+    it('reports a stream failure with a code and retries on the next toggle', async () => {
+      const { db, filePlayer, svc } = await setup();
+      const item = await insertFeedEpisode(db);
+      await svc.toggleHome(item);
+      filePlayer.emit({ failed: true, loading: true });
+      expect(svc.error).toBe('playback_stream_failed');
+      expect(svc.isLoading).toBe(false);
+      expect(svc.isPlaying).toBe(false);
+      expect(svc.source).toMatchObject({ kind: 'rss', homeKey: item.key });
+
+      filePlayer.calls = [];
+      expect(await svc.toggleCurrentHome()).toBe(true);
+      expect(filePlayer.calls).toEqual(['load:https://example.test/episode.mp3', 'play']);
+      expect(svc.error).toBeNull();
+      expect(svc.isLoading).toBe(true);
+    });
+
+    it('turns a load that throws into a failure instead of rejecting', async () => {
+      const { db, filePlayer, svc } = await setup();
+      await db.run(
+        'INSERT INTO exports (id, episode_id, format, preset, status, path, duration_smp, created_at) VALUES (?,?,?,?,?,?,?,?)',
+        ['x1', 'e', 'm4a', '{}', 'done', 'episodes/e/exports/x1.m4a', TOTAL, 2],
+      );
+      filePlayer.failNextLoad = true;
+      await expect(svc.toggleHome(await localHomeItem(db))).resolves.toBe(true);
+      expect(svc.error).toBe('playback_file_failed');
+      expect(svc.isPlaying).toBe(false);
+      expect(filePlayer.calls).not.toContain('play');
+    });
+
+    it('does not start playing when paused while the audio is still loading', async () => {
+      const { db, filePlayer, svc } = await setup();
+      const item = await insertFeedEpisode(db);
+      let open: () => void = () => undefined;
+      filePlayer.gate = new Promise((resolve) => (open = resolve));
+      const started = svc.toggleHome(item);
+      await new Promise((r) => setImmediate(r));
+      expect(svc.isLoading).toBe(true);
+      await svc.toggleCurrentHome();
+      expect(svc.isPlaying).toBe(false);
+      expect(svc.isLoading).toBe(false);
+      open();
+      await started;
+      expect(filePlayer.calls).not.toContain('play');
+    });
+
+    it('ignores a slow load that was replaced by another episode', async () => {
+      const { db, filePlayer, svc } = await setup();
+      const rss = await insertFeedEpisode(db);
+      await db.run(
+        'INSERT INTO exports (id, episode_id, format, preset, status, path, duration_smp, created_at) VALUES (?,?,?,?,?,?,?,?)',
+        ['x1', 'e', 'm4a', '{}', 'done', 'episodes/e/exports/x1.m4a', TOTAL, 2],
+      );
+      let open: () => void = () => undefined;
+      filePlayer.gate = new Promise((resolve) => (open = resolve));
+      filePlayer.failNextLoad = true;
+      const first = svc.toggleHome(rss);
+      await new Promise((r) => setImmediate(r));
+      filePlayer.gate = null;
+      const local = (await new HomeService(db).list('s')).find((i) => i.local?.id === 'e');
+      if (!local) throw new Error('local item missing');
+      // 2 本目の読み込みを先に終わらせ、1 本目の失敗が後から届いても上書きしない
+      filePlayer.failNextLoad = false;
+      await svc.toggleHome(local);
+      filePlayer.failNextLoad = true;
+      open();
+      await first;
+      expect(svc.source).toMatchObject({ kind: 'export', exportId: 'x1' });
+      expect(svc.error).toBeNull();
+    });
   });
 });

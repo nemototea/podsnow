@@ -307,8 +307,21 @@ export default function HomeScreen() {
                   <View style={st.rowActions}>
                     {playable.has(item.key) ? (
                       <IconButton
-                        name={active && player.playing ? 'pause' : 'play'}
-                        label={active && player.playing ? t.a11y.pause : t.a11y.play}
+                        name={
+                          active && player.error
+                            ? 'refresh'
+                            : active && player.playing
+                              ? 'pause'
+                              : 'play'
+                        }
+                        label={
+                          active && player.error
+                            ? t.player.retry
+                            : active && player.playing
+                              ? t.a11y.pause
+                              : t.a11y.play
+                        }
+                        busy={active && player.loading}
                         onPress={() => void player.toggleHome(item)}
                       />
                     ) : null}

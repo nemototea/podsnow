@@ -242,7 +242,7 @@ idle ──start──▶ preparing ──ok──▶ recording ◀──resume�
 `queued → rendering(progress) → encoding(progress) → done | failed | cancelled`。ジョブは `exports` テーブルに記録し、アプリ再起動で `rendering` のまま残っていれば `failed` に倒す。
 
 ## 9. セキュリティ / プライバシー
-- 通信は番組の取り込み（REQUIREMENTS.md FR-SHOW-6〜10）と配信（§2.13）だけ。ユーザーが操作したときに限り、Apple の公開検索と RSS 配信元への GET、PodsNow の配信基盤（API と、署名付き URL でのストレージへのアップロード）への HTTPS 通信を行う（NFR-2 / NFR-5）。ストレージの秘密鍵はアプリに持たない（Issue #107 §17）。それ以外の機能はネットワークを使わない。
+- 通信は番組の取り込み（REQUIREMENTS.md FR-SHOW-6〜10）、配信（§2.13）、配信中の回の音声の再生（FR-EP-7。Issue #185）だけ。ユーザーが操作したときに限り、Apple の公開検索と RSS 配信元への GET（RSS と、Home で再生を押した回の `enclosure_url`）、PodsNow の配信基盤（API と、署名付き URL でのストレージへのアップロード）への HTTPS 通信を行う（NFR-2 / NFR-5）。ストレージの秘密鍵はアプリに持たない（Issue #107 §17）。それ以外の機能はネットワークを使わない。
 - 配信基盤のトークンは OS の安全な保管領域に置き、SQLite や将来の制作データ同期には入れない（NFR-11）。
 - 正本の分担: 制作（録音・編集）の正本は端末の SQLite。配信済みの回と RSS の正本は配信基盤。端末の `feed_episodes` はその写し（DATA_MODEL.md §4.17）。
 - 権限はマイク、（Android）通知、（Android）FGS、ファイル選択。Android の `INTERNET` は Expo の生成するマニフェストに最初から入っている【事実】（`@expo/config-plugins` の `withAndroidBaseMods.js` のテンプレート。元は https://github.com/expo/expo/blob/main/templates/expo-template-bare-minimum/android/app/src/main/AndroidManifest.xml ）。iOS は ATS により HTTPS 以外を拒否する既定のままにする。
