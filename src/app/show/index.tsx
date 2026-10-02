@@ -155,24 +155,47 @@ export default function ShowScreen() {
     setTemplateDraft(null);
   };
 
-  const saveShowInfo = async () => {
-    if (!showDraft) return;
-    const season = Math.max(1, parseInt(showDraft.season, 10) || 1);
-    await updateShow(
-      db,
-      showId,
-      {
-        name: showDraft.name.trim() || t.seed.showName,
-        description: showDraft.description,
-        author: showDraft.author,
-        defaultSeason: season,
-      },
-      now(),
-    );
-    await services.reloadShow();
+  /**
+   * 番組情報のシートは、閉じたとき（完了・✕・背景・下スワイプ）に変更があれば保存する（Issue #167）。
+   * iOS のページシートは下スワイプで閉じ終わってから知らされるので、閉じる前の確認は出せない。
+   * 代わりに保存したことを伝え、取り消しで元に戻せるようにする。
+   */
+  const closeShowEditor = async () => {
+    const draft = showDraft;
+    const before = data.show;
     closeEditor();
-    await reload();
-    showToast({ text: t.showSettings.showInfoSaved });
+    if (!draft || !before) return;
+    const next = {
+      name: draft.name.trim() || t.seed.showName,
+      description: draft.description,
+      author: draft.author,
+      defaultSeason: Math.max(1, parseInt(draft.season, 10) || 1),
+    };
+    const prev = {
+      name: before.name,
+      description: before.description,
+      author: before.author,
+      defaultSeason: before.default_season,
+    };
+    if (
+      next.name === prev.name &&
+      next.description === prev.description &&
+      next.author === prev.author &&
+      next.defaultSeason === prev.defaultSeason
+    ) {
+      return;
+    }
+    const write = async (v: typeof next) => {
+      await updateShow(db, showId, v, now());
+      await services.reloadShow();
+      await reload();
+    };
+    await write(next);
+    showToast({
+      text: t.showSettings.showInfoSaved,
+      action: t.common.undo,
+      onAction: () => void write(prev),
+    });
   };
 
   const saveTopics = async () => {
@@ -403,7 +426,11 @@ export default function ShowScreen() {
         />
       </Card>
 
-      <Sheet visible={editing === 'show'} onClose={closeEditor} title={t.showSettings.editShowInfo}>
+      <Sheet
+        visible={editing === 'show'}
+        onClose={() => void closeShowEditor()}
+        title={t.showSettings.editShowInfo}
+      >
         {showDraft ? (
           <>
             <Field
@@ -432,11 +459,10 @@ export default function ShowScreen() {
             />
             <View style={st.sheetActions}>
               <Button
-                label={t.common.save}
+                label={t.common.done}
                 accessibilityLabel={t.showSettings.a11ySaveShowInfo}
-                onPress={() => void saveShowInfo()}
+                onPress={() => void closeShowEditor()}
               />
-              <Button label={t.common.cancel} kind="ghost" onPress={closeEditor} />
             </View>
           </>
         ) : null}

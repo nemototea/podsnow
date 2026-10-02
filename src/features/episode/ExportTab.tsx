@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { AppState, Pressable, StyleSheet, View } from 'react-native';
 
 import { insertTopics, renderTemplate } from '@/domain/metadata/template';
 import { headings } from '@/domain/outline';
@@ -42,6 +42,13 @@ import { DateField } from '@/ui/DateField';
 import { EpisodePlayer } from '@/ui/EpisodePlayer';
 import { useAppTheme } from '@/ui/ThemeContext';
 
+import {
+  applyDetailsPatch,
+  detailsPatch,
+  draftFromEpisode,
+  fromDateInput,
+  type DetailsDraft,
+} from './detailsDraft';
 import { shareExport } from './shareExport';
 import type { Workspace } from './useWorkspace';
 
@@ -67,22 +74,6 @@ function formatWhen(ms: number): string {
   const d = new Date(ms);
   const p = (n: number) => String(n).padStart(2, '0');
   return `${d.getMonth() + 1}/${d.getDate()} ${p(d.getHours())}:${p(d.getMinutes())}`;
-}
-
-function toDateInput(ms: number | null): string {
-  if (!ms) return '';
-  const d = new Date(ms);
-  const p = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
-}
-
-function fromDateInput(s: string): number | null | undefined {
-  const v = s.trim();
-  if (!v) return null;
-  const m = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(v);
-  if (!m) return undefined;
-  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
-  return Number.isNaN(d.getTime()) ? undefined : d.getTime();
 }
 
 function Stepper({
@@ -146,13 +137,12 @@ export function ExportTab({ ws, onShowToast, onDone, onGoEdit }: ExportTabProps)
   const { state } = ws;
   const episode = state.episode;
 
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [episodeNumber, setEpisodeNumber] = useState('');
-  const [season, setSeason] = useState('');
-  const [recordedAt, setRecordedAt] = useState('');
-  const [hydrated, setHydrated] = useState(false);
-  const [dirty, setDirty] = useState(false);
+  // 詳細は入力をやめたとき（blur・タブ切替・画面を離れる・アプリを裏へ回す）に自動で保存する（Issue #167）。
+  // 入力中の値は ref にも持ち、離れる瞬間の保存でも最新の値を書く。
+  const [draft, setDraft] = useState<DetailsDraft | null>(null);
+  const draftRef = useRef<DetailsDraft | null>(null);
+  const savedRef = useRef<(Parameters<typeof detailsPatch>[1] & { id: string }) | null>(null);
+  const flushRef = useRef<(reload: boolean) => Promise<void>>(async () => undefined);
   const [sound, setSound] = useState<SoundSettings | null>(null);
   const [soundAdvanced, setSoundAdvanced] = useState(false);
   // その回で最後に選んだもの → なければ設定の既定（DATA_MODEL.md §4.5.1）。
@@ -182,23 +172,66 @@ export function ExportTab({ ws, onShowToast, onDone, onGoEdit }: ExportTabProps)
   }, [episode?.id, episodes, show.id]);
   const [undoDescription, setUndoDescription] = useState<(() => void) | null>(null);
 
+  const hydrated = draft !== null;
   useEffect(() => {
     if (!episode || hydrated) return;
     let alive = true;
     void Promise.resolve().then(() => {
       if (!alive) return;
-      setTitle(episode.title);
-      setDescription(episode.description);
-      setEpisodeNumber(String(episode.episode_number));
-      setSeason(String(episode.season));
-      setRecordedAt(toDateInput(episode.recorded_at));
+      const next = draftFromEpisode(episode);
+      draftRef.current = next;
+      savedRef.current = {
+        id: episode.id,
+        title: episode.title,
+        description: episode.description,
+        episode_number: episode.episode_number,
+        season: episode.season,
+        recorded_at: episode.recorded_at,
+      };
+      setDraft(next);
       setSound(parseSoundSettings(episode.sound_settings));
-      setHydrated(true);
     });
     return () => {
       alive = false;
     };
   }, [episode, hydrated]);
+
+  useEffect(() => {
+    flushRef.current = async (reload: boolean) => {
+      const d = draftRef.current;
+      const saved = savedRef.current;
+      if (!d || !saved) return;
+      const patch = detailsPatch(d, saved);
+      if (!patch) return;
+      savedRef.current = applyDetailsPatch(saved, patch);
+      try {
+        await episodes.update(saved.id, patch);
+      } catch (e) {
+        savedRef.current = saved;
+        onShowToast(errorText(t, e));
+        return;
+      }
+      if (reload) await ws.reloadAll();
+    };
+  });
+  /** 変わった項目だけを保存する。何も変わっていなければ何もしない。 */
+  const flush = useCallback(() => flushRef.current(true), []);
+  useEffect(() => {
+    // タブを切り替える・画面を離れるとき（アンマウント）と、アプリを裏へ回したときにも保存する
+    const sub = AppState.addEventListener('change', (next) => {
+      if (next !== 'active') void flushRef.current(false);
+    });
+    return () => {
+      sub.remove();
+      void flushRef.current(false);
+    };
+  }, []);
+  const edit = (patch: Partial<DetailsDraft>) => {
+    if (!draftRef.current) return;
+    const next = { ...draftRef.current, ...patch };
+    draftRef.current = next;
+    setDraft(next);
+  };
 
   const reloadHistory = useCallback(async () => {
     setHistory(await listExports(db, ws.state.episode?.id ?? ''));
@@ -238,45 +271,6 @@ export function ExportTab({ ws, onShowToast, onDone, onGoEdit }: ExportTabProps)
     return () => subs.forEach((s) => s.remove());
   }, [exporter, haptics, onDone, onShowToast, reloadHistory, t]);
 
-  const mark =
-    <T,>(setter: (v: T) => void) =>
-    (v: T) => {
-      setter(v);
-      setDirty(true);
-    };
-
-  const save = useCallback(async () => {
-    if (!episode) return false;
-    const num = Number.parseInt(episodeNumber, 10);
-    const sea = Number.parseInt(season, 10);
-    const rec = fromDateInput(recordedAt);
-    if (rec === undefined) {
-      onShowToast(t.details.badDate);
-      return false;
-    }
-    await episodes.update(episode.id, {
-      title: title.trim(),
-      description,
-      recordedAt: rec,
-      ...(Number.isFinite(num) && num > 0 ? { episodeNumber: num } : {}),
-      ...(Number.isFinite(sea) && sea > 0 ? { season: sea } : {}),
-    });
-    await ws.reloadAll();
-    setDirty(false);
-    return true;
-  }, [
-    description,
-    episode,
-    episodeNumber,
-    episodes,
-    onShowToast,
-    recordedAt,
-    season,
-    t,
-    title,
-    ws,
-  ]);
-
   /** カスタムの項目は次回も使えるよう設定に残す（既定プリセットは変えない）。 */
   const updateCustom = (patch: Partial<CustomExportSettings>) => {
     const next = { ...custom, ...patch };
@@ -297,7 +291,7 @@ export function ExportTab({ ws, onShowToast, onDone, onGoEdit }: ExportTabProps)
 
   const start = async () => {
     if (!episode) return;
-    if (dirty && !(await save())) return;
+    await flush();
     setFailure(null);
     try {
       const exportId = await exporter.start(episode.id, resolveExportPreset(preset, custom));
@@ -341,7 +335,7 @@ export function ExportTab({ ws, onShowToast, onDone, onGoEdit }: ExportTabProps)
     });
   };
 
-  if (!episode || !hydrated || !sound) return <Loading label={t.common.loading} />;
+  if (!episode || !draft || !sound) return <Loading label={t.common.loading} />;
 
   const p = resolveExportPreset(preset, custom);
   const presetText = (k: ExportPresetKey) =>
@@ -357,8 +351,9 @@ export function ExportTab({ ws, onShowToast, onDone, onGoEdit }: ExportTabProps)
 
   const phaseLabel = job?.phase === 'measuring' ? t.export.phaseMeasuring : t.export.phaseRendering;
   const hasBgm = state.doc.overlays.some((o) => o.kind === 'bgm');
-  const num = Number.parseInt(episodeNumber, 10);
+  const num = Number.parseInt(draft.episodeNumber, 10);
   const numberTaken = Number.isFinite(num) && takenNumbers.includes(num);
+  const badDate = fromDateInput(draft.recordedAt) === undefined;
 
   return (
     <View>
@@ -509,8 +504,8 @@ export function ExportTab({ ws, onShowToast, onDone, onGoEdit }: ExportTabProps)
                 kind="secondary"
                 compact
                 onPress={() => {
-                  setDescription(episode.description_suggestion ?? '');
-                  setDirty(true);
+                  edit({ description: episode.description_suggestion ?? '' });
+                  void flush();
                   void episodes
                     .update(episode.id, { descriptionSuggestion: null })
                     .then(() => ws.reloadAll());
@@ -533,16 +528,18 @@ export function ExportTab({ ws, onShowToast, onDone, onGoEdit }: ExportTabProps)
       <Card>
         <Field
           label={t.details.titleEyebrow}
-          value={title}
-          onChangeText={mark(setTitle)}
+          value={draft.title}
+          onChangeText={(v) => edit({ title: v })}
+          onBlur={() => void flush()}
           placeholder={t.details.titlePlaceholder}
         />
         <View style={st.pair}>
           <View style={st.flex}>
             <Field
               label={t.details.episodeEyebrow}
-              value={episodeNumber}
-              onChangeText={mark(setEpisodeNumber)}
+              value={draft.episodeNumber}
+              onChangeText={(v) => edit({ episodeNumber: v })}
+              onBlur={() => void flush()}
               keyboardType="number-pad"
               {...(numberTaken ? { error: t.details.numberTaken } : {})}
             />
@@ -550,16 +547,18 @@ export function ExportTab({ ws, onShowToast, onDone, onGoEdit }: ExportTabProps)
           <View style={st.flex}>
             <Field
               label={t.details.seasonEyebrow}
-              value={season}
-              onChangeText={mark(setSeason)}
+              value={draft.season}
+              onChangeText={(v) => edit({ season: v })}
+              onBlur={() => void flush()}
               keyboardType="number-pad"
             />
           </View>
         </View>
         <Field
           label={t.details.descriptionEyebrow}
-          value={description}
-          onChangeText={mark(setDescription)}
+          value={draft.description}
+          onChangeText={(v) => edit({ description: v })}
+          onBlur={() => void flush()}
           placeholder={t.details.descriptionPlaceholder}
           multiline
         />
@@ -574,8 +573,8 @@ export function ExportTab({ ws, onShowToast, onDone, onGoEdit }: ExportTabProps)
                 onShowToast(t.details.noTopics);
                 return;
               }
-              setDescription((d) => insertTopics(d, list));
-              setDirty(true);
+              edit({ description: insertTopics(draft.description, list) });
+              void flush();
             }}
           />
           <Button
@@ -588,19 +587,24 @@ export function ExportTab({ ws, onShowToast, onDone, onGoEdit }: ExportTabProps)
                   onShowToast(t.details.noTemplate);
                   return;
                 }
-                const prev = description;
-                setDescription(
-                  renderTemplate(tpl.body, {
-                    title: title.trim(),
-                    episodeNumber: Number.parseInt(episodeNumber, 10) || 0,
-                    season: Number.parseInt(season, 10) || 0,
+                const cur = draftRef.current;
+                if (!cur) return;
+                const prev = cur.description;
+                edit({
+                  description: renderTemplate(tpl.body, {
+                    title: cur.title.trim(),
+                    episodeNumber: Number.parseInt(cur.episodeNumber, 10) || 0,
+                    season: Number.parseInt(cur.season, 10) || 0,
                     topics: headings(state.outline),
                     showName: show.name,
                   }),
-                );
-                setDirty(true);
+                });
+                void flush();
                 onShowToast(t.details.templateApplied);
-                setUndoDescription(() => () => setDescription(prev));
+                setUndoDescription(() => () => {
+                  edit({ description: prev });
+                  void flush();
+                });
               });
             }}
           />
@@ -619,17 +623,17 @@ export function ExportTab({ ws, onShowToast, onDone, onGoEdit }: ExportTabProps)
         ) : null}
         <DateField
           label={t.details.recordedEyebrow}
-          value={recordedAt}
-          onChange={mark(setRecordedAt)}
+          value={draft.recordedAt}
+          onChange={(v) => {
+            edit({ recordedAt: v });
+            void flush();
+          }}
           help={t.details.dateHelp}
+          error={badDate ? t.details.badDate : null}
         />
-        <Button
-          label={dirty ? t.common.save : t.common.saved}
-          kind="secondary"
-          {...(dirty ? {} : { icon: 'check' as const })}
-          onPress={() => void save()}
-          disabled={!dirty}
-        />
+        <Text style={[typography.caption, { color: c.textTertiary }]}>
+          {t.details.autosaveHelp}
+        </Text>
       </Card>
 
       <SectionHeader title={t.export.title} />

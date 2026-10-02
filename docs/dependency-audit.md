@@ -45,7 +45,7 @@
 | `@expo/ui` | `MoreMenu.ios.tsx` / `ChoiceMenu.ios.tsx` の SwiftUI メニュー・Picker |
 | `expo-symbols` | `Icon.ios.tsx` の SF Symbols と `symbols.ts` の型 |
 | `@react-native-segmented-control/segmented-control` | `Segmented.ios.tsx` のタブ |
-| `@react-native-community/datetimepicker` | `DateField.ios.tsx` の収録日入力 |
+| `@react-native-community/datetimepicker` | `DateField.ios.tsx` / `DateField.android.tsx` の収録日入力 |
 | `react-native-svg` | `IconSvg.tsx` の Android 等のアイコン・iOS の代替、`Wordmark.tsx` のロゴ。SF Symbols と役割が異なる |
 | `expo-audio` | `monitor.ts` のジングル、`AssetsSection.tsx` の素材試聴。自作エンジンと責務が異なる |
 | `expo-clipboard` | `useCopy.ts` の配信情報コピー |
@@ -97,7 +97,7 @@ OFL ファイルは配布に伴うライセンス文なので残す。上記は 
 |---|---|---|
 | Gesture Handler / Reanimated | 波形ハンドルでは使用済み。並べ替えは Issue #119 / #121 で既存ライブラリのドラッグ（`src/ui/ReorderList.tsx`）に統一した（トークテーマ・この回の録音・素材）。見た目の上下ボタンは廃止し、読み上げ向けに行の `accessibilityActions`（上へ移動 / 下へ移動）を残した | iOS のスクロール・ページシートの下スワイプとの競合は未検証（`docs/device-checklist.md` UX-8〜UX-11） |
 | Reanimated | `LevelMeter.tsx` は React の View を描画し、`useWorkspace.ts` はレベルイベントごとに state を更新している | 実機で録音中の描画負荷を測り、必要ならレベル購読の分離や shared value 化を検討。遅いと確認したわけではない |
-| DateTimePicker | iOS では使用、Android は `YYYY-MM-DD` の文字入力（現行デザインどおり） | Android の標準ピッカー活用は入力の改善候補。OS 別の仕様を先に決める |
+| DateTimePicker | iOS はコンパクト表示、Android は `DateTimePickerAndroid.open` のダイアログ（Issue #167） | — |
 | Noto Sans JP | 全4ウェイトが使用中だが同梱容量の大半を占める | 未使用削除ではなく、文字範囲・字形・実ウェイトを含む軽量化設計として扱う |
 
 ## 検証【事実】

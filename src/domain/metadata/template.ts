@@ -22,7 +22,20 @@ export function renderTemplate(body: string, vars: TemplateVars): string {
     topics,
     show_name: vars.showName,
   };
-  return body.replace(/\{\{\s*(\w+)\s*\}\}/g, (m, k: string) => (k in map ? map[k]! : m));
+  const out = body.replace(/\{\{\s*(\w+)\s*\}\}/g, (m, k: string) => (k in map ? map[k]! : m));
+  return tidyBlankLines(out);
+}
+
+/**
+ * 変数が空になって残った空行を詰める（Issue #167）。先頭・末尾の空行を除き、
+ * 3 行以上続く改行（空行 2 行以上）は空行 1 行にする。行末の空白も空行として扱う。
+ */
+export function tidyBlankLines(text: string): string {
+  return text
+    .replace(/[ \t]+$/gm, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .replace(/^\n+/, '')
+    .replace(/\n+$/, '');
 }
 
 /** 概要のうち、トークテーマ由来の箇条書き部分を差し替える（既存の「・」行ブロックを置換、無ければ末尾に追加）。 */

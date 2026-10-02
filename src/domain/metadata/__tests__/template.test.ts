@@ -1,4 +1,4 @@
-import { formatAllMetadata, insertTopics, renderTemplate } from '../template';
+import { formatAllMetadata, insertTopics, renderTemplate, tidyBlankLines } from '../template';
 
 describe('renderTemplate', () => {
   it('expands known variables and keeps unknown ones', () => {
@@ -13,6 +13,18 @@ describe('renderTemplate', () => {
       },
     );
     expect(out).toBe('T #24 S2\n・a\n・b\nS {{nope}}');
+  });
+
+  it('トークテーマが空でも、先頭・末尾・途中に空行を残さない（Issue #167）', () => {
+    const vars = { title: 'T', episodeNumber: 1, season: 1, topics: [], showName: 'S' };
+    expect(renderTemplate('{{topics}}\n\n本文\n\n{{topics}}\n', vars)).toBe('本文');
+    expect(renderTemplate('前\n\n{{topics}}\n\n後', vars)).toBe('前\n\n後');
+  });
+});
+
+describe('tidyBlankLines', () => {
+  it('空白だけの行も空行として詰め、空行 1 行は残す', () => {
+    expect(tidyBlankLines('  \na\n \n\t\n\nb\n\nc  \n\n')).toBe('a\n\nb\n\nc');
   });
 });
 
