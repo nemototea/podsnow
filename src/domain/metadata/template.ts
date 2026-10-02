@@ -22,20 +22,31 @@ export function renderTemplate(body: string, vars: TemplateVars): string {
     topics,
     show_name: vars.showName,
   };
-  const out = body.replace(/\{\{\s*(\w+)\s*\}\}/g, (m, k: string) => (k in map ? map[k]! : m));
-  return tidyBlankLines(out);
-}
+  const pattern = /\{\{\s*(\w+)\s*\}\}/g;
+  const expand = (line: string) =>
+    line.replace(pattern, (m, k: string) => (k in map ? map[k]! : m));
+  const hasKnownVar = (line: string) =>
+    [...line.matchAll(pattern)].some((m) => (m[1] ?? '') in map);
 
-/**
- * 変数が空になって残った空行を詰める（Issue #167）。先頭・末尾の空行を除き、
- * 3 行以上続く改行（空行 2 行以上）は空行 1 行にする。行末の空白も空行として扱う。
- */
-export function tidyBlankLines(text: string): string {
-  return text
-    .replace(/[ \t]+$/gm, '')
-    .replace(/\n{3,}/g, '\n\n')
-    .replace(/^\n+/, '')
-    .replace(/\n+$/, '');
+  // 変数が空になって中身が無くなった行だけを消す（Issue #167）。
+  // ユーザーがテンプレートに入れた空行は、何行続いていてもそのまま残す。
+  const src = body.split('\n');
+  const out: string[] = [];
+  const isBlank = (line: string | undefined) => line !== undefined && line.trim() === '';
+  for (let i = 0; i < src.length; i++) {
+    const line = src[i]!;
+    const expanded = expand(line);
+    if (hasKnownVar(line) && expanded.trim() === '') {
+      // 消した行の上下がどちらも空行なら、下の空行も消して跡を残さない
+      if (isBlank(out[out.length - 1]) && isBlank(src[i + 1])) i++;
+      continue;
+    }
+    out.push(expanded);
+  }
+  // 先頭・末尾の空行は詰める
+  while (isBlank(out[0])) out.shift();
+  while (isBlank(out[out.length - 1])) out.pop();
+  return out.join('\n');
 }
 
 /** 概要のうち、トークテーマ由来の箇条書き部分を差し替える（既存の「・」行ブロックを置換、無ければ末尾に追加）。 */
