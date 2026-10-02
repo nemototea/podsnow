@@ -201,6 +201,7 @@ export default function HomeScreen() {
           <View style={st.onboardingActions}>
             <Button
               label={t.home.onboardingImport}
+              kind="secondary"
               icon="download"
               onPress={() => router.push('/import')}
             />

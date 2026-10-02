@@ -18,7 +18,7 @@ import { ask, confirmDestructive, notify } from '@/ui/alerts';
 import { Loading, Screen, Segmented, Toast } from '@/ui/components';
 import { HeaderMenu } from '@/ui/HeaderMenu';
 import { ScreenHeader } from '@/ui/ScreenHeader';
-import { useToast } from '@/ui/useToast';
+import { undoToastFate, useToast, type UndoToast } from '@/ui/useToast';
 
 /** 収録（録音と編集）と書き出しの 2 タブ（Issue #122）。 */
 type Tab = 'studio' | 'export';
@@ -34,7 +34,7 @@ export default function EpisodeScreen() {
   const recCtx = useRecordingContext(state.recording);
   const { toast, show: showToast, act, dismiss } = useToast();
   const [tab, setTab] = useState<Tab>('studio');
-  const undoToastFor = useRef<string | null>(null);
+  const undoToast = useRef<UndoToast | null>(null);
 
   // 複製を「開く」と、この画面の上に別の回の画面が積まれる。戻ってきたらこの回を読み込み直す
   const { refocus } = ws;
@@ -58,29 +58,29 @@ export default function EpisodeScreen() {
   const toast1 = useCallback(
     (text: string, undo?: () => void) => {
       if (!undo) {
-        undoToastFor.current = null;
         showToast({ text });
         return;
       }
       const top = ws.undoTopRef.current;
-      undoToastFor.current = top;
-      showToast({
+      const next = {
         text,
         action: t.common.undo,
         onAction: () => {
           if (ws.undoTopRef.current === top) undo();
         },
-      });
+      };
+      undoToast.current = { toast: next, top };
+      showToast(next);
     },
     [showToast, t, ws.undoTopRef],
   );
 
   useEffect(() => {
-    if (undoToastFor.current !== null && undoToastFor.current !== state.undoTopId) {
-      undoToastFor.current = null;
-      dismiss();
-    }
-  }, [dismiss, state.undoTopId]);
+    const fate = undoToastFate(undoToast.current, toast, state.undoTopId);
+    if (fate === 'keep') return;
+    undoToast.current = null;
+    if (fate === 'dismiss') dismiss();
+  }, [dismiss, state.undoTopId, toast]);
 
   useEffect(() => {
     const subs = [

@@ -32,7 +32,6 @@ import {
   useCompact,
   type IconName,
 } from '@/ui/components';
-import { ask, confirmDestructive } from '@/ui/alerts';
 import { AssetSticker, OnAirLamp } from '@/ui/media';
 import { useAppTheme } from '@/ui/ThemeContext';
 
@@ -130,16 +129,11 @@ export function StudioTab({
     ? state.assets.find((a) => a.id === selectedOverlay.assetId)
     : null;
 
-  const applySilence = useCallback(
-    (ranges: Range[]) =>
-      void ws
-        .applySilencePlan(ranges)
-        .then(() => onShowToast(t.edit.silenceApplied(ranges.length), () => void ws.undo())),
-    [onShowToast, t, ws],
-  );
-
-  /** 調べた結果をアラートで確かめてから詰める（DESIGN_SYSTEM.md §6.2）。 */
-  const openSilence = useCallback(async () => {
+  /**
+   * 調べて、そのまま詰める。取り消せる編集なので確認は出さず、件数と長さを「取り消す」付きで伝える
+   * （FR-EDIT-3 / FR-UI-2、Issue #172）。
+   */
+  const trimSilence = useCallback(async () => {
     setAnalyzing(true);
     try {
       const plan = await ws.planSilence();
@@ -147,35 +141,23 @@ export function StudioTab({
         onShowToast(t.edit.silenceNone);
         return;
       }
-      ask({
-        title: t.edit.silenceTitle,
-        message: `${t.edit.silencePlan(
-          plan.ranges.length,
-          formatSmp(plan.totalRemoved, { tenths: true }),
-        )}\n${t.edit.silenceSubtitle}`,
-        confirmLabel: t.edit.silenceApply,
-        cancelLabel: t.common.cancel,
-        onConfirm: () => applySilence(plan.ranges),
-      });
+      await ws.applySilencePlan(plan.ranges);
+      onShowToast(
+        t.edit.silenceApplied(plan.ranges.length, formatSmp(plan.totalRemoved, { tenths: true })),
+        () => void ws.undo(),
+      );
     } catch (e) {
       onError(String(e));
     } finally {
       setAnalyzing(false);
     }
-  }, [applySilence, onError, onShowToast, t, ws]);
+  }, [onError, onShowToast, t, ws]);
 
+  /** 選択を切る。取り消せる編集なので確認は出さない（FR-EDIT-2 / FR-UI-2、Issue #172）。 */
   const doCut = useCallback(() => {
     if (!sel) return;
     const length = formatSmp(smp(sel.end - sel.start), { tenths: true });
-    confirmDestructive({
-      title: t.edit.confirmDelete(length),
-      confirmLabel: t.common.delete,
-      cancelLabel: t.common.cancel,
-      onConfirm: () =>
-        void ws
-          .deleteSelection()
-          .then(() => onShowToast(t.edit.deleted(length), () => void ws.undo())),
-    });
+    void ws.deleteSelection().then(() => onShowToast(t.edit.deleted(length), () => void ws.undo()));
   }, [onShowToast, sel, t, ws]);
 
   const commitFields = () => {
@@ -424,7 +406,7 @@ export function StudioTab({
             kind="secondary"
             style={st.cell}
             busy={analyzing}
-            onPress={() => void openSilence()}
+            onPress={() => void trimSilence()}
           />
           <Button
             label={t.edit.insert}
@@ -470,7 +452,7 @@ export function StudioTab({
       )}
 
       {live || state.total === 0 ? null : (
-        <Button label={t.edit.toExport} style={st.next} onPress={onGoExport} />
+        <Button label={t.edit.toExport} kind="secondary" style={st.next} onPress={onGoExport} />
       )}
 
       <Sheet
@@ -607,19 +589,12 @@ export function StudioTab({
               label={t.edit.removeOverlay}
               danger
               last
-              onPress={() =>
-                confirmDestructive({
-                  title: t.edit.confirmRemoveOverlay,
-                  confirmLabel: t.edit.removeOverlayShort,
-                  cancelLabel: t.common.cancel,
-                  onConfirm: () => {
-                    setSheet(null);
-                    void ws
-                      .removeOverlay(selectedOverlay.id)
-                      .then(() => onShowToast(t.edit.overlayRemoved, () => void ws.undo()));
-                  },
-                })
-              }
+              onPress={() => {
+                setSheet(null);
+                void ws
+                  .removeOverlay(selectedOverlay.id)
+                  .then(() => onShowToast(t.edit.overlayRemoved, () => void ws.undo()));
+              }}
             />
           </>
         ) : null}
