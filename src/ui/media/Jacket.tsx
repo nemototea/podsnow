@@ -12,6 +12,11 @@ const PEEK = 0.45;
 /** 盤の溝とレーベルの半径（viewBox 200 のとき）。64〜74 の間は曲間の空き。 */
 const GROOVES = [90, 82, 74, 64, 56, 46];
 const LABEL = 36;
+/**
+ * 影を付ける最小の辺。ミニプレーヤー（辺 44）は本体が押せる物として影を持つので、中の絵には付けない
+ * （DESIGN_SYSTEM.md §2.6、§6、Issue #207）。`MiniCassette` と同じ。
+ */
+const SHADOW_MIN = 96;
 
 /** ジャケットの `size` から、盤まで含めた幅。 */
 export function jacketWidth(size: number): number {
@@ -76,14 +81,17 @@ export function Jacket({
           {
             width: size,
             height: size,
-            boxShadow: [
-              {
-                offsetX: buttonDepth.offsetLarge,
-                offsetY: buttonDepth.offsetLarge,
-                blurRadius: 0,
-                color: c.controlShadow,
-              },
-            ],
+            boxShadow:
+              size >= SHADOW_MIN
+                ? [
+                    {
+                      offsetX: buttonDepth.offsetLarge,
+                      offsetY: buttonDepth.offsetLarge,
+                      blurRadius: 0,
+                      color: c.controlShadow,
+                    },
+                  ]
+                : [],
           },
         ]}
       >
