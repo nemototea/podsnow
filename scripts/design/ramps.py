@@ -264,6 +264,11 @@ def build(theme: str) -> dict[str, str]:
     # Design system 3 では主操作の枠も同じ線で描く（controlEdge = textPrimary）。
     t['controlBorder'] = t['textPrimary']
     t['controlShadow'] = t['textPrimary']
+    # 副操作（secondary）の影だけは弱いインク（Issue #173）。主操作と収録の丸の影と差をつけ、
+    # 1 画面に何本も並んでも騒がしくしない。両テーマとも、本文が載る面すべてから 3:1 で逆算する。
+    t['controlShadowSoft'] = _solve(
+        0.0120, 85.0, 3.0, [t[s] for s in TEXT_SURFACES], lighter
+    )
 
     t['overlayScrim'] = '#00000099' if theme == 'dark' else '#00000066'
 

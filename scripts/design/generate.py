@@ -57,6 +57,7 @@ def checks(t: dict[str, str], theme: str) -> list[tuple[str, str, float, str]]:
     for s in TEXT_SURFACES:
         out.append(('controlBorder', s, 3.0, 'WCAG 1.4.11 操作部品とカードの輪郭'))
         out.append(('controlShadow', s, 3.0, '硬い影が面から見える'))
+        out.append(('controlShadowSoft', s, 3.0, '副操作の弱い影も面から見える（#173）'))
         out.append(('controlEdge', s, 3.0, 'WCAG 1.4.11 主操作の輪郭'))
     for s in ('accentSolid', 'accentSolidPressed'):
         out.append((s, 'bg', 3.0, 'WCAG 1.4.11 主操作の塗りだけで形が分かる'))
