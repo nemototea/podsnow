@@ -301,18 +301,18 @@ python3 scripts/brand/extract_glyphs.py path/to/DelaGothicOne-Regular.ttf   # �
 
 | 役割 | Dark | Light | 用途 |
 |---|---|---|---|
-| `bg` | `#121212` | `#F3EFE6` | キャンバス（黒い紙 / 紙） |
-| `surface` | `#1C1B19` | `#FBF9F4` | カード、波形パネル、メーターの文字盤 |
-| `surfaceRaised` | `#272522` | `#ECE7DC` | シート、ミニプレーヤー、無効ボタン |
-| `surfaceHover` | `#33302C` | `#E8E3D7` | 押下、消灯したランプ |
+| `bg` | `#211F1B` | `#F3EFE6` | キャンバス（暖かい黒い紙 / 紙。#205） |
+| `surface` | `#2B2924` | `#FBF9F4` | カード、波形パネル、メーターの文字盤 |
+| `surfaceRaised` | `#36322D` | `#ECE7DC` | シート、ミニプレーヤー、無効ボタン |
+| `surfaceHover` | `#413C37` | `#E8E3D7` | 押下、消灯したランプ |
 | `textPrimary` | `#F3EFE6` | `#161616` | 本文、見出し（紙の色 / 墨） |
-| `textSecondary` | `#C1BDB5` | `#43403C` | 補助情報 |
-| `textTertiary` | `#ACA89E` | `#5A5752` | 目盛り、低優先情報 |
-| `border` | `#3A3732` | `#C9C1B0` | 装飾の区切り |
-| `borderStrong` | `#8A867D` | `#686560` | 入力欄 |
+| `textSecondary` | `#C4C0B8` | `#43403C` | 補助情報 |
+| `textTertiary` | `#B0ACA2` | `#5A5752` | 目盛り、低優先情報 |
+| `border` | `#48443E` | `#C9C1B0` | 装飾の区切り |
+| `borderStrong` | `#98948B` | `#686560` | 入力欄 |
 | `accentSolid` | `#5C8DFF` | `#1F5FD6` | 主操作の塗り（リソの青） |
 | `accentOnSolid` | `#0E0E0E` | `#FFFFFF` | 青の上の文字 |
-| `accentText` | `#89AFFF` | `#1250C3` | 話数・選択された文字 |
+| `accentText` | `#A3C1FF` | `#1250C3` | 話数・選択された文字 |
 | `controlEdge` / `controlBorder` | `#F3EFE6` | `#161616` | 操作部品とカードの 2px の線 |
 | `controlShadow` | `#F3EFE6` | `#161616` | 押せる物のぼかさない影 |
 | `brandInk` | `#F3EFE6` | `#1F5FD6` | ロゴの文字（新規） |
@@ -323,6 +323,8 @@ python3 scripts/brand/extract_glyphs.py path/to/DelaGothicOne-Regular.ttf   # �
 | `sketchInk` / `sketchInkSoft` | `#161616` / `#433F38` | `#161616` / `#43403C` | カンペの文字（新規。紙の上で 4.5:1 以上） |
 | `halftone` | `#2B4A8F` | `#9DB8EE` | 網点（新規。文字の下に置かない） |
 
+- 【事実】Issue #205（ユーザー判断 2026-10-02）: ダークの `bg` は無彩色の `#121212` だったが、ダークが全体にきつく見えたので、ライトの紙と同じ色相の暖かい黒に持ち上げた。面の段と淡い地も同じだけ上げて段差を保つ。線と影は §6 のまま（紙の色）で、ダークだけの規則は作らない。
+  見送った案: 影を墨にして「影はいつも面より暗い」にする案、線を灰にする案。
 - ライトの黄（`brandAccent`）は紙の上で 3:1 を持てないので、必ず墨の輪郭と組にする（塗りだけで形を示さない）。`generate.py` が輪郭との比を測る。
 - ライトの録音（`recSolid` `#E7368F`）は、原案の蛍光ピンク `#FF4FA3` のままだと紙の上で 3:1 に届かない（2.1〜2.9:1）ので明度を下げた。
   墨の記号（`recOnSolid`）との 4.5:1 も同時に満たす所に置いている。
