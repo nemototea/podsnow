@@ -108,6 +108,61 @@ final class AacSink: PcmSink {
   }
 }
 
+/// 出力のサンプルレートへ変換してから内側のシンクへ渡す（AUDIO_DESIGN.md §8.1、Issue #174）。
+/// 変換は OS 標準の AVAudioConverter（品質は最高、アルゴリズムは Mastering）。自前の補間はしない。
+/// ミックス・ラウドネス・リミッターはタイムラインのレート（48 kHz）で済ませ、最後にここで変換する。
+final class ResamplingSink: PcmSink {
+  private let inner: PcmSink
+  private let converter: AVAudioConverter
+  private let inFormat: AVAudioFormat
+  private let outBuf: AVAudioPCMBuffer
+  private let channels: Int
+
+  init(inner: PcmSink, from: Int, to: Int, channels: Int, maxFrames: Int) throws {
+    guard
+      let i = AVAudioFormat(commonFormat: .pcmFormatInt16, sampleRate: Double(from), channels: AVAudioChannelCount(channels), interleaved: true),
+      let o = AVAudioFormat(commonFormat: .pcmFormatInt16, sampleRate: Double(to), channels: AVAudioChannelCount(channels), interleaved: true),
+      let conv = AVAudioConverter(from: i, to: o)
+    else { throw AudioEngineError.message("cannot convert \(from) Hz to \(to) Hz") }
+    conv.sampleRateConverterQuality = AVAudioQuality.max.rawValue
+    conv.sampleRateConverterAlgorithm = AVSampleRateConverterAlgorithm_Mastering
+    let capacity = AVAudioFrameCount((Double(maxFrames) * Double(to) / Double(from)).rounded(.up)) + 256
+    guard let ob = AVAudioPCMBuffer(pcmFormat: o, frameCapacity: capacity) else { throw AudioEngineError.message("buffer") }
+    self.inner = inner; self.converter = conv; self.inFormat = i; self.outBuf = ob; self.channels = channels
+  }
+
+  func write(_ pcm: UnsafePointer<Int16>, frames n: Int) throws {
+    guard n > 0, let buf = AVAudioPCMBuffer(pcmFormat: inFormat, frameCapacity: AVAudioFrameCount(n)) else { return }
+    buf.frameLength = AVAudioFrameCount(n)
+    memcpy(buf.int16ChannelData![0], pcm, n * channels * 2)
+    var given = false
+    try drain { status in
+      if given { status.pointee = .noDataNow; return nil }
+      given = true
+      status.pointee = .haveData
+      return buf
+    }
+  }
+
+  func finish() throws {
+    // 変換器に残っている分（フィルタの遅れ）を出し切ってから閉じる
+    try drain { status in status.pointee = .endOfStream; return nil }
+    try inner.finish()
+  }
+
+  private func drain(_ input: @escaping AVAudioConverterInputBlock) throws {
+    while true {
+      outBuf.frameLength = 0
+      var err: NSError?
+      let st = converter.convert(to: outBuf, error: &err, withInputFrom: input)
+      if st == .error { throw err ?? AudioEngineError.message("sample rate conversion failed") }
+      if outBuf.frameLength > 0 { try inner.write(outBuf.int16ChannelData![0], frames: Int(outBuf.frameLength)) }
+      // haveData は出力が一杯になっただけなので続ける
+      if st != .haveData { return }
+    }
+  }
+}
+
 /// measuredLufs / measuredTruePeakDb は書き出したファイル（出力）の測定値。
 /// inputLufs は調整前のミックス（ラウドネス調整が無効なら測らないので -120）。
 struct RenderResult {
@@ -126,12 +181,15 @@ final class RenderJob {
   private let outPath: String
   private let format: String
   private let bitrate: Int
+  /// 出力ファイルのサンプルレート。doc.sampleRate と違えば最後に変換する。
+  private let outputSampleRate: Int
   private let onProgress: (Double, String) -> Void
   var cancelled = false
   private let block = 4096
 
-  init(doc: RenderDocument, outPath: String, format: String, bitrate: Int, onProgress: @escaping (Double, String) -> Void) {
-    self.doc = doc; self.outPath = outPath; self.format = format; self.bitrate = bitrate; self.onProgress = onProgress
+  init(doc: RenderDocument, outPath: String, format: String, bitrate: Int, outputSampleRate: Int, onProgress: @escaping (Double, String) -> Void) {
+    self.doc = doc; self.outPath = outPath; self.format = format; self.bitrate = bitrate
+    self.outputSampleRate = outputSampleRate; self.onProgress = onProgress
   }
 
   func run() throws -> RenderResult {
@@ -139,9 +197,12 @@ final class RenderJob {
     let r = LoudnessRenderer(doc: doc, mixer: mixer, block: block, isCancelled: { [unowned self] in self.cancelled }, onProgress: onProgress)
     let ch = r.channels
     let gainDb = try r.solveGain()
-    let sink: PcmSink = format == "wav"
-      ? try WavSink(path: outPath, sampleRate: doc.sampleRate, channels: ch)
-      : try AacSink(path: outPath, sampleRate: doc.sampleRate, channels: ch, bitrate: bitrate)
+    let fileSink: PcmSink = format == "wav"
+      ? try WavSink(path: outPath, sampleRate: outputSampleRate, channels: ch)
+      : try AacSink(path: outPath, sampleRate: outputSampleRate, channels: ch, bitrate: bitrate)
+    let sink: PcmSink = outputSampleRate == doc.sampleRate
+      ? fileSink
+      : try ResamplingSink(inner: fileSink, from: doc.sampleRate, to: outputSampleRate, channels: ch, maxFrames: block)
     let pcm = UnsafeMutablePointer<Int16>.allocate(capacity: block * ch)
     defer { pcm.deallocate() }
     let out = try r.render(gainDb: gainDb) { buf, offset, frames in

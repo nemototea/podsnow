@@ -49,9 +49,14 @@ export interface RecordingSettings {
   androidAudioSource?: 'mic' | 'voice_recognition' | 'unprocessed' | 'camcorder';
 }
 
+/**
+ * 録音の形式。48 kHz / 16 bit / ステレオに固定し、設定には出さない（Issue #174、ユーザー判断 2026-10-03）。
+ * サンプルレートとチャンネルは書き出しで選ぶ（AUDIO_DESIGN.md §8.1）。
+ */
+export const RECORDING_FORMAT = { sampleRate: 48000, channels: 2 } as const;
+
 export const DEFAULT_RECORDING_SETTINGS: RecordingSettings = {
-  sampleRate: 48000,
-  channels: 2,
+  ...RECORDING_FORMAT,
   inputUid: null,
   autoResumeAfterInterruption: false,
   diskLowThresholdBytes: 30 * 1024 * 1024,

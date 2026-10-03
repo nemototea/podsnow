@@ -197,6 +197,35 @@ describe('PlaybackService', () => {
     expect(svc.position).toBe(48000);
   });
 
+  // Issue #174: 書き出しタブの試聴は書き出すチャンネルで鳴らす。サンプルレートはタイムラインのまま
+  it('reloads in the export channels at the same position, and back to stereo', async () => {
+    const { engine, svc } = await setup({ withVoice: true });
+    await svc.reload('e');
+    await svc.seek(smp(48000));
+    await svc.toggle();
+    await svc.setTimelineChannels(1);
+    expect(engine.timelines.at(-1)).toMatchObject({ channels: 1, sampleRate: 48000 });
+    expect(svc.isPlaying).toBe(true);
+    expect(svc.position).toBe(48000);
+    const loads = engine.timelines.length;
+    await svc.setTimelineChannels(1);
+    expect(engine.timelines).toHaveLength(loads);
+    await svc.setTimelineChannels(2);
+    expect(engine.timelines.at(-1)).toMatchObject({ channels: 2 });
+    // 編集で読み直してもチャンネルは保たれる
+    await svc.setTimelineChannels(1);
+    await svc.reload('e');
+    expect(engine.timelines.at(-1)).toMatchObject({ channels: 1 });
+  });
+
+  it('remembers the channels before any timeline is loaded', async () => {
+    const { engine, svc } = await setup();
+    await svc.setTimelineChannels(1);
+    expect(engine.timelines).toHaveLength(0);
+    await svc.reload('e');
+    expect(engine.timelines[0]).toMatchObject({ channels: 1 });
+  });
+
   it('pauses when toggled while playing', async () => {
     const { svc } = await setup({ withVoice: true });
     await svc.reload('e');

@@ -34,7 +34,7 @@ import { HomeService } from '../home/HomeService';
 import { OutlineService } from '../outline/OutlineService';
 import { PodcastImportService } from '../podcast/PodcastImportService';
 import type { RecorderPort } from '../recording/RecorderPort';
-import { RecordingSession } from '../recording/RecordingSession';
+import { RECORDING_FORMAT, RecordingSession } from '../recording/RecordingSession';
 import { recoverUnfinishedTakes, type RecoveredTake } from '../recording/RecoveryService';
 import { CoverArtService } from '../shows/CoverArtService';
 import { newId } from './ids';
@@ -115,8 +115,7 @@ export async function bootstrap(
     newId,
     now,
     settings: () => ({
-      sampleRate: liveSettings.settings.recording.sampleRate,
-      channels: liveSettings.settings.recording.channels,
+      ...RECORDING_FORMAT,
       inputUid: liveSettings.settings.recording.preferredInputUid,
       autoResumeAfterInterruption: liveSettings.settings.recording.autoResumeAfterInterruption,
       diskLowThresholdBytes: 30 * 1024 * 1024,

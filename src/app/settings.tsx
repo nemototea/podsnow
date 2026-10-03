@@ -143,38 +143,6 @@ export default function SettingsScreen() {
 
       <SectionHeader title={t.settings.recordingEyebrow} />
       <Card rows>
-        <Row
-          label={t.settings.quality}
-          below={
-            <>
-              {[44100, 48000].map((sr) => (
-                <Chip
-                  key={sr}
-                  label={`${sr / 1000} kHz`}
-                  active={settings.recording.sampleRate === sr}
-                  onPress={() => setRec({ sampleRate: sr })}
-                />
-              ))}
-            </>
-          }
-        />
-        <Row
-          label={t.settings.channels}
-          below={
-            <>
-              <Chip
-                label={t.settings.stereo}
-                active={settings.recording.channels === 2}
-                onPress={() => setRec({ channels: 2 })}
-              />
-              <Chip
-                label={t.settings.mono}
-                active={settings.recording.channels === 1}
-                onPress={() => setRec({ channels: 1 })}
-              />
-            </>
-          }
-        />
         <ChoiceMenu
           label={t.settings.inputDefault}
           sub={inputLabel}

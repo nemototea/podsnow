@@ -144,12 +144,19 @@ class RenderJob(
   private val outPath: String,
   private val format: String,
   private val bitrate: Int,
+  /** 出力ファイルのサンプルレート。doc.sampleRate と違えば最後に変換する（AUDIO_DESIGN.md §8.1）。 */
+  private val outputSampleRate: Int,
   private val onProgress: (Double, String) -> Unit,
 ) {
   @Volatile var cancelled = false
   private val block = 4096
 
   fun run(): RenderResult {
+    if (outputSampleRate != doc.sampleRate) {
+      // TODO(#174): OS 標準・既存ライブラリのリサンプラーで変換する（どれを使うかは確認中）。
+      // それまでは、レートの違うファイルを黙って作らないように失敗させる。
+      throw AudioEngineException("sample rate conversion is not available on Android yet")
+    }
     Mixer(doc).use { mixer ->
       val r = LoudnessRenderer(doc, mixer, block, { cancelled }, onProgress)
       val ch = r.channels

@@ -76,6 +76,8 @@ export class PlaybackService {
   /** 後から始めた読み込みが先の読み込みの結果で上書きされないように数える。 */
   private fileLoadSeq = 0;
   private timelineItem: TimelinePlaybackItem | null = null;
+  /** タイムラインを鳴らすチャンネル数。書き出しタブは書き出し設定に合わせる（Issue #174）。 */
+  private timelineChannels: 1 | 2 = 2;
   /**
    * 割り込みで止めた再生（AUDIO_DESIGN.md §10.3）。割り込みの終了で OS が再開を勧めたら、これを再開する。
    * 利用者の操作・録音・別の回の再生で捨てる（`userAction()`）。出力が外れたときは覚えない。
@@ -232,7 +234,7 @@ export class PlaybackService {
     const wasPlaying = this.mode === 'timeline' && this.playing;
     const at = this.loadedEpisode === episodeId ? this.timelineFrame : 0;
     const doc = await renderDocumentFromDb(this.deps.db, this.deps.root, episodeId, {
-      channels: 2,
+      channels: this.timelineChannels,
     });
     await this.deps.engine.loadTimeline(JSON.stringify(doc));
     this.loadedEpisode = episodeId;
@@ -244,6 +246,17 @@ export class PlaybackService {
     }
     await this.deps.engine.seek(Math.min(at, doc.totalFrames));
     if (wasPlaying && doc.totalFrames > 0) await this.deps.engine.play(null);
+  }
+
+  /**
+   * タイムラインを鳴らすチャンネル数を変える。読み込み済みなら、聴いている位置のまま読み直す。
+   * 書き出しタブは書き出し設定のチャンネルにし、離れたらステレオ（編集の既定。AUDIO_DESIGN.md §8.1）に戻す。
+   * サンプルレートは試聴に反映しない（変換は書き出しの最後だけ。ユーザー判断 2026-10-03）。
+   */
+  async setTimelineChannels(channels: 1 | 2): Promise<void> {
+    if (channels === this.timelineChannels) return;
+    this.timelineChannels = channels;
+    if (this.loadedEpisode) await this.reload(this.loadedEpisode);
   }
 
   async play(at?: Smp): Promise<void> {

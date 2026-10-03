@@ -221,7 +221,7 @@ MVP は起動時に 1 行自動作成。【事実】
 1. その回の `episodes.export_preset`（書き出しタブでプリセットを選んだ時点で保存する）
 2. NULL、または知らない値なら設定の `export.defaultPreset`（§4.16）
 
-- 保存するのは**キーだけ**。「カスタム」の中身（形式・ビットレート・チャンネル）は設定の `export.custom` に 1 つだけ持ち、回ごとには持たない。
+- 保存するのは**キーだけ**。「カスタム」の中身（形式・ビットレート・チャンネル・サンプルレート）は設定の `export.custom` に 1 つだけ持ち、回ごとには持たない。
   カスタムを選んだ回は、書き出す時点の `export.custom` で書き出す。
 - 書き出したファイルの実際の中身は `exports.preset`（§4.13）に残る。`export_preset` は「次に開いたときの選択」であって履歴ではない。
 - **複製**（FR-EP-4）は `export_preset` を引き継ぐ（`sound_settings` と同じ扱い）。
@@ -436,7 +436,7 @@ Home のサービス層だけが両方を 1 一覧へ投影する。`episode_id`
 ### 4.16 `app_settings`
 `expo-sqlite/kv-store`（【確認済み】AsyncStorage 互換の KV）を使う案と、専用テーブル `app_settings(key TEXT PK, value TEXT)` の案がある。型安全性のため専用テーブル + Zod スキーマ【仮説】。
 
-キー例: `theme`, `recording.sampleRate`, `recording.channels`, `recording.preferredInput`, `silence.minDurationMs`, `silence.thresholdDb`, `silence.autoApply`, `haptics`, `export.defaultPreset`（`podcast` / `high` / `wav` / `custom`）, `export.custom`（`{ format: m4a|wav, bitrate, channels: 1|2 }`。サンプルレートは 48 kHz 固定）, `interruption.autoResume`, `monitor.jinglePlayback`（`always` / `headphonesOnly` / `never`）。
+キー例: `theme`, `recording.preferredInput`, `silence.minDurationMs`, `silence.thresholdDb`, `silence.autoApply`, `haptics`, `export.defaultPreset`（`podcast` / `high` / `wav` / `custom`）, `export.custom`（`{ format: m4a|wav, bitrate, channels: 1|2, sampleRate: 48000|44100 }`。録音は 48 kHz / ステレオ固定で、設定に持たない。Issue #174）, `interruption.autoResume`, `monitor.jinglePlayback`（`always` / `headphonesOnly` / `never`）。
 
 ## 5. タイムラインのセマンティクス（domain/timeline）
 
