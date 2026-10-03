@@ -200,7 +200,7 @@ MVP は起動時に 1 行自動作成。【事実】
 | season | INTEGER | |
 | recorded_at | INTEGER | |
 | publish_planned_at | INTEGER nullable | |
-| status | TEXT | `draft` / `ready` / `exported`（自動判定。DB にはキャッシュとして保存） |
+| status | TEXT | `draft` / `ready` / `exported`（自動判定。DB にはキャッシュとして保存）。`exported` は書き出しが完了したときに付き、編集しても戻さない。Home で「書き出し済み」と見せるかは、今の編集と同じ書き出し（§4.13 の `source_fingerprint`）があるかで決める（REQUIREMENTS.md FR-EP-3、Issue #168） |
 | last_opened_at | INTEGER | Home の「続き」判定 |
 | playhead_smp | INTEGER | 最後の再生位置 |
 | undo_cursor | INTEGER | `edit_ops.seq` の現在位置（0 = 履歴なし）。§4.12 |
@@ -373,6 +373,7 @@ Take の「時間軸」は Segment を `seq` 順に連結したもの。割り�
 | path | TEXT nullable | |
 | bytes | INTEGER nullable | |
 | duration_smp | INTEGER | |
+| source_fingerprint | TEXT nullable | 書き出したときの音の中身の指紋。声の並び・素材の配置・音の仕上げ（`sound_settings` を既定値で埋めたもの）を、行の `id` を除いて正規化した JSON のハッシュ（`src/domain/render/fingerprint.ts`）。今の値と同じなら「今の編集と同じ書き出し」で、Home はこの書き出しを鳴らす（REQUIREMENTS.md FR-EP-7）。ファイルのパスは入れない（iOS はアプリの更新で絶対パスが変わる）。取り消しで元に戻せば同じ値に戻る。0006 より前の行は NULL で、古い書き出しとして扱う。Issue #168 |
 | measured_lufs / measured_true_peak | REAL nullable | **書き出したファイル（出力）**の統合ラウドネス（LUFS）とトゥルーピーク（dBTP）。`preset.loudness` が無い古い行は調整前の値なので表示しない |
 | error | TEXT nullable | |
 | created_at / finished_at | INTEGER | |
