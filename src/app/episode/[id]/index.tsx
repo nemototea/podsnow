@@ -10,6 +10,7 @@ import { playMonitor } from '@/features/episode/monitor';
 import { StudioTab } from '@/features/episode/StudioTab';
 import { Transport } from '@/features/episode/Transport';
 import { useRecordingContext } from '@/features/episode/useRecordingContext';
+import { handToHome } from '@/features/home/handToHome';
 import { useWorkspace } from '@/features/episode/useWorkspace';
 import { errorCodeText, errorText, useT } from '@/i18n';
 import type { AssetRow } from '@/infra/db/repositories/assetsRepo';
@@ -35,6 +36,17 @@ export default function EpisodeScreen() {
   const { toast, show: showToast, act, dismiss } = useToast();
   const [tab, setTab] = useState<Tab>('studio');
   const undoToast = useRef<UndoToast | null>(null);
+
+  // 開いて何も入れずに離れた回は捨てる（FR-EP-10、Issue #168）。Home は捨て終わってから一覧を読む
+  const { episodes } = services;
+  useEffect(
+    () => () =>
+      handToHome(async () => {
+        await episodes.discardIfEmpty(episodeId);
+        return null;
+      }),
+    [episodeId, episodes],
+  );
 
   // 複製を「開く」と、この画面の上に別の回の画面が積まれる。戻ってきたらこの回を読み込み直す
   const { refocus } = ws;
@@ -234,6 +246,27 @@ export default function EpisodeScreen() {
 
   const episode = state.episode;
 
+  /**
+   * 削除・音声を削除は Home に引き継いで戻る。結果（失敗を含む）は Home のトーストで出す
+   * （Issue #168 E5。エピソードの削除は取り消せないので、取り消しは出さない。FR-EP-4）。
+   */
+  const leaveAfter = (kind: 'remove' | 'purge') => {
+    const code = t.episode.number(episode.episode_number);
+    handToHome(async () => {
+      try {
+        if (kind === 'remove') {
+          await episodes.remove(episodeId);
+          return t.home.removed(code);
+        }
+        await episodes.purgeAudio(episodeId);
+        return t.home.audioPurged(code);
+      } catch (err) {
+        return errorText(t, err);
+      }
+    });
+    router.back();
+  };
+
   return (
     <Screen
       overlay={<Toast toast={toast} onAction={act} onDismiss={dismiss} />}
@@ -292,6 +325,24 @@ export default function EpisodeScreen() {
                 }),
               ),
           },
+          // 「…」の項目は Home と同じ（Issue #168 E5）。削除の結果は Home へ戻って Home で出す
+          ...(episode.audio_purged_at
+            ? []
+            : [
+                {
+                  key: 'purge',
+                  icon: 'noAudio' as const,
+                  label: t.episode.menu.purgeAudio,
+                  onPress: () =>
+                    confirmDestructive({
+                      title: t.episode.menu.purgeAudio,
+                      message: t.episode.menu.purgeAudioSub,
+                      confirmLabel: t.common.delete,
+                      cancelLabel: t.common.cancel,
+                      onConfirm: () => leaveAfter('purge'),
+                    }),
+                },
+              ]),
           {
             key: 'remove',
             icon: 'trash',
@@ -303,11 +354,7 @@ export default function EpisodeScreen() {
                 message: t.episode.menu.removeMessage,
                 confirmLabel: t.common.delete,
                 cancelLabel: t.common.cancel,
-                onConfirm: () =>
-                  void services.episodes
-                    .remove(episodeId)
-                    .then(() => router.back())
-                    .catch((err: unknown) => showToast({ text: errorText(t, err) })),
+                onConfirm: () => leaveAfter('remove'),
               });
             },
           },

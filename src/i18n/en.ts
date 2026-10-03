@@ -155,6 +155,8 @@ Tag #PodsNow to share your thoughts`,
       const count = `${episodes} ${episodes === 1 ? 'episode' : 'episodes'}`;
       return author ? `${author} · ${count}` : count;
     },
+    showCardUnsetMeta: (episodes: number) =>
+      `Show details not set · ${episodes} ${episodes === 1 ? 'episode' : 'episodes'}`,
     sectionEpisodes: 'Episodes',
     badgeNew: 'Not recorded',
     badgePublished: 'Published',
@@ -167,6 +169,9 @@ Tag #PodsNow to share your thoughts`,
     recoveredBody: (duration: string) =>
       `This recording stopped before it finished saving (${duration}).`,
     reviewRecording: 'Review recording',
+    recoveredTitleMany: (count: number) => `Recovered ${count} unfinished recordings`,
+    recoveredBodyMany: 'These recordings stopped before they finished saving.',
+    reviewRecordingOf: (code: string) => `Review ${code}`,
     a11yEpisodeMenu: (n: number) => `Actions for episode ${n}`,
     a11yOpenShow: (name: string) => `Open show settings for ${name}`,
     importShow: 'Import a show you already publish',

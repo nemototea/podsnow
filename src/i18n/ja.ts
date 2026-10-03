@@ -167,6 +167,8 @@ Podcast: {{show_name}}
   home: {
     showCardMeta: (author: string, episodes: number) =>
       author ? `${author} · ${episodes} 本` : `${episodes} 本`,
+    /** 番組を設定していないが、エピソードはあるときの番組カード（FR-SHOW-6、Issue #168）。 */
+    showCardUnsetMeta: (episodes: number) => `番組の情報が未設定 · ${episodes} 本`,
     sectionEpisodes: 'エピソード',
     badgeNew: '未録音',
     badgePublished: '配信済み',
@@ -179,6 +181,11 @@ Podcast: {{show_name}}
     recoveredTitle: '途中の録音を復元しました',
     recoveredBody: (duration: string) => `保存が終わる前に止まった録音です（${duration}）`,
     reviewRecording: '録音を確認する',
+    /** 複数の録音を復元したとき（Issue #168 E8）。 */
+    recoveredTitleMany: (count: number) => `途中の録音を ${count} 件復元しました`,
+    recoveredBodyMany: '保存が終わる前に止まった録音です',
+    /** `code` は `episode.number` で作った話数の表記。 */
+    reviewRecordingOf: (code: string) => `${code} の録音を確認する`,
     a11yEpisodeMenu: (n: number) => `エピソード ${n} の操作`,
     a11yOpenShow: (name: string) => `${name} の番組設定を開く`,
     importShow: '配信中の番組を取り込む',

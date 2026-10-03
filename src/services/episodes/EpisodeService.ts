@@ -1,6 +1,7 @@
 import { AppError } from '@/domain/errors';
 import type { EditableDoc } from '@/domain/editing/doc';
 import { renderTemplate } from '@/domain/metadata/template';
+import { renderFingerprint } from '@/domain/render/fingerprint';
 import { newItem } from '@/domain/outline';
 import { smp, ZERO_SMP } from '@/domain/time';
 import type { OverlayClip } from '@/domain/timeline/types';
@@ -23,11 +24,17 @@ import {
   listShowTopicTemplate,
   saveOutline,
 } from '@/infra/db/repositories/outlineRepo';
-import { getDefaultTemplate, getLayout, getShow } from '@/infra/db/repositories/showsRepo';
+import {
+  getDefaultTemplate,
+  getLayout,
+  getShow,
+  type ShowRow,
+} from '@/infra/db/repositories/showsRepo';
 import { listTakes } from '@/infra/db/repositories/takesRepo';
 import { joinRoot } from '@/infra/files/layout';
 
 import type { ServiceLabels } from '../app/labels';
+import { parseSoundSettings } from '../audio/renderDocumentFromDb';
 
 export interface EpisodeDeps {
   db: SqlExecutor;
@@ -58,8 +65,6 @@ export class EpisodeService {
     const { db, newId, now } = this.deps;
     const show = await getShow(db, showId);
     if (!show) throw new Error('show not found');
-    const layout = await getLayout(db, showId);
-    const template = await getDefaultTemplate(db, showId);
     const id = newId();
     const t = now();
     // 話数はカウンターではなく既存行から導出する（FR-EP-6 / REQUIREMENTS.md §2.1.1）。
@@ -67,15 +72,7 @@ export class EpisodeService {
     // 既定タイトルは空。話数は UI が `#N` として別に出すので、タイトルに焼き込まない
     // （焼き込むと、あとから話数を直したときにタイトルだけ古い番号のまま残る）。
     const title = '';
-    const description = template
-      ? renderTemplate(template.body, {
-          title,
-          episodeNumber,
-          season: show.default_season,
-          topics: [],
-          showName: show.name,
-        })
-      : '';
+    const description = await this.defaultDescription(show, episodeNumber);
     await db.transaction(async () => {
       await insertEpisode(db, {
         id,
@@ -86,55 +83,7 @@ export class EpisodeService {
         season: show.default_season,
         now: t,
       });
-      const overlays: OverlayClip[] = [];
-      const base = {
-        srcStart: ZERO_SMP,
-        srcEnd: null,
-        fadeIn: ZERO_SMP,
-        fadeOut: ZERO_SMP,
-      } as const;
-      if (layout.opening_asset_id && (await getAsset(db, layout.opening_asset_id))) {
-        overlays.push({
-          ...base,
-          id: newId(),
-          assetId: layout.opening_asset_id,
-          kind: 'opening',
-          anchor: { type: 'timeline_start', offset: ZERO_SMP },
-          gainDb: layout.opening_gain_db,
-          duck: false,
-          loop: false,
-          endMode: 'asset_end',
-        });
-      }
-      if (layout.ending_asset_id && (await getAsset(db, layout.ending_asset_id))) {
-        overlays.push({
-          ...base,
-          id: newId(),
-          assetId: layout.ending_asset_id,
-          kind: 'ending',
-          anchor: { type: 'timeline_end', offset: ZERO_SMP },
-          gainDb: layout.ending_gain_db,
-          duck: false,
-          loop: false,
-          endMode: 'asset_end',
-        });
-      }
-      if (layout.bgm_asset_id && (await getAsset(db, layout.bgm_asset_id))) {
-        overlays.push({
-          ...base,
-          id: newId(),
-          assetId: layout.bgm_asset_id,
-          kind: 'bgm',
-          anchor: { type: 'timeline_start', offset: ZERO_SMP },
-          gainDb: layout.bgm_gain_db,
-          fadeIn: smp(48000),
-          fadeOut: smp(96000),
-          duck: true,
-          loop: true,
-          endMode: 'timeline_end',
-        });
-      }
-      const doc: EditableDoc = { voice: [], overlays };
+      const doc: EditableDoc = { voice: [], overlays: await this.defaultOverlays(showId) };
       await saveDoc(db, id, doc, t);
       // 番組のトークテーマのひな形を写す（FR-SHOW-4）。写した後はエピソードのデータ。
       const template = await listShowTopicTemplate(db, showId);
@@ -145,6 +94,75 @@ export class EpisodeService {
       );
     });
     return (await getEpisode(db, id))!;
+  }
+
+  /** 新しい回の概要欄（番組の概要欄テンプレートを展開したもの。テンプレートが無ければ空）。 */
+  private async defaultDescription(show: ShowRow, episodeNumber: number): Promise<string> {
+    const template = await getDefaultTemplate(this.deps.db, show.id);
+    return template
+      ? renderTemplate(template.body, {
+          title: '',
+          episodeNumber,
+          season: show.default_season,
+          topics: [],
+          showName: show.name,
+        })
+      : '';
+  }
+
+  /** 新しい回の素材の配置（番組の既定構成。FR-EP-2）。 */
+  private async defaultOverlays(showId: string): Promise<OverlayClip[]> {
+    const { db, newId } = this.deps;
+    const layout = await getLayout(db, showId);
+    const overlays: OverlayClip[] = [];
+    const base = {
+      srcStart: ZERO_SMP,
+      srcEnd: null,
+      fadeIn: ZERO_SMP,
+      fadeOut: ZERO_SMP,
+    } as const;
+    if (layout.opening_asset_id && (await getAsset(db, layout.opening_asset_id))) {
+      overlays.push({
+        ...base,
+        id: newId(),
+        assetId: layout.opening_asset_id,
+        kind: 'opening',
+        anchor: { type: 'timeline_start', offset: ZERO_SMP },
+        gainDb: layout.opening_gain_db,
+        duck: false,
+        loop: false,
+        endMode: 'asset_end',
+      });
+    }
+    if (layout.ending_asset_id && (await getAsset(db, layout.ending_asset_id))) {
+      overlays.push({
+        ...base,
+        id: newId(),
+        assetId: layout.ending_asset_id,
+        kind: 'ending',
+        anchor: { type: 'timeline_end', offset: ZERO_SMP },
+        gainDb: layout.ending_gain_db,
+        duck: false,
+        loop: false,
+        endMode: 'asset_end',
+      });
+    }
+    if (layout.bgm_asset_id && (await getAsset(db, layout.bgm_asset_id))) {
+      overlays.push({
+        ...base,
+        id: newId(),
+        assetId: layout.bgm_asset_id,
+        kind: 'bgm',
+        anchor: { type: 'timeline_start', offset: ZERO_SMP },
+        gainDb: layout.bgm_gain_db,
+        fadeIn: smp(48000),
+        fadeOut: smp(96000),
+        duck: true,
+        loop: true,
+        endMode: 'timeline_end',
+      });
+    }
+    return overlays;
   }
 
   async touch(id: string): Promise<void> {
@@ -190,6 +208,108 @@ export class EpisodeService {
     const ep = await getEpisode(this.deps.db, id);
     if (!ep) throw new Error('episode not found');
     await this.purgeFiles(id, { exports: false, markDeleted: false });
+  }
+
+  /**
+   * 開いて何も入れずに離れた回を捨てる（REQUIREMENTS.md FR-EP-10、Issue #168）。
+   * 捨て方は「エピソードを削除」と同じ（`deleted_at`）。話数は次の新規作成に戻る（§2.1.1）。
+   *
+   * @returns 捨てたら true。何か入っている・もう無い回は何もしない
+   */
+  async discardIfEmpty(id: string): Promise<boolean> {
+    if (!(await this.isUntouched(id))) return false;
+    await this.purgeFiles(id, { exports: true, markDeleted: true });
+    return true;
+  }
+
+  /**
+   * 起動時: 一度でも開いて、何も入れないまま残った回を捨てる（強制終了などで、離れたときの
+   * 片付けが走らなかった回）。複製しただけでまだ開いていない回（`last_opened_at = created_at`）は
+   * 対象にしない。失敗した回は飛ばす（次の起動でまた試す）。
+   *
+   * @returns 捨てた回の数
+   */
+  async discardEmptyOpened(showId: string): Promise<number> {
+    const rows = await this.deps.db.all<{ id: string }>(
+      `SELECT e.id FROM episodes e
+        WHERE e.show_id = ? AND e.deleted_at IS NULL AND e.last_opened_at > e.created_at
+          AND NOT EXISTS (SELECT 1 FROM takes t WHERE t.episode_id = e.id)
+          AND NOT EXISTS (SELECT 1 FROM exports x WHERE x.episode_id = e.id)
+        ORDER BY e.episode_number DESC, e.created_at DESC`,
+      [showId],
+    );
+    let n = 0;
+    for (const r of rows) {
+      try {
+        if (await this.discardIfEmpty(r.id)) n++;
+      } catch {
+        /* 次の起動で再試行する */
+      }
+    }
+    return n;
+  }
+
+  /**
+   * 何も入れていない回か（FR-EP-10）。**いま新しく作ったときと同じ**中身で、録音・書き出し・
+   * 配信済みの回とのつながりが無いこと。どれか 1 つでも違えば false（消しすぎる側に倒れない）。
+   */
+  private async isUntouched(id: string): Promise<boolean> {
+    const { db } = this.deps;
+    const ep = await getEpisode(db, id);
+    if (!ep || ep.deleted_at !== null || ep.audio_purged_at !== null) return false;
+    const show = await getShow(db, ep.show_id);
+    if (!show) return false;
+    // 録音中・ゴミ箱・失敗を含め、録音の行が 1 つでもあれば残す
+    const traces = await db.get<{ n: number }>(
+      `SELECT
+         (SELECT COUNT(*) FROM takes WHERE episode_id = ?) +
+         (SELECT COUNT(*) FROM exports WHERE episode_id = ?) +
+         (SELECT COUNT(*) FROM feed_episodes
+           WHERE episode_id = ? OR (show_id = ? AND guid = ?)) AS n`,
+      [id, id, id, ep.show_id, ep.guid],
+    );
+    if ((traces?.n ?? 0) > 0) return false;
+    const metadataUntouched =
+      ep.title === '' &&
+      ep.description_suggestion === null &&
+      ep.season === show.default_season &&
+      ep.recorded_at === ep.created_at &&
+      ep.publish_planned_at === null &&
+      ep.published_at === null &&
+      ep.episode_type === 'full' &&
+      ep.explicit === null &&
+      ep.website_url === '';
+    if (!metadataUntouched) return false;
+    // 話数と概要は、今の採番の式とテンプレートで作り直した値と比べる（#211 で式が変わっても追従する）
+    if (ep.episode_number !== (await nextEpisodeNumber(db, ep.show_id, id))) return false;
+    if (ep.description !== (await this.defaultDescription(show, ep.episode_number))) return false;
+    // 声・素材・音の仕上げは、書き出しの判定と同じ指紋で比べる（行の id は見ない）
+    const doc = await loadDoc(db, id);
+    const blank = renderFingerprint({
+      voice: [],
+      overlays: await this.defaultOverlays(ep.show_id),
+      sound: parseSoundSettings(null),
+    });
+    const current = renderFingerprint({
+      voice: doc.voice,
+      overlays: doc.overlays,
+      sound: parseSoundSettings(ep.sound_settings),
+    });
+    if (current !== blank) return false;
+    const [outline, template] = await Promise.all([
+      listOutline(db, id),
+      listShowTopicTemplate(db, ep.show_id),
+    ]);
+    return (
+      outline.length === template.length &&
+      outline.every(
+        (item, i) =>
+          item.heading === template[i]!.heading &&
+          item.body === template[i]!.body &&
+          item.doneAt === null &&
+          item.recordedTakeId === null,
+      )
+    );
   }
 
   /**
