@@ -35,8 +35,9 @@ import type {
 } from '../../../modules/podsnow-recorder/src/PodsnowRecorder.types';
 import type { RecorderPort, Subscription } from './RecorderPort';
 
+/** `monitoring` は録音前の入力モニター（ファイルに書かない。AUDIO_DESIGN.md §3.6、Issue #169）。 */
 export type SessionState =
-  'idle' | 'preparing' | 'recording' | 'paused' | 'interrupted' | 'stopping';
+  'idle' | 'preparing' | 'monitoring' | 'recording' | 'paused' | 'interrupted' | 'stopping';
 
 export interface RecordingSettings {
   sampleRate: number;
@@ -118,6 +119,10 @@ export class RecordingSession {
   private subs: Subscription[] = [];
   private listeners = new Map<keyof SessionEvents, Set<(p: never) => void>>();
   private heartbeat: unknown = null;
+  /** startMonitor() の準備中。ネイティブの状態がまだ monitoring でないのを「止まった」と取り違えない。 */
+  private monitorStarting = false;
+  /** 準備中に stopMonitor() が呼ばれた。始まったらすぐ止める。 */
+  private monitorStopRequested = false;
 
   constructor(private readonly deps: RecordingSessionDeps) {
     const r = deps.recorder;
@@ -128,15 +133,29 @@ export class RecordingSession {
       r.on('onRouteChange', (e) => this.dispatch('routeChange', e)),
       r.on('onError', (e) => this.dispatch('error', { message: e.message })),
       r.on('onDiskLow', (e) => this.dispatch('diskLow', e)),
+      r.on('onStateChange', () => this.syncMonitorState()),
     );
   }
 
   get current(): SessionState {
     return this.state;
   }
-  /** 録音していない（準備中・停止処理中も含めて何もしていない）。取り消しはこのときだけ効く。 */
+  /**
+   * 録音していない（準備中・停止処理中も含めて何もしていない）。取り消しはこのときだけ効く。
+   * 入力モニター中は録音していないので含む（モニターを出したまま編集・取り消しできる）。
+   */
   get isIdle(): boolean {
-    return this.state === 'idle';
+    return this.state === 'idle' || this.state === 'monitoring';
+  }
+  /**
+   * 録音側が音声セッションを持っている（入力モニターを含む。AUDIO_DESIGN.md §10.1）。
+   * 真の間、`PlaybackService` は再生を始めない（`recorderBusy`）。
+   */
+  get holdsAudioSession(): boolean {
+    return this.state !== 'idle';
+  }
+  get isMonitoring(): boolean {
+    return this.state === 'monitoring';
   }
   get activeTakeId(): string | null {
     return this.active?.takeId ?? null;
@@ -185,15 +204,85 @@ export class RecordingSession {
     return { ok: canStartRecording(estimate), availableBytes, estimate };
   }
 
+  /** 録音とモニターで同じ設定でネイティブを準備する。 */
+  private async prepareRecorder(): Promise<void> {
+    const s = this.deps.settings();
+    await this.deps.recorder.prepare({
+      sampleRate: s.sampleRate,
+      channels: s.channels,
+      inputUid: s.inputUid,
+      diskLowThresholdBytes: s.diskLowThresholdBytes,
+      // 通知の文言は表示言語を知っている UI 層から来る（Issue #80）。
+      androidNotification: this.deps.labels().androidNotification,
+      ...(s.androidAudioSource ? { androidAudioSource: s.androidAudioSource } : {}),
+    });
+  }
+
+  /**
+   * 録音前の入力モニターを始める（AUDIO_DESIGN.md §3.6、Issue #169）。ファイルには書かず、
+   * `level` イベント（`frames` は 0）だけが来る。idle のときだけ始める（それ以外は何もしない）。
+   *
+   * 録音側が音声セッションを取るので、呼ぶ前に `PlaybackService.stopForRecording()` で再生を止める
+   * （録音の開始と同じ。§10.1）。モニター中は `holdsAudioSession` が真になり、再生は始まらない。
+   * 割り込み・入力のエラーでネイティブがモニターを止めたら idle に戻る（自動では再開しない）。
+   */
+  async startMonitor(): Promise<void> {
+    if (this.state !== 'idle') return;
+    this.setState('monitoring');
+    this.monitorStarting = true;
+    try {
+      await this.prepareRecorder();
+      await this.deps.recorder.startMonitor();
+    } catch (e) {
+      this.monitorStopRequested = false;
+      this.setState('idle');
+      throw e;
+    } finally {
+      this.monitorStarting = false;
+    }
+    if (this.monitorStopRequested) {
+      this.monitorStopRequested = false;
+      await this.stopMonitor();
+      return;
+    }
+    // 始めた直後に割り込まれていたら、ネイティブはもう prepared に戻っている
+    this.syncMonitorState();
+  }
+
+  /** 入力モニターを止めてマイクを離す。モニター中でなければ何もしない。 */
+  async stopMonitor(): Promise<void> {
+    if (this.state !== 'monitoring') return;
+    if (this.monitorStarting) {
+      // 画面をすぐ離れたときなど。始まりきってから止める
+      this.monitorStopRequested = true;
+      return;
+    }
+    this.setState('idle');
+    if (this.deps.recorder.getState() === 'monitoring') await this.deps.recorder.stopMonitor();
+  }
+
+  /** ネイティブがモニターを止めた（割り込み・入力のエラー）ら idle に戻す。 */
+  private syncMonitorState() {
+    if (this.state !== 'monitoring' || this.monitorStarting) return;
+    if (this.deps.recorder.getState() !== 'monitoring') this.setState('idle');
+  }
+
   /**
    * 新しい Take の録音を開始する。insertAtSmp を渡すと停止時にその位置へ挿入し
    * （後ろの声はずれる）、null なら末尾に追加。
+   *
+   * 入力モニター中からも始められる。そのときネイティブは入力を止めずに書き込みを始める（ギャップなし）。
+   * 開始に失敗したら、ネイティブがまだモニター中ならモニターに戻る。止めたら idle（モニターには戻らない）。
    */
   async start(
     episodeId: string,
     opts: { insertAtSmp?: Smp | null; name?: string } = {},
   ): Promise<string> {
-    if (this.state !== 'idle') throw new Error(`start: invalid state ${this.state}`);
+    if (this.state !== 'idle' && this.state !== 'monitoring') {
+      throw new Error(`start: invalid state ${this.state}`);
+    }
+    if (this.monitorStarting) throw new Error('start: monitor is starting');
+    const fromMonitor = this.state === 'monitoring';
     this.setState('preparing');
     try {
       const s = this.deps.settings();
@@ -201,15 +290,10 @@ export class RecordingSession {
       if (!disk.ok) {
         throw new AppError('disk_space_insufficient');
       }
-      await this.deps.recorder.prepare({
-        sampleRate: s.sampleRate,
-        channels: s.channels,
-        inputUid: s.inputUid,
-        diskLowThresholdBytes: s.diskLowThresholdBytes,
-        // 通知の文言は表示言語を知っている UI 層から来る（Issue #80）。
-        androidNotification: this.deps.labels().androidNotification,
-        ...(s.androidAudioSource ? { androidAudioSource: s.androidAudioSource } : {}),
-      });
+      // モニター中なら同じ設定で準備済み（ネイティブは monitoring から prepare できない）
+      if (!fromMonitor || this.deps.recorder.getState() !== 'monitoring') {
+        await this.prepareRecorder();
+      }
       const input = await this.deps.recorder.getCurrentInput();
       const now = this.deps.now();
       const takeId = this.deps.newId();
@@ -244,7 +328,8 @@ export class RecordingSession {
       return takeId;
     } catch (e) {
       this.active = null;
-      this.setState('idle');
+      // ネイティブの start が失敗してもモニターは続いている。表示をそれに合わせる。
+      this.setState(this.deps.recorder.getState() === 'monitoring' ? 'monitoring' : 'idle');
       throw e;
     }
   }
@@ -313,6 +398,8 @@ export class RecordingSession {
   async release(): Promise<void> {
     this.stopHeartbeat();
     if (this.active) await this.stop();
+    // モニターはネイティブの release() が止める
+    if (this.state === 'monitoring') this.setState('idle');
     await this.deps.recorder.release();
     this.subs.forEach((s) => s.remove());
     this.subs = [];

@@ -229,6 +229,9 @@ interface AudioEngineModule {
 ### 8.1 RecordingSession（services）
 
 ```
+idle ──startMonitor──▶ monitoring ──stopMonitor / 割り込み──▶ idle
+monitoring ──start──▶ preparing（入力は止めない。失敗したら monitoring へ戻る）
+
 idle ──start──▶ preparing ──ok──▶ recording ◀──resume── paused
                                   │  ▲             ▲
                                   │  └─interruption.ended(shouldResume)──┐
@@ -237,6 +240,7 @@ idle ──start──▶ preparing ──ok──▶ recording ◀──resume�
                                   ├─diskLow/error──▶ stopping
                                   └─stop──▶ stopping ──finalized──▶ idle
 ```
+- `monitoring` は録音前の入力モニター（ファイルに書かない。AUDIO_DESIGN.md §3.6、Issue #169）。音声セッションは録音側が持つ（再生を始めない）が、録音中ではないので取り消し・編集はできる。
 - `interrupted` では Segment を確定し、`takes.status` は `'recording'` のまま（復旧対象）。
 - `stopping` で Take を `'ready'` にし、ピーク生成をキューに入れる。
 
