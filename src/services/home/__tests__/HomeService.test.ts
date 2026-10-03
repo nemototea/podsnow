@@ -1,6 +1,7 @@
 import { createNodeSqliteExecutor } from '@/infra/db/__tests__/nodeSqliteExecutor';
 import type { SqlExecutor } from '@/infra/db/executor';
 import { migrate } from '@/infra/db/migrate';
+import { currentSourceFingerprint } from '@/services/export/sourceFingerprint';
 
 import { HomeService } from '../HomeService';
 
@@ -97,5 +98,66 @@ describe('HomeService', () => {
     const items = await home.list('s');
     expect(items).toHaveLength(2);
     expect(items.map((item) => item.key)).toEqual(['local:e1', 'feed:f1']);
+  });
+
+  // Issue #168: 「書き出し済み」は今の編集と同じ音の書き出しがあるときだけ（FR-EP-3 / FR-EP-7）
+  describe('hasCurrentExport', () => {
+    async function insertExport(
+      db: SqlExecutor,
+      id: string,
+      episodeId: string,
+      fingerprint: string | null,
+      status = 'done',
+    ) {
+      await db.run(
+        'INSERT INTO exports (id, episode_id, format, preset, status, path, duration_smp, source_fingerprint, created_at) VALUES (?,?,?,?,?,?,?,?,?)',
+        [
+          id,
+          episodeId,
+          'm4a',
+          '{}',
+          status,
+          `episodes/${episodeId}/exports/${id}.m4a`,
+          1,
+          fingerprint,
+          1,
+        ],
+      );
+    }
+
+    it('is true only while an export matches the current edit', async () => {
+      const { db, home } = await setup();
+      await insertLocal(db, 'e1', 1, 'g1');
+      await insertExport(db, 'x1', 'e1', await currentSourceFingerprint(db, 'e1'));
+      expect((await home.list('s'))[0]?.hasCurrentExport).toBe(true);
+
+      // 音の仕上げを変えた（書き出したあとに編集した）
+      await db.run('UPDATE episodes SET sound_settings = ? WHERE id = ?', [
+        JSON.stringify({ loudness: { enabled: false } }),
+        'e1',
+      ]);
+      expect((await home.list('s'))[0]?.hasCurrentExport).toBe(false);
+    });
+
+    it('ignores unfinished exports, exports without a fingerprint and other episodes', async () => {
+      const { db, home } = await setup();
+      await insertLocal(db, 'e1', 1, 'g1');
+      await insertLocal(db, 'e2', 2, 'g2');
+      const fp = await currentSourceFingerprint(db, 'e1');
+      await insertExport(db, 'x1', 'e1', fp, 'rendering');
+      await insertExport(db, 'x2', 'e1', null);
+      await insertExport(db, 'x3', 'e2', 'not-the-current-edit');
+      const items = await home.list('s');
+      expect(items.map((i) => [i.key, i.hasCurrentExport])).toEqual([
+        ['local:e2', false],
+        ['local:e1', false],
+      ]);
+    });
+
+    it('is false for RSS-only rows', async () => {
+      const { db, home } = await setup();
+      await insertFeed(db, 'f1', 1, 'g1');
+      expect((await home.list('s'))[0]?.hasCurrentExport).toBe(false);
+    });
   });
 });

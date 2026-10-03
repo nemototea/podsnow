@@ -19,6 +19,8 @@ import type { AudioEnginePort } from '../audio/AudioEnginePort';
 import { renderDocumentFromDb } from '../audio/renderDocumentFromDb';
 import type { Subscription } from '../recording/RecorderPort';
 
+import { currentSourceFingerprint } from './sourceFingerprint';
+
 export interface ExportPreset {
   format: ExportFormat;
   /** AAC のみ。 */
@@ -227,6 +229,8 @@ export class ExportService {
 
   /** 書き出しを開始し exportId を返す。 */
   async start(episodeId: string, preset: ExportPreset): Promise<string> {
+    // 書き出す音の指紋。Home が「今の編集と同じ書き出し」かを見分ける（Issue #168）
+    const sourceFingerprint = await currentSourceFingerprint(this.deps.db, episodeId);
     // ミックスはタイムラインのレート（48 kHz）で行う。出力のレートへはネイティブが最後に変換する
     const doc = await renderDocumentFromDb(this.deps.db, this.deps.root, episodeId, {
       channels: preset.channels,
@@ -243,6 +247,7 @@ export class ExportService {
       // 書き出し時のラウドネス設定も残す（結果の表示で目標と比べる。DATA_MODEL.md §4.13）
       preset: { ...preset, loudness: doc.loudness },
       durationSmp: doc.totalFrames,
+      sourceFingerprint,
       now: this.deps.now(),
     });
     const jobId = this.deps.engine.startRender(JSON.stringify(doc), {

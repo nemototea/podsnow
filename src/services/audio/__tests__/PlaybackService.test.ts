@@ -2,6 +2,7 @@ import { smp } from '@/domain/time';
 import { createNodeSqliteExecutor } from '@/infra/db/__tests__/nodeSqliteExecutor';
 import { migrate } from '@/infra/db/migrate';
 import { saveDoc } from '@/infra/db/repositories/editableDocRepo';
+import { currentSourceFingerprint } from '@/services/export/sourceFingerprint';
 import { HomeService, type HomeEpisodeItem } from '@/services/home/HomeService';
 
 import { PlaybackService } from '../PlaybackService';
@@ -104,6 +105,30 @@ async function setup(opts: { withVoice?: boolean } = {}) {
     recorderBusy: () => recorder.busy,
   });
   return { db, engine, filePlayer, existing, svc, session, recorder };
+}
+
+/** 今の編集と同じ音の書き出し（`source_fingerprint` が今の値）を入れる。Issue #168 */
+async function insertCurrentExport(
+  db: ReturnType<typeof createNodeSqliteExecutor>,
+  id: string,
+  opts: { file?: string; createdAt?: number; fingerprint?: string | null } = {},
+) {
+  const fingerprint =
+    opts.fingerprint === undefined ? await currentSourceFingerprint(db, 'e') : opts.fingerprint;
+  await db.run(
+    'INSERT INTO exports (id, episode_id, format, preset, status, path, duration_smp, source_fingerprint, created_at) VALUES (?,?,?,?,?,?,?,?,?)',
+    [
+      id,
+      'e',
+      'm4a',
+      '{}',
+      'done',
+      `episodes/e/exports/${opts.file ?? id}.m4a`,
+      TOTAL,
+      fingerprint,
+      opts.createdAt ?? 2,
+    ],
+  );
 }
 
 async function localHomeItem(db: ReturnType<typeof createNodeSqliteExecutor>) {
@@ -236,10 +261,7 @@ describe('PlaybackService', () => {
 
   it('switches from timeline playback to the latest available exported file', async () => {
     const { db, engine, filePlayer, svc } = await setup({ withVoice: true });
-    await db.run(
-      'INSERT INTO exports (id, episode_id, format, preset, status, path, duration_smp, created_at) VALUES (?,?,?,?,?,?,?,?)',
-      ['x1', 'e', 'm4a', '{}', 'done', 'episodes/e/exports/x1.m4a', TOTAL, 2],
-    );
+    await insertCurrentExport(db, 'x1');
     await svc.reload('e');
     await svc.toggle();
     expect(await svc.toggleHome(await localHomeItem(db))).toBe(true);
@@ -254,10 +276,7 @@ describe('PlaybackService', () => {
 
   it('stops and forgets an export that is being deleted (Issue #152)', async () => {
     const { db, filePlayer, svc } = await setup({ withVoice: true });
-    await db.run(
-      'INSERT INTO exports (id, episode_id, format, preset, status, path, duration_smp, created_at) VALUES (?,?,?,?,?,?,?,?)',
-      ['x1', 'e', 'm4a', '{}', 'done', 'episodes/e/exports/x1.m4a', TOTAL, 2],
-    );
+    await insertCurrentExport(db, 'x1');
     const states: boolean[] = [];
     svc.on('state', (e) => states.push(e.playing));
     await svc.toggleHome(await localHomeItem(db));
@@ -274,10 +293,7 @@ describe('PlaybackService', () => {
   // Issue #164: エピソード画面を開いたら Home の再生を止め、再生音が録音に入らないようにする
   it('stops and releases exported-file playback started from Home', async () => {
     const { db, filePlayer, svc } = await setup({ withVoice: true });
-    await db.run(
-      'INSERT INTO exports (id, episode_id, format, preset, status, path, duration_smp, created_at) VALUES (?,?,?,?,?,?,?,?)',
-      ['x1', 'e', 'm4a', '{}', 'done', 'episodes/e/exports/x1.m4a', TOTAL, 2],
-    );
+    await insertCurrentExport(db, 'x1');
     const states: boolean[] = [];
     svc.on('state', (e) => states.push(e.playing));
     await svc.toggleHome(await localHomeItem(db));
@@ -316,10 +332,7 @@ describe('PlaybackService', () => {
   it('does not expose or play an export whose file is missing', async () => {
     const { db, existing, svc } = await setup();
     existing.clear();
-    await db.run(
-      'INSERT INTO exports (id, episode_id, format, preset, status, path, duration_smp, created_at) VALUES (?,?,?,?,?,?,?,?)',
-      ['x1', 'e', 'm4a', '{}', 'done', 'episodes/e/exports/x1.m4a', TOTAL, 2],
-    );
+    await insertCurrentExport(db, 'x1');
     const item = await localHomeItem(db);
     expect(await svc.availableHomeItemKeys([item])).toEqual(new Set());
     expect(await svc.toggleHome(item)).toBe(false);
@@ -328,10 +341,7 @@ describe('PlaybackService', () => {
 
   it('stops exported-file playback before recording starts', async () => {
     const { db, filePlayer, svc } = await setup();
-    await db.run(
-      'INSERT INTO exports (id, episode_id, format, preset, status, path, duration_smp, created_at) VALUES (?,?,?,?,?,?,?,?)',
-      ['x1', 'e', 'm4a', '{}', 'done', 'episodes/e/exports/x1.m4a', TOTAL, 2],
-    );
+    await insertCurrentExport(db, 'x1');
     await svc.toggleHome(await localHomeItem(db));
     await svc.stopForRecording();
     expect(filePlayer.calls.at(-1)).toBe('pause');
@@ -348,10 +358,7 @@ describe('PlaybackService', () => {
 
   it('keeps exported-file playback as the single active source while an editor loads', async () => {
     const { db, engine, filePlayer, svc } = await setup({ withVoice: true });
-    await db.run(
-      'INSERT INTO exports (id, episode_id, format, preset, status, path, duration_smp, created_at) VALUES (?,?,?,?,?,?,?,?)',
-      ['x1', 'e', 'm4a', '{}', 'done', 'episodes/e/exports/x1.m4a', TOTAL, 2],
-    );
+    await insertCurrentExport(db, 'x1');
     await svc.toggleHome(await localHomeItem(db));
     await svc.reload('e');
     expect(svc.source).toMatchObject({ kind: 'export', exportId: 'x1' });
@@ -360,17 +367,65 @@ describe('PlaybackService', () => {
     expect(filePlayer.calls.at(-1)).toBe('play');
   });
 
+  // Issue #168: 書き出したあとに編集した回は、古い書き出しではなく今のタイムラインを鳴らす（FR-EP-7）
+  it('plays the timeline instead of an export older than the current edit', async () => {
+    const { db, engine, filePlayer, svc } = await setup({ withVoice: true });
+    await insertCurrentExport(db, 'x1');
+    await saveDoc(db, 'e', { voice: [], overlays: [] }, 3);
+    await saveDoc(
+      db,
+      'e',
+      {
+        voice: [
+          {
+            id: 'v2',
+            takeId: 'T',
+            srcStart: smp(0),
+            srcEnd: smp(TOTAL / 2),
+            gainDb: 0,
+            fadeIn: smp(0),
+            fadeOut: smp(0),
+          },
+        ],
+        overlays: [],
+      },
+      3,
+    );
+    const item = await localHomeItem(db);
+    expect(await svc.availableHomeItemKeys([item])).toEqual(new Set([item.key]));
+    expect(await svc.toggleHome(item)).toBe(true);
+    expect(filePlayer.calls).not.toContain('load:file:///root/episodes/e/exports/x1.m4a');
+    expect(engine.playing).toBe(true);
+    expect(svc.source).toMatchObject({ kind: 'timeline', episodeId: 'e' });
+  });
+
+  it('plays the export again once the edit is undone to the exported state', async () => {
+    const { db, filePlayer, svc } = await setup({ withVoice: true });
+    await insertCurrentExport(db, 'x1');
+    const exported = await currentSourceFingerprint(db, 'e');
+    await db.run('UPDATE episodes SET sound_settings = ? WHERE id = ?', [
+      JSON.stringify({ ducking: { enabled: false } }),
+      'e',
+    ]);
+    expect(await currentSourceFingerprint(db, 'e')).not.toBe(exported);
+    await db.run("UPDATE episodes SET sound_settings = '{}' WHERE id = ?", ['e']);
+    expect(await svc.toggleHome(await localHomeItem(db))).toBe(true);
+    expect(filePlayer.calls).toContain('load:file:///root/episodes/e/exports/x1.m4a');
+  });
+
+  it('treats an export without a fingerprint (before 0006) as old', async () => {
+    const { db, engine, filePlayer, svc } = await setup({ withVoice: true });
+    await insertCurrentExport(db, 'x1', { fingerprint: null });
+    expect(await svc.toggleHome(await localHomeItem(db))).toBe(true);
+    expect(filePlayer.calls).not.toContain('load:file:///root/episodes/e/exports/x1.m4a');
+    expect(engine.playing).toBe(true);
+  });
+
   it('falls back to the newest exported file that still exists', async () => {
     const { db, existing, filePlayer, svc } = await setup();
     existing.add('/root/episodes/e/exports/older.m4a');
-    await db.run(
-      'INSERT INTO exports (id, episode_id, format, preset, status, path, duration_smp, created_at) VALUES (?,?,?,?,?,?,?,?)',
-      ['old', 'e', 'm4a', '{}', 'done', 'episodes/e/exports/older.m4a', TOTAL, 2],
-    );
-    await db.run(
-      'INSERT INTO exports (id, episode_id, format, preset, status, path, duration_smp, created_at) VALUES (?,?,?,?,?,?,?,?)',
-      ['new', 'e', 'm4a', '{}', 'done', 'episodes/e/exports/missing.m4a', TOTAL, 3],
-    );
+    await insertCurrentExport(db, 'old', { file: 'older' });
+    await insertCurrentExport(db, 'new', { file: 'missing', createdAt: 3 });
     expect(await svc.toggleHome(await localHomeItem(db))).toBe(true);
     expect(filePlayer.calls).toContain('load:file:///root/episodes/e/exports/older.m4a');
   });
@@ -401,10 +456,7 @@ describe('PlaybackService', () => {
 
   it('prefers an exported file over RSS and the local timeline', async () => {
     const { db, filePlayer, svc } = await setup({ withVoice: true });
-    await db.run(
-      'INSERT INTO exports (id, episode_id, format, preset, status, path, duration_smp, created_at) VALUES (?,?,?,?,?,?,?,?)',
-      ['x1', 'e', 'm4a', '{}', 'done', 'episodes/e/exports/x1.m4a', TOTAL, 2],
-    );
+    await insertCurrentExport(db, 'x1');
     const item = await insertFeedEpisode(db, { episodeId: 'e' });
     expect(await svc.toggleHome(item)).toBe(true);
     expect(filePlayer.calls).toContain('load:file:///root/episodes/e/exports/x1.m4a');
@@ -452,10 +504,7 @@ describe('PlaybackService', () => {
 
     it('turns a load that throws into a failure instead of rejecting', async () => {
       const { db, filePlayer, svc } = await setup();
-      await db.run(
-        'INSERT INTO exports (id, episode_id, format, preset, status, path, duration_smp, created_at) VALUES (?,?,?,?,?,?,?,?)',
-        ['x1', 'e', 'm4a', '{}', 'done', 'episodes/e/exports/x1.m4a', TOTAL, 2],
-      );
+      await insertCurrentExport(db, 'x1');
       filePlayer.failNextLoad = true;
       await expect(svc.toggleHome(await localHomeItem(db))).resolves.toBe(true);
       expect(svc.error).toBe('playback_file_failed');
@@ -482,10 +531,7 @@ describe('PlaybackService', () => {
     it('ignores a slow load that was replaced by another episode', async () => {
       const { db, filePlayer, svc } = await setup();
       const rss = await insertFeedEpisode(db);
-      await db.run(
-        'INSERT INTO exports (id, episode_id, format, preset, status, path, duration_smp, created_at) VALUES (?,?,?,?,?,?,?,?)',
-        ['x1', 'e', 'm4a', '{}', 'done', 'episodes/e/exports/x1.m4a', TOTAL, 2],
-      );
+      await insertCurrentExport(db, 'x1');
       let open: () => void = () => undefined;
       filePlayer.gate = new Promise((resolve) => (open = resolve));
       filePlayer.failNextLoad = true;
@@ -539,10 +585,7 @@ describe('PlaybackService asset preview (Issue #174)', () => {
 
   it('stops other playback when a preview starts', async () => {
     const { db, engine, svc } = await setup({ withVoice: true });
-    await db.run(
-      'INSERT INTO exports (id, episode_id, format, preset, status, path, duration_smp, created_at) VALUES (?,?,?,?,?,?,?,?)',
-      ['x1', 'e', 'm4a', '{}', 'done', 'episodes/e/exports/x1.m4a', TOTAL, 2],
-    );
+    await insertCurrentExport(db, 'x1');
     await svc.reload('e');
     await svc.toggle();
     expect(engine.playing).toBe(true);
@@ -570,10 +613,7 @@ describe('PlaybackService asset preview (Issue #174)', () => {
     expect(filePlayer.calls).toEqual(['pause']);
     expect(svc.previewingAssetId).toBeNull();
 
-    await db.run(
-      'INSERT INTO exports (id, episode_id, format, preset, status, path, duration_smp, created_at) VALUES (?,?,?,?,?,?,?,?)',
-      ['x1', 'e', 'm4a', '{}', 'done', 'episodes/e/exports/x1.m4a', TOTAL, 2],
-    );
+    await insertCurrentExport(db, 'x1');
     await svc.toggleHome(await localHomeItem(db));
     filePlayer.calls = [];
     svc.stopAssetPreview();
@@ -591,10 +631,7 @@ describe('PlaybackService asset preview (Issue #174)', () => {
 
 describe('PlaybackService audio session (Issue #183)', () => {
   async function withExport(db: ReturnType<typeof createNodeSqliteExecutor>) {
-    await db.run(
-      'INSERT INTO exports (id, episode_id, format, preset, status, path, duration_smp, created_at) VALUES (?,?,?,?,?,?,?,?)',
-      ['x1', 'e', 'm4a', '{}', 'done', 'episodes/e/exports/x1.m4a', TOTAL, 2],
-    );
+    await insertCurrentExport(db, 'x1');
     return localHomeItem(db);
   }
 

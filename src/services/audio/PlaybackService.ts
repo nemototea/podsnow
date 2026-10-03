@@ -3,6 +3,7 @@ import { ZERO_SMP, type Smp } from '@/domain/time';
 import type { SqlExecutor } from '@/infra/db/executor';
 import { joinRoot } from '@/infra/files/layout';
 
+import { currentSourceFingerprint } from '../export/sourceFingerprint';
 import type { HomeEpisodeItem } from '../home/HomeService';
 import type { Subscription } from '../recording/RecorderPort';
 import type { AudioEnginePort } from './AudioEnginePort';
@@ -326,9 +327,11 @@ export class PlaybackService {
     this.dispatch('position', { frame: clamped });
   }
 
+  /** 今の編集と同じ音の書き出しだけを選ぶ。古い書き出しは Home では鳴らさない（FR-EP-7、Issue #168）。 */
   private async exportForEpisode(
     episodeId: string,
   ): Promise<(Omit<ExportPlaybackItem, 'homeKey'> & { path: string }) | null> {
+    const fingerprint = await currentSourceFingerprint(this.deps.db, episodeId);
     const rows = await this.deps.db.all<{
       export_id: string;
       path: string;
@@ -339,8 +342,9 @@ export class PlaybackService {
       `SELECT x.id AS export_id, x.path, x.duration_smp, e.title, e.episode_number
          FROM exports x JOIN episodes e ON e.id = x.episode_id
         WHERE x.episode_id = ? AND x.status = 'done' AND x.path IS NOT NULL
+          AND x.source_fingerprint = ?
         ORDER BY x.created_at DESC`,
-      [episodeId],
+      [episodeId, fingerprint],
     );
     for (const row of rows) {
       const abs = `${this.deps.root}/${row.path}`;
@@ -369,7 +373,7 @@ export class PlaybackService {
     return keys;
   }
 
-  /** Home の 1 行を、書き出し → 対応する RSS → タイムラインの順で再生する。 */
+  /** Home の 1 行を、今の編集と同じ書き出し → 対応する RSS → タイムラインの順で再生する。 */
   async toggleHome(item: HomeEpisodeItem): Promise<boolean> {
     this.userAction();
     if (this.deps.recorderBusy()) return false;

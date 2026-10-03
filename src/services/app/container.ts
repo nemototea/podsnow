@@ -156,6 +156,9 @@ export async function bootstrap(
   // 削除済みなのにファイルが残っている回を片付ける（Issue #152 より前に消した回）。
   // 失敗しても起動は止めない（次の起動でまた試す）。
   await episodes.cleanupDeleted().catch(() => 0);
+  // 開いたまま何も入れずに残った回（強制終了などで、離れたときの片付けが走らなかった回）を捨てる。
+  // 復旧（recoverUnfinishedTakes）のあとに行う。復元した録音のある回は空ではない（FR-EP-10）。
+  await episodes.discardEmptyOpened(show.id).catch(() => 0);
   const assets = new AssetsService({ db, engine, root, ensureDir, newId, now });
   const outline = new OutlineService({ db, newId, now });
   const coverArt = new CoverArtService({

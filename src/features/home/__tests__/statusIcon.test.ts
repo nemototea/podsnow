@@ -34,7 +34,20 @@ describe('Home のエピソードの状態（FR-EP-3、Issue #171）', () => {
     expect(episodeStatusKind(item({ local: local({ take_count: 0 }) }))).toBe('new');
     expect(episodeStatusKind(item({ local: local({ status: 'draft' }) }))).toBe('draft');
     expect(episodeStatusKind(item({ local: local() }))).toBe('ready');
-    expect(episodeStatusKind(item({ local: local({ status: 'exported' }) }))).toBe('exported');
+    expect(
+      episodeStatusKind(item({ local: local({ status: 'exported' }), hasCurrentExport: true })),
+    ).toBe('exported');
+  });
+
+  // Issue #168: 書き出したあとに編集した回は「書き出し済み」と出さない（FR-EP-3）
+  it('書き出しが今の編集より古ければ編集中に戻す', () => {
+    expect(episodeStatusKind(item({ local: local({ status: 'exported' }) }))).toBe('ready');
+    expect(episodeStatusKind(item({ local: local({ status: 'exported', duration_smp: 0 }) }))).toBe(
+      'draft',
+    );
+    expect(
+      episodeStatusKind(item({ local: local({ status: 'exported' }), hasCurrentExport: false })),
+    ).toBe('ready');
   });
 
   it('意味の違う状態は違うアイコン（下書きと準備 OK はどちらも編集中）', () => {
