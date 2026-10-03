@@ -76,7 +76,7 @@ export function TopicsSection({ ws }: { ws: Workspace }) {
                 {t.record.progress(done, state.outline.length)}
               </Text>
             ) : null}
-            <IconButton name="edit" label={t.record.openList} onPress={() => setOpen(true)} />
+            <IconButton name="list" label={t.record.openList} onPress={() => setOpen(true)} />
           </View>
         }
       />

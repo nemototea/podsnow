@@ -171,7 +171,7 @@ export function EpisodePlayer({
       </View>
       <View style={s.controls}>
         <IconButton
-          name="back"
+          name="skipBack15"
           label={t.player.rewind}
           onPress={() => onSeek(smp(Math.max(0, position - 15 * 48000)))}
         />
@@ -182,7 +182,7 @@ export function EpisodePlayer({
           onPress={onToggle}
         />
         <IconButton
-          name="arrow"
+          name="skipForward30"
           label={t.player.forward}
           onPress={() => onSeek(smp(Math.min(duration, position + 30 * 48000)))}
         />
