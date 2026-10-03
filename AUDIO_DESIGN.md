@@ -180,7 +180,8 @@ Encoder: AAC (iOS AVAssetWriter / Android MediaCodec+MediaMuxer) または WAV w
 - タイムライン・ミックス・ラウドネス測定・リミッターはすべて 48 kHz（`RenderDocument.sampleRate`）で行い、**エンコードの直前に出力のレートへ変換する**（`RenderOptions.sampleRate`）。位置や長さ（`exports.duration_smp` を含む）は 48 kHz のサンプル数のまま。
 - 変換は OS 標準・既存ライブラリのリサンプラーを使い、自前で補間しない（ユーザー判断）。
   - iOS: `AVAudioConverter`（`sampleRateConverterQuality = .max`、アルゴリズム `Mastering`）。`RenderJob.swift` の `ResamplingSink`【仮説: 実機で未検証】
-  - Android: 確認中。それまでは 44.1 kHz を選ぶと書き出しが失敗する（レートの違うファイルを黙って作らない）
+  - Android: Media3 の `SonicAudioProcessor`（`androidx.media3:media3-common`。expo-audio と同じ版）。`RenderJob.kt` の `ResamplingSink`【仮説: 実機で未検証】
+    - 線形補間なので高域がわずかに下がる（理論値で 10 kHz が約 -1.3 dB、15 kHz が約 -3 dB）。下げる変換で、劣化させたくなければ 48 kHz を選べばよい。ポッドキャスト配信の用途では受け入れる（ユーザー判断 2026-10-03）。高品質な変換が要る用途になったら Oboe のリサンプラー（ポリフェーズ sinc）を検討する
 - 試聴にはサンプルレートを反映しない（変換は書き出しの最後だけ）。
 - 測定値（`measured_lufs` / `measured_true_peak_db`）は変換前の 48 kHz の値。変換で増えるサンプル間ピークはごくわずかの見込み【仮説】。
 - 素材（BGM / ジングル等）はステレオ 48 kHz で取り込む。モノラルの元ファイルは左右同じになる。この変更より前に取り込んだ素材はモノラルのまま。
