@@ -229,7 +229,7 @@ Issue #183。録音前の入力モニター（#169）とロック画面・通知
 - **セッションを無効にしない（`setActive(false)` を呼ばない）。** expo-audio は既定で、自分のプレイヤーが止まる・鳴り終わると 100 ms 後にセッションを無効にする【事実: コード】（`node_modules/expo-audio/ios/AudioModule.swift` の `pause` / `onPlaybackComplete` → `deactivateSession()`）。同じアプリのタイムライン再生や録音が鳴っていても無効にするので、expo-audio のプレイヤーは必ず `keepAudioSessionActive: true` で作る。
   - ファイル再生（`expoFilePlayback.ts`）: 一時停止してタイムライン再生へ切り替えた直後に、タイムラインが止まるのを防ぐ。
   - 録音中のジングルのモニター（§5、`features/episode/monitor.ts`）: 鳴り終わったときに録音の I/O を止めないため【仮説: 有効なセッションを無効にすると動いている I/O が止まる。実機で未検証】。録音側のセッションに相乗りするので `setAudioModeAsync` も呼ばない。
-  - 素材の試聴（番組設定の `features/show/AssetsSection.tsx`、`useAudioPlayer`）は `PlaybackService` の外で、まだこの決まりに沿っていない（既定の `keepAudioSessionActive: false`、音声モードを当てない）。番組設定の担当（#174）と重なるので、#183 では触らず別 Issue にする。
+  - 素材の試聴（番組設定の `features/show/AssetsSection.tsx`、`useAudioPlayer`）は `PlaybackService` の外で、まだこの決まりに沿っていない（既定の `keepAudioSessionActive: false`、音声モードを当てない）。#174 で合わせる（#174 にやることとして追記済み）。#183 では触らない。
   - 無効にしない代わり、他アプリの音は再生を止めても自動では戻らない。必要になったら #184 で、持ち主が手放すとき（ミニプレーヤーを閉じる等）に限って無効にすることを検討する。
 - ロック画面・通知の操作（#184）は再生側が持つ間だけ出す。録音側が取ったら消す（録音の通知と混ぜない）。状態は `PlaybackService` から出し、アプリ内のプレーヤーと同じ値を見る。
 
