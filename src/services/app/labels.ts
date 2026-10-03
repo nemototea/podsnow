@@ -23,4 +23,17 @@ export interface ServiceLabels {
     channelName: string;
     channelDescription: string;
   };
+  /** ロック画面・通知の再生操作の文言（Issue #184）。題が空のときの代わりと、Android の通知の操作名・チャンネル。 */
+  nowPlaying: NowPlayingLabels;
+}
+
+export interface NowPlayingLabels {
+  untitled: string;
+  play: string;
+  pause: string;
+  rewind: string;
+  forward: string;
+  stop: string;
+  channelName: string;
+  channelDescription: string;
 }

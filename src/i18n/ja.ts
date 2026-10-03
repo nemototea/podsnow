@@ -140,6 +140,18 @@ Podcast: {{show_name}}
     channelDescription: '録音中に表示されます',
   },
 
+  /** ロック画面・通知の再生操作（Issue #184、AUDIO_DESIGN.md §10.5）。 */
+  nowPlaying: {
+    untitled: '無題のエピソード',
+    play: '再生',
+    pause: '一時停止',
+    rewind: '15秒戻る',
+    forward: '30秒進む',
+    stop: '止めて閉じる',
+    channelName: '再生',
+    channelDescription: '再生中に表示されます',
+  },
+
   /** Undo 履歴のラベル（トーストに「〜を取り消しました」として出る）。 */
   undo: {
     deleteRange: '範囲を削除',

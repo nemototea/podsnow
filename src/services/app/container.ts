@@ -14,6 +14,7 @@ import {
 } from '@/infra/files/fileSystem';
 import { createNativeAudioEngine } from '@/infra/native/audioEngineAdapter';
 import { createNativeHaptics } from '@/infra/native/hapticsAdapter';
+import { createNativeNowPlaying } from '@/infra/native/nowPlayingAdapter';
 import { createExpoFilePlayback } from '@/infra/playback/expoFilePlayback';
 import { createExpoPlaybackSession } from '@/infra/playback/playbackSession';
 import { expoFsPort } from '@/infra/files/expoFsPort';
@@ -133,6 +134,8 @@ export async function bootstrap(
     session: createExpoPlaybackSession(),
     // 録音側が音声セッションを持つ間は再生を始めない（AUDIO_DESIGN.md §10.1）
     recorderBusy: () => !recording.isIdle,
+    nowPlaying: createNativeNowPlaying(),
+    labels: () => live.labels.nowPlaying,
   });
   const exporter = new ExportService({
     db,

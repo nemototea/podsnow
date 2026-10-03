@@ -128,6 +128,17 @@ Tag #PodsNow to share your thoughts`,
     channelDescription: 'Shown while recording',
   },
 
+  nowPlaying: {
+    untitled: 'Untitled episode',
+    play: 'Play',
+    pause: 'Pause',
+    rewind: 'Back 15 seconds',
+    forward: 'Forward 30 seconds',
+    stop: 'Stop and close',
+    channelName: 'Playback',
+    channelDescription: 'Shown while playing',
+  },
+
   undo: {
     deleteRange: 'Delete range',
     deleteSilence: 'Trim silence',

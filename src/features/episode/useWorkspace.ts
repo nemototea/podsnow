@@ -210,7 +210,8 @@ export function useWorkspace(episodeId: string) {
     });
     return () => {
       alive = false;
-      void playback.pauseTimeline();
+      // 止めて、ロック画面からも消す（画面が無いのにロック画面から鳴らせないように。Issue #184）
+      void playback.leaveEpisode();
     };
   }, [episodeId, playback, reloadAll, services.episodes]);
 

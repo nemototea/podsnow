@@ -4,6 +4,7 @@ import type {
   FrameRange,
   ImportedAsset,
   ImportOptions,
+  NowPlayingNativeInfo,
   PodsnowAudioEngineModuleEvents,
   RenderOptions,
   SilenceOptions,
@@ -28,6 +29,11 @@ declare class PodsnowAudioEngineModule extends NativeModule<PodsnowAudioEngineMo
   unloadAsync(): Promise<void>;
   getPosition(): number;
   isPlaying(): boolean;
+
+  /** ロック画面・通知の表示を更新する（AUDIO_DESIGN.md §10.5）。Android は前面サービスを始める。 */
+  setNowPlayingAsync(info: NowPlayingNativeInfo): Promise<void>;
+  /** ロック画面・通知の表示を消す。Android は前面サービスを止める。 */
+  clearNowPlayingAsync(): Promise<void>;
 
   /** バックグラウンドで書き出しを開始し jobId を返す。進捗・完了はイベント。 */
   startRender(docJson: string, opts: RenderOptions): string;
