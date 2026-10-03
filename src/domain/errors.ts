@@ -15,6 +15,11 @@ export const APP_ERROR_CODES = [
   'disk_space_insufficient',
   /** 書き出し中にアプリが終了したため中断扱いにした */
   'export_app_terminated',
+  /**
+   * 書き出したファイルにメタデータ（題名・アートワーク等）を埋め込めなかった（Issue #56）。
+   * 警告: 音声のファイルはあり、行は `done`（`exports.error` に入る）
+   */
+  'export_metadata_failed',
   /** 取り込み: HTTPS 以外の URL（リダイレクト先を含む） */
   'import_not_https',
   /** 取り込み: 通信できなかった */

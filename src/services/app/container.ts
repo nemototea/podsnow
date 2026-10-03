@@ -145,6 +145,7 @@ export async function bootstrap(
     fileExists,
     deleteFile: deleteIfExists,
     copyAsNamed,
+    fs: expoFsPort,
     newId,
     now,
   });

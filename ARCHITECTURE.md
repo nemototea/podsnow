@@ -242,6 +242,7 @@ idle ──start──▶ preparing ──ok──▶ recording ◀──resume�
 
 ### 8.2 ExportJob
 `queued → rendering(progress) → encoding(progress) → done | failed | cancelled`。ジョブは `exports` テーブルに記録し、アプリ再起動で `rendering` のまま残っていれば `failed` に倒す。
+ネイティブのレンダが終わったら、`done` にする前に `ExportService` が後処理としてメタデータ（題名・番組名・アートワーク等）をファイルに埋め込む（AUDIO_DESIGN.md §8.3、Issue #56）。埋め込めなくても `done` にして音声を渡し、`error` に警告 `export_metadata_failed` を残す。
 
 ## 9. セキュリティ / プライバシー
 - 通信は番組の取り込み（REQUIREMENTS.md FR-SHOW-6〜10）、配信（§2.13）、配信中の回の音声の再生（FR-EP-7。Issue #185）だけ。ユーザーが操作したときに限り、Apple の公開検索と RSS 配信元への GET（RSS と、Home で再生を押した回の `enclosure_url`）、PodsNow の配信基盤（API と、署名付き URL でのストレージへのアップロード）への HTTPS 通信を行う（NFR-2 / NFR-5）。ストレージの秘密鍵はアプリに持たない（Issue #107 §17）。それ以外の機能はネットワークを使わない。

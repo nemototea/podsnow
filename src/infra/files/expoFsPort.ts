@@ -16,6 +16,7 @@ export const expoFsPort: FsPort = {
       if (f.exists) f.delete();
       f.create();
     }
+    // file:// の既定は ReadWrite（先頭から）。`rw` もこれで足りる
     const h = f.open();
     return {
       read: (length) => {
@@ -24,6 +25,9 @@ export const expoFsPort: FsPort = {
         return n === 0 ? new Uint8Array(0) : h.readBytes(n);
       },
       write: (bytes) => h.writeBytes(bytes),
+      seek: (offset) => {
+        h.offset = offset;
+      },
       close: () => h.close(),
     };
   },
@@ -39,6 +43,9 @@ export const expoFsPort: FsPort = {
   delete: (absPath) => {
     const f = new File(toUri(absPath));
     if (f.exists) f.delete();
+  },
+  move: (from, to) => {
+    new File(toUri(from)).moveSync(new File(toUri(to)), { overwrite: true });
   },
   list: (absDir) => {
     const d = new Directory(toUri(absDir));

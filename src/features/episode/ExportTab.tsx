@@ -5,7 +5,15 @@ import { insertTopics, renderTemplate } from '@/domain/metadata/template';
 import { headings } from '@/domain/outline';
 import { formatSmp, smp } from '@/domain/time';
 import { useServices } from '@/features/app/ServicesProvider';
-import { errorText, formatDateTime, storedErrorText, useLocale, useT, type Messages } from '@/i18n';
+import {
+  errorCodeText,
+  errorText,
+  formatDateTime,
+  storedErrorText,
+  useLocale,
+  useT,
+  type Messages,
+} from '@/i18n';
 import { isExportRunning, listExports, type ExportRow } from '@/infra/db/repositories/exportsRepo';
 import { getDefaultTemplate } from '@/infra/db/repositories/showsRepo';
 import { parseSoundSettings, type SoundSettings } from '@/services/audio/renderDocumentFromDb';
@@ -270,6 +278,8 @@ export function ExportTab({ ws, onShowToast, onDone, onGoEdit }: ExportTabProps)
         setJob((j) => (j && j.exportId === e.exportId ? null : j));
         void reloadHistory();
         haptics.play('success');
+        // 音声は書き出せている。題名などが入らなかったことだけ知らせる（Issue #56）
+        if (!e.metadataEmbedded) onShowToast(errorCodeText(t, 'export_metadata_failed'));
         onDone(e.exportId);
       }),
       exporter.on('failed', (e) => {
@@ -819,7 +829,12 @@ export function ExportTab({ ws, onShowToast, onDone, onGoEdit }: ExportTabProps)
           label={`${formatDateTime(h.created_at, locale)} · ${h.format.toUpperCase()}`}
           sub={
             h.status === 'done'
-              ? [formatSmp(smp(h.duration_smp)), formatBytes(h.bytes ?? 0), loudnessText(t, h)]
+              ? [
+                  formatSmp(smp(h.duration_smp)),
+                  formatBytes(h.bytes ?? 0),
+                  loudnessText(t, h),
+                  h.error === 'export_metadata_failed' ? t.export.historyNoMetadata : null,
+                ]
                   .filter(Boolean)
                   .join(' · ')
               : h.status === 'failed'
