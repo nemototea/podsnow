@@ -231,7 +231,7 @@ Issue #183。録音前の入力モニター（#169）とロック画面・通知
   - 録音中のジングルのモニター（§5、`features/episode/monitor.ts`）: 鳴り終わったときに録音の I/O を止めないため【仮説: 有効なセッションを無効にすると動いている I/O が止まる。実機で未検証】。録音側のセッションに相乗りするので `setAudioModeAsync` も呼ばない。
   - 素材の試聴（番組設定の `features/show/AssetsSection.tsx`、`useAudioPlayer`）は `PlaybackService` の外で、まだこの決まりに沿っていない（既定の `keepAudioSessionActive: false`、音声モードを当てない）。#174 で合わせる（#174 にやることとして追記済み）。#183 では触らない。
   - 無効にしない代わり、他アプリの音は再生を止めても自動では戻らない。必要になったら #184 で、持ち主が手放すとき（ミニプレーヤーを閉じる等）に限って無効にすることを検討する。
-- ロック画面・通知の操作（#184）は再生側が持つ間だけ出す。録音側が取ったら消す（録音の通知と混ぜない）。状態は `PlaybackService` から出し、アプリ内のプレーヤーと同じ値を見る。
+- ロック画面・通知の操作は再生側が持つ間だけ出す。録音側が取ったら消す（録音の通知と混ぜない）。状態は `PlaybackService` から出し、アプリ内のプレーヤーと同じ値を見る（§10.5）。
 
 ### 10.2 再生の音声モード
 
@@ -239,7 +239,7 @@ Issue #183。録音前の入力モニター（#169）とロック画面・通知
 
 | 項目 | 値 | 理由 |
 |---|---|---|
-| `interruptionMode` | `'doNotMix'` | 他アプリの音と重ねない（既定の `mixWithOthers` では重なり、Android では音声フォーカスを取らないので着信でも止まらない【確認済み: `node_modules/expo-audio/build/Audio.types.d.ts`】）。#184 の `setActiveForLockScreen` も `doNotMix` を求める（同） |
+| `interruptionMode` | `'doNotMix'` | 他アプリの音と重ねない（既定の `mixWithOthers` では重なり、Android では音声フォーカスを取らないので着信でも止まらない【確認済み: `node_modules/expo-audio/build/Audio.types.d.ts`】）。expo-audio のロック画面（`setActiveForLockScreen`）も `doNotMix` を求める（同）。ロック画面は自作にした（§10.5）が、OS の他アプリとの扱いは同じ |
 | `shouldPlayInBackground` | `true` | 画面を消しても・他アプリへ移っても続ける（REQUIREMENTS.md FR-EP-8）。`false` だと expo-audio はバックグラウンドへ移るときに止める【事実: コード】 |
 | `playsInSilentMode` | `true` | 消音スイッチ・マナーモードでも鳴らす。再生ボタンを押した操作を優先する |
 | `allowsRecording` | `false` | iOS のカテゴリは `.playback`。録音の設定は録音側が `prepare()` で行う |
@@ -247,7 +247,7 @@ Issue #183。録音前の入力モニター（#169）とロック画面・通知
 
 - iOS: expo-audio はこの値から `.playback`・オプションなしを設定する【事実: コード】（`AudioModule.swift` の `setAudioMode`）。タイムライン再生（`TimelinePlayer.swift`）は**カテゴリを設定せず**、`setActive(true)` だけ行う。カテゴリを決めるのは JS の 1 か所だけにする。
 - Android: expo-audio は `doNotMix` のとき、ファイル再生の開始時に `AUDIOFOCUS_GAIN_TRANSIENT` を取り、喪失で止め、`AUDIOFOCUS_GAIN` で再開する【事実: コード】。タイムライン（`AudioTrack`）は expo-audio の外なので、`PlaybackSessionWatcher.kt` が再生開始時に `AUDIOFOCUS_GAIN`（`USAGE_MEDIA` / `CONTENT_TYPE_SPEECH`、`setWillPauseWhenDucked(true)`）を取り、利用者の一時停止・鳴り終わり・解放で手放す。話し声はダッキングではなく一時停止する【確認済み】(https://developer.android.com/media/optimize/audio-focus)。
-- バックグラウンド: iOS は `UIBackgroundModes: audio`（`app.json`。録音のために入れたもの）で続く。Android はロック画面の操作（前面サービス）が無いと約 3 分で止まる【確認済み: 型定義の `shouldPlayInBackground` の注記】。前面サービスと config plugin は #184。タイムライン再生のバックグラウンド継続も #184（MediaSession＋前面サービス）。
+- バックグラウンド: iOS は `UIBackgroundModes: audio`（`app.json`。録音のために入れたもの）で続く。Android はロック画面の操作（前面サービス）が無いと約 3 分で止まる【確認済み: 型定義の `shouldPlayInBackground` の注記】。ファイル再生もタイムライン再生も、§10.5 の前面サービス（`mediaPlayback`）でプロセスを保つ。
 
 ### 10.3 割り込み・出力の抜去
 
@@ -267,12 +267,46 @@ Issue #183。録音前の入力モニター（#169）とロック画面・通知
 4. expo-audio も自分のプレイヤーを止め・再開する（iOS: 割り込みと抜去で止め、`.shouldResume` で再開。Android: フォーカスの喪失で止め `GAIN` で再開。抜去は扱わない）【事実: コード】。`PlaybackService` の止める・鳴らす操作はどちらも冪等なので、二重になっても状態は食い違わない。
    - ただし expo-audio の再開は、割り込み中に利用者が止めた・閉じたプレイヤーまで鳴らし直す（iOS は割り込みの時点で鳴っていたものを無条件に `play()`、Android は利用者の一時停止で再開の印を消さない）【事実: コード】。そのため `PlaybackService` はファイル再生を「鳴らしたいか」（`fileWanted`、こちらの操作だけで変わる）で持ち、鳴らしたくないのに鳴り出したら止め返す。ミニプレーヤーを閉じたあとに画面に出ないまま鳴り出すのを防ぐ。
    - iOS では expo-audio の止めた通知が Watcher のイベントより先に届くことがある。割り込みの時点で鳴っていたかは `fileWanted` で見るので、順番に依らない。
-   - #184 のロック画面・通知の操作も `PlaybackService` を通す。expo-audio の `setActiveForLockScreen` の操作がプレイヤーを直接鳴らすと、上の止め返しで止まる。
+   - ロック画面・通知の操作も `PlaybackService` を通す（§10.5）。expo-audio の `setActiveForLockScreen` の操作はプレイヤーを直接鳴らすので、上の止め返しで止まる。使わない理由の 1 つ。
 5. Android のファイル再生の音声フォーカスは expo-audio が持つ（Watcher がフォーカスを取ると expo-audio のプレイヤーが喪失を受けて止まる）。そのため Android のファイル再生では割り込みのイベントは来ず、`PlaybackService` は状態通知（`playbackStatusUpdate`）で追う。抜去（`BECOMING_NOISY`）は Watcher が受けるので、ファイル再生でも止まる。
+
+### 10.5 ロック画面・通知の操作（Issue #184）
+
+ファイル再生（書き出し・配信）とタイムライン再生（下書き・書き出しタブの試聴）で、同じ表示と操作を出す。
+
+**出すもの**: 題（空なら「無題のエピソード」）、番組名、番組のアートワーク（`shows.cover_path`。プレーヤー画面と同じ）、長さ、再生位置、再生中か。操作は再生 / 一時停止、15 秒戻る、30 秒進む、位置の指定（シークバー）。Android の通知には「止めて閉じる」も出す。ヘッドホン・Bluetooth の再生ボタンも同じ操作として届く。
+
+**持ち主と経路**:
+
+1. 表示と OS からの操作の受け口は `podsnow-audio-engine` の `NowPlaying`（`ios/NowPlaying.swift`、`android/.../NowPlayingService.kt`）。`TimelinePlayer` とは別のファイルにする（`Mixer` を触る #158 と並行するため）。
+2. 何を出すかは `PlaybackService` だけが決め、`NowPlayingPort.update()` / `clear()` で渡す。アプリ内のミニプレーヤー・プレーヤー画面と同じ状態（`source` / `isPlaying` / `position` / `duration`）から作るので食い違わない。
+3. OS からの操作（`onRemoteCommand`）は鳴らす側を直接触らず、JS の `PlaybackService` に送る。`PlaybackService` が操作し、その結果の状態がまた表示に戻る。利用者の操作として扱うので、割り込みのあとの自動再開は取り消す（§10.3）。
+4. 位置は、状態が変わったとき・位置を動かしたとき・再生元が変わったときだけ送る。間は OS が再生中かどうかから進める（iOS `MPNowPlayingInfoPropertyPlaybackRate`、Android `PlaybackState` の速度と更新時刻）。0.1 秒ごとに送らない。
+
+**出す期間**:
+
+- 出す: 利用者が再生を始めたとき（Home・プレーヤー・書き出しタブ・編集画面）。一時停止中も出したままにし、ロック画面から再開できるようにする。
+- 消す: ミニプレーヤーの「閉じる」・通知の「止めて閉じる」（`stopHome`）、再生中の書き出しを削除したとき、エピソード画面を抜けたとき（Home から始めていないタイムライン再生）、**録音側が取ったとき**（`stopForRecording`。#169 の入力モニターも同じ）。録音中は出さない（録音の通知と混ぜない。§10.1）。
+
+**expo-audio の `setActiveForLockScreen` を使わない理由**【事実: コード】（`node_modules/expo-audio/ios/MediaController.swift`、57.0.5）:
+
+- 送り・戻しの秒数が 10 秒で固定（`preferredIntervals = [10.0]`）。#184 は 15 秒戻る / 30 秒進む。
+- ロック画面の操作がプレイヤーを直接動かし、`PlaybackService` を通らない。アプリ内の状態と食い違い、§10.3 の止め返しとも衝突する。
+- iOS の `MPRemoteCommandCenter` はアプリで 1 つなので、タイムライン再生の自作と同時に使えない。また、足したハンドラを `removeTarget(self)` で外しており、クロージャで足したものは外れない（切り替えのたびに溜まる）。
+- 対象は expo-audio のプレイヤーだけで、タイムライン再生（ネイティブ）は出せない。結局 2 つの実装になる。
+
+**Android の前面サービス**:
+
+- 種別は `mediaPlayback`（`FOREGROUND_SERVICE_MEDIA_PLAYBACK`。Android 14 以降は必須）【確認済み】(https://developer.android.com/develop/background-work/services/fgs/service-types)。宣言は `podsnow-audio-engine` の `AndroidManifest.xml`。expo-audio の config plugin（`AudioControlsService`）は使わない。
+- 表示している間は、一時停止中も前面に保つ。【仮説】一時停止で前面を外すと、ロック画面から再開するときにバックグラウンドから前面サービスを始め直すことになり、Android 12 以降の制限で失敗するおそれがある。代わりに通知に「止めて閉じる」を置き、消したい人が消せるようにする。
+- 前面サービスは利用者が画面で再生を押したときに始まる（前面にいるときなので Android 14 の制限にかからない）。
+- 通知は `MediaSession` と `Notification.MediaStyle`（Android 標準。androidx.media を足さない）で作る。Android 13 以降のメディア操作は `PlaybackState` の操作と独自の操作（15 秒戻る・30 秒進む）から作られる【仮説: 実機で表示を確認する】。
+- 通知の文言（操作の名前・チャンネル名）は UI 層から `ServiceLabels.nowPlaying` で渡す（ネイティブは文言を持たない。録音の通知と同じ）。
 
 ### 10.4 未検証（実機で確かめる）
 
-- iPhone / Pixel 9a で: 他アプリの音楽を鳴らしたまま再生 → 他アプリが止まる / 再生中の着信 → 止まり、通話後に再開する / 再生中にイヤホン・Bluetooth を外す → 止まり、スピーカーから鳴らない / 録音直後の再生 → 出力先・音量が録音前と同じ / 画面を消したあとも再生が続く（Android は約 3 分まで。以降は #184）/ 録音中のジングルのモニターが鳴り終わっても録音が続く。
+- iPhone / Pixel 9a で: 他アプリの音楽を鳴らしたまま再生 → 他アプリが止まる / 再生中の着信 → 止まり、通話後に再開する / 再生中にイヤホン・Bluetooth を外す → 止まり、スピーカーから鳴らない / 録音直後の再生 → 出力先・音量が録音前と同じ / 画面を消したあとも再生が続く（10 分以上。§10.5）/ 録音中のジングルのモニターが鳴り終わっても録音が続く。
+- ロック画面・通知（§10.5）: 題・番組名・アートワークの表示、各操作、アプリ内との一致、録音を始めると消えること、10 分以上の継続、Android の通知の「止めて閉じる」、ヘッドホンの再生ボタン。
 - iOS の `mediaServicesWereResetNotification`（音声デーモンの再起動）での再生の立て直しは扱っていない（録音側は §4）。
 
 ## 11. 検証計画（Phase 0 スパイク）
