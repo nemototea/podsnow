@@ -227,6 +227,17 @@ describe('文言カタログ', () => {
       expect(found).toEqual([]);
     });
 
+    it.each(LOCALES)('%s の専門用語の説明（ⓘ）は用語と 3 文までの説明を持つ', (locale) => {
+      const { glossary } = messagesFor(locale);
+      const { a11yInfo, ...terms } = glossary;
+      expect(a11yInfo('X')).toContain('X');
+      for (const [key, { term, body }] of Object.entries(terms)) {
+        expect([key, term.trim().length > 0]).toEqual([key, true]);
+        const sentences = body.split(locale === 'ja' ? '。' : /\.\s|\.$/).filter((x) => x.trim());
+        expect([key, sentences.length <= 3]).toEqual([key, true]);
+      }
+    });
+
     it.each(LOCALES)('%s の書き出しプリセットは設定と書き出しで同じ名前・仕様', (locale) => {
       const { export: ex, settings } = messagesFor(locale);
       for (const k of ['podcast', 'high', 'wav'] as const) {

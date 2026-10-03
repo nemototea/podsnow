@@ -547,7 +547,7 @@ export function StudioTab({
             {selectedOverlay.kind === 'bgm' ? (
               <Row
                 label={t.edit.duck}
-                sub={t.edit.duckSub}
+                info={t.glossary.ducking}
                 right={
                   <Toggle
                     accessibilityLabel={t.edit.duck}

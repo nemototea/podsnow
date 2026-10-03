@@ -20,6 +20,7 @@ export function ChoiceMenu<T extends string | number>({
   options,
   onChange,
   last,
+  info,
 }: ChoiceMenuProps<T>) {
   const c = useAppTheme();
   const family = useFontFamily();
@@ -31,6 +32,7 @@ export function ChoiceMenu<T extends string | number>({
     <Row
       label={label}
       {...(showSub ? { sub } : {})}
+      {...(info ? { info } : {})}
       last={!!last}
       right={
         <Host matchContents colorScheme={c.isDark ? 'dark' : 'light'}>

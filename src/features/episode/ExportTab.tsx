@@ -28,6 +28,7 @@ import {
   Chip,
   Field,
   IconButton,
+  InfoButton,
   Loading,
   Notice,
   ProgressBar,
@@ -36,6 +37,7 @@ import {
   Segmented,
   Text,
   Toggle,
+  type TermInfo,
 } from '@/ui/components';
 import { confirmDestructive } from '@/ui/alerts';
 import { DateField } from '@/ui/DateField';
@@ -78,8 +80,11 @@ function Stepper({
   min,
   max,
   onChange,
+  info,
 }: {
   label: string;
+  /** ラベルが専門用語のとき（Issue #170）。 */
+  info?: TermInfo;
   value: number;
   unit: string;
   step: number;
@@ -91,7 +96,10 @@ function Stepper({
   const t = useT();
   return (
     <View style={[st.stepper, { borderBottomColor: c.border }]}>
-      <Text style={[typography.body, { color: c.textPrimary, flex: 1 }]}>{label}</Text>
+      <View style={st.stepLabel}>
+        <Text style={[typography.body, st.stepLabelText, { color: c.textPrimary }]}>{label}</Text>
+        {info ? <InfoButton info={info} /> : null}
+      </View>
       <IconButton
         name="minus"
         label={t.a11y.decrease(label)}
@@ -370,6 +378,7 @@ export function ExportTab({ ws, onShowToast, onDone, onGoEdit }: ExportTabProps)
       <Card style={st.listCard}>
         <Row
           label={t.sound.loudness}
+          info={t.glossary.loudness}
           {...(sound.loudness.enabled
             ? {
                 sub: t.sound.loudnessTarget(sound.loudness.targetLufs, sound.loudness.truePeakDbtp),
@@ -387,6 +396,7 @@ export function ExportTab({ ws, onShowToast, onDone, onGoEdit }: ExportTabProps)
         />
         <Row
           label={t.sound.ducking}
+          info={t.glossary.ducking}
           {...(hasBgm && sound.ducking.enabled ? { sub: `${sound.ducking.depthDb} dB` } : {})}
           last={!soundAdvanced}
           right={
@@ -431,6 +441,7 @@ export function ExportTab({ ws, onShowToast, onDone, onGoEdit }: ExportTabProps)
             {sound.loudness.enabled ? (
               <Stepper
                 label={t.sound.truePeak}
+                info={t.glossary.truePeak}
                 value={sound.loudness.truePeakDbtp}
                 unit="dBTP"
                 step={0.5}
@@ -692,9 +703,12 @@ export function ExportTab({ ws, onShowToast, onDone, onGoEdit }: ExportTabProps)
               ]}
             />
             {custom.format === 'm4a' ? (
-              <Text style={[typography.caption, { color: c.textSecondary }]}>
-                {t.export.custom.bitrate}
-              </Text>
+              <View style={st.infoCaption}>
+                <Text style={[typography.caption, { color: c.textSecondary }]}>
+                  {t.export.custom.bitrate}
+                </Text>
+                <InfoButton info={t.glossary.bitrate} />
+              </View>
             ) : null}
             {custom.format === 'm4a' ? (
               <View style={st.chips}>
@@ -834,6 +848,9 @@ const st = StyleSheet.create({
   listCard: { paddingVertical: space.sm },
   rowActions: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm, marginVertical: space.sm },
+  stepLabel: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: space.xs },
+  stepLabelText: { flexShrink: 1 },
+  infoCaption: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
   stepper: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -38,7 +38,9 @@ import {
   useBottomInset,
   useFloatingInset,
 } from './BottomInset';
+import { notify } from './alerts';
 import { Icon, type IconName } from './Icon';
+import type { TermInfo } from './menuTypes';
 import { KeyboardScroll } from './KeyboardScroll';
 import { Text, TextInput } from './Text';
 import { useAppTheme } from './ThemeContext';
@@ -203,6 +205,31 @@ export function IconButton({
           {label}
         </Text>
       ) : null}
+    </Pressable>
+  );
+}
+
+export type { TermInfo };
+
+/**
+ * 専門用語の横に置く ⓘ（DESIGN_SYSTEM.md §2.2、Issue #170）。押すと説明のダイアログを出す。
+ * ダイアログはシートの中からでも最前面に出る（§6.3）ので、シートの中の行にも置ける。
+ * 見た目は小さく、触れる面は hitSlop で 48 まで広げる。
+ */
+export function InfoButton({ info }: { info: TermInfo }) {
+  const c = useAppTheme();
+  const t = useT();
+  return (
+    <Pressable
+      onPress={() => notify({ title: info.term, message: info.body, okLabel: t.common.close })}
+      accessibilityRole="button"
+      accessibilityLabel={t.glossary.a11yInfo(info.term)}
+      hitSlop={hitSlop(icon.sm)}
+      style={s.infoButton}
+    >
+      {({ pressed }) => (
+        <Icon name="info" color={pressed ? c.textPrimary : c.textSecondary} size={icon.sm} />
+      )}
     </Pressable>
   );
 }
@@ -423,8 +450,11 @@ export function Row({
   accessibilityActions,
   onAccessibilityAction,
   labelMuted,
+  info,
 }: {
   label: string;
+  /** ラベルが専門用語のとき、横に ⓘ を出す。押せる行では読み上げのヒントにも説明を入れる。 */
+  info?: TermInfo;
   /** 題が未設定で、代わりの文言（「タイトル未設定」）を出しているとき。弱い色にする（Issue #170）。 */
   labelMuted?: boolean;
   sub?: string;
@@ -454,14 +484,18 @@ export function Row({
         <Icon name={iconName} color={danger ? c.dangerText : c.textSecondary} size={icon.sm} />
       ) : null}
       <View style={s.flex}>
-        <Text
-          style={[
-            typography.body,
-            { color: danger ? c.dangerText : labelMuted ? c.textSecondary : c.textPrimary },
-          ]}
-        >
-          {label}
-        </Text>
+        <View style={s.rowLabel}>
+          <Text
+            style={[
+              typography.body,
+              s.rowLabelText,
+              { color: danger ? c.dangerText : labelMuted ? c.textSecondary : c.textPrimary },
+            ]}
+          >
+            {label}
+          </Text>
+          {info ? <InfoButton info={info} /> : null}
+        </View>
         {sub ? <Text style={[typography.caption, { color: c.textSecondary }]}>{sub}</Text> : null}
         {below ? <View style={s.rowBelow}>{below}</View> : null}
       </View>
@@ -475,6 +509,8 @@ export function Row({
   const a11yActions = accessibilityActions?.length
     ? { accessibilityActions, ...(onAccessibilityAction ? { onAccessibilityAction } : {}) }
     : {};
+  // 行がひとまとまりで読まれると中の ⓘ に届かないので、説明はヒントで読む。
+  const a11yHint = info ? { accessibilityHint: info.body } : {};
   if (!onPress) {
     if (!accessibilityActions?.length) {
       return (
@@ -487,7 +523,13 @@ export function Row({
     // 読み上げの操作は、読み上げが止まる要素に付ける。本文をひとまとまりにし、右の操作は外に置く。
     return (
       <View style={[s.rowOuter, divider]}>
-        <View style={[rowStyle, s.flex]} accessible accessibilityLabel={a11y} {...a11yActions}>
+        <View
+          style={[rowStyle, s.flex]}
+          accessible
+          accessibilityLabel={a11y}
+          {...a11yHint}
+          {...a11yActions}
+        >
           {content}
         </View>
         {right}
@@ -503,6 +545,7 @@ export function Row({
           onPress={onPress}
           accessibilityRole="button"
           accessibilityLabel={a11y}
+          {...a11yHint}
           {...a11yActions}
           style={s.flex}
         >
@@ -521,6 +564,7 @@ export function Row({
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={a11y}
+      {...a11yHint}
       {...a11yActions}
     >
       {({ pressed }) => (
@@ -966,6 +1010,9 @@ const s = StyleSheet.create({
   rowOuter: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
   // 話数（`#12`）は桁数で幅が変わるので、3 桁（`#999`）が入る幅にして題の行頭を揃える（Issue #170）。
   rowMono: { minWidth: space.xxxl },
+  rowLabel: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
+  rowLabelText: { flexShrink: 1 },
+  infoButton: { alignSelf: 'center' },
   rowBelow: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm, marginTop: space.sm },
   toast: {
     position: 'absolute',

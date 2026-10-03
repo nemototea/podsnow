@@ -45,6 +45,7 @@ export const SYMBOLS: Record<IconName, SFSymbol> = {
   starFilled: 'star.fill',
   archive: 'archivebox',
   edit: 'pencil',
+  info: 'info.circle',
 };
 
 export function sfSymbol(name: IconName): SFSymbol {

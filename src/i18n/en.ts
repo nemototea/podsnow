@@ -325,7 +325,6 @@ Tag #PodsNow to share your thoughts`,
     overlayFallback: 'Sound',
     gain: 'Volume',
     duck: 'Ducking',
-    duckSub: 'Drops automatically wherever there is voice',
     fadeIn: 'Fade in 2s',
     fadeOut: 'Fade out 2s',
     moveHere: 'Move to playhead',
@@ -616,5 +615,33 @@ Tag #PodsNow to share your thoughts`,
     unfavorite: 'Remove from favorites',
     a11yAssetName: 'Sound name',
     a11yMenu: (name: string) => `Actions for ${name}`,
+  },
+
+  glossary: {
+    a11yInfo: (term: string) => `About ${term}`,
+    ducking: {
+      term: 'Ducking',
+      body: 'Automatically turns the BGM down while someone is talking, so the voice stays clear over the music.',
+    },
+    loudness: {
+      term: 'Loudness',
+      body: 'How loud the audio sounds to the ear, measured in LUFS. Values closer to 0 sound louder. When on, the exported audio is brought to the target loudness.',
+    },
+    truePeak: {
+      term: 'True peak',
+      body: 'The highest point of the sound wave, measured in dBTP. A lower ceiling keeps the audio from clipping when podcast services convert it.',
+    },
+    bitrate: {
+      term: 'Bitrate',
+      body: 'How much data each second of audio uses. Higher means better quality and a bigger file. 128 kbps is enough for speech.',
+    },
+    haptics: {
+      term: 'Haptics',
+      body: 'Short vibrations that confirm actions such as starting or stopping a recording and switching tabs.',
+    },
+    androidSource: {
+      term: 'Android audio source',
+      body: 'The processing Android applies to the microphone before the app receives it. Standard turns off automatic gain control (AGC) and applies light noise suppression.',
+    },
   },
 };
