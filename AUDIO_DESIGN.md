@@ -229,6 +229,7 @@ Issue #183。録音前の入力モニター（#169）とロック画面・通知
 - **セッションを無効にしない（`setActive(false)` を呼ばない）。** expo-audio は既定で、自分のプレイヤーが止まる・鳴り終わると 100 ms 後にセッションを無効にする【事実: コード】（`node_modules/expo-audio/ios/AudioModule.swift` の `pause` / `onPlaybackComplete` → `deactivateSession()`）。同じアプリのタイムライン再生や録音が鳴っていても無効にするので、expo-audio のプレイヤーは必ず `keepAudioSessionActive: true` で作る。
   - ファイル再生（`expoFilePlayback.ts`）: 一時停止してタイムライン再生へ切り替えた直後に、タイムラインが止まるのを防ぐ。
   - 録音中のジングルのモニター（§5、`features/episode/monitor.ts`）: 鳴り終わったときに録音の I/O を止めないため【仮説: 有効なセッションを無効にすると動いている I/O が止まる。実機で未検証】。録音側のセッションに相乗りするので `setAudioModeAsync` も呼ばない。
+  - 素材の試聴（番組設定の `features/show/AssetsSection.tsx`、`useAudioPlayer`）は `PlaybackService` の外で、まだこの決まりに沿っていない（既定の `keepAudioSessionActive: false`、音声モードを当てない）。番組設定の担当（#174）と重なるので、#183 では触らず別 Issue にする。
   - 無効にしない代わり、他アプリの音は再生を止めても自動では戻らない。必要になったら #184 で、持ち主が手放すとき（ミニプレーヤーを閉じる等）に限って無効にすることを検討する。
 - ロック画面・通知の操作（#184）は再生側が持つ間だけ出す。録音側が取ったら消す（録音の通知と混ぜない）。状態は `PlaybackService` から出し、アプリ内のプレーヤーと同じ値を見る。
 
@@ -263,7 +264,10 @@ Issue #183。録音前の入力モニター（#169）とロック画面・通知
 1. `podsnow-audio-engine` の `PlaybackSessionWatcher`（`ios/PlaybackSessionWatcher.swift`、`android/.../PlaybackSessionWatcher.kt`。`TimelinePlayer` とは別のファイル）が検知する。アプリが動いている間は常に見張る（録音中も。そのとき `PlaybackService` は鳴らしていないので何もしない）。
 2. Watcher は `onPlaybackInterruption`（`{ type: 'began' | 'ended', shouldResume }`）/ `onOutputDisconnected` を JS へ送り、**そのあとで**タイムライン再生をネイティブ側で止める。JS を待つ間にスピーカーから鳴らさないためと、`PlaybackService` が「割り込みの時点で鳴っていたか」をイベントの順番で正しく知るため（止めた通知 `onPlaybackState` が先に届くと、鳴っていなかったと判断してしまう）。
 3. `PlaybackService` はイベントを受けて、鳴っている方（ファイル / タイムライン）を止め、割り込みなら止めた方を覚える。終了のイベントで再開を判断する。
-4. expo-audio も自分のプレイヤーを止め・再開する（iOS: 割り込みと抜去、`.shouldResume` で再開。Android: フォーカスの喪失で止め `GAIN` で再開。抜去は扱わない）【事実: コード】。`PlaybackService` の止める・鳴らす操作はどちらも冪等なので、二重になっても状態は食い違わない。
+4. expo-audio も自分のプレイヤーを止め・再開する（iOS: 割り込みと抜去で止め、`.shouldResume` で再開。Android: フォーカスの喪失で止め `GAIN` で再開。抜去は扱わない）【事実: コード】。`PlaybackService` の止める・鳴らす操作はどちらも冪等なので、二重になっても状態は食い違わない。
+   - ただし expo-audio の再開は、割り込み中に利用者が止めた・閉じたプレイヤーまで鳴らし直す（iOS は割り込みの時点で鳴っていたものを無条件に `play()`、Android は利用者の一時停止で再開の印を消さない）【事実: コード】。そのため `PlaybackService` はファイル再生を「鳴らしたいか」（`fileWanted`、こちらの操作だけで変わる）で持ち、鳴らしたくないのに鳴り出したら止め返す。ミニプレーヤーを閉じたあとに画面に出ないまま鳴り出すのを防ぐ。
+   - iOS では expo-audio の止めた通知が Watcher のイベントより先に届くことがある。割り込みの時点で鳴っていたかは `fileWanted` で見るので、順番に依らない。
+   - #184 のロック画面・通知の操作も `PlaybackService` を通す。expo-audio の `setActiveForLockScreen` の操作がプレイヤーを直接鳴らすと、上の止め返しで止まる。
 5. Android のファイル再生の音声フォーカスは expo-audio が持つ（Watcher がフォーカスを取ると expo-audio のプレイヤーが喪失を受けて止まる）。そのため Android のファイル再生では割り込みのイベントは来ず、`PlaybackService` は状態通知（`playbackStatusUpdate`）で追う。抜去（`BECOMING_NOISY`）は Watcher が受けるので、ファイル再生でも止まる。
 
 ### 10.4 未検証（実機で確かめる）
