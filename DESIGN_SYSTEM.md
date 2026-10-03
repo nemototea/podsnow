@@ -471,7 +471,7 @@ Issue #190: 押せる物は **2px の線と、右下へずらしたぼかさな�
 | 押下 | 影のある物は 120ms 以内に影の分だけ押し込む（Button、収録の丸、素材のステッカー）。ghost は縮小。動きを減らす設定では移動・縮小しない | `motion`、`buttonDepth`、`pressScale` |
 
 - アイコンは 24 基準・線幅 2 の単一セット（`src/ui/Icon.tsx`、react-native-svg）。`▶ ⚙ ⋮ ＋` などの
-  フォント字形をアイコンに使わない。主要操作には文字も付ける。
+  フォント字形をアイコンに使わない。主要操作には文字も付ける。意味との対応は §6.4。
 - 画面（`src/app/`、`src/features/`）と `src/ui/` は生の色・`fontSize`・余白・角丸を書かない（ESLint）。
 
 ### 6.1 共通部品【事実】
@@ -564,6 +564,89 @@ iOS だけ OS のアラートにすると 2 つの見た目が混ざるので、
   シートを閉じた直後に確認を出す場合（Android の「…」→削除）は、シートのホストが外れた時点でルートのホストが引き継ぐ。
 - 【仮説】iOS でダイアログが閉じる途中に次の Modal を出すと表示されないことがある。キューに次の要求があるあいだは
   Modal を閉じずに中身だけ入れ替えて避ける。iOS の実機で確認する（#124）。
+
+### 6.4 アイコンと意味の対応【事実】Issue #171
+
+**同じ意味には同じアイコン、違う意味には違うアイコン。** アイコンの名前（`IconName`）は形ではなく意味で付け、
+1 つの名前に 1 つの意味を当てる。形は Android と Web が `src/ui/IconSvg.tsx`（線幅 2）、iOS が `src/ui/symbols.ts` の
+SF Symbols。新しい意味を足すときは、この表 → `IconSvg.tsx` → `symbols.ts` の順に足す。
+1 つの SF Symbol を 2 つの名前に当てない（`src/ui/__tests__/icons.test.ts`）。
+
+押せないもの（状態・印・代わりの絵）には、操作に見える形（再生の三角、録音の丸、マイク、山形）を使わない。
+
+**移動と開閉**
+
+| 名前 | 意味 | iOS | 使う所 | 使わない所 |
+|---|---|---|---|---|
+| `back` | 前の画面へ戻る | `chevron.left` | ヘッダーの戻る（OS） | 再生位置の巻き戻し |
+| `arrow` | 押すと別の画面へ進む行・カード | `chevron.right` | `Row` の末尾、Home の番組カード | 再生位置の早送り |
+| `chevron` / `chevronUp` | 折りたたみを開く / 閉じる | `chevron.down` / `chevron.up` | 音の仕上げの詳細 | — |
+| `close` | 閉じる（シート・トースト・ミニプレーヤー） | `xmark` | — | 削除・外す（`trash`） |
+| `more` | 「…」の操作 | `ellipsis` | `MoreMenu` / `HeaderMenu` | — |
+| `settings` | 設定へ | `gearshape` | Home 上部 | — |
+| `grip` | 並べ替えのつまみ | `line.3.horizontal` | `ReorderList` | 一覧を開く（`list`） |
+
+**再生と録音**
+
+| 名前 | 意味 | iOS | 使う所 |
+|---|---|---|---|
+| `play` / `pause` | 再生 / 一時停止（操作）。`pause` は録音の「一時停止中」の状態にも使う（§9） | `play.fill` / `pause.fill` | プレーヤー、ミニプレーヤー、Home の行、収録の丸、素材の試聴 |
+| `stop` | 止める・録音を終える | `stop.fill` | 録音の丸、素材の試聴 |
+| `record` | 録音する・録音中 | `circle.fill` | 録音の丸、収録の状態 |
+| `skipBack15` | 15 秒戻る | `gobackward.15` | プレーヤー |
+| `skipForward30` | 30 秒進む | `goforward.30` | プレーヤー |
+| `refresh` | 読み込み直す・取り込み直す | `arrow.clockwise` | 再生の失敗、番組の再取り込み |
+| `mic` / `headphones` | 録音の入力（内蔵マイク / それ以外） | `mic` / `headphones` | 収録の入力の行 |
+
+秒数入りの戻る・進むは、画面移動の山形（`back` / `arrow`）と形を分ける（D5）。数字は SVG では線幅 1.5 で描く。
+
+**状態と印**（押せない）
+
+| 名前 | 意味 | iOS | 使う所 |
+|---|---|---|---|
+| `warning` | 注意。録音では**割り込み**（状態の行と波形の印の両方） | `exclamationmark.triangle` | `Notice`（注意・エラー）、収録の状態、波形の印 |
+| `route` | 録音の入力が切り替わった | `arrow.left.arrow.right` | 波形の印 |
+| `check` | 済んだ・選択中 | `checkmark` | コピー済み、選択肢の選択中、`Notice`（完了） |
+| `flag` | お知らせ | `flag` | `Notice`（情報） |
+| `info` | 専門用語の説明を開く（押せる） | `info.circle` | `InfoButton`（§2.2） |
+| `artwork` | 番組のアートワーク・その代わりの絵 | `photo` | アートワーク未登録の枠、アートワークを選ぶ |
+
+波形の印は、割り込み = `warning`、入力の切り替え = `route`（B10。以前は割り込みが一時停止、切り替えが注意三角で、状態の行と逆だった）。
+アートワークの代わりの絵に再生の形（以前の `show` = `play.rectangle`）を使わない（D5。押せそうに見える）。
+
+**エピソードの状態**（Home。`src/features/home/statusIcon.ts` の `STATUS_ICON`）
+
+| 状態 | 名前 | iOS | 避けた形 |
+|---|---|---|---|
+| 未録音 | `statusNew`（破線の丸） | `circle.dashed` | マイク・録音の丸（録音ボタンに見える） |
+| 下書き / 準備 OK（編集中） | `statusEditing`（半分塗りの丸） | `circle.lefthalf.filled` | — |
+| 書き出し済み | `export` | `arrow.down.doc` | ✓（配信済みと同じだった） |
+| 配信済み | `published` | `dot.radiowaves.left.and.right` | ✓ |
+| 音声なし | `noAudio` | `waveform.slash` | 音量（音があるように見える） |
+
+E2。今の Home はステッカーの文字で状態を示している（§8）。一覧の行へアイコンを組み込むかどうかと形は #168 で決める。
+
+**編集・素材・書き出し**
+
+| 名前 | 意味 | iOS | 使う所 | 使わない所 |
+|---|---|---|---|---|
+| `plus` / `minus` | 追加する / 数を増やす・減らす | `plus` / `minus` | 新しいエピソード、素材・トークテーマの追加、数値の増減 | — |
+| `scissors` | 選択範囲を削除（カット） | `scissors` | 収録の選択の操作 | — |
+| `trimSilence` | 無音を詰める | `arrow.right.and.line.vertical.and.arrow.left` | 収録の待機中の操作（B14） | — |
+| `undo` / `redo` | 取り消す / やり直す | `arrow.uturn.backward` / `.forward` | ヘッダー、音の仕上げを戻す | — |
+| `music` | 素材（ジングル・効果音・BGM） | `music.note` | 素材の行、前後に素材、BGM を入れる | — |
+| `star` / `starFilled` | お気に入り（でない / である） | `star` / `star.fill` | 素材 | — |
+| `list` | 話すことの一覧を開く | `list.bullet` | トークテーマの見出し（C7） | 書き換え（`edit`） |
+| `edit` | 名前・情報を書き換える | `pencil` | 番組の情報、素材の名前 | 一覧を開く |
+| `copy` | 複製・コピー | `doc.on.doc` | エピソードの複製、配信の準備のコピー | — |
+| `trash` | 削除する・外す（§6.1 `alerts`） | `trash` | — | 閉じる（`close`） |
+| `noAudio` | 音声を削除する（結果の「音声なし」と同じ形） | `waveform.slash` | Home の「…」 | エピソードの削除（`trash`） |
+| `export` | 音声ファイルを書き出す・書き出し済み | `arrow.down.doc` | 書き出しタブの「書き出す」（D6） | OS の共有 |
+| `share` | OS の共有シートに渡す | `square.and.arrow.up` | 配信の準備、書き出し履歴の共有 | 書き出す |
+| `download` | 外から取り込む | `square.and.arrow.down` | 配信中の番組を取り込む | — |
+
+「音声を削除」は削除の操作だが、同じメニューに「エピソードを削除」（`trash`）が並ぶので、消したあとの状態（音声なし）の形で区別する。
+収録タブの印（B10、B14、C7）は #175 の再設計が保留のため、表に合わせて形だけ替えた。画面ごと変わるときは再設計に合わせる。
 
 ## 7. 情報構造とナビゲーション【事実】
 
@@ -708,6 +791,7 @@ src/ui/tokens/                 色（生成物）・分類（tones）・寸法�
 src/ui/components.tsx          共通部品
 src/ui/Text.tsx / fonts.ts     ロケール別の書体と退避
 src/ui/Icon.tsx / Wordmark.tsx アイコンセットとロゴ
+src/ui/IconSvg.tsx / symbols.ts アイコンの形（SVG / SF Symbols）。意味との対応は §6.4
 ```
 
 ```sh

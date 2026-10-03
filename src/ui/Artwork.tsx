@@ -130,7 +130,7 @@ export function Artwork({
   if (!uri || failed === uri) {
     return (
       <View style={[box, s.center]} {...a11y}>
-        <Icon name="show" color={c.textTertiary} size={size >= 96 ? icon.lg : icon.sm} />
+        <Icon name="artwork" color={c.textTertiary} size={size >= 96 ? icon.lg : icon.sm} />
       </View>
     );
   }

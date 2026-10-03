@@ -307,7 +307,7 @@ export default function ShowScreen() {
                     : t.showSettings.chooseArtwork
                 }
                 kind="secondary"
-                icon="show"
+                icon="artwork"
                 onPress={() => void pickArtwork()}
                 busy={artworkBusy}
               />
