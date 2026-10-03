@@ -45,6 +45,7 @@ export interface EpisodeRow extends SqlRow {
   published_at: number | null;
   created_at: number;
   updated_at: number;
+  deleted_at: number | null;
 }
 
 export interface EpisodeListItem extends EpisodeRow {
@@ -73,14 +74,20 @@ export async function getEpisode(db: SqlExecutor, id: string): Promise<EpisodeRo
  * 採番用のカウンターは持たず、既存行から導出する。台帳は 2 つ:
  * - `episodes` の削除されていない行。`status` は見ない。試用で作って消した回は番号を消費せず、消した番号が返る。
  * - `feed_episodes`（配信済みの回）。配信した番号は二度と使わない。取り込んだ番組は続きの番号から始まる。
+ *
+ * `exceptId` は、その回が無かったとしたら何番になるかを求めるときに使う（空の回の判定。FR-EP-10）。
  */
-export async function nextEpisodeNumber(db: SqlExecutor, showId: string): Promise<number> {
+export async function nextEpisodeNumber(
+  db: SqlExecutor,
+  showId: string,
+  exceptId?: string,
+): Promise<number> {
   const r = await db.get<{ n: number }>(
     `SELECT MAX(
-       COALESCE((SELECT MAX(episode_number) FROM episodes WHERE show_id = ? AND deleted_at IS NULL), 0),
+       COALESCE((SELECT MAX(episode_number) FROM episodes WHERE show_id = ? AND deleted_at IS NULL AND id != ?), 0),
        COALESCE((SELECT MAX(episode_number) FROM feed_episodes WHERE show_id = ?), 0)
      ) + 1 AS n`,
-    [showId, showId],
+    [showId, exceptId ?? '', showId],
   );
   return r?.n ?? 1;
 }
@@ -137,11 +144,13 @@ export async function insertEpisode(
     description: string;
     episodeNumber: number;
     season: number;
+    /** 音の仕上げ（JSON）。番組の既定から作る。省略すると列の既定（`{}` = アプリの既定値）。 */
+    soundSettings?: string;
     now: number;
   },
 ): Promise<void> {
   await db.run(
-    'INSERT INTO episodes (id, show_id, title, description, episode_number, season, recorded_at, last_opened_at, guid, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
+    'INSERT INTO episodes (id, show_id, title, description, episode_number, season, sound_settings, recorded_at, last_opened_at, guid, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
     [
       e.id,
       e.showId,
@@ -149,6 +158,7 @@ export async function insertEpisode(
       e.description,
       e.episodeNumber,
       e.season,
+      e.soundSettings ?? '{}',
       e.now,
       e.now,
       // guid は配信後に変えてはいけない（PSP-1）。作成時の id で固定する。

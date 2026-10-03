@@ -36,6 +36,15 @@ export function parseSoundSettings(json: string | null | undefined): SoundSettin
 }
 
 /**
+ * 新しいエピソードの音の仕上げ。番組の既定（BGM を下げる量）を写し、ほかはアプリの既定値。
+ * 写した後はエピソードの値で、番組の既定を変えても作成済みのエピソードは変わらない（Issue #174）。
+ */
+export function soundSettingsFromShow(bgmDuckDb: number): string {
+  const base = parseSoundSettings(null);
+  return JSON.stringify({ ...base, ducking: { ...base.ducking, depthDb: bgmDuckDb } });
+}
+
+/**
  * 音の仕上げの変更が試聴に効くか。試聴の Mixer はダッキングをかけるが、ラウドネス正規化は
  * 書き出し時だけ（AUDIO_DESIGN.md §8）。効かない変更で読み直して音を途切れさせない。
  */

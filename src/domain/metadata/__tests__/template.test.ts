@@ -1,4 +1,11 @@
-import { formatAllMetadata, insertTopics, renderTemplate } from '../template';
+import {
+  formatAllMetadata,
+  insertAtSelection,
+  insertTopics,
+  previewTemplate,
+  renderTemplate,
+  TEMPLATE_VARS,
+} from '../template';
 
 describe('renderTemplate', () => {
   it('expands known variables and keeps unknown ones', () => {
@@ -96,5 +103,72 @@ describe('formatAllMetadata', () => {
     expect(out).not.toContain('Recorded');
     // 見出し 5 行 + 区切りの空行 + 空の概要。
     expect(out.split('\n')).toHaveLength(7);
+  });
+});
+
+describe('insertAtSelection（Issue #174 F2）', () => {
+  it('カーソル位置に入れ、カーソルを差し込んだ直後に置く', () => {
+    expect(insertAtSelection('ab', { start: 1, end: 1 }, 'X')).toEqual({ text: 'aXb', cursor: 2 });
+  });
+
+  it('選択範囲は置き換える。逆向きの選択も同じ', () => {
+    expect(insertAtSelection('abcd', { start: 1, end: 3 }, 'X')).toEqual({
+      text: 'aXd',
+      cursor: 2,
+    });
+    expect(insertAtSelection('abcd', { start: 3, end: 1 }, 'X')).toEqual({
+      text: 'aXd',
+      cursor: 2,
+    });
+  });
+
+  it('選択が分からなければ末尾に足す', () => {
+    expect(insertAtSelection('ab', null, 'X')).toEqual({ text: 'abX', cursor: 3 });
+  });
+
+  it('範囲外の位置は丸める（文字を消した直後に古い位置が残っていても壊さない）', () => {
+    expect(insertAtSelection('ab', { start: 9, end: 12 }, 'X')).toEqual({
+      text: 'abX',
+      cursor: 3,
+    });
+    expect(insertAtSelection('ab', { start: -1, end: -1 }, 'X')).toEqual({
+      text: 'Xab',
+      cursor: 1,
+    });
+  });
+
+  it('空の欄にも入る', () => {
+    expect(insertAtSelection('', { start: 0, end: 0 }, '{{title}}')).toEqual({
+      text: '{{title}}',
+      cursor: 9,
+    });
+  });
+});
+
+describe('previewTemplate', () => {
+  const names = {
+    title: '[T]',
+    episode_number: '[N]',
+    season: '[S]',
+    topics: '[TP]',
+    show_name: '[SN]',
+  };
+
+  it('既知の変数を名前に置き換え、未知の変数と行はそのまま残す', () => {
+    expect(
+      previewTemplate('{{show_name}} #{{ episode_number }}\n\n{{topics}}\n{{nope}}', names),
+    ).toBe('[SN] #[N]\n\n[TP]\n{{nope}}');
+  });
+
+  it('変数の一覧は renderTemplate が展開するものと同じ', () => {
+    const body = TEMPLATE_VARS.map((k) => `{{${k}}}`).join(' ');
+    const out = renderTemplate(body, {
+      title: 'T',
+      episodeNumber: 1,
+      season: 1,
+      topics: ['a'],
+      showName: 'S',
+    });
+    expect(out).not.toContain('{{');
   });
 });

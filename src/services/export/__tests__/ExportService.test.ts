@@ -68,7 +68,6 @@ async function setup() {
           gainDb: -4,
           fadeIn: smp(0),
           fadeOut: smp(0),
-          duck: false,
           loop: false,
           endMode: 'asset_end',
         },
@@ -173,6 +172,24 @@ describe('ExportService', () => {
     expect(estimateExportBytes(EXPORT_PRESETS.wav, 48000 * 60)).toBe(48000 * 60 * 2 + 44);
   });
 
+  it('mixes at the timeline rate and asks the renderer to convert to 44.1 kHz (Issue #174)', async () => {
+    const { db, engine, svc } = await setup();
+    const preset = resolveExportPreset('custom', {
+      format: 'm4a',
+      bitrate: 192_000,
+      channels: 2,
+      sampleRate: 44100,
+    });
+    await svc.start('e', preset);
+    const r = engine.renders[0]!;
+    expect((r.doc as { sampleRate: number }).sampleRate).toBe(48000);
+    expect(r.opts).toMatchObject({ sampleRate: 44100 });
+    const row = (await listExports(db, 'e'))[0]!;
+    expect(JSON.parse(row.preset)).toMatchObject({ sampleRate: 44100 });
+    // 長さはタイムラインのサンプル数のまま（再生・表示は 48 kHz で数える）
+    expect(row.duration_smp).toBe((r.doc as { totalFrames: number }).totalFrames);
+  });
+
   it('passes custom bitrate and channels to the renderer and records them', async () => {
     const { db, engine, svc } = await setup();
     const preset = resolveExportPreset('custom', { format: 'm4a', bitrate: 256_000, channels: 1 });
@@ -249,7 +266,10 @@ describe('custom export settings', () => {
       format: 'wav',
       bitrate: DEFAULT_CUSTOM_EXPORT.bitrate,
       channels: 2,
+      sampleRate: 48000,
     });
+    expect(normalizeCustomExport({ sampleRate: 44100 }).sampleRate).toBe(44100);
+    expect(normalizeCustomExport({ sampleRate: 96000 }).sampleRate).toBe(48000);
   });
 
   it('keeps the settings default in sync and within the offered bitrates', () => {
@@ -263,6 +283,9 @@ describe('custom export settings', () => {
     expect(estimateExportBytes(aacMono, min)).toBe(1_920_000);
     const wavStereo = resolveExportPreset('custom', { format: 'wav', channels: 2 });
     expect(estimateExportBytes(wavStereo, min)).toBe(min * 2 * 2 + 44);
+    // 長さはタイムライン（48 kHz）で数え、大きさは出力のレートで見積もる
+    const wav441 = resolveExportPreset('custom', { format: 'wav', channels: 1, sampleRate: 44100 });
+    expect(estimateExportBytes(wav441, min)).toBe(44100 * 60 * 2 + 44);
   });
 });
 

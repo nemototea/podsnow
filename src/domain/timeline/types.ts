@@ -14,6 +14,14 @@ export interface VoiceSegment {
 
 export type AssetKind = 'opening' | 'ending' | 'jingle' | 'sfx' | 'bgm';
 
+/**
+ * 声に合わせて音量を下げる（ダッキング）素材か。BGM だけ（Issue #174、ユーザー判断 2026-10-03）。
+ * 素材ごとのオン・オフは持たない。下げるかどうかと量はエピソードの音の仕上げで決める。
+ */
+export function ducksUnderVoice(kind: AssetKind): boolean {
+  return kind === 'bgm';
+}
+
 /** オーバーレイの位置指定（DATA_MODEL.md §4.9）。 */
 export type Anchor =
   | { type: 'source'; takeId: string; srcSmp: Smp }
@@ -34,7 +42,6 @@ export interface OverlayClip {
   gainDb: number;
   fadeIn: Smp;
   fadeOut: Smp;
-  duck: boolean;
   loop: boolean;
   endMode: OverlayEndMode;
   /** endMode = 'fixed' のときの長さ。 */

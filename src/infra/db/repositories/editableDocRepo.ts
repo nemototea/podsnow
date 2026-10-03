@@ -1,11 +1,12 @@
 import type { EditableDoc } from '@/domain/editing/doc';
 import type { Smp } from '@/domain/time';
-import type {
-  Anchor,
-  AssetKind,
-  OverlayClip,
-  OverlayEndMode,
-  VoiceSegment,
+import {
+  ducksUnderVoice,
+  type Anchor,
+  type AssetKind,
+  type OverlayClip,
+  type OverlayEndMode,
+  type VoiceSegment,
 } from '@/domain/timeline/types';
 
 import type { SqlExecutor, SqlRow } from '../executor';
@@ -37,7 +38,6 @@ interface OverlayRow extends SqlRow {
   gain_db: number;
   fade_in_smp: number;
   fade_out_smp: number;
-  duck: number;
   loop: number;
   end_mode: string;
 }
@@ -48,7 +48,7 @@ export async function loadDoc(db: SqlExecutor, episodeId: string): Promise<Edita
     [episodeId],
   );
   const overlayRows = await db.all<OverlayRow>(
-    'SELECT id, asset_id, kind, anchor_type, anchor_take_id, anchor_smp, src_start_smp, src_end_smp, gain_db, fade_in_smp, fade_out_smp, duck, loop, end_mode FROM overlay_clips WHERE episode_id = ? ORDER BY rowid',
+    'SELECT id, asset_id, kind, anchor_type, anchor_take_id, anchor_smp, src_start_smp, src_end_smp, gain_db, fade_in_smp, fade_out_smp, loop, end_mode FROM overlay_clips WHERE episode_id = ? ORDER BY rowid',
     [episodeId],
   );
   return {
@@ -101,7 +101,8 @@ export async function saveDoc(
         o.gainDb,
         o.fadeIn,
         o.fadeOut,
-        o.duck ? 1 : 0,
+        // 列は互換のために残す。値は kind から決まる（DATA_MODEL.md §4.10）
+        ducksUnderVoice(o.kind) ? 1 : 0,
         o.loop ? 1 : 0,
         o.endMode,
         now,
@@ -159,7 +160,6 @@ function rowToOverlay(r: OverlayRow): OverlayClip {
     gainDb: r.gain_db,
     fadeIn: r.fade_in_smp as Smp,
     fadeOut: r.fade_out_smp as Smp,
-    duck: r.duck === 1,
     loop: r.loop === 1,
     endMode: r.end_mode as OverlayEndMode,
   };

@@ -198,7 +198,9 @@ describe('migrate', () => {
       ['e1', 's1', 3, now, now],
     );
 
-    expect((await migrate(db)).applied).toEqual(['0005_podcast_feed_metadata']);
+    expect((await migrate(db, MIGRATIONS.slice(0, 5))).applied).toEqual([
+      '0005_podcast_feed_metadata',
+    ]);
 
     expect(
       await db.get(
@@ -263,6 +265,26 @@ describe('migrate', () => {
     await insertFeed('f1');
     // 同じ番組に同じ guid の配信済みの回は 1 行だけ
     await expect(insertFeed('f2')).rejects.toThrow();
+  });
+
+  it('0006 adds exports.source_fingerprint (NULL for existing exports)', async () => {
+    const db = createNodeSqliteExecutor();
+    await migrate(db, MIGRATIONS.slice(0, 5));
+    const now = Date.now();
+    await db.run('INSERT INTO shows (id, created_at, updated_at) VALUES (?,?,?)', ['s1', now, now]);
+    await db.run(
+      'INSERT INTO episodes (id, show_id, episode_number, created_at, updated_at) VALUES (?,?,?,?,?)',
+      ['e1', 's1', 1, now, now],
+    );
+    await db.run(
+      'INSERT INTO exports (id, episode_id, format, preset, status, duration_smp, created_at) VALUES (?,?,?,?,?,?,?)',
+      ['x1', 'e1', 'm4a', '{}', 'done', 48000, now],
+    );
+
+    expect((await migrate(db)).applied).toEqual(['0006_export_source_fingerprint']);
+    expect(await db.get('SELECT source_fingerprint FROM exports WHERE id = ?', ['x1'])).toEqual({
+      source_fingerprint: null,
+    });
   });
 
   it('rolls back a failing migration without advancing user_version', async () => {

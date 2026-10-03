@@ -527,24 +527,6 @@ export function StudioTab({
                 }
               />
             </View>
-            {selectedOverlay.kind === 'bgm' ? (
-              <Row
-                label={t.edit.duck}
-                info={t.glossary.ducking}
-                right={
-                  <Toggle
-                    accessibilityLabel={t.edit.duck}
-                    value={selectedOverlay.duck}
-                    onChange={(v) =>
-                      void ws.updateOverlay(selectedOverlay.id, t.undo.changeDucking, (o) => ({
-                        ...o,
-                        duck: v,
-                      }))
-                    }
-                  />
-                }
-              />
-            ) : null}
             <Row
               label={t.edit.fadeIn}
               right={

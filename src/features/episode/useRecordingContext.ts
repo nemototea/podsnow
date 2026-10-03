@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 
 import type { RecordableEstimate } from '@/domain/storage';
-import type { SessionState } from '@/services/recording/RecordingSession';
+import { RECORDING_FORMAT, type SessionState } from '@/services/recording/RecordingSession';
 
 import type { AudioInput } from '../../../modules/podsnow-recorder/src/PodsnowRecorder.types';
 import { useServices } from '../app/ServicesProvider';
@@ -17,7 +17,7 @@ export interface RecordingContext {
 }
 
 export function useRecordingContext(state: SessionState): RecordingContext {
-  const { recorder, recording, settings } = useServices();
+  const { recorder, recording } = useServices();
   const [input, setInput] = useState<AudioInput | null>(null);
   const [inputKnown, setInputKnown] = useState(false);
   const [estimate, setEstimate] = useState<RecordableEstimate | null>(null);
@@ -65,19 +65,18 @@ export function useRecordingContext(state: SessionState): RecordingContext {
           setEstimate(d.estimate);
         })
         .catch(() => alive && setEstimate(null));
-    // 音質（レート・チャンネル）を変えたら測り直す。録れる時間が変わる
     void measure();
     const h = active ? setInterval(() => void measure(), REFRESH_MS) : null;
     return () => {
       alive = false;
       if (h) clearInterval(h);
     };
-  }, [active, recording, settings.recording.channels, settings.recording.sampleRate]);
+  }, [active, recording]);
 
   return {
     input,
     inputKnown,
-    channels: settings.recording.channels,
+    channels: RECORDING_FORMAT.channels,
     estimate,
     writerOk,
   };

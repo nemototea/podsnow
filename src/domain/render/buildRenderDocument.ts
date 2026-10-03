@@ -1,6 +1,6 @@
 import type { Smp } from '../time';
 import { placeOverlays } from '../timeline/overlays';
-import type { OverlayClip, VoiceSegment } from '../timeline/types';
+import { ducksUnderVoice, type OverlayClip, type VoiceSegment } from '../timeline/types';
 import { placeVoice, totalDuration } from '../timeline/voice';
 import type {
   DuckingSettings,
@@ -98,7 +98,7 @@ export function buildRenderDocument(input: BuildInput): RenderDocument {
       gainDb: c.gainDb,
       fadeInFrames: c.fadeIn,
       fadeOutFrames: c.fadeOut,
-      duck: c.duck,
+      duck: ducksUnderVoice(c.kind),
       loop: c.loop,
     });
   }

@@ -26,6 +26,8 @@ class RenderOptions : Record {
   @Field val path: String = ""
   @Field val format: String = "m4a"
   @Field val bitrate: Int = 128000
+  /** 出力のサンプルレート。0 なら RenderDocument と同じ（変換しない）。 */
+  @Field val sampleRate: Int = 0
 }
 
 class NowPlayingLabelsRecord : Record {
@@ -160,7 +162,8 @@ class PodsnowAudioEngineModule : Module() {
     Function("startRender") { docJson: String, opts: RenderOptions ->
       val id = "render-${++jobSeq}"
       val doc = try { RenderDocument.parse(docJson) } catch (e: Exception) { throw AudioEngineException("invalid document: ${e.message}") }
-      val job = RenderJob(doc, opts.path, opts.format, opts.bitrate) { p, phase ->
+      val outputSampleRate = if (opts.sampleRate > 0) opts.sampleRate else doc.sampleRate
+      val job = RenderJob(doc, opts.path, opts.format, opts.bitrate, outputSampleRate) { p, phase ->
         sendEvent("onRenderProgress", mapOf("jobId" to id, "progress" to p, "phase" to phase))
       }
       jobs[id] = job

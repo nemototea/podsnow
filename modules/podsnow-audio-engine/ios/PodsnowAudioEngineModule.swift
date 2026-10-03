@@ -15,6 +15,8 @@ struct RenderOptionsRecord: Record {
   @Field var path: String = ""
   @Field var format: String = "m4a"
   @Field var bitrate: Int = 128_000
+  /// 出力のサンプルレート。0 なら RenderDocument と同じ（変換しない）。
+  @Field var sampleRate: Int = 0
 }
 
 public class PodsnowAudioEngineModule: Module {
@@ -116,7 +118,8 @@ public class PodsnowAudioEngineModule: Module {
       let doc = try RenderDocument.parse(json: docJson)
       self.jobSeq += 1
       let id = "render-\(self.jobSeq)"
-      let job = RenderJob(doc: doc, outPath: opts.path, format: opts.format, bitrate: opts.bitrate) { [weak self] p, phase in
+      let job = RenderJob(doc: doc, outPath: opts.path, format: opts.format, bitrate: opts.bitrate,
+                          outputSampleRate: opts.sampleRate > 0 ? opts.sampleRate : doc.sampleRate) { [weak self] p, phase in
         self?.sendEvent("onRenderProgress", ["jobId": id, "progress": p, "phase": phase])
       }
       self.jobsLock.lock(); self.jobs[id] = job; self.jobsLock.unlock()

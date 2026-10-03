@@ -15,6 +15,8 @@ export interface ExportRow extends SqlRow {
   duration_smp: number;
   measured_lufs: number | null;
   measured_true_peak: number | null;
+  /** 書き出したときの音の中身の指紋（DATA_MODEL.md §4.13）。0006 より前の行は NULL。 */
+  source_fingerprint: string | null;
   error: string | null;
   created_at: number;
   finished_at: number | null;
@@ -28,12 +30,22 @@ export async function insertExport(
     format: ExportFormat;
     preset: object;
     durationSmp: number;
+    sourceFingerprint: string | null;
     now: number;
   },
 ): Promise<void> {
   await db.run(
-    'INSERT INTO exports (id, episode_id, format, preset, status, duration_smp, created_at) VALUES (?,?,?,?,?,?,?)',
-    [e.id, e.episodeId, e.format, JSON.stringify(e.preset), 'queued', e.durationSmp, e.now],
+    'INSERT INTO exports (id, episode_id, format, preset, status, duration_smp, source_fingerprint, created_at) VALUES (?,?,?,?,?,?,?,?)',
+    [
+      e.id,
+      e.episodeId,
+      e.format,
+      JSON.stringify(e.preset),
+      'queued',
+      e.durationSmp,
+      e.sourceFingerprint,
+      e.now,
+    ],
   );
 }
 
