@@ -19,6 +19,8 @@ struct RenderOptionsRecord: Record {
 
 public class PodsnowAudioEngineModule: Module {
   private var player: TimelinePlayer?
+  /// 再生中の割り込み・出力の抜去（AUDIO_DESIGN.md §10.3）。
+  private var watcher: PlaybackSessionWatcher?
   private var jobs: [String: RenderJob] = [:]
   private var jobSeq = 0
   private let workQueue = DispatchQueue(label: "dev.nemotea.podsnow.audioengine.work", qos: .userInitiated, attributes: .concurrent)
@@ -34,9 +36,17 @@ public class PodsnowAudioEngineModule: Module {
   public func definition() -> ModuleDefinition {
     Name("PodsnowAudioEngine")
 
-    Events("onRenderProgress", "onRenderDone", "onRenderError", "onPlaybackState", "onPosition", "onError", "onTaskProgress")
+    Events("onRenderProgress", "onRenderDone", "onRenderError", "onPlaybackState", "onPosition", "onError", "onTaskProgress", "onPlaybackInterruption", "onOutputDisconnected")
+
+    OnCreate {
+      self.watcher = PlaybackSessionWatcher(
+        emitter: { [weak self] name, body in self?.sendEvent(name, body) },
+        pausePlayer: { [weak self] in self?.player?.pause() }
+      )
+    }
 
     OnDestroy {
+      self.watcher = nil
       self.jobsLock.lock(); self.jobs.values.forEach { $0.cancelled = true }; self.jobsLock.unlock()
       self.player?.release()
       self.player = nil

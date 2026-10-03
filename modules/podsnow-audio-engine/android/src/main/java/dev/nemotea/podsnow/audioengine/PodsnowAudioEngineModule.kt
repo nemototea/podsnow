@@ -1,5 +1,7 @@
 package dev.nemotea.podsnow.audioengine
 
+import android.os.Handler
+import android.os.Looper
 import expo.modules.kotlin.exception.CodedException
 import expo.modules.kotlin.functions.Queues
 import expo.modules.kotlin.modules.Module
@@ -33,8 +35,15 @@ class PodsnowAudioEngineModule : Module() {
   private val jobs = ConcurrentHashMap<String, RenderJob>()
   private var player: TimelinePlayer? = null
   private var jobSeq = 0
+  /** タイムライン再生の音声フォーカスと、割り込み・出力の抜去（AUDIO_DESIGN.md §10.2 / §10.3）。 */
+  private var watcher: PlaybackSessionWatcher? = null
+  private val main = Handler(Looper.getMainLooper())
 
-  private fun getPlayer(): TimelinePlayer = player ?: TimelinePlayer { n, b -> sendEvent(n, b) }.also { player = it }
+  private fun getPlayer(): TimelinePlayer = player ?: TimelinePlayer { n, b ->
+    sendEvent(n, b)
+    // 鳴り終わったらフォーカスを手放す（再生スレッドから来るのでメインへ移す）
+    if (n == "onPlaybackState" && b["ended"] == true) main.post { watcher?.abandonFocusUnlessInterrupted() }
+  }.also { player = it }
 
   private fun <T> wrap(block: () -> T): T = try {
     block()
@@ -47,9 +56,15 @@ class PodsnowAudioEngineModule : Module() {
   override fun definition() = ModuleDefinition {
     Name("PodsnowAudioEngine")
 
-    Events("onRenderProgress", "onRenderDone", "onRenderError", "onPlaybackState", "onPosition", "onError", "onTaskProgress")
+    Events("onRenderProgress", "onRenderDone", "onRenderError", "onPlaybackState", "onPosition", "onError", "onTaskProgress", "onPlaybackInterruption", "onOutputDisconnected")
+
+    OnCreate {
+      val ctx = appContext.reactContext?.applicationContext ?: return@OnCreate
+      watcher = PlaybackSessionWatcher(ctx, { n, b -> sendEvent(n, b) }, { player?.pause() }).also { it.start() }
+    }
 
     OnDestroy {
+      watcher?.stop(); watcher = null
       jobs.values.forEach { it.cancelled = true }
       player?.release(); player = null
       executor.shutdownNow()
@@ -77,10 +92,22 @@ class PodsnowAudioEngineModule : Module() {
 
     // ---- 再生（メインスレッド）----
     AsyncFunction("loadTimelineAsync") { docJson: String -> wrap { getPlayer().load(RenderDocument.parse(docJson)) } }.runOnQueue(Queues.MAIN)
-    AsyncFunction("playAsync") { atFrame: Double? -> wrap { getPlayer().play(atFrame?.toLong()) } }.runOnQueue(Queues.MAIN)
-    AsyncFunction("pauseAsync") { wrap { getPlayer().pause() } }.runOnQueue(Queues.MAIN)
+    AsyncFunction("playAsync") { atFrame: Double? ->
+      wrap {
+        val p = getPlayer()
+        // 通話中などでフォーカスが取れなければ鳴らさない
+        if (watcher?.requestFocus() == false) return@wrap
+        try {
+          p.play(atFrame?.toLong())
+        } catch (e: Exception) {
+          watcher?.abandonFocusUnlessInterrupted()
+          throw e
+        }
+      }
+    }.runOnQueue(Queues.MAIN)
+    AsyncFunction("pauseAsync") { wrap { getPlayer().pause(); watcher?.abandonFocusUnlessInterrupted() } }.runOnQueue(Queues.MAIN)
     AsyncFunction("seekAsync") { frame: Double -> wrap { getPlayer().seek(frame.toLong()) } }.runOnQueue(Queues.MAIN)
-    AsyncFunction("unloadAsync") { player?.release(); player = null }.runOnQueue(Queues.MAIN)
+    AsyncFunction("unloadAsync") { player?.release(); player = null; watcher?.abandonFocus() }.runOnQueue(Queues.MAIN)
     Function("getPosition") { (player?.currentFrame ?: 0L).toDouble() }
     Function("isPlaying") { player?.isPlaying ?: false }
 

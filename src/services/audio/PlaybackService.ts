@@ -6,6 +6,7 @@ import type { HomeEpisodeItem } from '../home/HomeService';
 import type { Subscription } from '../recording/RecorderPort';
 import type { AudioEnginePort } from './AudioEnginePort';
 import type { FilePlaybackPort } from './FilePlaybackPort';
+import type { PlaybackSessionPort } from './PlaybackSessionPort';
 import { renderDocumentFromDb } from './renderDocumentFromDb';
 
 export interface PlaybackEvents {
@@ -63,6 +64,17 @@ export class PlaybackService {
   /** 後から始めた読み込みが先の読み込みの結果で上書きされないように数える。 */
   private fileLoadSeq = 0;
   private timelineItem: TimelinePlaybackItem | null = null;
+  /**
+   * 割り込みで止めた再生（AUDIO_DESIGN.md §10.3）。割り込みの終了で OS が再開を勧めたら、これを再開する。
+   * 利用者の操作・録音・別の回の再生で捨てる（`userAction()`）。出力が外れたときは覚えない。
+   */
+  private interruptedMode: PlaybackMode = null;
+  /**
+   * ファイル再生を鳴らしたいか（こちらの操作で決まる）。`playing` は expo-audio の状態通知で変わるが、
+   * これは変わらない。expo-audio は割り込みの終了で、利用者が途中で止めた・閉じたプレイヤーまで
+   * 自分で鳴らし直すので（AUDIO_DESIGN.md §10.3）、これが偽のときに鳴り出したら止め返す。
+   */
+  private fileWanted = false;
 
   constructor(
     private readonly deps: {
@@ -71,6 +83,10 @@ export class PlaybackService {
       filePlayer: FilePlaybackPort;
       fileExists: (path: string) => boolean;
       root: string;
+      /** 再生の音声モード（AUDIO_DESIGN.md §10.2）。再生を始める直前に毎回当て直す。 */
+      session: PlaybackSessionPort;
+      /** 録音側が音声セッションを持っている（入力モニター・録音中など。§10.1）。その間は再生を始めない。 */
+      recorderBusy: () => boolean;
     },
   ) {
     this.subs.push(
@@ -88,10 +104,17 @@ export class PlaybackService {
         this.dispatch('position', e);
       }),
       deps.filePlayer.onStatus((e) => {
+        if (e.playing && (this.mode !== 'file' || !this.fileWanted)) {
+          // 頼んでいないのに鳴り出した（expo-audio の割り込み後の再開）。止め返し、状態は変えない
+          deps.filePlayer.pause();
+          return;
+        }
         if (this.mode !== 'file') return;
+        if (e.ended) this.fileWanted = false;
         if (e.failed) {
           this.fileLoad = 'failed';
           this.playing = false;
+          this.fileWanted = false;
         } else if (e.loading) {
           // 読み込み中・バッファ待ちの間は、押された操作（再生したいか）をそのまま保つ
           if (this.fileLoad !== 'failed') this.fileLoad = 'loading';
@@ -103,6 +126,14 @@ export class PlaybackService {
         this.total = e.duration;
         this.dispatch('state', { playing: e.playing, frame: e.position, ended: e.ended });
         this.dispatch('position', { frame: e.position });
+      }),
+      // ネイティブはこれらを送ってからタイムラインを止める。だからここでは「割り込みの時点で鳴っていたか」が分かる
+      deps.engine.on('onPlaybackInterruption', (e) => {
+        if (e.type === 'began') void this.onInterruptionBegan();
+        else void this.onInterruptionEnded(e.shouldResume);
+      }),
+      deps.engine.on('onOutputDisconnected', () => {
+        void this.onOutputDisconnected();
       }),
     );
   }
@@ -173,8 +204,14 @@ export class PlaybackService {
   }
 
   async play(at?: Smp): Promise<void> {
-    if (!this.loadedEpisode) return;
+    this.userAction();
+    await this.playTimeline(at);
+  }
+
+  private async playTimeline(at?: Smp): Promise<void> {
+    if (!this.loadedEpisode || this.deps.recorderBusy()) return;
     this.deps.filePlayer.pause();
+    await this.enterPlayback();
     this.mode = 'timeline';
     this.total = this.timelineTotal;
     this.frame = at ?? (this.timelineFrame as Smp);
@@ -182,7 +219,13 @@ export class PlaybackService {
   }
 
   async pause(): Promise<void> {
+    this.userAction();
+    await this.pauseCurrent();
+  }
+
+  private async pauseCurrent(): Promise<void> {
     if (this.mode === 'file') {
+      this.fileWanted = false;
       this.deps.filePlayer.pause();
       // 読み込み中は状態の通知が来ないことがあるので、止めたことを自分で流す
       if (this.playing) {
@@ -193,6 +236,7 @@ export class PlaybackService {
   }
 
   async pauseTimeline(): Promise<void> {
+    this.userAction();
     if (this.mode === 'timeline') await this.deps.engine.pause();
   }
 
@@ -202,6 +246,7 @@ export class PlaybackService {
 
   /** 書き出しタブ・編集画面からの操作は常にタイムラインへ切り替える。 */
   async toggle(): Promise<void> {
+    this.userAction();
     this.timelineItem = null;
     if (this.mode === 'timeline' && this.playing) await this.pauseTimeline();
     else await this.play(this.timelineFrame >= this.timelineTotal ? ZERO_SMP : undefined);
@@ -270,6 +315,8 @@ export class PlaybackService {
 
   /** Home の 1 行を、書き出し → 対応する RSS → タイムラインの順で再生する。 */
   async toggleHome(item: HomeEpisodeItem): Promise<boolean> {
+    this.userAction();
+    if (this.deps.recorderBusy()) return false;
     if (this.source?.homeKey === item.key) {
       return this.toggleCurrentHome();
     }
@@ -309,21 +356,67 @@ export class PlaybackService {
   }
 
   async toggleCurrentHome(): Promise<boolean> {
+    this.userAction();
     if (!this.source?.homeKey) return false;
     if (this.mode === 'file' && this.fileLoad === 'failed' && this.fileItem && this.fileUri) {
       // 失敗した読み込みをやり直す（Issue #185）
       return this.startFile(this.fileItem, this.fileUri, this.frame as Smp);
     }
-    if (this.playing) await this.pause();
+    if (this.playing) await this.pauseCurrent();
     else if (this.mode === 'timeline') {
-      await this.play(this.timelineFrame >= this.timelineTotal ? ZERO_SMP : undefined);
+      await this.playTimeline(this.timelineFrame >= this.timelineTotal ? ZERO_SMP : undefined);
     } else {
       if (this.total > 0 && this.frame >= this.total) await this.deps.filePlayer.seek(ZERO_SMP);
-      this.playing = true;
-      this.deps.filePlayer.play();
-      this.dispatch('state', { playing: true, frame: this.frame });
+      await this.resumeFile();
     }
     return true;
+  }
+
+  /** 読み込み済みのファイル再生を続きから鳴らす。 */
+  private async resumeFile(): Promise<void> {
+    if (this.deps.recorderBusy()) return;
+    this.fileWanted = true;
+    this.playing = true;
+    this.dispatch('state', { playing: true, frame: this.frame });
+    await this.enterPlayback();
+    if (this.mode !== 'file' || !this.fileWanted) return;
+    this.deps.filePlayer.play();
+  }
+
+  /**
+   * 音声モードを再生用に当て直す（AUDIO_DESIGN.md §10.1）。当たらなくても再生は止めない
+   * （前の設定のまま鳴るだけで、録音データには触れない）。
+   */
+  private async enterPlayback(): Promise<void> {
+    await this.deps.session.enterPlayback().catch(() => undefined);
+  }
+
+  /** 利用者の操作（と録音の開始）。割り込みのあとの自動再開をやめる（§10.3）。 */
+  private userAction(): void {
+    this.interruptedMode = null;
+  }
+
+  private async onInterruptionBegan(): Promise<void> {
+    // ファイル再生は expo-audio が先に止めて状態通知が先に届くことがあるので、鳴らしたいかで見る
+    const active = this.mode === 'file' ? this.fileWanted : this.playing;
+    if (!active || this.mode === null) return;
+    this.interruptedMode = this.mode;
+    await this.pauseCurrent();
+  }
+
+  private async onInterruptionEnded(shouldResume: boolean): Promise<void> {
+    const mode = this.interruptedMode;
+    this.interruptedMode = null;
+    if (!shouldResume || mode === null || mode !== this.mode || this.playing) return;
+    if (this.deps.recorderBusy()) return;
+    if (mode === 'timeline') await this.playTimeline();
+    else if (this.fileLoad !== 'failed') await this.resumeFile();
+  }
+
+  /** イヤホン・Bluetooth が外れた。止めて、自動では再開しない（§10.3）。 */
+  private async onOutputDisconnected(): Promise<void> {
+    this.interruptedMode = null;
+    if (this.playing || this.fileWanted) await this.pauseCurrent();
   }
 
   /**
@@ -335,6 +428,7 @@ export class PlaybackService {
     uri: string,
     at: Smp = ZERO_SMP,
   ): Promise<boolean> {
+    if (this.deps.recorderBusy()) return false;
     const seq = ++this.fileLoadSeq;
     await this.deps.engine.pause();
     this.fileItem = source;
@@ -344,18 +438,22 @@ export class PlaybackService {
     this.frame = at;
     this.total = source.duration;
     this.playing = true;
+    this.fileWanted = true;
     this.dispatch('state', { playing: true, frame: at });
     try {
       await this.deps.filePlayer.load(uri, source.duration);
       if (seq !== this.fileLoadSeq || this.mode !== 'file') return true;
       // 位置合わせの失敗は読み込みの失敗とはみなさない（その場合は先頭から鳴る）
       if (at > 0) await this.deps.filePlayer.seek(at).catch(() => undefined);
-      if (seq !== this.fileLoadSeq || this.mode !== 'file' || !this.playing) return true;
+      if (seq !== this.fileLoadSeq || this.mode !== 'file' || !this.fileWanted) return true;
+      await this.enterPlayback();
+      if (seq !== this.fileLoadSeq || this.mode !== 'file' || !this.fileWanted) return true;
       this.deps.filePlayer.play();
     } catch {
       if (seq !== this.fileLoadSeq || this.mode !== 'file') return true;
       this.fileLoad = 'failed';
       this.playing = false;
+      this.fileWanted = false;
       this.dispatch('state', { playing: false, frame: this.frame });
     }
     return true;
@@ -378,6 +476,7 @@ export class PlaybackService {
    * 状態は await の前に書き換える。直後の `reload()` が再生を続けないように。
    */
   async stopHome(): Promise<void> {
+    this.userAction();
     if (!this.source?.homeKey) return;
     if (this.mode === 'file') {
       this.releaseFile();
@@ -397,6 +496,7 @@ export class PlaybackService {
     this.fileLoad = 'ready';
     this.mode = null;
     this.playing = false;
+    this.fileWanted = false;
     this.frame = 0;
     this.total = 0;
     this.dispatch('state', { playing: false, frame: 0 });

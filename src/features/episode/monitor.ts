@@ -8,7 +8,11 @@ import { joinRoot } from '@/infra/files/layout';
  * 録音セッション（ネイティブが .playAndRecord を保持）との同居は Spike S-4 で要確認【仮説】。
  */
 export function playMonitor(root: string, relPath: string): () => void {
-  const player = createAudioPlayer({ uri: `file://${joinRoot(root, relPath)}` });
+  // 鳴り終わってもセッションを無効にさせない。録音の I/O を止めないため（AUDIO_DESIGN.md §10.1）
+  const player = createAudioPlayer(
+    { uri: `file://${joinRoot(root, relPath)}` },
+    { keepAudioSessionActive: true },
+  );
   const sub = player.addListener('playbackStatusUpdate', (s) => {
     if (s.didJustFinish) {
       sub.remove();

@@ -40,9 +40,8 @@ final class TimelinePlayer {
     if let f = frame { position = max(0, min(d.totalFrames, f)) }
     lock.unlock()
     if playing { return }
-    let session = AVAudioSession.sharedInstance()
-    if session.category != .playAndRecord { try? session.setCategory(.playback, mode: .default) }
-    try session.setActive(true)
+    // カテゴリは決めない。再生の音声モードは JS が再生の直前に当てる（AUDIO_DESIGN.md §10.2）
+    try AVAudioSession.sharedInstance().setActive(true)
     let ch = m.channels
     guard let fmt = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: Double(d.sampleRate), channels: AVAudioChannelCount(ch), interleaved: false) else {
       throw AudioEngineError.message("format")

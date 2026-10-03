@@ -92,14 +92,18 @@ async function setup(opts: { withVoice?: boolean } = {}) {
   const engine = new FakeAudioEngine();
   const filePlayer = new FakeFilePlayer();
   const existing = new Set(['/root/episodes/e/exports/x1.m4a']);
+  const session = { enterPlayback: jest.fn(async () => {}) };
+  const recorder = { busy: false };
   const svc = new PlaybackService({
     db,
     engine,
     filePlayer,
     fileExists: (path) => existing.has(path),
     root: '/root',
+    session,
+    recorderBusy: () => recorder.busy,
   });
-  return { db, engine, filePlayer, existing, svc };
+  return { db, engine, filePlayer, existing, svc, session, recorder };
 }
 
 async function localHomeItem(db: ReturnType<typeof createNodeSqliteExecutor>) {
@@ -472,3 +476,297 @@ describe('PlaybackService', () => {
     });
   });
 });
+
+// Issue #183: 再生の音声モードと割り込み（AUDIO_DESIGN.md §10）
+describe('PlaybackService audio session (Issue #183)', () => {
+  async function withExport(db: ReturnType<typeof createNodeSqliteExecutor>) {
+    await db.run(
+      'INSERT INTO exports (id, episode_id, format, preset, status, path, duration_smp, created_at) VALUES (?,?,?,?,?,?,?,?)',
+      ['x1', 'e', 'm4a', '{}', 'done', 'episodes/e/exports/x1.m4a', TOTAL, 2],
+    );
+    return localHomeItem(db);
+  }
+
+  /** a が b より先に呼ばれた。 */
+  function calledBefore(a: jest.Mock | jest.SpyInstance, b: jest.Mock | jest.SpyInstance) {
+    expect(a.mock.invocationCallOrder[0]).toBeLessThan(b.mock.invocationCallOrder[0] ?? Infinity);
+  }
+
+  describe('playback mode is applied right before every start', () => {
+    it('timeline', async () => {
+      const { engine, session, svc } = await setup({ withVoice: true });
+      const play = jest.spyOn(engine, 'play');
+      await svc.reload('e');
+      await svc.toggle();
+      expect(session.enterPlayback).toHaveBeenCalledTimes(1);
+      calledBefore(session.enterPlayback, play);
+      await svc.toggle(); // 一時停止
+      await svc.toggle(); // 再開（録音のあとに録音用の設定が残っていても、ここで戻す）
+      expect(session.enterPlayback).toHaveBeenCalledTimes(2);
+    });
+
+    it('exported file, and resuming it', async () => {
+      const { db, filePlayer, session, svc } = await setup({ withVoice: true });
+      const play = jest.spyOn(filePlayer, 'play');
+      await svc.toggleHome(await withExport(db));
+      expect(play).toHaveBeenCalledTimes(1);
+      calledBefore(session.enterPlayback, play);
+      await svc.toggleCurrentHome(); // 一時停止
+      await svc.toggleCurrentHome(); // 再開
+      expect(session.enterPlayback).toHaveBeenCalledTimes(2);
+      expect(play).toHaveBeenCalledTimes(2);
+    });
+
+    it('still plays when the mode cannot be applied', async () => {
+      const { engine, session, svc } = await setup({ withVoice: true });
+      session.enterPlayback.mockRejectedValueOnce(new Error('session busy'));
+      await svc.reload('e');
+      await svc.toggle();
+      expect(engine.playing).toBe(true);
+    });
+  });
+
+  describe('does not start while the recorder holds the session', () => {
+    it('timeline', async () => {
+      const { engine, recorder, session, svc } = await setup({ withVoice: true });
+      await svc.reload('e');
+      recorder.busy = true;
+      await svc.toggle();
+      expect(engine.playing).toBe(false);
+      expect(session.enterPlayback).not.toHaveBeenCalled();
+    });
+
+    it('home', async () => {
+      const { db, filePlayer, recorder, svc } = await setup({ withVoice: true });
+      recorder.busy = true;
+      expect(await svc.toggleHome(await withExport(db))).toBe(false);
+      expect(filePlayer.calls).toEqual([]);
+      expect(svc.source).toBeNull();
+    });
+  });
+
+  describe('interruption (call, other app)', () => {
+    it('pauses the timeline and resumes it when the OS suggests', async () => {
+      const { engine, svc } = await setup({ withVoice: true });
+      await svc.reload('e');
+      await svc.seek(smp(48000));
+      await svc.toggle();
+      // ネイティブは割り込みを送ってから止める
+      engine.emit('onPlaybackInterruption', { type: 'began', shouldResume: false });
+      await flush();
+      expect(engine.playing).toBe(false);
+      expect(svc.isPlaying).toBe(false);
+      engine.emit('onPlaybackInterruption', { type: 'ended', shouldResume: true });
+      await flush();
+      expect(engine.playing).toBe(true);
+      expect(engine.calls.at(-1)).toBe('play:null'); // 止めた位置から
+    });
+
+    it('pauses the file and resumes it when the OS suggests', async () => {
+      const { db, engine, filePlayer, svc } = await setup({ withVoice: true });
+      await svc.toggleHome(await withExport(db));
+      filePlayer.calls = [];
+      engine.emit('onPlaybackInterruption', { type: 'began', shouldResume: false });
+      await flush();
+      expect(filePlayer.calls).toEqual(['pause']);
+      expect(svc.isPlaying).toBe(false);
+      engine.emit('onPlaybackInterruption', { type: 'ended', shouldResume: true });
+      await flush();
+      expect(filePlayer.calls).toEqual(['pause', 'play']);
+      expect(svc.isPlaying).toBe(true);
+    });
+
+    it('stays paused when the OS does not suggest resuming', async () => {
+      const { engine, svc } = await setup({ withVoice: true });
+      await svc.reload('e');
+      await svc.toggle();
+      engine.emit('onPlaybackInterruption', { type: 'began', shouldResume: false });
+      await flush();
+      engine.emit('onPlaybackInterruption', { type: 'ended', shouldResume: false });
+      await flush();
+      expect(engine.playing).toBe(false);
+    });
+
+    it('does not start playing when nothing was playing at the interruption', async () => {
+      const { engine, svc } = await setup({ withVoice: true });
+      await svc.reload('e');
+      engine.emit('onPlaybackInterruption', { type: 'began', shouldResume: false });
+      engine.emit('onPlaybackInterruption', { type: 'ended', shouldResume: true });
+      await flush();
+      expect(engine.playing).toBe(false);
+      expect(engine.calls).not.toContain('play:null');
+    });
+
+    it('does not resume after the user paused during the interruption', async () => {
+      const { db, engine, filePlayer, svc } = await setup({ withVoice: true });
+      await svc.toggleHome(await withExport(db));
+      engine.emit('onPlaybackInterruption', { type: 'began', shouldResume: false });
+      await flush();
+      await svc.stopHome(); // ミニプレーヤーを閉じた
+      filePlayer.calls = [];
+      engine.emit('onPlaybackInterruption', { type: 'ended', shouldResume: true });
+      await flush();
+      expect(filePlayer.calls).toEqual([]);
+      expect(svc.isPlaying).toBe(false);
+    });
+
+    it('does not resume once recording has started', async () => {
+      const { engine, recorder, svc } = await setup({ withVoice: true });
+      await svc.reload('e');
+      await svc.toggle();
+      engine.emit('onPlaybackInterruption', { type: 'began', shouldResume: false });
+      await flush();
+      recorder.busy = true; // 割り込みの間に録音（入力モニター）を始めた
+      engine.emit('onPlaybackInterruption', { type: 'ended', shouldResume: true });
+      await flush();
+      expect(engine.playing).toBe(false);
+    });
+
+    it('does not resume after stopForRecording', async () => {
+      const { engine, svc } = await setup({ withVoice: true });
+      await svc.reload('e');
+      await svc.toggle();
+      engine.emit('onPlaybackInterruption', { type: 'began', shouldResume: false });
+      await flush();
+      await svc.stopForRecording();
+      engine.emit('onPlaybackInterruption', { type: 'ended', shouldResume: true });
+      await flush();
+      expect(engine.playing).toBe(false);
+    });
+
+    it('does not resume a file after the user switched to the timeline', async () => {
+      const { db, engine, filePlayer, svc } = await setup({ withVoice: true });
+      await svc.toggleHome(await withExport(db));
+      engine.emit('onPlaybackInterruption', { type: 'began', shouldResume: false });
+      await flush();
+      await svc.reload('e');
+      await svc.toggle(); // 書き出しタブで試聴を始めた
+      await svc.toggle(); // 止めた
+      filePlayer.calls = [];
+      engine.emit('onPlaybackInterruption', { type: 'ended', shouldResume: true });
+      await flush();
+      expect(filePlayer.calls).toEqual([]);
+      expect(engine.playing).toBe(false);
+    });
+  });
+
+  // expo-audio は割り込みの終了で、自分が止めたプレイヤーを利用者の操作に関係なく鳴らし直す
+  describe('expo-audio resuming the file by itself', () => {
+    it('is stopped again when the user closed the player during the interruption', async () => {
+      const { db, engine, filePlayer, svc } = await setup({ withVoice: true });
+      await svc.toggleHome(await withExport(db));
+      filePlayer.emit({ playing: true });
+      engine.emit('onPlaybackInterruption', { type: 'began', shouldResume: false });
+      await flush();
+      await svc.stopHome();
+      const states: boolean[] = [];
+      svc.on('state', (e) => states.push(e.playing));
+      filePlayer.calls = [];
+      filePlayer.emit({ playing: true }); // expo-audio が鳴らし直した
+      expect(filePlayer.calls).toEqual(['pause']);
+      expect(svc.isPlaying).toBe(false);
+      expect(states).toEqual([]);
+    });
+
+    it('is stopped again when the user paused during the interruption', async () => {
+      const { db, filePlayer, svc } = await setup({ withVoice: true });
+      await svc.toggleHome(await withExport(db));
+      filePlayer.emit({ playing: true });
+      filePlayer.emit({ playing: false }); // Android: expo-audio がフォーカスの喪失で止めた（イベントは来ない）
+      await svc.pause();
+      filePlayer.calls = [];
+      filePlayer.emit({ playing: true }); // AUDIOFOCUS_GAIN で expo-audio が鳴らし直した
+      expect(filePlayer.calls).toEqual(['pause']);
+      expect(svc.isPlaying).toBe(false);
+    });
+
+    it('is accepted when nobody touched it (Android: no interruption event for files)', async () => {
+      const { db, filePlayer, svc } = await setup({ withVoice: true });
+      await svc.toggleHome(await withExport(db));
+      filePlayer.emit({ playing: true });
+      filePlayer.emit({ playing: false });
+      expect(svc.isPlaying).toBe(false);
+      filePlayer.calls = [];
+      filePlayer.emit({ playing: true });
+      expect(filePlayer.calls).toEqual([]);
+      expect(svc.isPlaying).toBe(true);
+    });
+
+    it('still resumes when the paused status arrives before the interruption event (iOS)', async () => {
+      const { db, engine, filePlayer, svc } = await setup({ withVoice: true });
+      await svc.toggleHome(await withExport(db));
+      filePlayer.emit({ playing: true });
+      filePlayer.emit({ playing: false }); // expo-audio が先に止めた
+      engine.emit('onPlaybackInterruption', { type: 'began', shouldResume: false });
+      await flush();
+      filePlayer.calls = [];
+      engine.emit('onPlaybackInterruption', { type: 'ended', shouldResume: true });
+      await flush();
+      expect(filePlayer.calls).toEqual(['play']);
+      filePlayer.emit({ playing: true });
+      expect(svc.isPlaying).toBe(true);
+      expect(filePlayer.calls).toEqual(['play']);
+    });
+
+    it('does not resume after an unplug that expo-audio reported first', async () => {
+      const { db, engine, filePlayer, svc } = await setup({ withVoice: true });
+      await svc.toggleHome(await withExport(db));
+      filePlayer.emit({ playing: true });
+      filePlayer.emit({ playing: false }); // iOS: expo-audio も抜去で止める
+      engine.emit('onOutputDisconnected', { reason: 'old_device_unavailable' });
+      await flush();
+      // 止めたあとに着信が来て終わった
+      engine.emit('onPlaybackInterruption', { type: 'began', shouldResume: false });
+      engine.emit('onPlaybackInterruption', { type: 'ended', shouldResume: true });
+      await flush();
+      expect(filePlayer.calls.filter((c) => c === 'play')).toHaveLength(1); // 最初の再生だけ
+      expect(svc.isPlaying).toBe(false);
+    });
+  });
+
+  describe('headphones / Bluetooth disconnected', () => {
+    it('pauses the timeline and does not resume it', async () => {
+      const { engine, svc } = await setup({ withVoice: true });
+      await svc.reload('e');
+      await svc.toggle();
+      engine.emit('onOutputDisconnected', { reason: 'old_device_unavailable' });
+      await flush();
+      expect(engine.playing).toBe(false);
+      expect(svc.isPlaying).toBe(false);
+      // 抜去のあとに割り込みの終了が来ても鳴らさない
+      engine.emit('onPlaybackInterruption', { type: 'ended', shouldResume: true });
+      await flush();
+      expect(engine.playing).toBe(false);
+    });
+
+    it('pauses the file and does not resume it', async () => {
+      const { db, engine, filePlayer, svc } = await setup({ withVoice: true });
+      await svc.toggleHome(await withExport(db));
+      engine.emit('onPlaybackInterruption', { type: 'began', shouldResume: false });
+      await flush();
+      await svc.toggleCurrentHome(); // 利用者が再開した
+      filePlayer.calls = [];
+      engine.emit('onOutputDisconnected', { reason: 'becoming_noisy' });
+      await flush();
+      expect(filePlayer.calls).toEqual(['pause']);
+      expect(svc.isPlaying).toBe(false);
+      engine.emit('onPlaybackInterruption', { type: 'ended', shouldResume: true });
+      await flush();
+      expect(filePlayer.calls).toEqual(['pause']);
+    });
+
+    it('ignores the event when nothing is playing', async () => {
+      const { engine, filePlayer, svc } = await setup({ withVoice: true });
+      await svc.reload('e');
+      engine.emit('onOutputDisconnected', { reason: 'becoming_noisy' });
+      await flush();
+      expect(filePlayer.calls).toEqual([]);
+      expect(engine.playing).toBe(false);
+    });
+  });
+});
+
+/** イベントから始まった非同期の処理を流し切る。 */
+async function flush() {
+  for (let i = 0; i < 10; i++) await Promise.resolve();
+}
