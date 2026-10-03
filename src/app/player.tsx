@@ -16,7 +16,7 @@ export default function PlayerScreen() {
         medium={source.kind === 'timeline' ? 'tape' : 'disc'}
         artworkUri={services.coverArt.uri(services.show.cover_path)}
         showName={services.show.name}
-        title={source.title || t.home.untitled}
+        title={source.title ?? ''}
         episodeNumber={source.episodeNumber ?? null}
         position={player.position}
         duration={player.duration}

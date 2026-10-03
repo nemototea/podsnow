@@ -141,5 +141,112 @@ describe('文言カタログ', () => {
         .map(([path, text]) => `${path}: ${text}`);
       expect(found).toEqual([]);
     });
+
+    it.each(LOCALES)('%s に括弧で囲んだだけの代わりの文言が無い', (locale) => {
+      // 「（タイトル未設定）」のように全体を括弧で囲むと、行頭がずれてほかの行と揃わない（Issue #170 E7）。
+      const allowed = new Set(['sound.recommended']);
+      const found = rendered(messagesFor(locale) as unknown as Node)
+        .filter(([path, text]) => !allowed.has(path) && /^[（(].*[）)]$/.test(text.trim()))
+        .map(([path, text]) => `${path}: ${text}`);
+      expect(found).toEqual([]);
+    });
+  });
+
+  describe('用語と表記（DESIGN_SYSTEM.md §2.2 の用語の表、Issue #170）', () => {
+    const rendered = (catalog: Node): [string, string][] =>
+      [...walk(catalog)].map(([path, leaf]) => {
+        const v = path.split('.').reduce<unknown>((acc, k) => (acc as Node)[k], catalog);
+        const text =
+          leaf.kind === 'function'
+            ? (v as (...a: unknown[]) => string)(...Array.from({ length: leaf.arity }, () => '1'))
+            : (v as string);
+        return [path, text];
+      });
+
+    it.each(LOCALES)('%s の話数の表記は episode.number だけが作る', (locale) => {
+      const catalog = messagesFor(locale);
+      expect(catalog.episode.number(3)).toBe('#3');
+      // 話数を受け取る文言は、episode.number で作った表記を受け取る（自分で `#` を付けない）。
+      // 読み上げ（a11y*）は「エピソード 3」と文で読むので対象外。
+      const found = rendered(catalog as unknown as Node)
+        .filter(([path]) => path !== 'episode.number' && !/(^|\.)a11y/.test(path))
+        .filter(([, text]) => /#\d|\bEP\.|エピソード \d|Episode \d/.test(text))
+        .map(([path, text]) => `${path}: ${text}`);
+      expect(found).toEqual([]);
+    });
+
+    /** [使わない語, 許す場所（パスの前方一致）, 理由] */
+    type Rule = [RegExp, readonly string[], string];
+    const RULES: Record<'ja' | 'en', readonly Rule[]> = {
+      ja: [
+        [/カット/, [], '音を消す操作は「削除」'],
+        [/無音を削除/, [], '無音は「詰める」'],
+        [/しゃべり中|声に合わせて|声の間は/, [], 'BGM を声の間だけ下げるのは「ダッキング」'],
+        [/話すこと|話題/, ['showSettings.topicTemplatePlaceholder'], '「トークテーマ」'],
+        [
+          /収録/,
+          [
+            'episode.tabs.studio',
+            'export.emptyVoice',
+            'details.recordedEyebrow',
+            'details.badDate',
+            'metadata.recordedAt',
+          ],
+          '操作と音は「録音」。「収録」はタブの名前と収録日だけ',
+        ],
+        [
+          /取り込/,
+          ['errors.import_', 'home.importShow', 'home.onboarding', 'podcastImport.'],
+          '「取り込む」は配信中の番組だけ。素材は「読み込む」「追加」',
+        ],
+        [/[A-Z][a-z]+ [A-Z][a-z]+/, ['app.', 'settings.language.'], '英語のまま残さない'],
+        [/録音タブ/, [], '今は「収録」タブ'],
+      ],
+      en: [
+        [/\bcut\b(?! off)/i, [], 'Removing audio is “Delete”'],
+        [/lower(ed|s)? (music|BGM )?(under|while)/i, [], 'Call it “ducking”'],
+        [/\btakes?\b/i, [], 'Say “recording”'],
+        [/\basset/i, [], 'Say “sound”'],
+        [/· (mono|stereo|uncompressed)\b/, [], 'Spec lines capitalise each item'],
+        [/High Quality/, [], 'Sentence case'],
+        [/Record tab/, [], 'The tab is “Studio”'],
+        [
+          /import/i,
+          ['errors.import_', 'home.importShow', 'home.onboarding', 'podcastImport.'],
+          '“Import” is only for an existing show',
+        ],
+      ],
+    };
+
+    it.each(LOCALES)('%s に揺れた用語が無い', (locale) => {
+      const found = rendered(messagesFor(locale) as unknown as Node).flatMap(([path, text]) =>
+        RULES[locale]
+          .filter(([re, allow]) => re.test(text) && !allow.some((a) => path.startsWith(a)))
+          .map(([, , why]) => `${path}: ${text} → ${why}`),
+      );
+      expect(found).toEqual([]);
+    });
+
+    it.each(LOCALES)('%s の専門用語の説明（ⓘ）は用語と 3 文までの説明を持つ', (locale) => {
+      const { glossary } = messagesFor(locale);
+      const { a11yInfo, ...terms } = glossary;
+      expect(a11yInfo('X')).toContain('X');
+      for (const [key, { term, body }] of Object.entries(terms)) {
+        expect([key, term.trim().length > 0]).toEqual([key, true]);
+        const sentences = body.split(locale === 'ja' ? '。' : /\.\s|\.$/).filter((x) => x.trim());
+        expect([key, sentences.length <= 3]).toEqual([key, true]);
+      }
+    });
+
+    it.each(LOCALES)('%s の書き出しプリセットは設定と書き出しで同じ名前・仕様', (locale) => {
+      const { export: ex, settings } = messagesFor(locale);
+      for (const k of ['podcast', 'high', 'wav'] as const) {
+        expect(settings.presets[k].label).toBe(ex.presets[k].label);
+        expect(settings.presets[k].sub).toBe(ex.presets[k].spec);
+      }
+      expect(settings.presets.custom.label).toBe(ex.presets.custom.label);
+      expect(settings.mono).toBe(ex.custom.mono);
+      expect(settings.stereo).toBe(ex.custom.stereo);
+    });
   });
 });

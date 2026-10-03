@@ -5,7 +5,7 @@ import { insertTopics, renderTemplate } from '@/domain/metadata/template';
 import { headings } from '@/domain/outline';
 import { formatSmp, smp } from '@/domain/time';
 import { useServices } from '@/features/app/ServicesProvider';
-import { errorText, storedErrorText, useT, type Messages } from '@/i18n';
+import { errorText, formatDateTime, storedErrorText, useLocale, useT, type Messages } from '@/i18n';
 import { isExportRunning, listExports, type ExportRow } from '@/infra/db/repositories/exportsRepo';
 import { getDefaultTemplate } from '@/infra/db/repositories/showsRepo';
 import { parseSoundSettings, type SoundSettings } from '@/services/audio/renderDocumentFromDb';
@@ -28,6 +28,7 @@ import {
   Chip,
   Field,
   IconButton,
+  InfoButton,
   Loading,
   Notice,
   ProgressBar,
@@ -36,6 +37,7 @@ import {
   Segmented,
   Text,
   Toggle,
+  type TermInfo,
 } from '@/ui/components';
 import { confirmDestructive } from '@/ui/alerts';
 import { DateField } from '@/ui/DateField';
@@ -70,12 +72,6 @@ export function formatBytes(b: number): string {
   return mb < 10 ? `${mb.toFixed(1)} MB` : `${Math.round(mb)} MB`;
 }
 
-function formatWhen(ms: number): string {
-  const d = new Date(ms);
-  const p = (n: number) => String(n).padStart(2, '0');
-  return `${d.getMonth() + 1}/${d.getDate()} ${p(d.getHours())}:${p(d.getMinutes())}`;
-}
-
 function Stepper({
   label,
   value,
@@ -84,8 +80,11 @@ function Stepper({
   min,
   max,
   onChange,
+  info,
 }: {
   label: string;
+  /** ラベルが専門用語のとき（Issue #170）。 */
+  info?: TermInfo;
   value: number;
   unit: string;
   step: number;
@@ -97,7 +96,10 @@ function Stepper({
   const t = useT();
   return (
     <View style={[st.stepper, { borderBottomColor: c.border }]}>
-      <Text style={[typography.body, { color: c.textPrimary, flex: 1 }]}>{label}</Text>
+      <View style={st.stepLabel}>
+        <Text style={[typography.body, st.stepLabelText, { color: c.textPrimary }]}>{label}</Text>
+        {info ? <InfoButton info={info} /> : null}
+      </View>
       <IconButton
         name="minus"
         label={t.a11y.decrease(label)}
@@ -132,6 +134,7 @@ export interface ExportTabProps {
 export function ExportTab({ ws, onShowToast, onDone, onGoEdit }: ExportTabProps) {
   const c = useAppTheme();
   const t = useT();
+  const locale = useLocale();
   const { db, show, coverArt, episodes, exporter, playback, settings, updateSettings, haptics } =
     useServices();
   const { state } = ws;
@@ -375,6 +378,7 @@ export function ExportTab({ ws, onShowToast, onDone, onGoEdit }: ExportTabProps)
       <Card style={st.listCard}>
         <Row
           label={t.sound.loudness}
+          info={t.glossary.loudness}
           {...(sound.loudness.enabled
             ? {
                 sub: t.sound.loudnessTarget(sound.loudness.targetLufs, sound.loudness.truePeakDbtp),
@@ -392,6 +396,7 @@ export function ExportTab({ ws, onShowToast, onDone, onGoEdit }: ExportTabProps)
         />
         <Row
           label={t.sound.ducking}
+          info={t.glossary.ducking}
           {...(hasBgm && sound.ducking.enabled ? { sub: `${sound.ducking.depthDb} dB` } : {})}
           last={!soundAdvanced}
           right={
@@ -436,6 +441,7 @@ export function ExportTab({ ws, onShowToast, onDone, onGoEdit }: ExportTabProps)
             {sound.loudness.enabled ? (
               <Stepper
                 label={t.sound.truePeak}
+                info={t.glossary.truePeak}
                 value={sound.loudness.truePeakDbtp}
                 unit="dBTP"
                 step={0.5}
@@ -697,9 +703,12 @@ export function ExportTab({ ws, onShowToast, onDone, onGoEdit }: ExportTabProps)
               ]}
             />
             {custom.format === 'm4a' ? (
-              <Text style={[typography.caption, { color: c.textSecondary }]}>
-                {t.export.custom.bitrate}
-              </Text>
+              <View style={st.infoCaption}>
+                <Text style={[typography.caption, { color: c.textSecondary }]}>
+                  {t.export.custom.bitrate}
+                </Text>
+                <InfoButton info={t.glossary.bitrate} />
+              </View>
             ) : null}
             {custom.format === 'm4a' ? (
               <View style={st.chips}>
@@ -783,7 +792,7 @@ export function ExportTab({ ws, onShowToast, onDone, onGoEdit }: ExportTabProps)
       {history.map((h, i) => (
         <Row
           key={h.id}
-          label={`${formatWhen(h.created_at)} · ${h.format.toUpperCase()}`}
+          label={`${formatDateTime(h.created_at, locale)} · ${h.format.toUpperCase()}`}
           sub={
             h.status === 'done'
               ? [formatSmp(smp(h.duration_smp)), formatBytes(h.bytes ?? 0), loudnessText(t, h)]
@@ -799,7 +808,7 @@ export function ExportTab({ ws, onShowToast, onDone, onGoEdit }: ExportTabProps)
           {...(h.status === 'done'
             ? {
                 onPress: () => onDone(h.id),
-                accessibilityLabel: t.export.a11yOpenHandoff(formatWhen(h.created_at)),
+                accessibilityLabel: t.export.a11yOpenHandoff(formatDateTime(h.created_at, locale)),
               }
             : {})}
           {...(isExportRunning(h.status)
@@ -816,7 +825,7 @@ export function ExportTab({ ws, onShowToast, onDone, onGoEdit }: ExportTabProps)
                     ) : null}
                     <IconButton
                       name="trash"
-                      label={t.export.a11yDeleteExport(formatWhen(h.created_at))}
+                      label={t.export.a11yDeleteExport(formatDateTime(h.created_at, locale))}
                       onPress={() => void removeExport(h)}
                     />
                   </View>
@@ -839,6 +848,9 @@ const st = StyleSheet.create({
   listCard: { paddingVertical: space.sm },
   rowActions: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm, marginVertical: space.sm },
+  stepLabel: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: space.xs },
+  stepLabelText: { flexShrink: 1 },
+  infoCaption: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
   stepper: {
     flexDirection: 'row',
     alignItems: 'center',

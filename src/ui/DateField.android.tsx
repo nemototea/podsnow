@@ -1,7 +1,7 @@
 import { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import { useLocale, useT } from '@/i18n';
+import { formatDate, useLocale, useT } from '@/i18n';
 
 import type { DateFieldProps } from './DateField';
 import { Text } from './Text';
@@ -30,13 +30,7 @@ export function DateField({ label, value, onChange }: DateFieldProps) {
   const t = useT();
   const locale = useLocale();
   const date = parse(value);
-  const shown = date
-    ? date.toLocaleDateString(locale === 'ja' ? 'ja-JP' : 'en-US', {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-      })
-    : t.common.notSet;
+  const shown = date ? formatDate(date, locale) : t.common.notSet;
   const open = () =>
     DateTimePickerAndroid.open({
       value: date ?? new Date(),

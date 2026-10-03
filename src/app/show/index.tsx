@@ -28,6 +28,7 @@ import {
   Field,
   Icon,
   IconButton,
+  InfoButton,
   Row,
   Screen,
   SectionHeader,
@@ -393,9 +394,12 @@ export default function ShowScreen() {
           );
         })}
         <View style={[st.slot, { borderBottomWidth: 0 }]}>
-          <Text style={[st.slotLabel, { color: c.textPrimary, flex: 1 }]}>
-            {t.showSettings.duckingLabel}
-          </Text>
+          <View style={st.infoLabel}>
+            <Text style={[st.slotLabel, { color: c.textPrimary, flexShrink: 1 }]}>
+              {t.showSettings.duckingLabel}
+            </Text>
+            <InfoButton info={t.glossary.ducking} />
+          </View>
           <Stepper
             label={`${data.layout?.bgm_duck_db ?? -10} dB`}
             onMinus={() => bumpDuck(-1)}
@@ -601,6 +605,7 @@ const st = StyleSheet.create({
   },
   slotLabel: typography.bodyStrong,
   stepper: { flexDirection: 'row', alignItems: 'center' },
+  infoLabel: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: space.xs },
   stepValue: { ...typography.numeric, ...tabularNums, minWidth: 64, textAlign: 'center' },
   helpWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
   sheetActions: { gap: space.sm, marginTop: space.md },

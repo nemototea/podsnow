@@ -93,7 +93,10 @@ export function MiniPlayer() {
           />
         )}
         <View style={s.text}>
-          <Text style={[typography.label, { color: c.textPrimary }]} numberOfLines={1}>
+          <Text
+            style={[typography.label, { color: source.title ? c.textPrimary : c.textSecondary }]}
+            numberOfLines={1}
+          >
             {source.title || t.home.untitled}
           </Text>
           <Text

@@ -113,7 +113,7 @@ export function EpisodePlayer({
   const c = useAppTheme();
   const t = useT();
   const [width, setWidth] = useState(0);
-  const code = episodeNumber === null ? null : t.home.episodeCode(episodeNumber);
+  const code = episodeNumber === null ? null : t.episode.number(episodeNumber);
   return (
     <View style={s.player} onLayout={(e) => setWidth(e.nativeEvent.layout.width)}>
       {medium === 'tape' ? (
@@ -136,7 +136,10 @@ export function EpisodePlayer({
         />
       )}
       <View style={s.titleBlock}>
-        <Text style={[typography.heading, { color: c.textPrimary }]} numberOfLines={2}>
+        <Text
+          style={[typography.heading, { color: title ? c.textPrimary : c.textSecondary }]}
+          numberOfLines={2}
+        >
           {title || t.home.untitled}
         </Text>
         {code === null ? null : (

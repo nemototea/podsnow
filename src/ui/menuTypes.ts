@@ -1,5 +1,16 @@
 import type { IconName } from './IconSvg';
 
+/**
+ * 専門用語の説明（DESIGN_SYSTEM.md §2.2、Issue #170）。ラベルの横の ⓘ から開く。
+ * 文言は `src/i18n` の `glossary` に置く。
+ */
+export interface TermInfo {
+  /** 用語。説明の題になる。 */
+  term: string;
+  /** 何が起きるかを 1〜2 文で。仕組みの詳細は書かない。 */
+  body: string;
+}
+
 /** 「…」メニューの 1 項目。iOS はネイティブのメニュー、ほかはシートの行になる。 */
 export interface MenuAction {
   key: string;
@@ -56,4 +67,6 @@ export interface ChoiceMenuProps<T extends string | number> {
   emptyText?: string;
   /** カードの最後の行（下の区切り線を出さない）。 */
   last?: boolean;
+  /** ラベルが専門用語のとき、横に ⓘ を出して説明する（Issue #170）。 */
+  info?: TermInfo;
 }

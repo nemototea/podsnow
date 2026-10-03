@@ -194,6 +194,7 @@ export default function SettingsScreen() {
         {Platform.OS === 'android' ? (
           <ChoiceMenu
             label={t.settings.androidSource}
+            info={t.glossary.androidSource}
             last
             sub={t.settings.sources[settings.recording.androidAudioSource].label}
             title={t.settings.androidSource}
@@ -266,6 +267,7 @@ export default function SettingsScreen() {
         />
         <Row
           label={t.settings.haptics}
+          info={t.glossary.haptics}
           right={<Toggle value={settings.haptics} onChange={(v) => set('haptics', v)} />}
         />
         <ChoiceMenu
