@@ -404,6 +404,7 @@ export function StudioTab({
           <Button
             label={t.edit.removeSilence}
             kind="secondary"
+            icon="trimSilence"
             style={st.cell}
             busy={analyzing}
             onPress={() => void trimSilence()}

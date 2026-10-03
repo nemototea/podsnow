@@ -777,7 +777,7 @@ export function ExportTab({ ws, onShowToast, onDone, onGoEdit }: ExportTabProps)
       ) : (
         <Button
           label={failure ? t.common.retry : t.export.run}
-          icon="share"
+          icon="export"
           onPress={() => void start()}
           disabled={state.total <= 0}
         />

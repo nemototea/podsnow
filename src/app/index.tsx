@@ -122,7 +122,7 @@ export default function HomeScreen() {
       : [
           {
             key: 'purge',
-            icon: 'volume' as const,
+            icon: 'noAudio' as const,
             label: t.episode.menu.purgeAudio,
             onPress: () =>
               confirmDestructive({

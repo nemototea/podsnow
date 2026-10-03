@@ -450,7 +450,7 @@ export const Waveform = memo(function Waveform(p: WaveformProps) {
               style={[styles.event, { left: xOf(shiftAt(at)) - icon.sm / 2, top: laneTop }]}
             >
               <Icon
-                name={event.kind === 'interruption' ? 'pause' : 'warning'}
+                name={event.kind === 'interruption' ? 'warning' : 'route'}
                 color={c.mistakeText}
                 size={icon.sm}
               />

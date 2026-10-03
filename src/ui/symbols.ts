@@ -4,7 +4,8 @@ import type { IconName } from './IconSvg';
 
 /**
  * iOS は SF Symbols で描く（DESIGN_SYSTEM.md §6.2）。文字の太さと大きさに合わせて OS が線を調整する。
- * 名前は `sf-symbols-typescript` の型で検査される。
+ * 名前は `sf-symbols-typescript` の型で検査される。意味との対応は DESIGN_SYSTEM.md §6.4。
+ * 1 つの記号を 2 つの意味に使わない（テストで検査する）。
  */
 export const SYMBOLS: Record<IconName, SFSymbol> = {
   plus: 'plus',
@@ -13,10 +14,10 @@ export const SYMBOLS: Record<IconName, SFSymbol> = {
   back: 'chevron.left',
   chevron: 'chevron.down',
   chevronUp: 'chevron.up',
-  up: 'arrow.up',
-  down: 'arrow.down',
   grip: 'line.3.horizontal',
   play: 'play.fill',
+  skipBack15: 'gobackward.15',
+  skipForward30: 'goforward.30',
   pause: 'pause.fill',
   stop: 'stop.fill',
   record: 'circle.fill',
@@ -30,20 +31,24 @@ export const SYMBOLS: Record<IconName, SFSymbol> = {
   mic: 'mic',
   undo: 'arrow.uturn.backward',
   redo: 'arrow.uturn.forward',
-  retake: 'arrow.counterclockwise',
+  trimSilence: 'arrow.right.and.line.vertical.and.arrow.left',
   scissors: 'scissors',
   share: 'square.and.arrow.up',
+  export: 'arrow.down.doc',
   download: 'square.and.arrow.down',
-  episodes: 'square.stack',
-  show: 'play.rectangle',
+  artwork: 'photo',
   close: 'xmark',
-  volume: 'speaker.wave.2',
   refresh: 'arrow.clockwise',
   warning: 'exclamationmark.triangle',
+  route: 'arrow.left.arrow.right',
   trash: 'trash',
   star: 'star',
   starFilled: 'star.fill',
-  archive: 'archivebox',
+  list: 'list.bullet',
+  statusNew: 'circle.dashed',
+  statusEditing: 'circle.lefthalf.filled',
+  published: 'dot.radiowaves.left.and.right',
+  noAudio: 'waveform.slash',
   edit: 'pencil',
   info: 'info.circle',
 };
