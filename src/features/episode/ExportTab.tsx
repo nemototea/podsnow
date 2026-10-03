@@ -11,6 +11,7 @@ import { getDefaultTemplate } from '@/infra/db/repositories/showsRepo';
 import { parseSoundSettings, type SoundSettings } from '@/services/audio/renderDocumentFromDb';
 import {
   CUSTOM_BITRATES,
+  EXPORT_SAMPLE_RATES,
   estimateExportBytes,
   EXPORT_PRESETS,
   episodeExportPreset,
@@ -156,6 +157,13 @@ export function ExportTab({ ws, onShowToast, onDone, onGoEdit }: ExportTabProps)
   const [custom, setCustom] = useState<CustomExportSettings>(() =>
     normalizeCustomExport(settings.export.custom),
   );
+  // 試聴は書き出すチャンネル（モノラル / ステレオ）で鳴らす。離れたら編集の既定（ステレオ）に戻す。
+  // サンプルレートは試聴に反映しない（Issue #174、ユーザー判断 2026-10-03）
+  const previewChannels = resolveExportPreset(preset, custom).channels;
+  useEffect(() => {
+    void playback.setTimelineChannels(previewChannels).catch(() => {});
+  }, [playback, previewChannels]);
+  useEffect(() => () => void playback.setTimelineChannels(2).catch(() => {}), [playback]);
   const [history, setHistory] = useState<ExportRow[]>([]);
   const [job, setJob] = useState<{ exportId: string; progress: number; phase: string } | null>(
     null,
@@ -347,9 +355,10 @@ export function ExportTab({ ws, onShowToast, onDone, onGoEdit }: ExportTabProps)
       : t.export.presets[k];
   function specText(x: ExportPreset): string {
     const ch = x.channels === 1 ? t.export.custom.mono : t.export.custom.stereo;
+    const khz = String(x.sampleRate / 1000);
     return x.format === 'wav'
-      ? t.export.specWav(ch)
-      : t.export.specM4a(Math.round(x.bitrate / 1000), ch);
+      ? t.export.specWav(ch, khz)
+      : t.export.specM4a(Math.round(x.bitrate / 1000), ch, khz);
   }
 
   const phaseLabel = job?.phase === 'measuring' ? t.export.phaseMeasuring : t.export.phaseRendering;
@@ -722,6 +731,21 @@ export function ExportTab({ ws, onShowToast, onDone, onGoEdit }: ExportTabProps)
                 ))}
               </View>
             ) : null}
+            <Text style={[typography.caption, { color: c.textSecondary }]}>
+              {t.export.custom.sampleRate}
+            </Text>
+            <Segmented
+              value={String(custom.sampleRate)}
+              onChange={(v) =>
+                updateCustom({
+                  sampleRate: EXPORT_SAMPLE_RATES.find((r) => String(r) === v) ?? 48000,
+                })
+              }
+              options={EXPORT_SAMPLE_RATES.map((r) => ({
+                value: String(r),
+                label: `${r / 1000} kHz`,
+              }))}
+            />
             <Text style={[typography.caption, { color: c.textSecondary }]}>
               {t.export.custom.channels}
             </Text>

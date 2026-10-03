@@ -1,5 +1,6 @@
 import { AppError } from '@/domain/errors';
 import { exportFileName } from '@/domain/metadata/fileName';
+import { SAMPLE_RATE } from '@/domain/time';
 import type { SqlExecutor } from '@/infra/db/executor';
 import { parseEpisodeExportPreset } from '@/infra/db/repositories/episodesRepo';
 import {
@@ -23,8 +24,13 @@ export interface ExportPreset {
   /** AAC のみ。 */
   bitrate: number;
   channels: 1 | 2;
-  sampleRate: number;
+  /** 出力ファイルのサンプルレート。ミックスはタイムライン（48 kHz）で行い、最後に変換する。 */
+  sampleRate: ExportSampleRate;
 }
+
+/** 書き出しで選べるサンプルレート（Issue #174、ユーザー判断 2026-10-03）。録音は 48 kHz 固定。 */
+export const EXPORT_SAMPLE_RATES = [48000, 44100] as const;
+export type ExportSampleRate = (typeof EXPORT_SAMPLE_RATES)[number];
 
 export const EXPORT_PRESETS: Record<'podcast' | 'high' | 'wav', ExportPreset> = {
   podcast: { format: 'm4a', bitrate: 128_000, channels: 1, sampleRate: 48000 },
@@ -37,13 +43,15 @@ export type ExportPresetKey = keyof typeof EXPORT_PRESETS | 'custom';
 
 /**
  * カスタム書き出しでユーザーが選べる項目。
- * サンプルレートは選ばせない: 素材もタイムラインも 48 kHz 前提で、レンダラはリサンプルしない。
+ * サンプルレートは出力だけに効く。素材もタイムラインも 48 kHz で、ミックスのあとに OS のリサンプラーで
+ * 変換する（AUDIO_DESIGN.md §8.1）。
  */
 export interface CustomExportSettings {
   format: 'm4a' | 'wav';
   /** bps。M4A のときだけ使う。 */
   bitrate: number;
   channels: 1 | 2;
+  sampleRate: ExportSampleRate;
 }
 
 /** AAC-LC で iOS / Android のエンコーダが受け付ける範囲に収める【仮説】（実機未検証）。 */
@@ -55,6 +63,7 @@ export const DEFAULT_CUSTOM_EXPORT: CustomExportSettings = {
   format: 'm4a',
   bitrate: 192_000,
   channels: 1,
+  sampleRate: 48000,
 };
 
 /** 保存値（JSON 由来で型が信用できない）を正規化する。壊れた項目は既定値に戻す。 */
@@ -67,6 +76,8 @@ export function normalizeCustomExport(v: unknown): CustomExportSettings {
         ? o.bitrate
         : DEFAULT_CUSTOM_EXPORT.bitrate,
     channels: o.channels === 1 || o.channels === 2 ? o.channels : DEFAULT_CUSTOM_EXPORT.channels,
+    sampleRate:
+      EXPORT_SAMPLE_RATES.find((r) => r === o.sampleRate) ?? DEFAULT_CUSTOM_EXPORT.sampleRate,
   };
 }
 
@@ -89,7 +100,7 @@ export function resolveExportPreset(key: ExportPresetKey, custom: unknown): Expo
     format: c.format,
     bitrate: c.format === 'wav' ? 0 : c.bitrate,
     channels: c.channels,
-    sampleRate: 48000,
+    sampleRate: c.sampleRate,
   };
 }
 
@@ -123,9 +134,9 @@ export function exportLoudness(row: {
   return { lufs: row.measured_lufs, shortOfTarget: short };
 }
 
-/** 推定ファイルサイズ（bytes）。 */
+/** 推定ファイルサイズ（bytes）。`durationSmp` はタイムラインの長さ（48 kHz のサンプル数）。 */
 export function estimateExportBytes(preset: ExportPreset, durationSmp: number): number {
-  const sec = durationSmp / preset.sampleRate;
+  const sec = durationSmp / SAMPLE_RATE;
   if (preset.format === 'wav')
     return Math.round(sec * preset.sampleRate * preset.channels * 2) + 44;
   return Math.round((sec * preset.bitrate) / 8);
@@ -216,9 +227,9 @@ export class ExportService {
 
   /** 書き出しを開始し exportId を返す。 */
   async start(episodeId: string, preset: ExportPreset): Promise<string> {
+    // ミックスはタイムラインのレート（48 kHz）で行う。出力のレートへはネイティブが最後に変換する
     const doc = await renderDocumentFromDb(this.deps.db, this.deps.root, episodeId, {
       channels: preset.channels,
-      sampleRate: preset.sampleRate,
     });
     if (doc.totalFrames <= 0) throw new AppError('voice_timeline_empty');
     const exportId = this.deps.newId();
@@ -238,6 +249,7 @@ export class ExportService {
       path: abs,
       format: preset.format === 'wav' ? 'wav' : 'm4a',
       bitrate: preset.bitrate,
+      sampleRate: preset.sampleRate,
     });
     this.jobs.set(jobId, { exportId, episodeId, relPath });
     await updateExportProgress(this.deps.db, exportId, 'rendering', 0);

@@ -558,7 +558,6 @@ export function useWorkspace(episodeId: string) {
         gainDb: asset.default_gain_db,
         fadeIn: ZERO_SMP,
         fadeOut: ZERO_SMP,
-        duck: asset.kind === 'bgm',
         loop: asset.kind === 'bgm',
         endMode: asset.kind === 'bgm' ? 'timeline_end' : 'asset_end',
       };

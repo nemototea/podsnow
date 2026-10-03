@@ -1,8 +1,10 @@
 import { createNodeSqliteExecutor } from '@/infra/db/__tests__/nodeSqliteExecutor';
 import { migrate } from '@/infra/db/migrate';
 import { loadDoc } from '@/infra/db/repositories/editableDocRepo';
+import { getEpisode } from '@/infra/db/repositories/episodesRepo';
 import { ensureDefaultShow, updateLayout } from '@/infra/db/repositories/showsRepo';
 import { TEST_LABELS, TEST_SHOW_SEED } from '@/services/app/__tests__/labels';
+import { parseSoundSettings } from '@/services/audio/renderDocumentFromDb';
 
 import { EpisodeService } from '../EpisodeService';
 
@@ -68,13 +70,28 @@ describe('EpisodeService', () => {
     expect(ep.title).toBe('');
     expect(ep.description).toContain(`Podcast: ${TEST_LABELS.showName}`);
     const doc = await loadDoc(db, ep.id);
-    expect(doc.overlays.map((o) => [o.kind, o.anchor.type, o.duck, o.loop])).toEqual([
-      ['opening', 'timeline_start', false, false],
-      ['bgm', 'timeline_start', true, true],
+    expect(doc.overlays.map((o) => [o.kind, o.anchor.type, o.loop])).toEqual([
+      ['opening', 'timeline_start', false],
+      ['bgm', 'timeline_start', true],
     ]);
     const ep2 = await svc.create(show.id);
     expect(ep2.episode_number).toBe(2);
     expect((await svc.list(show.id)).map((e) => e.episode_number)).toEqual([2, 1]);
+  });
+
+  it('BGM を下げる量は番組の既定を写し、写した後は番組を変えても変わらない（Issue #174）', async () => {
+    const { db, show, svc } = await setup();
+    await updateLayout(db, show.id, { bgmDuckDb: -14 });
+    const ep = await svc.create(show.id);
+    expect(parseSoundSettings(ep.sound_settings).ducking).toMatchObject({
+      enabled: true,
+      depthDb: -14,
+    });
+    await updateLayout(db, show.id, { bgmDuckDb: -6 });
+    const again = await getEpisode(db, ep.id);
+    expect(parseSoundSettings(again!.sound_settings).ducking.depthDb).toBe(-14);
+    const next = await svc.create(show.id);
+    expect(parseSoundSettings(next.sound_settings).ducking.depthDb).toBe(-6);
   });
 
   it('refreshStatus, remove and duplicate', async () => {

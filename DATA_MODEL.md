@@ -145,7 +145,7 @@ MVP は起動時に 1 行自動作成。【事実】
 | ending_asset_id | TEXT FK nullable | |
 | bgm_asset_id | TEXT FK nullable | |
 | bgm_gain_db | REAL | 既定 -14 |
-| bgm_duck_db | REAL | 既定 -10（声がある区間での追加減衰） |
+| bgm_duck_db | REAL | 既定 -10（声がある区間での追加減衰）。新しいエピソードの既定の下げ幅で、作成時に `episodes.sound_settings.ducking.depthDb` へ写す。写した後はエピソードの値で、ここを変えても作成済みの回は変わらない（Issue #174） |
 | opening_gain_db / ending_gain_db | REAL | |
 
 新規エピソード作成時、この行から `overlay_clips` を生成する。MVP は 1 種類のみ【事実】。将来 `episode_templates` テーブルに一般化。
@@ -221,7 +221,7 @@ MVP は起動時に 1 行自動作成。【事実】
 1. その回の `episodes.export_preset`（書き出しタブでプリセットを選んだ時点で保存する）
 2. NULL、または知らない値なら設定の `export.defaultPreset`（§4.16）
 
-- 保存するのは**キーだけ**。「カスタム」の中身（形式・ビットレート・チャンネル）は設定の `export.custom` に 1 つだけ持ち、回ごとには持たない。
+- 保存するのは**キーだけ**。「カスタム」の中身（形式・ビットレート・チャンネル・サンプルレート）は設定の `export.custom` に 1 つだけ持ち、回ごとには持たない。
   カスタムを選んだ回は、書き出す時点の `export.custom` で書き出す。
 - 書き出したファイルの実際の中身は `exports.preset`（§4.13）に残る。`export_preset` は「次に開いたときの選択」であって履歴ではない。
 - **複製**（FR-EP-4）は `export_preset` を引き継ぐ（`sound_settings` と同じ扱い）。
@@ -289,7 +289,7 @@ Take の「時間軸」は Segment を `seq` 順に連結したもの。割り�
 | src_start_smp / src_end_smp | INTEGER | 素材内の使用範囲（トリム） |
 | gain_db | REAL | |
 | fade_in_smp / fade_out_smp | INTEGER | |
-| duck | INTEGER | BGM 等、声のある区間で減衰させるか |
+| duck | INTEGER | 互換のために残す列。**読まない。** 下げるかどうかは `kind` で決まり（BGM だけ。`domain/timeline/types.ts` の `ducksUnderVoice`）、書き込みは `kind = 'bgm'` のとき 1（Issue #174） |
 | loop | INTEGER | BGM を末尾まで繰り返すか |
 | end_mode | TEXT | `asset_end` / `timeline_end` / `fixed`（BGM 用） |
 | updated_at | INTEGER | |
@@ -436,7 +436,7 @@ Home のサービス層だけが両方を 1 一覧へ投影する。`episode_id`
 ### 4.16 `app_settings`
 `expo-sqlite/kv-store`（【確認済み】AsyncStorage 互換の KV）を使う案と、専用テーブル `app_settings(key TEXT PK, value TEXT)` の案がある。型安全性のため専用テーブル + Zod スキーマ【仮説】。
 
-キー例: `theme`, `recording.sampleRate`, `recording.channels`, `recording.preferredInput`, `silence.minDurationMs`, `silence.thresholdDb`, `silence.autoApply`, `haptics`, `export.defaultPreset`（`podcast` / `high` / `wav` / `custom`）, `export.custom`（`{ format: m4a|wav, bitrate, channels: 1|2 }`。サンプルレートは 48 kHz 固定）, `interruption.autoResume`, `monitor.jinglePlayback`（`always` / `headphonesOnly` / `never`）。
+キー例: `theme`, `recording.preferredInput`, `silence.minDurationMs`, `silence.thresholdDb`, `silence.autoApply`, `haptics`, `export.defaultPreset`（`podcast` / `high` / `wav` / `custom`）, `export.custom`（`{ format: m4a|wav, bitrate, channels: 1|2, sampleRate: 48000|44100 }`。録音は 48 kHz / ステレオ固定で、設定に持たない。Issue #174）, `interruption.autoResume`, `monitor.jinglePlayback`（`always` / `headphonesOnly` / `never`）。
 
 ## 5. タイムラインのセマンティクス（domain/timeline）
 

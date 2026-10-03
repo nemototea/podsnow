@@ -4,6 +4,9 @@ import android.media.MediaCodec
 import android.media.MediaCodecInfo
 import android.media.MediaFormat
 import android.media.MediaMuxer
+import androidx.media3.common.C
+import androidx.media3.common.audio.AudioProcessor
+import androidx.media3.common.audio.SonicAudioProcessor
 import java.io.File
 import java.io.RandomAccessFile
 import java.nio.ByteBuffer
@@ -126,6 +129,59 @@ class AacSink(path: String, private val sampleRate: Int, private val channels: I
  * measuredLufs / measuredTruePeakDb は書き出したファイル（出力）の測定値。
  * inputLufs は調整前のミックス（ラウドネス調整が無効なら測らないので -120）。
  */
+/**
+ * 出力のサンプルレートへ変換してから内側のシンクへ渡す（AUDIO_DESIGN.md §8.1.1、Issue #174）。
+ * 変換は Media3 の SonicAudioProcessor（線形補間）。自前で補間しない。
+ * 高域がわずかに下がる（理論値で 15 kHz が約 -3 dB）のは受け入れる: 下げる変換で、劣化させたくなければ
+ * 48 kHz を選べばよい（ユーザー判断 2026-10-03）。iOS は AVAudioConverter。
+ */
+class ResamplingSink(
+  private val inner: PcmSink,
+  from: Int,
+  to: Int,
+  private val channels: Int,
+) : PcmSink {
+  private val sonic = SonicAudioProcessor().apply {
+    setOutputSampleRateHz(to)
+    configure(AudioProcessor.AudioFormat(from, channels, C.ENCODING_PCM_16BIT))
+    flush(AudioProcessor.StreamMetadata.DEFAULT)
+  }
+  private var input: ByteBuffer = ByteBuffer.allocateDirect(0).order(ByteOrder.nativeOrder())
+  private var out = ShortArray(0)
+
+  override fun write(pcm: ShortArray, frames: Int) {
+    if (frames <= 0) return
+    val bytes = frames * channels * 2
+    if (input.capacity() < bytes) input = ByteBuffer.allocateDirect(bytes).order(ByteOrder.nativeOrder())
+    input.clear()
+    input.asShortBuffer().put(pcm, 0, frames * channels)
+    input.limit(bytes)
+    sonic.queueInput(input)
+    drain()
+  }
+
+  /** 変換済みの分（溜まっている分すべて）を内側へ渡す。 */
+  private fun drain() {
+    val buf = sonic.output
+    val n = buf.remaining() / 2
+    if (n == 0) return
+    if (out.size < n) out = ShortArray(n)
+    buf.asShortBuffer().get(out, 0, n)
+    inner.write(out, n / channels)
+  }
+
+  override fun close() {
+    try {
+      // 変換器に残っている分を出し切ってから閉じる。getOutput は溜まっている分を一度に返す
+      sonic.queueEndOfStream()
+      drain()
+    } finally {
+      sonic.reset()
+      inner.close()
+    }
+  }
+}
+
 data class RenderResult(
   val path: String,
   val frames: Long,
@@ -144,6 +200,8 @@ class RenderJob(
   private val outPath: String,
   private val format: String,
   private val bitrate: Int,
+  /** 出力ファイルのサンプルレート。doc.sampleRate と違えば最後に変換する（AUDIO_DESIGN.md §8.1）。 */
+  private val outputSampleRate: Int,
   private val onProgress: (Double, String) -> Unit,
 ) {
   @Volatile var cancelled = false
@@ -154,8 +212,10 @@ class RenderJob(
       val r = LoudnessRenderer(doc, mixer, block, { cancelled }, onProgress)
       val ch = r.channels
       val gainDb = r.solveGain()
-      val sink: PcmSink = if (format == "wav") WavSink(outPath, doc.sampleRate, ch)
-      else AacSink(outPath, doc.sampleRate, ch, bitrate)
+      val fileSink: PcmSink = if (format == "wav") WavSink(outPath, outputSampleRate, ch)
+      else AacSink(outPath, outputSampleRate, ch, bitrate)
+      val sink: PcmSink = if (outputSampleRate == doc.sampleRate) fileSink
+      else ResamplingSink(fileSink, doc.sampleRate, outputSampleRate, ch)
       val pcm = ShortArray(block * ch)
       val out = sink.use {
         r.render(gainDb) { buf, offset, frames ->

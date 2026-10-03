@@ -65,7 +65,6 @@ describe('EditingService', () => {
           gainDb: -4,
           fadeIn: ZERO_SMP,
           fadeOut: ZERO_SMP,
-          duck: false,
           loop: false,
           endMode: 'asset_end',
         },

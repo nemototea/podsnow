@@ -49,6 +49,48 @@ export function renderTemplate(body: string, vars: TemplateVars): string {
   return out.join('\n');
 }
 
+/** テンプレートに書ける変数（`{{ }}` の中身）。並びは差し込みボタンの並び。 */
+export const TEMPLATE_VARS = ['title', 'episode_number', 'season', 'topics', 'show_name'] as const;
+export type TemplateVar = (typeof TEMPLATE_VARS)[number];
+
+const VAR_PATTERN = /\{\{\s*(\w+)\s*\}\}/g;
+const isTemplateVar = (k: string): k is TemplateVar =>
+  (TEMPLATE_VARS as readonly string[]).includes(k);
+
+/** 入力欄の選択範囲（文字の位置。`start === end` ならカーソル）。 */
+export interface TextSelection {
+  start: number;
+  end: number;
+}
+
+/**
+ * 選択範囲を `insert` で置き換え、カーソルを差し込んだ文字の直後に置く（Issue #174 F2）。
+ * 選択が分からない（一度も触っていない）ときは末尾に足す。範囲外の位置は丸める。
+ */
+export function insertAtSelection(
+  text: string,
+  selection: TextSelection | null,
+  insert: string,
+): { text: string; cursor: number } {
+  const clamp = (n: number) => Math.max(0, Math.min(text.length, n));
+  const a = selection ? clamp(selection.start) : text.length;
+  const b = selection ? clamp(selection.end) : text.length;
+  const start = Math.min(a, b);
+  const end = Math.max(a, b);
+  return { text: text.slice(0, start) + insert + text.slice(end), cursor: start + insert.length };
+}
+
+/**
+ * 編集中のテンプレートの見え方。既知の変数を `names` の文字（例:「［番組名］」）に置き換える。
+ * 行は消さず、未知の変数はそのまま残す（書き間違いが見えるように）。
+ */
+export function previewTemplate(
+  body: string,
+  names: Readonly<Record<TemplateVar, string>>,
+): string {
+  return body.replace(VAR_PATTERN, (m, k: string) => (isTemplateVar(k) ? names[k] : m));
+}
+
 /** 概要のうち、トークテーマ由来の箇条書き部分を差し替える（既存の「・」行ブロックを置換、無ければ末尾に追加）。 */
 export function insertTopics(description: string, topics: readonly string[]): string {
   const block = topics

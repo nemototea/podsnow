@@ -587,7 +587,8 @@ export function Toggle({
 }: {
   value: boolean;
   onChange: (v: boolean) => void;
-  accessibilityLabel?: string;
+  /** 行のラベルと同じ文言を渡す。スイッチ単体では何の切り替えか読み上げで分からない（Issue #174）。 */
+  accessibilityLabel: string;
   /** 押せない理由は文で書かず、近くに解決の操作（例: BGM を入れる）を置く。 */
   disabled?: boolean;
 }) {
@@ -600,7 +601,7 @@ export function Toggle({
       trackColor={{ false: c.surfaceHover, true: c.accentSolid }}
       ios_backgroundColor={c.surfaceHover}
       {...(Platform.OS === 'ios' ? {} : { thumbColor: value ? c.accentOnSolid : c.textSecondary })}
-      {...(accessibilityLabel ? { accessibilityLabel } : {})}
+      accessibilityLabel={accessibilityLabel}
     />
   );
 }
