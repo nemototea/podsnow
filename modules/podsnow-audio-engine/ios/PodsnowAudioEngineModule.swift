@@ -23,6 +23,8 @@ public class PodsnowAudioEngineModule: Module {
   private var player: TimelinePlayer?
   /// 再生中の割り込み・出力の抜去（AUDIO_DESIGN.md §10.3）。
   private var watcher: PlaybackSessionWatcher?
+  /// ロック画面・コントロールセンター（AUDIO_DESIGN.md §10.5）。
+  private lazy var nowPlaying = NowPlaying { [weak self] name, body in self?.sendEvent(name, body) }
   private var jobs: [String: RenderJob] = [:]
   private var jobSeq = 0
   private let workQueue = DispatchQueue(label: "dev.nemotea.podsnow.audioengine.work", qos: .userInitiated, attributes: .concurrent)
@@ -38,7 +40,7 @@ public class PodsnowAudioEngineModule: Module {
   public func definition() -> ModuleDefinition {
     Name("PodsnowAudioEngine")
 
-    Events("onRenderProgress", "onRenderDone", "onRenderError", "onPlaybackState", "onPosition", "onError", "onTaskProgress", "onPlaybackInterruption", "onOutputDisconnected")
+    Events("onRenderProgress", "onRenderDone", "onRenderError", "onPlaybackState", "onPosition", "onError", "onTaskProgress", "onPlaybackInterruption", "onOutputDisconnected", "onRemoteCommand")
 
     OnCreate {
       self.watcher = PlaybackSessionWatcher(
@@ -49,6 +51,7 @@ public class PodsnowAudioEngineModule: Module {
 
     OnDestroy {
       self.watcher = nil
+      DispatchQueue.main.async { self.nowPlaying.clear() }
       self.jobsLock.lock(); self.jobs.values.forEach { $0.cancelled = true }; self.jobsLock.unlock()
       self.player?.release()
       self.player = nil
@@ -100,6 +103,15 @@ public class PodsnowAudioEngineModule: Module {
 
     Function("getPosition") { () -> Double in Double(self.player?.currentFrame ?? 0) }
     Function("isPlaying") { () -> Bool in self.player?.playing ?? false }
+
+    // ---- ロック画面・コントロールセンター（メインスレッド）----
+    AsyncFunction("setNowPlayingAsync") { (info: NowPlayingInfoRecord) in
+      self.nowPlaying.update(info)
+    }.runOnQueue(.main)
+
+    AsyncFunction("clearNowPlayingAsync") {
+      self.nowPlaying.clear()
+    }.runOnQueue(.main)
 
     // ---- 書き出し（ワーカースレッド、進捗はイベント）----
     Function("startRender") { (docJson: String, opts: RenderOptionsRecord) -> String in

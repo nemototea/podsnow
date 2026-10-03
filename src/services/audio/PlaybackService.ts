@@ -1,13 +1,15 @@
 import type { AppErrorCode } from '@/domain/errors';
-import { ZERO_SMP, type Smp } from '@/domain/time';
+import { SAMPLE_RATE, ZERO_SMP, type Smp } from '@/domain/time';
 import type { SqlExecutor } from '@/infra/db/executor';
 import { joinRoot } from '@/infra/files/layout';
 
+import type { NowPlayingLabels } from '../app/labels';
 import { currentSourceFingerprint } from '../export/sourceFingerprint';
 import type { HomeEpisodeItem } from '../home/HomeService';
 import type { Subscription } from '../recording/RecorderPort';
 import type { AudioEnginePort } from './AudioEnginePort';
 import type { FilePlaybackPort } from './FilePlaybackPort';
+import type { NowPlayingCommand, NowPlayingPort } from './NowPlayingPort';
 import type { PlaybackSessionPort } from './PlaybackSessionPort';
 import { renderDocumentFromDb } from './renderDocumentFromDb';
 
@@ -59,6 +61,21 @@ type FileItem = ExportPlaybackItem | RssPlaybackItem | AssetPreviewItem;
 type PlaybackMode = 'timeline' | 'file' | null;
 /** ファイル再生の読み込み状態（Issue #185）。 */
 type FileLoadState = 'loading' | 'ready' | 'failed';
+/** ロック画面の 15 秒戻る / 30 秒進む（プレーヤー画面と同じ）。 */
+const SKIP_BACKWARD = 15 * SAMPLE_RATE;
+const SKIP_FORWARD = 30 * SAMPLE_RATE;
+
+interface NowPlayingMeta {
+  title: string;
+  artist: string;
+  artworkPath: string | null;
+}
+
+function sourceKey(source: PlaybackSource): string {
+  if (source.kind === 'export') return `export:${source.exportId}`;
+  if (source.kind === 'rss') return `rss:${source.feedEpisodeId}`;
+  return `timeline:${source.episodeId}`;
+}
 
 /** タイムラインと完成ファイルの再生状態をアプリ全体で 1 つだけ所有する。 */
 export class PlaybackService {
@@ -90,6 +107,12 @@ export class PlaybackService {
    * 自分で鳴らし直すので（AUDIO_DESIGN.md §10.3）、これが偽のときに鳴り出したら止め返す。
    */
   private fileWanted = false;
+  /** ロック画面・通知に出しているか（AUDIO_DESIGN.md §10.5）。利用者が再生を始めたら出し、閉じる・録音で消す。 */
+  private nowPlayingShown = false;
+  /** 最後に送った内容。状態・再生元・長さが変わったときだけ送り直す（位置は OS が進める）。 */
+  private nowPlayingSent: { key: string; playing: boolean; total: number } | null = null;
+  private nowPlayingMeta: { key: string; meta: NowPlayingMeta } | null = null;
+  private nowPlayingSeq = 0;
 
   constructor(
     private readonly deps: {
@@ -102,6 +125,10 @@ export class PlaybackService {
       session: PlaybackSessionPort;
       /** 録音側が音声セッションを持っている（入力モニター・録音中など。§10.1）。その間は再生を始めない。 */
       recorderBusy: () => boolean;
+      /** ロック画面・通知（AUDIO_DESIGN.md §10.5）。 */
+      nowPlaying: NowPlayingPort;
+      /** ロック画面・通知の文言。表示言語を知っている UI 層から来る（Issue #80）。 */
+      labels: () => NowPlayingLabels;
     },
   ) {
     this.subs.push(
@@ -150,6 +177,9 @@ export class PlaybackService {
       deps.engine.on('onOutputDisconnected', () => {
         void this.onOutputDisconnected();
       }),
+      deps.nowPlaying.onCommand((c) => {
+        void this.onRemoteCommand(c);
+      }),
     );
   }
 
@@ -168,6 +198,7 @@ export class PlaybackService {
     payload: Parameters<PlaybackEvents[K]>[0],
   ) {
     this.listeners.get(event)?.forEach((fn) => (fn as (p: unknown) => void)(payload));
+    if (event === 'state') this.refreshNowPlaying();
   }
 
   get isPlaying(): boolean {
@@ -272,6 +303,7 @@ export class PlaybackService {
     this.mode = 'timeline';
     this.total = this.timelineTotal;
     this.frame = at ?? (this.timelineFrame as Smp);
+    this.showNowPlaying();
     await this.deps.engine.play(at ?? null);
   }
 
@@ -297,8 +329,21 @@ export class PlaybackService {
     if (this.mode === 'timeline') await this.deps.engine.pause();
   }
 
+  /** 録音側（録音・入力モニター）が音声セッションを取る前に呼ぶ。止めて、ロック画面からも消す（§10.1 / §10.5）。 */
   async stopForRecording(): Promise<void> {
     await this.pause();
+    this.hideNowPlaying();
+  }
+
+  /**
+   * エピソード画面を抜けるとき。編集画面・書き出しタブで始めたタイムライン再生を止め、ロック画面からも消す
+   * （画面が無いのにロック画面から鳴らせないように。§10.5）。Home から始めた再生には触らない。
+   */
+  async leaveEpisode(): Promise<void> {
+    this.userAction();
+    if (this.mode !== 'timeline' || this.timelineItem?.homeKey) return;
+    this.hideNowPlaying();
+    await this.deps.engine.pause();
   }
 
   /** 書き出しタブ・編集画面からの操作は常にタイムラインへ切り替える。 */
@@ -313,6 +358,7 @@ export class PlaybackService {
     this.timelineFrame = frame;
     if (this.mode !== 'file') this.frame = frame;
     await this.deps.engine.seek(frame);
+    if (this.mode === 'timeline') this.refreshNowPlaying(true);
   }
 
   async seekHome(frame: Smp): Promise<void> {
@@ -325,6 +371,7 @@ export class PlaybackService {
     this.frame = clamped;
     await this.deps.filePlayer.seek(clamped);
     this.dispatch('position', { frame: clamped });
+    this.refreshNowPlaying(true);
   }
 
   /** 今の編集と同じ音の書き出しだけを選ぶ。古い書き出しは Home では鳴らさない（FR-EP-7、Issue #168）。 */
@@ -418,18 +465,25 @@ export class PlaybackService {
   async toggleCurrentHome(): Promise<boolean> {
     this.userAction();
     if (!this.source?.homeKey) return false;
-    if (this.mode === 'file' && this.fileLoad === 'failed' && this.fileItem && this.fileUri) {
-      // 失敗した読み込みをやり直す（Issue #185）
-      return this.startFile(this.fileItem, this.fileUri, this.frame as Smp);
-    }
     if (this.playing) await this.pauseCurrent();
-    else if (this.mode === 'timeline') {
+    else await this.resumeCurrent();
+    return true;
+  }
+
+  /** 今の再生元を続きから鳴らす（ミニプレーヤー・ロック画面の再生）。 */
+  private async resumeCurrent(): Promise<void> {
+    this.userAction();
+    if (this.mode === 'timeline') {
       await this.playTimeline(this.timelineFrame >= this.timelineTotal ? ZERO_SMP : undefined);
-    } else {
+    } else if (this.mode === 'file' && this.fileItem) {
+      if (this.fileLoad === 'failed' && this.fileUri) {
+        // 失敗した読み込みをやり直す（Issue #185）
+        await this.startFile(this.fileItem, this.fileUri, this.frame as Smp);
+        return;
+      }
       if (this.total > 0 && this.frame >= this.total) await this.deps.filePlayer.seek(ZERO_SMP);
       await this.resumeFile();
     }
-    return true;
   }
 
   /** 読み込み済みのファイル再生を続きから鳴らす。 */
@@ -437,6 +491,7 @@ export class PlaybackService {
     if (this.deps.recorderBusy()) return;
     this.fileWanted = true;
     this.playing = true;
+    this.showNowPlaying();
     this.dispatch('state', { playing: true, frame: this.frame });
     await this.enterPlayback();
     if (this.mode !== 'file' || !this.fileWanted) return;
@@ -473,6 +528,144 @@ export class PlaybackService {
     else if (this.fileLoad !== 'failed') await this.resumeFile();
   }
 
+  /** ロック画面・通知・ヘッドホンのボタンからの操作。利用者の操作として扱う（§10.5）。 */
+  private async onRemoteCommand(c: NowPlayingCommand): Promise<void> {
+    if (!this.nowPlayingShown) return;
+    switch (c.type) {
+      case 'play':
+        await this.resumeCurrent();
+        return;
+      case 'pause':
+        await this.pause();
+        return;
+      case 'toggle':
+        if (this.playing) await this.pause();
+        else await this.resumeCurrent();
+        return;
+      case 'skipBackward':
+        await this.seekCurrent((this.frame - SKIP_BACKWARD) as Smp);
+        return;
+      case 'skipForward':
+        await this.seekCurrent((this.frame + SKIP_FORWARD) as Smp);
+        return;
+      case 'seek':
+        await this.seekCurrent(c.position);
+        return;
+      case 'stop':
+        await this.dismiss();
+        return;
+    }
+  }
+
+  /** 今の再生元の中で位置を動かす（ロック画面から）。 */
+  private async seekCurrent(frame: Smp): Promise<void> {
+    this.userAction();
+    const clamped = Math.max(0, Math.min(this.total, frame)) as Smp;
+    if (this.mode === 'timeline') await this.seek(clamped);
+    else if (this.mode === 'file') {
+      this.frame = clamped;
+      await this.deps.filePlayer.seek(clamped);
+      this.dispatch('position', { frame: clamped });
+      this.refreshNowPlaying(true);
+    }
+  }
+
+  /** 通知の「止めて閉じる」。Home から始めた再生はミニプレーヤーの閉じると同じにする。 */
+  private async dismiss(): Promise<void> {
+    if (this.source?.homeKey) {
+      await this.stopHome();
+      return;
+    }
+    this.userAction();
+    this.hideNowPlaying();
+    await this.pauseCurrent();
+  }
+
+  /** 利用者が再生を始めた。ロック画面・通知に出す（§10.5）。題や番組名は読み直す。 */
+  private showNowPlaying(): void {
+    this.nowPlayingShown = true;
+    this.nowPlayingMeta = null;
+    this.refreshNowPlaying(true);
+  }
+
+  private hideNowPlaying(): void {
+    if (!this.nowPlayingShown) return;
+    this.nowPlayingShown = false;
+    this.nowPlayingSent = null;
+    this.nowPlayingSeq++;
+    this.deps.nowPlaying.clear();
+  }
+
+  /**
+   * ロック画面・通知を今の状態に合わせる。状態・再生元・長さが変わったときだけ送る。
+   * 位置を動かしたときは `force`。録音側が持っている間は出さない（§10.1）。
+   */
+  private refreshNowPlaying(force = false): void {
+    if (!this.nowPlayingShown) return;
+    const source = this.source;
+    if (!source || this.deps.recorderBusy()) {
+      this.hideNowPlaying();
+      return;
+    }
+    const key = sourceKey(source);
+    const prev = this.nowPlayingSent;
+    if (
+      !force &&
+      prev &&
+      prev.key === key &&
+      prev.playing === this.playing &&
+      prev.total === this.total
+    ) {
+      return;
+    }
+    this.nowPlayingSent = { key, playing: this.playing, total: this.total };
+    void this.sendNowPlaying(source, key);
+  }
+
+  private async sendNowPlaying(source: PlaybackSource, key: string): Promise<void> {
+    const seq = ++this.nowPlayingSeq;
+    let meta = this.nowPlayingMeta?.key === key ? this.nowPlayingMeta.meta : null;
+    if (!meta) {
+      meta = await this.loadNowPlayingMeta(source).catch(() => null);
+      if (!meta) return;
+      this.nowPlayingMeta = { key, meta };
+    }
+    // 読み込む間に状態が変わっていたら、後から送る方に任せる
+    if (seq !== this.nowPlayingSeq || !this.nowPlayingShown) return;
+    this.deps.nowPlaying.update({
+      ...meta,
+      title: meta.title || this.deps.labels().untitled,
+      duration: this.total as Smp,
+      position: this.frame as Smp,
+      playing: this.playing,
+      labels: this.deps.labels(),
+    });
+  }
+
+  /** 題・番組名・番組のアートワーク（プレーヤー画面と同じく番組のもの）。 */
+  private async loadNowPlayingMeta(source: PlaybackSource): Promise<NowPlayingMeta> {
+    const show =
+      source.episodeId !== null
+        ? await this.deps.db.get<{ title: string; name: string; cover_path: string | null }>(
+            `SELECT e.title, s.name, s.cover_path
+               FROM episodes e JOIN shows s ON s.id = e.show_id WHERE e.id = ?`,
+            [source.episodeId],
+          )
+        : source.kind === 'rss'
+          ? await this.deps.db.get<{ title: string; name: string; cover_path: string | null }>(
+              `SELECT f.title, s.name, s.cover_path
+                 FROM feed_episodes f JOIN shows s ON s.id = f.show_id WHERE f.id = ?`,
+              [source.feedEpisodeId],
+            )
+          : null;
+    const cover = show?.cover_path ? `${this.deps.root}/${show.cover_path}` : null;
+    return {
+      title: source.title || show?.title || '',
+      artist: show?.name ?? '',
+      artworkPath: cover && this.deps.fileExists(cover) ? cover : null,
+    };
+  }
+
   /** イヤホン・Bluetooth が外れた。止めて、自動では再開しない（§10.3）。 */
   private async onOutputDisconnected(): Promise<void> {
     this.interruptedMode = null;
@@ -495,6 +688,7 @@ export class PlaybackService {
     this.total = source.duration;
     this.playing = true;
     this.fileWanted = true;
+    this.showNowPlaying();
     this.dispatch('state', { playing: true, frame: at });
     try {
       await this.deps.filePlayer.load(uri, source.duration);
@@ -534,6 +728,7 @@ export class PlaybackService {
   async stopHome(): Promise<void> {
     this.userAction();
     if (!this.source?.homeKey) return;
+    this.hideNowPlaying();
     if (this.mode === 'file') {
       this.releaseFile();
       return;
@@ -545,6 +740,7 @@ export class PlaybackService {
   }
 
   private releaseFile(): void {
+    this.hideNowPlaying();
     this.deps.filePlayer.pause();
     this.fileLoadSeq++;
     this.fileItem = null;
@@ -559,6 +755,7 @@ export class PlaybackService {
   }
 
   async release(): Promise<void> {
+    this.hideNowPlaying();
     this.subs.forEach((s) => s.remove());
     this.subs = [];
     await this.deps.engine.unload();

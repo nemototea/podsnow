@@ -1,2 +1,13 @@
-<manifest>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+  <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+  <application>
+    <!-- 再生中（一時停止中も）プロセスを保ち、ロック画面・通知に操作を出す（AUDIO_DESIGN.md §10.5） -->
+    <service
+      android:name="dev.nemotea.podsnow.audioengine.NowPlayingService"
+      android:exported="false"
+      android:foregroundServiceType="mediaPlayback" />
+  </application>
 </manifest>

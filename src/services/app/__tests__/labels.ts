@@ -13,6 +13,16 @@ export const TEST_LABELS: ServiceLabels = {
     channelName: 'Recording',
     channelDescription: 'While recording',
   },
+  nowPlaying: {
+    untitled: 'Untitled',
+    play: 'Play',
+    pause: 'Pause',
+    rewind: 'Back 15',
+    forward: 'Forward 30',
+    stop: 'Stop',
+    channelName: 'Playback',
+    channelDescription: 'While playing',
+  },
 };
 
 /** `ensureDefaultShow` に渡す seed。 */

@@ -5,6 +5,9 @@ import { saveDoc } from '@/infra/db/repositories/editableDocRepo';
 import { currentSourceFingerprint } from '@/services/export/sourceFingerprint';
 import { HomeService, type HomeEpisodeItem } from '@/services/home/HomeService';
 
+import { TEST_LABELS } from '@/services/app/__tests__/labels';
+
+import type { NowPlayingCommand, NowPlayingInfo, NowPlayingPort } from '../NowPlayingPort';
 import { PlaybackService } from '../PlaybackService';
 import type { FilePlaybackPort, FilePlaybackStatus } from '../FilePlaybackPort';
 import { FakeAudioEngine } from './FakeAudioEngine';
@@ -53,6 +56,32 @@ class FakeFilePlayer implements FilePlaybackPort {
   release() {}
 }
 
+class FakeNowPlaying implements NowPlayingPort {
+  /** 送った内容（null は消した）。 */
+  log: (NowPlayingInfo | null)[] = [];
+  private fn: ((c: NowPlayingCommand) => void) | null = null;
+  update(info: NowPlayingInfo) {
+    this.log.push(info);
+  }
+  clear() {
+    this.log.push(null);
+  }
+  onCommand(fn: (c: NowPlayingCommand) => void) {
+    this.fn = fn;
+    return { remove: () => (this.fn = null) };
+  }
+  /** ロック画面から操作した。 */
+  send(c: NowPlayingCommand) {
+    this.fn?.(c);
+  }
+  get last() {
+    return this.log.at(-1);
+  }
+  get shown() {
+    return this.log.length > 0 && this.log.at(-1) !== null;
+  }
+}
+
 async function setup(opts: { withVoice?: boolean } = {}) {
   const db = createNodeSqliteExecutor();
   await migrate(db);
@@ -95,6 +124,7 @@ async function setup(opts: { withVoice?: boolean } = {}) {
   const existing = new Set(['/root/episodes/e/exports/x1.m4a']);
   const session = { enterPlayback: jest.fn(async () => {}) };
   const recorder = { busy: false };
+  const nowPlaying = new FakeNowPlaying();
   const svc = new PlaybackService({
     db,
     engine,
@@ -103,8 +133,10 @@ async function setup(opts: { withVoice?: boolean } = {}) {
     root: '/root',
     session,
     recorderBusy: () => recorder.busy,
+    nowPlaying,
+    labels: () => TEST_LABELS.nowPlaying,
   });
-  return { db, engine, filePlayer, existing, svc, session, recorder };
+  return { db, engine, filePlayer, existing, svc, session, recorder, nowPlaying };
 }
 
 /** 今の編集と同じ音の書き出し（`source_fingerprint` が今の値）を入れる。Issue #168 */
@@ -911,6 +943,234 @@ describe('PlaybackService audio session (Issue #183)', () => {
       expect(filePlayer.calls).toEqual([]);
       expect(engine.playing).toBe(false);
     });
+  });
+});
+
+// Issue #184: ロック画面・通知（AUDIO_DESIGN.md §10.5）
+describe('PlaybackService lock screen (Issue #184)', () => {
+  async function withExport(db: ReturnType<typeof createNodeSqliteExecutor>) {
+    await insertCurrentExport(db, 'x1');
+    return localHomeItem(db);
+  }
+
+  it('is not shown until the user starts playing', async () => {
+    const { nowPlaying, svc } = await setup({ withVoice: true });
+    await svc.reload('e');
+    await svc.seek(smp(48000));
+    await flush();
+    expect(nowPlaying.log).toEqual([]);
+  });
+
+  it('shows the episode, show and artwork for the timeline', async () => {
+    const { db, existing, nowPlaying, svc } = await setup({ withVoice: true });
+    await db.run("UPDATE shows SET name = 'My Show', cover_path = 'show/cover.jpg' WHERE id = 's'");
+    await db.run("UPDATE episodes SET title = 'Episode One' WHERE id = 'e'");
+    existing.add('/root/show/cover.jpg');
+    await svc.reload('e');
+    await svc.toggle();
+    await flush();
+    expect(nowPlaying.last).toMatchObject({
+      title: 'Episode One',
+      artist: 'My Show',
+      artworkPath: '/root/show/cover.jpg',
+      duration: TOTAL,
+      playing: true,
+      labels: TEST_LABELS.nowPlaying,
+    });
+  });
+
+  it('falls back to the untitled label and no artwork when the cover file is missing', async () => {
+    const { db, nowPlaying, svc } = await setup({ withVoice: true });
+    await db.run("UPDATE shows SET cover_path = 'show/gone.jpg' WHERE id = 's'");
+    await svc.reload('e');
+    await svc.toggle();
+    await flush();
+    expect(nowPlaying.last).toMatchObject({ title: 'Untitled', artworkPath: null });
+  });
+
+  it('follows pause and play, but not every status tick', async () => {
+    const { db, filePlayer, nowPlaying, svc } = await setup({ withVoice: true });
+    await svc.toggleHome(await withExport(db));
+    filePlayer.emit({ playing: true, position: smp(100) });
+    filePlayer.emit({ playing: true, position: smp(12100) });
+    filePlayer.emit({ playing: true, position: smp(24100) });
+    await flush();
+    const sent = nowPlaying.log.length;
+    expect(nowPlaying.last).toMatchObject({ playing: true });
+    await svc.toggleCurrentHome();
+    await flush();
+    expect(nowPlaying.log.length).toBe(sent + 1);
+    expect(nowPlaying.last).toMatchObject({ playing: false, position: 24100 });
+  });
+
+  it('sends the new position after seeking (the OS advances it in between)', async () => {
+    const { db, nowPlaying, svc } = await setup({ withVoice: true });
+    await svc.toggleHome(await withExport(db));
+    await svc.seekHome(smp(48000));
+    await flush();
+    expect(nowPlaying.last).toMatchObject({ position: 48000 });
+  });
+
+  describe('is removed', () => {
+    it('when the mini player is closed', async () => {
+      const { db, nowPlaying, svc } = await setup({ withVoice: true });
+      await svc.toggleHome(await withExport(db));
+      await flush();
+      await svc.stopHome();
+      expect(nowPlaying.last).toBeNull();
+    });
+
+    it('when recording starts, and stays hidden while recording', async () => {
+      const { nowPlaying, recorder, svc } = await setup({ withVoice: true });
+      await svc.reload('e');
+      await svc.toggle();
+      await flush();
+      await svc.stopForRecording();
+      expect(nowPlaying.last).toBeNull();
+      recorder.busy = true;
+      const count = nowPlaying.log.length;
+      nowPlaying.send({ type: 'play' });
+      await flush();
+      expect(nowPlaying.log.length).toBe(count);
+    });
+
+    it('when the playing export is deleted', async () => {
+      const { db, nowPlaying, svc } = await setup({ withVoice: true });
+      await svc.toggleHome(await withExport(db));
+      await flush();
+      await svc.forgetExport('x1');
+      expect(nowPlaying.last).toBeNull();
+    });
+
+    it('when an asset preview starts, which is not shown itself', async () => {
+      const { db, nowPlaying, svc } = await setup({ withVoice: true });
+      await svc.toggleHome(await withExport(db));
+      await flush();
+      expect(nowPlaying.shown).toBe(true);
+      await svc.toggleAssetPreview({ assetId: 'a1', path: 'assets/a1.wav', duration: smp(TOTAL) });
+      await flush();
+      expect(nowPlaying.last).toBeNull();
+      // 試聴中にロック画面の操作が届いても何もしない
+      nowPlaying.send({ type: 'pause' });
+      await flush();
+      expect(svc.previewingAssetId).toBe('a1');
+    });
+
+    it('when leaving the episode screen, which also stops the timeline', async () => {
+      const { engine, nowPlaying, svc } = await setup({ withVoice: true });
+      await svc.reload('e');
+      await svc.toggle();
+      await flush();
+      await svc.leaveEpisode();
+      expect(nowPlaying.last).toBeNull();
+      expect(engine.playing).toBe(false);
+    });
+
+    it('but leaving the episode screen does not touch playback started from Home', async () => {
+      const { db, filePlayer, nowPlaying, svc } = await setup({ withVoice: true });
+      await svc.toggleHome(await withExport(db));
+      await flush();
+      filePlayer.calls = [];
+      await svc.leaveEpisode();
+      expect(nowPlaying.shown).toBe(true);
+      expect(filePlayer.calls).toEqual([]);
+    });
+  });
+
+  describe('commands go through the service, so the app shows the same state', () => {
+    it('pause and play the file', async () => {
+      const { db, filePlayer, nowPlaying, svc } = await setup({ withVoice: true });
+      await svc.toggleHome(await withExport(db));
+      filePlayer.emit({ playing: true });
+      filePlayer.calls = [];
+      nowPlaying.send({ type: 'pause' });
+      await flush();
+      expect(filePlayer.calls).toEqual(['pause']);
+      expect(svc.isPlaying).toBe(false);
+      nowPlaying.send({ type: 'play' });
+      await flush();
+      expect(filePlayer.calls).toEqual(['pause', 'play']);
+      expect(svc.isPlaying).toBe(true);
+      // ロック画面から鳴らしたものは止め返さない
+      filePlayer.emit({ playing: true });
+      expect(filePlayer.calls).toEqual(['pause', 'play']);
+    });
+
+    it('toggle the timeline (headphone button)', async () => {
+      const { engine, nowPlaying, svc } = await setup({ withVoice: true });
+      await svc.reload('e');
+      await svc.toggle();
+      nowPlaying.send({ type: 'toggle' });
+      await flush();
+      expect(engine.playing).toBe(false);
+      nowPlaying.send({ type: 'toggle' });
+      await flush();
+      expect(engine.playing).toBe(true);
+    });
+
+    it('skip back 15 s and forward 30 s, within the episode', async () => {
+      const { engine, nowPlaying, svc } = await setup({ withVoice: true });
+      await svc.reload('e');
+      await svc.seek(smp(48000)); // 1 秒
+      await svc.toggle();
+      nowPlaying.send({ type: 'skipBackward' });
+      await flush();
+      expect(svc.position).toBe(0);
+      nowPlaying.send({ type: 'skipForward' });
+      await flush();
+      expect(svc.position).toBe(TOTAL); // 2 秒の回なので末尾で止まる
+      expect(engine.position).toBe(TOTAL);
+    });
+
+    it('seek the file to a position', async () => {
+      const { db, filePlayer, nowPlaying, svc } = await setup({ withVoice: true });
+      await svc.toggleHome(await withExport(db));
+      filePlayer.calls = [];
+      nowPlaying.send({ type: 'seek', position: smp(30000) });
+      await flush();
+      expect(filePlayer.calls).toEqual(['seek:30000']);
+      expect(svc.position).toBe(30000);
+      expect(nowPlaying.last).toMatchObject({ position: 30000 });
+    });
+
+    it('stop and close is the same as closing the mini player', async () => {
+      const { db, nowPlaying, svc } = await setup({ withVoice: true });
+      await svc.toggleHome(await withExport(db));
+      nowPlaying.send({ type: 'stop' });
+      await flush();
+      expect(svc.source).toBeNull();
+      expect(nowPlaying.last).toBeNull();
+    });
+
+    it('cancel the resume after an interruption', async () => {
+      const { engine, nowPlaying, svc } = await setup({ withVoice: true });
+      await svc.reload('e');
+      await svc.toggle();
+      engine.emit('onPlaybackInterruption', { type: 'began', shouldResume: false });
+      await flush();
+      nowPlaying.send({ type: 'skipForward' });
+      await flush();
+      engine.emit('onPlaybackInterruption', { type: 'ended', shouldResume: true });
+      await flush();
+      expect(engine.playing).toBe(false);
+    });
+
+    it('are ignored when nothing is shown', async () => {
+      const { engine, nowPlaying, svc } = await setup({ withVoice: true });
+      await svc.reload('e');
+      nowPlaying.send({ type: 'play' });
+      await flush();
+      expect(engine.playing).toBe(false);
+    });
+  });
+
+  it('shows the paused state after an interruption', async () => {
+    const { engine, nowPlaying, svc } = await setup({ withVoice: true });
+    await svc.reload('e');
+    await svc.toggle();
+    engine.emit('onPlaybackInterruption', { type: 'began', shouldResume: false });
+    await flush();
+    expect(nowPlaying.last).toMatchObject({ playing: false });
   });
 });
 

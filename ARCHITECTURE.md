@@ -177,7 +177,9 @@ interface AudioEngineModule {
 | iOS | `UIBackgroundModes: audio` + 録音中は AVAudioSession をアクティブに保つ | 【確認済み】expo-audio の plugin が同じ設定を付与することから、必要設定はこれで足りると判断。自作 plugin で `Info.plist` に付与 |
 | Android | `foregroundServiceType="microphone"` の Foreground Service + 通知。権限 `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_MICROPHONE`, `RECORD_AUDIO`, `POST_NOTIFICATIONS`(13+) | 【確認済み】https://developer.android.com/develop/background-work/services/fgs/service-types |
 | Android 制約 | **マイク FGS はアプリがフォアグラウンドにある間にしか開始できない**。バックグラウンド／BOOT_COMPLETED からは不可 | 【確認済み】同上 → 録音開始は必ず画面操作から。割り込み後の「自動再開」がバックグラウンドで発生するケースは要検証【仮説】 |
-| Google Play | FGS 種別の申告が必要（配布時） | 【確認済み】同上 |
+| iOS（再生） | 録音と同じ `UIBackgroundModes: audio`。再生中は音声セッションを有効に保つ。ロック画面は `MPNowPlayingInfoCenter` / `MPRemoteCommandCenter` | 【事実】AUDIO_DESIGN.md §10.5（Issue #184） |
+| Android（再生） | `foregroundServiceType="mediaPlayback"` の Foreground Service + `MediaSession` の通知。権限 `FOREGROUND_SERVICE_MEDIA_PLAYBACK` | 【確認済み】同上の service-types。設計は AUDIO_DESIGN.md §10.5 |
+| Google Play | FGS 種別の申告が必要（配布時。`microphone` と `mediaPlayback`） | 【確認済み】同上 |
 
 ## 7. 横断的な設計
 

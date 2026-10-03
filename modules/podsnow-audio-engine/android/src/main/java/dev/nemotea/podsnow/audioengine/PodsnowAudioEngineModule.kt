@@ -30,6 +30,26 @@ class RenderOptions : Record {
   @Field val sampleRate: Int = 0
 }
 
+class NowPlayingLabelsRecord : Record {
+  @Field val play: String = ""
+  @Field val pause: String = ""
+  @Field val rewind: String = ""
+  @Field val forward: String = ""
+  @Field val stop: String = ""
+  @Field val channelName: String = ""
+  @Field val channelDescription: String = ""
+}
+
+class NowPlayingInfoRecord : Record {
+  @Field val title: String = ""
+  @Field val artist: String = ""
+  @Field val artworkPath: String? = null
+  @Field val durationSec: Double = 0.0
+  @Field val positionSec: Double = 0.0
+  @Field val playing: Boolean = false
+  @Field val labels: NowPlayingLabelsRecord = NowPlayingLabelsRecord()
+}
+
 class AudioEngineException(message: String) : CodedException("ERR_AUDIO_ENGINE", message, null)
 
 class PodsnowAudioEngineModule : Module() {
@@ -58,15 +78,21 @@ class PodsnowAudioEngineModule : Module() {
   override fun definition() = ModuleDefinition {
     Name("PodsnowAudioEngine")
 
-    Events("onRenderProgress", "onRenderDone", "onRenderError", "onPlaybackState", "onPosition", "onError", "onTaskProgress", "onPlaybackInterruption", "onOutputDisconnected")
+    Events("onRenderProgress", "onRenderDone", "onRenderError", "onPlaybackState", "onPosition", "onError", "onTaskProgress", "onPlaybackInterruption", "onOutputDisconnected", "onRemoteCommand")
 
     OnCreate {
       val ctx = appContext.reactContext?.applicationContext ?: return@OnCreate
       watcher = PlaybackSessionWatcher(ctx, { n, b -> sendEvent(n, b) }, { player?.pause() }).also { it.start() }
+      // ロック画面・通知の操作は鳴らす側を触らず JS へ送る（AUDIO_DESIGN.md §10.5）
+      NowPlayingService.onCommand = { command, positionSec ->
+        sendEvent("onRemoteCommand", mapOf("command" to command, "positionSec" to positionSec))
+      }
     }
 
     OnDestroy {
       watcher?.stop(); watcher = null
+      NowPlayingService.onCommand = null
+      NowPlayingService.clear()
       jobs.values.forEach { it.cancelled = true }
       player?.release(); player = null
       executor.shutdownNow()
@@ -112,6 +138,25 @@ class PodsnowAudioEngineModule : Module() {
     AsyncFunction("unloadAsync") { player?.release(); player = null; watcher?.abandonFocus() }.runOnQueue(Queues.MAIN)
     Function("getPosition") { (player?.currentFrame ?: 0L).toDouble() }
     Function("isPlaying") { player?.isPlaying ?: false }
+
+    // ---- ロック画面・通知（メインスレッド）----
+    AsyncFunction("setNowPlayingAsync") { info: NowPlayingInfoRecord ->
+      val ctx = appContext.reactContext?.applicationContext ?: return@AsyncFunction
+      val l = info.labels
+      NowPlayingService.update(
+        ctx,
+        NowPlayingService.Info(
+          title = info.title,
+          artist = info.artist,
+          artworkPath = info.artworkPath,
+          durationSec = info.durationSec,
+          positionSec = info.positionSec,
+          playing = info.playing,
+          labels = NowPlayingService.Labels(l.play, l.pause, l.rewind, l.forward, l.stop, l.channelName, l.channelDescription),
+        ),
+      )
+    }.runOnQueue(Queues.MAIN)
+    AsyncFunction("clearNowPlayingAsync") { NowPlayingService.clear() }.runOnQueue(Queues.MAIN)
 
     // ---- 書き出し（ワーカースレッド、進捗はイベント）----
     Function("startRender") { docJson: String, opts: RenderOptions ->

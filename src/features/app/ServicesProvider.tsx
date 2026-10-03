@@ -15,6 +15,7 @@ function serviceLabels(t: Messages): ServiceLabels {
     addTakeOp: t.seed.addTakeOp,
     interruptionNote: t.seed.interruptionNote,
     androidNotification: t.androidNotification,
+    nowPlaying: t.nowPlaying,
   };
 }
 
