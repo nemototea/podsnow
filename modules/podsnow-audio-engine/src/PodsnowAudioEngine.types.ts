@@ -69,12 +69,29 @@ export interface PlaybackStateEvent {
   ended?: boolean;
 }
 
+/**
+ * 再生中の割り込み（着信・他アプリの排他再生）。AUDIO_DESIGN.md §10.3。
+ * ネイティブはこれを送ってからタイムライン再生を止める。
+ */
+export interface PlaybackInterruptionEvent {
+  type: 'began' | 'ended';
+  /** `ended` のとき、OS が再開を勧めているか（iOS `.shouldResume` / Android の一時的な喪失からの復帰）。 */
+  shouldResume: boolean;
+}
+
+/** イヤホン・Bluetooth など、再生の出力が外れた（AUDIO_DESIGN.md §10.3）。 */
+export interface OutputDisconnectedEvent {
+  reason: string;
+}
+
 export type PodsnowAudioEngineModuleEvents = {
   onRenderProgress: (e: RenderProgressEvent) => void;
   onRenderDone: (e: RenderDoneEvent) => void;
   onRenderError: (e: RenderErrorEvent) => void;
   onPlaybackState: (e: PlaybackStateEvent) => void;
   onPosition: (e: { frame: number }) => void;
+  onPlaybackInterruption: (e: PlaybackInterruptionEvent) => void;
+  onOutputDisconnected: (e: OutputDisconnectedEvent) => void;
   onError: (e: { message: string }) => void;
   onTaskProgress: (e: { task: string; path: string; progress: number }) => void;
 };

@@ -15,6 +15,7 @@ import {
 import { createNativeAudioEngine } from '@/infra/native/audioEngineAdapter';
 import { createNativeHaptics } from '@/infra/native/hapticsAdapter';
 import { createExpoFilePlayback } from '@/infra/playback/expoFilePlayback';
+import { createExpoPlaybackSession } from '@/infra/playback/playbackSession';
 import { expoFsPort } from '@/infra/files/expoFsPort';
 import { expoImageProcessor } from '@/infra/images/expoImageProcessor';
 import { expoImagePicker } from '@/infra/images/expoImagePicker';
@@ -123,7 +124,16 @@ export async function bootstrap(
     }),
     labels: () => live.labels,
   });
-  const playback = new PlaybackService({ db, engine, filePlayer, fileExists, root });
+  const playback = new PlaybackService({
+    db,
+    engine,
+    filePlayer,
+    fileExists,
+    root,
+    session: createExpoPlaybackSession(),
+    // 録音側が音声セッションを持つ間は再生を始めない（AUDIO_DESIGN.md §10.1）
+    recorderBusy: () => !recording.isIdle,
+  });
   const exporter = new ExportService({
     db,
     engine,

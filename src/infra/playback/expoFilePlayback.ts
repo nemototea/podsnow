@@ -6,7 +6,8 @@ import type { FilePlaybackPort, FilePlaybackStatus } from '@/services/audio/File
 const SAMPLE_RATE = 48000;
 
 export function createExpoFilePlayback(): FilePlaybackPort {
-  const player = createAudioPlayer(null, { updateInterval: 250 });
+  // 止めてもセッションを無効にさせない。無効にすると、続けて始めたタイムライン再生が止まる（AUDIO_DESIGN.md §10.1）
+  const player = createAudioPlayer(null, { updateInterval: 250, keepAudioSessionActive: true });
   let duration = smp(0);
   const listeners = new Set<(status: FilePlaybackStatus) => void>();
   const sub = player.addListener('playbackStatusUpdate', (status) => {
