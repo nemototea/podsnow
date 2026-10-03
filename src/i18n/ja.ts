@@ -76,6 +76,15 @@ export const ja = {
     loadingStream: '配信から読み込み中…',
     loadingFile: '読み込み中…',
     retry: 'もう一度読み込む',
+    /** プレーヤー画面（Issue #188）。下へ引いても閉じる。 */
+    close: 'プレーヤーを閉じる',
+    /** 再生元。Home の再生は書き出し → 配信 → 編集中のタイムラインの順に選ぶ（FR-EP-7）。 */
+    sourceExport: '書き出したファイル',
+    sourceRss: '配信中の音声',
+    sourceTimeline: '編集中の下書き',
+    recordedOn: (date: string) => `収録日 ${date}`,
+    publishedOn: (date: string) => `配信日 ${date}`,
+    description: '概要',
   },
 
   /** エピソードの状態（FR-EP-3）。 */

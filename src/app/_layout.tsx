@@ -10,7 +10,7 @@ import { LocaleProvider, useT } from '@/i18n';
 import { Loading } from '@/ui/components';
 import { DialogHost } from '@/ui/Dialog';
 import { FontProvider, useFontFamily } from '@/ui/Text';
-import { typography } from '@/ui/tokens';
+import { radius, typography } from '@/ui/tokens';
 import { ThemeProvider, useAppTheme } from '@/ui/ThemeContext';
 
 function Navigation() {
@@ -49,7 +49,22 @@ function Navigation() {
         }}
       >
         <Stack.Screen name="index" options={{ headerShown: false, title: t.app.name }} />
-        <Stack.Screen name="player" options={{ title: t.player.title }} />
+        {/*
+          プレーヤーは下から出るシート。下へ引いて閉じる（Issue #188）。formSheet は iOS では
+          UISheetPresentationController、Android では BottomSheet で、どちらも引いて閉じられる
+          （modal は Android で引いて閉じられない）。高さは画面いっぱい（detent 1.0）
+        */}
+        <Stack.Screen
+          name="player"
+          options={{
+            title: t.player.title,
+            headerShown: false,
+            presentation: 'formSheet',
+            sheetAllowedDetents: [1],
+            sheetGrabberVisible: true,
+            sheetCornerRadius: radius.xl,
+          }}
+        />
       </Stack>
       <MiniPlayer />
       <DialogHost />

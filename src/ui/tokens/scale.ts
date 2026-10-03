@@ -32,6 +32,8 @@ export const dialogWidth = 400;
 export const artwork = {
   settingsPreview: 128,
   player: 184,
+  /** プレーヤー画面のジャケットの一辺の上限（Issue #188）。狭い画面では幅に合わせて縮む。 */
+  playerSheet: 280,
   miniPlayer: 44,
   /** Home のレコードジャケットの一辺の上限（#190）。狭い画面では盤まで収まる大きさに縮む。 */
   homeJacket: 240,
@@ -42,6 +44,12 @@ export const player = {
   seekTrack: 10,
   seekThumb: 22,
   miniBottom: space.sm,
+  /** 再生・一時停止の丸（Issue #171 D5、#188）。前後のボタンより大きくし、主操作と分かるようにする。 */
+  playButton: 72,
+  /** ミニプレーヤーの進み具合のバーの太さ（Issue #188）。 */
+  miniProgress: 4,
+  /** シークを離したあと、実際の位置が追いつくまでつまみを離した位置に留める上限（ms）。 */
+  seekSettleMs: 1500,
 } as const;
 
 /** 角丸。部品ごとの値は DESIGN_SYSTEM.md §6 で決める。 */
