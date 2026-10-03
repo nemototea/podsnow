@@ -186,6 +186,7 @@ export default function SettingsScreen() {
           last={Platform.OS !== 'android'}
           right={
             <Toggle
+              accessibilityLabel={t.settings.autoResume}
               value={settings.recording.autoResumeAfterInterruption}
               onChange={(v) => setRec({ autoResumeAfterInterruption: v })}
             />
@@ -260,6 +261,7 @@ export default function SettingsScreen() {
           label={t.settings.silenceAuto}
           right={
             <Toggle
+              accessibilityLabel={t.settings.silenceAuto}
               value={settings.silence.autoApply}
               onChange={(v) => setSilence({ autoApply: v })}
             />
@@ -268,7 +270,13 @@ export default function SettingsScreen() {
         <Row
           label={t.settings.haptics}
           info={t.glossary.haptics}
-          right={<Toggle value={settings.haptics} onChange={(v) => set('haptics', v)} />}
+          right={
+            <Toggle
+              accessibilityLabel={t.settings.haptics}
+              value={settings.haptics}
+              onChange={(v) => set('haptics', v)}
+            />
+          }
         />
         <ChoiceMenu
           label={t.settings.monitorRow}

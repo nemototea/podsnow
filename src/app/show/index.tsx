@@ -1,7 +1,14 @@
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
+import {
+  insertAtSelection,
+  previewTemplate,
+  TEMPLATE_VARS,
+  type TemplateVar,
+  type TextSelection,
+} from '@/domain/metadata/template';
 import { formatSmp, smp } from '@/domain/time';
 import { splitIntoHeadings } from '@/domain/outline';
 import { useServices } from '@/features/app/ServicesProvider';
@@ -65,13 +72,8 @@ const SLOT_GAIN: Record<LayoutSlot, keyof ShowLayoutRow> = {
 };
 
 /** 概要欄テンプレートに挿入できる変数（DATA_MODEL.md §4.3）。説明は i18n から。 */
-const PLACEHOLDER_KEYS = [
-  'title',
-  'episode_number',
-  'season',
-  'topics',
-  'show_name',
-] as const satisfies readonly (keyof Messages['showSettings']['placeholders'])[];
+const PLACEHOLDER_KEYS =
+  TEMPLATE_VARS satisfies readonly (keyof Messages['showSettings']['placeholders'])[];
 
 /**
  * 番組設定（FR-SHOW-3, FR-SHOW-4, FR-SHOW-5, FR-META-2）。
@@ -131,6 +133,10 @@ export default function ShowScreen() {
   const [topicDraft, setTopicDraft] = useState<string | null>(null);
   const [templateDraft, setTemplateDraft] = useState<string | null>(null);
   const [picking, setPicking] = useState<LayoutSlot | null>(null);
+  // 概要欄テンプレートの選択範囲。差し込みはここに入れる（Issue #174 F2）
+  const templateSel = useRef<TextSelection | null>(null);
+  // 差し込んだ直後だけカーソルを指定し、次の選択の変化で手放す（常に制御すると入力が引っかかる）
+  const [forcedSel, setForcedSel] = useState<TextSelection | null>(null);
 
   const openShowEditor = () => {
     setShowDraft({
@@ -146,6 +152,8 @@ export default function ShowScreen() {
     setEditing('topics');
   };
   const openTemplateEditor = () => {
+    templateSel.current = null;
+    setForcedSel(null);
     setTemplateDraft(data.template?.body ?? '');
     setEditing('template');
   };
@@ -210,6 +218,15 @@ export default function ShowScreen() {
     showToast({ text: t.showSettings.topicTemplateSaved });
   };
 
+  const insertPlaceholder = (key: TemplateVar) => {
+    if (templateDraft === null) return;
+    const r = insertAtSelection(templateDraft, templateSel.current, `{{${key}}}`);
+    const cursor = { start: r.cursor, end: r.cursor };
+    templateSel.current = cursor;
+    setTemplateDraft(r.text);
+    setForcedSel(cursor);
+  };
+
   const saveDescriptionTemplate = async () => {
     if (templateDraft === null || !data.template) return;
     await updateTemplate(db, data.template.id, templateDraft, now());
@@ -271,6 +288,27 @@ export default function ShowScreen() {
     await updateLayout(db, showId, { bgmDuckDb: next });
     await reload();
   };
+
+  // 見出しと同じ文字を行に繰り返さず、行には値（先頭 1 行・件数）を出す（Issue #174 F3）
+  const placeholderNames = Object.fromEntries(
+    PLACEHOLDER_KEYS.map((k) => [
+      k,
+      t.showSettings.placeholderToken(t.showSettings.placeholders[k]),
+    ]),
+  ) as Record<TemplateVar, string>;
+  const topicHeadings = splitIntoHeadings(data.topicTemplate);
+  const topicsRow = {
+    label: topicHeadings[0] ?? t.common.none,
+    sub: topicHeadings.length ? t.showSettings.topicCount(topicHeadings.length) : null,
+  };
+  const templateBody = data.template?.body.trim() ?? '';
+  const templateLines = templateBody ? templateBody.split('\n') : [];
+  const templateRow = {
+    label: templateLines[0] ? previewTemplate(templateLines[0], placeholderNames) : t.common.none,
+    sub: templateLines.length ? t.showSettings.templateLines(templateLines.length) : null,
+  };
+  const rowA11y = (action: string, row: { label: string; sub: string | null }) =>
+    [action, row.label, row.sub].filter(Boolean).join(', ');
 
   const assetName = (id: string | null) =>
     data.assets.find((a) => a.id === id)?.name ?? t.showSettings.chooseAsset;
@@ -360,9 +398,8 @@ export default function ShowScreen() {
       <SectionHeader title={t.showAssets.title} />
       <Card rows>
         <Row
-          icon="music"
-          label={t.showAssets.title}
-          sub={t.showAssets.count(data.assets.length)}
+          icon={data.assets.length ? 'music' : 'plus'}
+          label={data.assets.length ? t.showAssets.count(data.assets.length) : t.showAssets.add}
           accessibilityLabel={t.showAssets.a11yOpen(data.assets.length)}
           onPress={() => openAssets()}
           last
@@ -411,9 +448,10 @@ export default function ShowScreen() {
       <SectionHeader title={t.showSettings.topicTemplateEyebrow} />
       <Card rows>
         <Row
-          label={t.showSettings.topicTemplateEyebrow}
-          sub={t.showSettings.topicCount(splitIntoHeadings(data.topicTemplate).length)}
-          accessibilityLabel={t.showSettings.a11yEditTopicTemplate}
+          label={topicsRow.label}
+          labelMuted={!topicHeadings.length}
+          {...(topicsRow.sub ? { sub: topicsRow.sub } : {})}
+          accessibilityLabel={rowA11y(t.showSettings.a11yEditTopicTemplate, topicsRow)}
           onPress={openTopicEditor}
           last
         />
@@ -422,9 +460,10 @@ export default function ShowScreen() {
       <SectionHeader title={t.showSettings.templateEyebrow} />
       <Card rows>
         <Row
-          label={t.showSettings.templateEyebrow}
-          sub={data.template?.body.trim() || t.common.none}
-          accessibilityLabel={t.showSettings.a11yEditDescriptionTemplate}
+          label={templateRow.label}
+          labelMuted={!templateLines.length}
+          {...(templateRow.sub ? { sub: templateRow.sub } : {})}
+          accessibilityLabel={rowA11y(t.showSettings.a11yEditDescriptionTemplate, templateRow)}
           onPress={openTemplateEditor}
           last
         />
@@ -509,22 +548,38 @@ export default function ShowScreen() {
               label={t.showSettings.a11yTemplate}
               value={templateDraft}
               onChangeText={setTemplateDraft}
+              onSelectionChange={(e) => {
+                templateSel.current = e.nativeEvent.selection;
+                if (forcedSel) setForcedSel(null);
+              }}
+              {...(forcedSel ? { selection: forcedSel } : {})}
+              help={t.showSettings.templateHelp}
               multiline
             />
             <View style={st.helpWrap}>
               {PLACEHOLDER_KEYS.map((key) => {
-                const token = `{{${key}}}`;
                 const desc = t.showSettings.placeholders[key];
                 return (
                   <Chip
                     key={key}
+                    icon="plus"
                     label={desc}
                     accessibilityLabel={t.showSettings.a11yInsertPlaceholder(desc)}
-                    onPress={() => setTemplateDraft(`${templateDraft}${token}`)}
+                    onPress={() => insertPlaceholder(key)}
                   />
                 );
               })}
             </View>
+            {templateDraft.trim() ? (
+              <View style={st.preview}>
+                <Text style={[typography.label, { color: c.textSecondary }]}>
+                  {t.showSettings.templatePreview}
+                </Text>
+                <Text style={[typography.body, { color: c.textSecondary }]}>
+                  {previewTemplate(templateDraft, placeholderNames)}
+                </Text>
+              </View>
+            ) : null}
             <View style={st.sheetActions}>
               <Button
                 label={t.common.save}
@@ -608,5 +663,6 @@ const st = StyleSheet.create({
   infoLabel: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: space.xs },
   stepValue: { ...typography.numeric, ...tabularNums, minWidth: 64, textAlign: 'center' },
   helpWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
+  preview: { gap: space.xs, marginTop: space.md },
   sheetActions: { gap: space.sm, marginTop: space.md },
 });

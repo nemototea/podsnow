@@ -596,6 +596,11 @@ Tag #PodsNow to share your thoughts`,
       show_name: 'show name',
     },
     a11yInsertPlaceholder: (name: string) => `Insert ${name}`,
+    templateHelp:
+      'Placeholders like {{show_name}} are replaced with the real values when you create a new episode. The buttons below insert at the cursor.',
+    templatePreview: 'Preview',
+    placeholderToken: (name: string) => `[${name}]`,
+    templateLines: (n: number) => `${n} ${n === 1 ? 'line' : 'lines'}`,
     slotAssets: (slot: string) => `${slot} sounds`,
   },
 

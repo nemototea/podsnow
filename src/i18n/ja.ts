@@ -613,6 +613,11 @@ Podcast: {{show_name}}
       show_name: '番組名',
     },
     a11yInsertPlaceholder: (name: string) => `${name} を挿入`,
+    templateHelp:
+      '{{show_name}} のような記法は、新しいエピソードを作るときに中身へ置き換わります。下のボタンはカーソルの位置に入ります。',
+    templatePreview: 'プレビュー',
+    placeholderToken: (name: string) => `［${name}］`,
+    templateLines: (n: number) => `${n} 行`,
     slotAssets: (slot: string) => `${slot} の素材`,
   },
 
