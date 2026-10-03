@@ -20,6 +20,7 @@
 |---|---|---|
 | 録音（PCM 取得 → WAV 書き込み） | **ネイティブ**（`podsnow-recorder`） | Android の expo-audio は `AndroidAudioEncoder = aac / he_aac / aac_eld / amr_*` のみで PCM 不可。iOS は `LINEARPCM` 可だが、統一のためネイティブ |
 | Audio Session / Audio Focus 管理（録音中） | ネイティブ | 割り込み・ルート変更の通知が expo-audio に無い |
+| 再生の音声モード、再生中の割り込み・出力の抜去 | JS（`setAudioModeAsync` を 1 か所で）+ ネイティブ（タイムラインの音声フォーカス、検知） | §10 |
 | レベルメーター（peak / RMS） | ネイティブ → イベント | 生 PCM が JS に来ないため |
 | Android フォアグラウンドサービス | ネイティブ | `foregroundServiceType="microphone"`（Android 14+ 必須）【確認済み】 |
 | WAV ヘッダ定期更新・fsync・復旧 | ネイティブ | ファイル I/O をリアルタイムスレッドで行う |
@@ -105,7 +106,7 @@ AudioRecord(source = VOICE_RECOGNITION or UNPROCESSED or MIC,
 - 同時に手元で再生（モニター）。**スピーカー出力中はマイクに回り込む**ので:
   - 出力ルートがイヤホン / BT 出力のとき: 再生する
   - スピーカーのとき: 設定 `monitor.jinglePlayback` に従う（既定 `headphonesOnly` = 再生せず「挿入しました」表示のみ）
-- 再生は expo-audio `AudioPlayer`【仮説】。録音セッション（ネイティブが `.playAndRecord` を保持）と同居できるか、expo-audio の `setAudioModeAsync` がセッション設定を上書きしないかを Phase 0 で確認。衝突するなら `podsnow-recorder` に簡易プレイヤーを持たせる。
+- 再生は expo-audio `AudioPlayer`【仮説】。録音セッション（ネイティブが `.playAndRecord` を保持）と同居できるかを Phase 0 で確認。衝突するなら `podsnow-recorder` に簡易プレイヤーを持たせる。録音中は `setAudioModeAsync` を呼ばず、プレイヤーは `keepAudioSessionActive: true` で作る（§10.1）。
 
 ## 6. 解析（`podsnow-audio-engine`）
 
@@ -130,7 +131,7 @@ Issue #135 の画面間再生【事実】:
 - **方針【事実】ユーザー判断（2026-09-29）:** 試聴には音の仕上げをすべて即座に反映する（REQUIREMENTS.md FR-EP-7、Issue #158）。統合ラウドネスは全体を測らないと決まらないので、測定パスを裏で先に走らせてゲインをキャッシュし、試聴の Mixer に書き出しと同じゲイン → リミッターを入れる案。今後の音の処理（ノイズ除去・EQ 等）も試聴でリアルタイムに鳴らせることを条件にする。
 - Home は制作中の回と RSS から取り込んだ配信済みの回を同じ一覧に見せる。再生元は、端末に実体がある最新の書き出し済みファイル、対応する RSS `enclosure_url`、ローカルのタイムラインの順で選ぶ。RSS だけの回も `enclosure_url` があれば再生する。
 - ファイル再生（書き出し・RSS）は読み込みを待たずに「読み込み中」を出し、音が出たら再生中に変える。バッファ待ちの間も読み込み中を出す。読み込みに失敗したら（URL が切れている・通信できない・壊れたファイル）再生を止め、`AppErrorCode`（`playback_stream_failed` / `playback_file_failed`）を出す。次に再生を押すと同じ再生元を読み込み直す。読み込み中に一時停止したら、読み込みが終わっても鳴らさない。後から別の回を再生したら、先の読み込みの結果は捨てる。【事実: Issue #185】【確認済み: expo-audio 57.0.5 の `AudioStatus` に `isLoaded` / `isBuffering` / `error`（`node_modules/expo-audio/build/Audio.types.d.ts`。https://docs.expo.dev/versions/v57.0.0/sdk/audio/ はこの環境から開けず未照合）】
-- 両方の状態と切替はサービス層の単一 `PlaybackService` が所有する。一方を始める前に他方を止め、収録開始時は再生を自動停止する。
+- 両方の状態と切替はサービス層の単一 `PlaybackService` が所有する。一方を始める前に他方を止め、収録開始時は再生を自動停止する。音声セッション（音声モード・割り込み・イヤホンの抜去・録音との切り替え）は §10。
 - 制作中の回と配信済みの回は、`feed_episodes.episode_id` の明示リンクを最優先し、次に GUID 完全一致だけを自動対応として扱う。題名や話数の類似では結びつけない。
 
 ## 8. レンダリング（書き出し）
@@ -209,9 +210,66 @@ Encoder: AAC (iOS AVAssetWriter / Android MediaCodec+MediaMuxer) または WAV w
 
 素材取り込み（デコード）: MP3 / AAC / WAV / FLAC / ALAC は両 OS の標準デコーダで対応できる想定【仮説】。
 
-## 10. Audio Session 設定の一元管理
-- 録音中は `podsnow-recorder` がセッションの所有者。JS 側で expo-audio の `setAudioModeAsync` を呼ぶのは録音していないときだけ（`RecordingSession` が状態を見てガード）。
-- 再生（Editor のタイムライン再生）も `podsnow-audio-engine` が同じセッション設定（`.playback` / `.playAndRecord`）を使う。
+## 10. 音声セッションの持ち主と切り替え（録音・再生）【事実】
+
+Issue #183。録音前の入力モニター（#169）とロック画面・通知の操作（#184）はこの節に従う。
+ここでいう音声セッションは、iOS の `AVAudioSession`（カテゴリ・オプション・有効化）と Android の音声フォーカス。
+
+### 10.1 持ち主は同時に 1 つ
+
+| 持ち主 | 期間 | 設定する場所 |
+|---|---|---|
+| **録音側** | 入力モニター（#169）・録音の準備・録音中・一時停止中・割り込み中・停止処理中。`RecordingSession` が `idle` でない間 | `podsnow-recorder`。`prepare()` のたびに iOS `.playAndRecord`、Android `AUDIOFOCUS_GAIN`（§3） |
+| **再生側** | `PlaybackService` が再生を始めてから、次に録音側が取るまで | 音声モード（§10.2）は `src/infra/playback/playbackSession.ts` だけが `setAudioModeAsync` で決める。タイムライン再生の Android の音声フォーカスと、割り込み・抜去の検知は `podsnow-audio-engine` の `PlaybackSessionWatcher`（§10.3） |
+
+- **後から取る側が設定し直す。手放す側は元に戻さない。** 戻すと、次の持ち主の設定と順番しだいで食い違う（録音直後の再生で出力先・音量が変わる、Issue #183）。
+  - 録音側が取るとき: 先に `PlaybackService.stopForRecording()` で再生を止め、それから `recorder.prepare()` が録音用に設定する。入力モニター（#169）も始める前に `stopForRecording()` を呼び、`RecordingSession` が `idle` でない状態として扱う（そうしないと下の「再生を断る」が効かない）。
+  - 再生側が取るとき: `PlaybackService` は再生を始める直前に**毎回** `PlaybackSessionPort.enterPlayback()` で §10.2 のモードを当て直す。録音のあとに `.playAndRecord`（`.defaultToSpeaker`、Bluetooth の通話プロファイル）が残っていても、ここで再生用に戻る。録音側は毎回 `prepare()` で設定し直すので、再生用に戻しても次の録音は壊れない。
+- **録音側が持っている間、`PlaybackService` は再生を始めない**（`recorderBusy()` が真なら再生・再開を断る）。割り込みのあとの自動再開（§10.3）もしない。
+- **セッションを無効にしない（`setActive(false)` を呼ばない）。** expo-audio は既定で、自分のプレイヤーが止まる・鳴り終わると 100 ms 後にセッションを無効にする【事実: コード】（`node_modules/expo-audio/ios/AudioModule.swift` の `pause` / `onPlaybackComplete` → `deactivateSession()`）。同じアプリのタイムライン再生や録音が鳴っていても無効にするので、expo-audio のプレイヤーは必ず `keepAudioSessionActive: true` で作る。
+  - ファイル再生（`expoFilePlayback.ts`）: 一時停止してタイムライン再生へ切り替えた直後に、タイムラインが止まるのを防ぐ。
+  - 録音中のジングルのモニター（§5、`features/episode/monitor.ts`）: 鳴り終わったときに録音の I/O を止めないため【仮説: 有効なセッションを無効にすると動いている I/O が止まる。実機で未検証】。録音側のセッションに相乗りするので `setAudioModeAsync` も呼ばない。
+  - 無効にしない代わり、他アプリの音は再生を止めても自動では戻らない。必要になったら #184 で、持ち主が手放すとき（ミニプレーヤーを閉じる等）に限って無効にすることを検討する。
+- ロック画面・通知の操作（#184）は再生側が持つ間だけ出す。録音側が取ったら消す（録音の通知と混ぜない）。状態は `PlaybackService` から出し、アプリ内のプレーヤーと同じ値を見る。
+
+### 10.2 再生の音声モード
+
+`setAudioModeAsync`（expo-audio 57.0.5）に渡す値。`src/infra/playback/playbackSession.ts` の `PLAYBACK_AUDIO_MODE` が唯一の定義。
+
+| 項目 | 値 | 理由 |
+|---|---|---|
+| `interruptionMode` | `'doNotMix'` | 他アプリの音と重ねない（既定の `mixWithOthers` では重なり、Android では音声フォーカスを取らないので着信でも止まらない【確認済み: `node_modules/expo-audio/build/Audio.types.d.ts`】）。#184 の `setActiveForLockScreen` も `doNotMix` を求める（同） |
+| `shouldPlayInBackground` | `true` | 画面を消しても・他アプリへ移っても続ける（REQUIREMENTS.md FR-EP-8）。`false` だと expo-audio はバックグラウンドへ移るときに止める【事実: コード】 |
+| `playsInSilentMode` | `true` | 消音スイッチ・マナーモードでも鳴らす。再生ボタンを押した操作を優先する |
+| `allowsRecording` | `false` | iOS のカテゴリは `.playback`。録音の設定は録音側が `prepare()` で行う |
+| `shouldRouteThroughEarpiece` | `false` | 受話口ではなくスピーカー（またはつないだイヤホン）から鳴らす |
+
+- iOS: expo-audio はこの値から `.playback`・オプションなしを設定する【事実: コード】（`AudioModule.swift` の `setAudioMode`）。タイムライン再生（`TimelinePlayer.swift`）は**カテゴリを設定せず**、`setActive(true)` だけ行う。カテゴリを決めるのは JS の 1 か所だけにする。
+- Android: expo-audio は `doNotMix` のとき、ファイル再生の開始時に `AUDIOFOCUS_GAIN_TRANSIENT` を取り、喪失で止め、`AUDIOFOCUS_GAIN` で再開する【事実: コード】。タイムライン（`AudioTrack`）は expo-audio の外なので、`PlaybackSessionWatcher.kt` が再生開始時に `AUDIOFOCUS_GAIN`（`USAGE_MEDIA` / `CONTENT_TYPE_SPEECH`、`setWillPauseWhenDucked(true)`）を取り、利用者の一時停止・鳴り終わり・解放で手放す。話し声はダッキングではなく一時停止する【確認済み】(https://developer.android.com/media/optimize/audio-focus)。
+- バックグラウンド: iOS は `UIBackgroundModes: audio`（`app.json`。録音のために入れたもの）で続く。Android はロック画面の操作（前面サービス）が無いと約 3 分で止まる【確認済み: 型定義の `shouldPlayInBackground` の注記】。前面サービスと config plugin は #184。タイムライン再生のバックグラウンド継続も #184（MediaSession＋前面サービス）。
+
+### 10.3 割り込み・出力の抜去
+
+ファイル再生とタイムライン再生で同じ動きにする。止める・再開するの判断は `PlaybackService` の 1 か所。
+
+| 事象 | iOS の検知 | Android の検知 | 動作 |
+|---|---|---|---|
+| 着信・Siri・他アプリの排他再生 | `interruptionNotification` `.began` | 音声フォーカスの喪失（`LOSS` / `LOSS_TRANSIENT` / `LOSS_TRANSIENT_CAN_DUCK`） | 一時停止 |
+| 割り込みの終了 | `.ended` + `.shouldResume`【確認済み】(https://developer.apple.com/documentation/avfaudio/handling-audio-interruptions) | 一時的な喪失のあとの `AUDIOFOCUS_GAIN`【確認済み】(https://developer.android.com/media/optimize/audio-focus) | OS が再開を勧めるときだけ、**割り込みで止めた再生を**再開する。割り込み中に利用者が操作した・録音を始めた・別の回を再生した場合は再開しない。永続の喪失（`AUDIOFOCUS_LOSS`）では `GAIN` が来ないので再開しない |
+| イヤホン・Bluetooth が外れた | `routeChangeNotification` `.oldDeviceUnavailable`（直前の出力が内蔵スピーカー・受話口以外のとき）【仮説: Apple の該当ページはこの環境から本文を取得できず未照合】 | `ACTION_AUDIO_BECOMING_NOISY`【確認済み】(https://developer.android.com/media/platform/output) | 一時停止。**自動では再開しない**（スピーカーから突然鳴らさない） |
+
+経路:
+
+1. `podsnow-audio-engine` の `PlaybackSessionWatcher`（`ios/PlaybackSessionWatcher.swift`、`android/.../PlaybackSessionWatcher.kt`。`TimelinePlayer` とは別のファイル）が検知する。アプリが動いている間は常に見張る（録音中も。そのとき `PlaybackService` は鳴らしていないので何もしない）。
+2. Watcher は `onPlaybackInterruption`（`{ type: 'began' | 'ended', shouldResume }`）/ `onOutputDisconnected` を JS へ送り、**そのあとで**タイムライン再生をネイティブ側で止める。JS を待つ間にスピーカーから鳴らさないためと、`PlaybackService` が「割り込みの時点で鳴っていたか」をイベントの順番で正しく知るため（止めた通知 `onPlaybackState` が先に届くと、鳴っていなかったと判断してしまう）。
+3. `PlaybackService` はイベントを受けて、鳴っている方（ファイル / タイムライン）を止め、割り込みなら止めた方を覚える。終了のイベントで再開を判断する。
+4. expo-audio も自分のプレイヤーを止め・再開する（iOS: 割り込みと抜去、`.shouldResume` で再開。Android: フォーカスの喪失で止め `GAIN` で再開。抜去は扱わない）【事実: コード】。`PlaybackService` の止める・鳴らす操作はどちらも冪等なので、二重になっても状態は食い違わない。
+5. Android のファイル再生の音声フォーカスは expo-audio が持つ（Watcher がフォーカスを取ると expo-audio のプレイヤーが喪失を受けて止まる）。そのため Android のファイル再生では割り込みのイベントは来ず、`PlaybackService` は状態通知（`playbackStatusUpdate`）で追う。抜去（`BECOMING_NOISY`）は Watcher が受けるので、ファイル再生でも止まる。
+
+### 10.4 未検証（実機で確かめる）
+
+- iPhone / Pixel 9a で: 他アプリの音楽を鳴らしたまま再生 → 他アプリが止まる / 再生中の着信 → 止まり、通話後に再開する / 再生中にイヤホン・Bluetooth を外す → 止まり、スピーカーから鳴らない / 録音直後の再生 → 出力先・音量が録音前と同じ / 画面を消したあとも再生が続く（Android は約 3 分まで。以降は #184）/ 録音中のジングルのモニターが鳴り終わっても録音が続く。
+- iOS の `mediaServicesWereResetNotification`（音声デーモンの再起動）での再生の立て直しは扱っていない（録音側は §4）。
 
 ## 11. 検証計画（Phase 0 スパイク）
 
