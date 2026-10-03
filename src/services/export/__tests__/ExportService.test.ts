@@ -250,7 +250,7 @@ describe('ExportService', () => {
       const file = place(r.opts.path, 'moov-first.m4a');
       done(engine, r);
       await settle();
-      expect((await listExports(db, 'e'))[0]?.status).toBe('done');
+      expect((await listExports(db, 'e'))[0]).toMatchObject({ status: 'done', error: null });
 
       const b = new Uint8Array(nodeFs.readFileSync(file));
       const moov = mp4Boxes(b).find((x) => x.type === 'moov')!;
@@ -308,26 +308,74 @@ describe('ExportService', () => {
       });
     });
 
-    it('fails the export and deletes the file when the metadata cannot be written', async () => {
+    it('still finishes the export, keeping the audio, when the metadata cannot be written', async () => {
       const { db, engine, svc, place, deleted } = await setup();
+      const embedded: boolean[] = [];
       const failed: string[] = [];
-      const finished: string[] = [];
+      svc.on('done', (e) => embedded.push(e.metadataEmbedded));
       svc.on('failed', (e) => failed.push(e.message));
-      svc.on('done', (e) => finished.push(e.exportId));
       await svc.start('e', EXPORT_PRESETS.podcast);
       const r = engine.renders[0]!;
-      place(r.opts.path, Buffer.from('not an mp4 file'));
+      const broken = Buffer.from('not an mp4 file');
+      const file = place(r.opts.path, broken);
       done(engine, r);
       await settle();
       const row = (await listExports(db, 'e'))[0]!;
-      expect(row).toMatchObject({ status: 'failed', error: 'export_metadata_failed', path: null });
-      expect(deleted).toEqual([r.opts.path]);
-      expect(failed).toEqual(['export_metadata_failed']);
-      expect(finished).toEqual([]);
+      // 行は done。error は警告として残り、履歴に「題名・アートワークなし」と出す
+      expect(row).toMatchObject({
+        status: 'done',
+        error: 'export_metadata_failed',
+        path: 'episodes/e/exports/x1.m4a',
+      });
+      expect(nodeFs.readFileSync(file).equals(broken)).toBe(true);
+      expect(deleted).toEqual([]);
+      expect(embedded).toEqual([false]);
+      expect(failed).toEqual([]);
       const ep = await db.get<{ status: string }>('SELECT status FROM episodes WHERE id = ?', [
         'e',
       ]);
-      expect(ep?.status).not.toBe('exported');
+      expect(ep?.status).toBe('exported');
+    });
+
+    it('retries without the artwork when embedding with it fails', async () => {
+      const { db, engine, place, real } = await setup();
+      await withShow(db);
+      place('/root/shows/s/cover-1.jpg', 'cover.jpg');
+      // 1 回目の写し（アートワーク込み）だけ書けない端末を真似る
+      let tmpOpens = 0;
+      const flaky: FsPort = {
+        ...rootedFs(path.dirname(real('/root/x'))).fs,
+        open: (p, m) => {
+          if (p.endsWith('.tagging') && m === 'w' && tmpOpens++ === 0) throw new Error('ENOSPC');
+          return nodeFsPort.open(real(p), m);
+        },
+      };
+      const svc = new ExportService({
+        db,
+        engine,
+        root: '/root',
+        ensureDir: () => {},
+        fileSize: () => 1,
+        fileExists: () => true,
+        deleteFile: () => {},
+        copyAsNamed: () => Promise.resolve(''),
+        fs: flaky,
+        newId: () => 'y1',
+        now: () => 5000,
+        utcOffsetMinutes: () => 540,
+      });
+      await svc.start('e', EXPORT_PRESETS.podcast);
+      const r = engine.renders[0]!;
+      const file = place(r.opts.path, 'moov-last.m4a');
+      done(engine, r);
+      await settle();
+      expect((await listExports(db, 'e'))[0]).toMatchObject({ status: 'done', error: null });
+      const b = new Uint8Array(nodeFs.readFileSync(file));
+      const moov = mp4Boxes(b).find((x) => x.type === 'moov')!;
+      const tags = readMp4Tags(b.subarray(moov.start, moov.start + moov.size));
+      expect(tags.title).toBe('初回ゲスト回');
+      expect(tags.cover).toBeUndefined();
+      expect(tmpOpens).toBe(2);
     });
   });
 

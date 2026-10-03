@@ -61,11 +61,22 @@ export async function updateExportProgress(
 export async function finishExport(
   db: SqlExecutor,
   id: string,
-  r: { path: string; bytes: number; measuredLufs: number; measuredTruePeak: number; now: number },
+  r: {
+    path: string;
+    bytes: number;
+    measuredLufs: number;
+    measuredTruePeak: number;
+    now: number;
+    /**
+     * 書き出せたが一部ができなかったときの AppErrorCode（例: `export_metadata_failed`）。
+     * `done` の行の `error` は警告で、音声のファイルはある（DATA_MODEL.md §4.13）。
+     */
+    warning?: string | null;
+  },
 ): Promise<void> {
   await db.run(
-    'UPDATE exports SET status = ?, progress = 1, path = ?, bytes = ?, measured_lufs = ?, measured_true_peak = ?, finished_at = ? WHERE id = ?',
-    ['done', r.path, r.bytes, r.measuredLufs, r.measuredTruePeak, r.now, id],
+    'UPDATE exports SET status = ?, progress = 1, path = ?, bytes = ?, measured_lufs = ?, measured_true_peak = ?, error = ?, finished_at = ? WHERE id = ?',
+    ['done', r.path, r.bytes, r.measuredLufs, r.measuredTruePeak, r.warning ?? null, r.now, id],
   );
 }
 

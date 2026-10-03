@@ -1,6 +1,11 @@
 import { AppError } from '@/domain/errors';
 import { concat } from '@/domain/metadata/bytes';
-import { coverImage, exportTags, type CoverImage } from '@/domain/metadata/exportTags';
+import {
+  coverImage,
+  exportTags,
+  type CoverImage,
+  type ExportTags,
+} from '@/domain/metadata/exportTags';
 import { exportFileName } from '@/domain/metadata/fileName';
 import { SAMPLE_RATE } from '@/domain/time';
 import { APP_VERSION } from '@/domain/version';
@@ -198,6 +203,8 @@ export interface ExportEvents {
     measuredLufs: number;
     measuredTruePeakDb: number;
     appliedGainDb: number;
+    /** メタデータを埋め込めたか。false でも音声のファイルはある（Issue #56）。 */
+    metadataEmbedded: boolean;
   }) => void;
   failed: (e: { exportId: string; message: string; cancelled: boolean }) => void;
 }
@@ -405,30 +412,9 @@ export class ExportService {
     const j = this.jobs.get(ev.jobId);
     if (!j) return;
     this.jobs.delete(ev.jobId);
-    // 後処理: メタデータの埋め込み（Issue #56）。音声（音量の処理を含む）はネイティブで済んでいる
-    try {
-      await this.embedMetadata(j.episodeId, ev.path, j.format);
-    } catch {
-      // 埋め込めなかったファイルは渡さない（題名やアートワークの無いファイルが配信されるのを防ぐ）
-      try {
-        this.deps.deleteFile(ev.path);
-      } catch {
-        // 消せなくても失敗として記録する（行は path を持たないので、消せなかったファイルは残る。容量の整理 #160 の対象）
-      }
-      await failExport(
-        this.deps.db,
-        j.exportId,
-        'failed',
-        'export_metadata_failed',
-        this.deps.now(),
-      );
-      this.dispatch('failed', {
-        exportId: j.exportId,
-        message: 'export_metadata_failed',
-        cancelled: false,
-      });
-      return;
-    }
+    // 後処理: メタデータの埋め込み（Issue #56）。音声（音量の処理を含む）はネイティブで済んでいる。
+    // 埋め込めなくても音声は渡す（形式・音量に問題が無いのに書き出せないのは困る。ユーザー判断 2026-10-03）
+    const metadataEmbedded = await this.embedMetadata(j.episodeId, ev.path, j.format);
     const bytes = this.deps.fileSize(ev.path);
     await finishExport(this.deps.db, j.exportId, {
       path: j.relPath,
@@ -436,6 +422,7 @@ export class ExportService {
       measuredLufs: ev.measuredLufs,
       measuredTruePeak: ev.measuredTruePeakDb,
       now: this.deps.now(),
+      warning: metadataEmbedded ? null : 'export_metadata_failed',
     });
     await this.deps.db.run("UPDATE episodes SET status = 'exported', updated_at = ? WHERE id = ?", [
       this.deps.now(),
@@ -448,43 +435,67 @@ export class ExportService {
       measuredLufs: ev.measuredLufs,
       measuredTruePeakDb: ev.measuredTruePeakDb,
       appliedGainDb: ev.appliedGainDb,
+      metadataEmbedded,
     });
   }
 
-  /** 番組・回の情報からタグを作り、書き出したファイルに埋め込む（AUDIO_DESIGN.md §8.3）。 */
-  private async embedMetadata(episodeId: string, absPath: string, format: ExportFormat) {
-    const row = await this.deps.db.get<{
-      title: string;
-      episode_number: number;
-      published_at: number | null;
-      publish_planned_at: number | null;
-      show_name: string | null;
-      author: string | null;
-      cover_path: string | null;
-    }>(
-      `SELECT e.title, e.episode_number, e.published_at, e.publish_planned_at,
-              s.name AS show_name, s.author, s.cover_path
-         FROM episodes e
-         LEFT JOIN shows s ON s.id = e.show_id
-        WHERE e.id = ?`,
-      [episodeId],
-    );
-    if (!row) throw new Error('episode not found');
-    const when = row.published_at ?? row.publish_planned_at ?? this.deps.now();
-    const offset =
-      this.deps.utcOffsetMinutes ?? ((ms: number) => -new Date(ms).getTimezoneOffset());
-    const tags = exportTags({
-      title: row.title,
-      episodeNumber: row.episode_number,
-      showName: row.show_name ?? '',
-      author: row.author ?? '',
-      publishedAt: row.published_at,
-      publishPlannedAt: row.publish_planned_at,
-      appVersion: APP_VERSION,
-      utcOffsetMinutes: offset(when),
-    });
-    const cover = format === 'wav' ? null : this.readCover(row.cover_path);
-    await embedExportMetadata(this.deps.fs, absPath, format, tags, cover);
+  /**
+   * 番組・回の情報からタグを作り、書き出したファイルに埋め込む（AUDIO_DESIGN.md §8.3）。
+   * アートワーク込みで失敗したら、アートワーク無しでもう一度試す。それでも駄目なら false
+   * （ファイルは埋め込む前のまま。M4A は写しに書くので元は壊れず、WAV は書く前に検査している）。
+   */
+  private async embedMetadata(
+    episodeId: string,
+    absPath: string,
+    format: ExportFormat,
+  ): Promise<boolean> {
+    let tags: ExportTags;
+    let cover: CoverImage | null;
+    try {
+      const row = await this.deps.db.get<{
+        title: string;
+        episode_number: number;
+        published_at: number | null;
+        publish_planned_at: number | null;
+        show_name: string | null;
+        author: string | null;
+        cover_path: string | null;
+      }>(
+        `SELECT e.title, e.episode_number, e.published_at, e.publish_planned_at,
+                s.name AS show_name, s.author, s.cover_path
+           FROM episodes e
+           LEFT JOIN shows s ON s.id = e.show_id
+          WHERE e.id = ?`,
+        [episodeId],
+      );
+      if (!row) return false;
+      const when = row.published_at ?? row.publish_planned_at ?? this.deps.now();
+      const offset =
+        this.deps.utcOffsetMinutes ?? ((ms: number) => -new Date(ms).getTimezoneOffset());
+      tags = exportTags({
+        title: row.title,
+        episodeNumber: row.episode_number,
+        showName: row.show_name ?? '',
+        author: row.author ?? '',
+        publishedAt: row.published_at,
+        publishPlannedAt: row.publish_planned_at,
+        appVersion: APP_VERSION,
+        utcOffsetMinutes: offset(when),
+      });
+      cover = format === 'wav' ? null : this.readCover(row.cover_path);
+    } catch {
+      return false;
+    }
+    const attempts = cover ? [cover, null] : [null];
+    for (const c of attempts) {
+      try {
+        await embedExportMetadata(this.deps.fs, absPath, format, tags, c);
+        return true;
+      } catch {
+        // 次の手（アートワーク無し）へ
+      }
+    }
+    return false;
   }
 
   /** 番組のアートワーク。無い・読めない・JPEG / PNG でなければ null（アートワークだけ省く）。 */

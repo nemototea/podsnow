@@ -375,7 +375,7 @@ Take の「時間軸」は Segment を `seq` 順に連結したもの。割り�
 | duration_smp | INTEGER | |
 | source_fingerprint | TEXT nullable | 書き出したときの音の中身の指紋。声の並び・素材の配置・音の仕上げ（`sound_settings` を既定値で埋めたもの）を、行の `id` を除いて正規化した JSON のハッシュ（`src/domain/render/fingerprint.ts`）。今の値と同じなら「今の編集と同じ書き出し」で、Home はこの書き出しを鳴らす（REQUIREMENTS.md FR-EP-7）。ファイルのパスは入れない（iOS はアプリの更新で絶対パスが変わる）。取り消しで元に戻せば同じ値に戻る。0006 より前の行は NULL で、古い書き出しとして扱う。Issue #168 |
 | measured_lufs / measured_true_peak | REAL nullable | **書き出したファイル（出力）**の統合ラウドネス（LUFS）とトゥルーピーク（dBTP）。`preset.loudness` が無い古い行は調整前の値なので表示しない |
-| error | TEXT nullable | |
+| error | TEXT nullable | `AppErrorCode`。`failed` なら失敗の理由。`done` なら警告で、音声のファイルはある（`export_metadata_failed`: 題名・アートワークを埋め込めなかった。Issue #56） |
 | created_at / finished_at | INTEGER | |
 
 書き出し履歴からの削除（Issue #152）は、ファイルを消してから行を物理削除する（進行中の `queued` / `rendering` / `encoding` は消さない）。エピソードの削除でも、その回の書き出しのファイルと行を消す（§6）。
