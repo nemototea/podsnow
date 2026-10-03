@@ -191,6 +191,7 @@ describe('文言カタログ', () => {
             'details.recordedEyebrow',
             'details.badDate',
             'metadata.recordedAt',
+            'player.recordedOn',
           ],
           '操作と音は「録音」。「収録」はタブの名前と収録日だけ',
         ],

@@ -9,6 +9,7 @@ import { errorCodeText, useT } from '@/i18n';
 import { floatingInset } from '@/ui/BottomInset';
 import { IconButton, Text, useCompact, useGutter } from '@/ui/components';
 import { Jacket, MiniCassette } from '@/ui/media';
+import { progressRatio } from '@/ui/seek';
 import { useAppTheme } from '@/ui/ThemeContext';
 import {
   artwork,
@@ -75,52 +76,70 @@ export function MiniPlayer() {
         },
       ]}
     >
-      <Pressable
-        onPress={() => router.push('/player')}
-        accessibilityRole="button"
-        accessibilityLabel={t.player.open}
-        style={({ pressed }) => [s.main, pressed ? { backgroundColor: c.surfaceHover } : null]}
-      >
-        {/* 再生の見立て（DESIGN_SYSTEM.md §2.6） */}
-        {compact ? null : source.kind === 'timeline' ? (
-          <MiniCassette size={artwork.miniPlayer} playing={player.playing} />
-        ) : (
-          <Jacket
-            uri={services.coverArt.uri(services.show.cover_path)}
-            name={services.show.name}
-            size={artwork.miniPlayer}
-            playing={player.playing}
-          />
+      <View style={s.row}>
+        <Pressable
+          onPress={() => router.push('/player')}
+          accessibilityRole="button"
+          accessibilityLabel={t.player.open}
+          style={({ pressed }) => [s.main, pressed ? { backgroundColor: c.surfaceHover } : null]}
+        >
+          {/* 再生の見立て（DESIGN_SYSTEM.md §2.6） */}
+          {compact ? null : source.kind === 'timeline' ? (
+            <MiniCassette size={artwork.miniPlayer} playing={player.playing} />
+          ) : (
+            <Jacket
+              uri={services.coverArt.uri(services.show.cover_path)}
+              name={services.show.name}
+              size={artwork.miniPlayer}
+              playing={player.playing}
+            />
+          )}
+          <View style={s.text}>
+            <Text
+              style={[typography.label, { color: source.title ? c.textPrimary : c.textSecondary }]}
+              numberOfLines={1}
+            >
+              {source.title || t.home.untitled}
+            </Text>
+            <Text
+              style={[
+                player.error || player.loading ? typography.caption : typography.numeric,
+                { color: player.error ? c.dangerText : c.textSecondary },
+              ]}
+              numberOfLines={player.error ? 2 : 1}
+              accessibilityLiveRegion="polite"
+            >
+              {status}
+            </Text>
+          </View>
+        </Pressable>
+        <IconButton
+          name={player.error ? 'refresh' : player.playing ? 'pause' : 'play'}
+          label={player.error ? t.player.retry : player.playing ? t.a11y.pause : t.a11y.play}
+          busy={player.loading}
+          onPress={() => void player.toggleCurrent()}
+        />
+        {/* 閉じるのは一時停止中だけ。再生中に押し間違えないように（Issue #199） */}
+        {player.playing ? null : (
+          <IconButton name="close" label={t.player.stop} onPress={() => void player.stopHome()} />
         )}
-        <View style={s.text}>
-          <Text
-            style={[typography.label, { color: source.title ? c.textPrimary : c.textSecondary }]}
-            numberOfLines={1}
-          >
-            {source.title || t.home.untitled}
-          </Text>
-          <Text
-            style={[
-              player.error || player.loading ? typography.caption : typography.numeric,
-              { color: player.error ? c.dangerText : c.textSecondary },
-            ]}
-            numberOfLines={player.error ? 2 : 1}
-            accessibilityLiveRegion="polite"
-          >
-            {status}
-          </Text>
-        </View>
-      </Pressable>
-      <IconButton
-        name={player.error ? 'refresh' : player.playing ? 'pause' : 'play'}
-        label={player.error ? t.player.retry : player.playing ? t.a11y.pause : t.a11y.play}
-        busy={player.loading}
-        onPress={() => void player.toggleCurrent()}
-      />
-      {/* 閉じるのは一時停止中だけ。再生中に押し間違えないように（Issue #199） */}
-      {player.playing ? null : (
-        <IconButton name="close" label={t.player.stop} onPress={() => void player.stopHome()} />
-      )}
+      </View>
+      {/* 進み具合（Issue #188）。時刻は文字でも出しているので、読み上げには出さない */}
+      <View
+        style={[s.progress, { backgroundColor: c.border }]}
+        accessibilityElementsHidden
+        importantForAccessibility="no-hide-descendants"
+      >
+        <View
+          style={[
+            s.progressFill,
+            {
+              width: `${progressRatio(player.position, player.duration) * 100}%`,
+              backgroundColor: c.accentSolid,
+            },
+          ]}
+        />
+      </View>
     </View>
   );
 }
@@ -128,14 +147,21 @@ export function MiniPlayer() {
 const s = StyleSheet.create({
   shell: {
     position: 'absolute',
-    flexDirection: 'row',
-    alignItems: 'center',
     borderWidth: stroke.selected,
     borderRadius: radius.lg,
     padding: space.xs,
     paddingLeft: space.sm,
     zIndex: 10,
   },
+  row: { flexDirection: 'row', alignItems: 'center' },
+  progress: {
+    height: playerToken.miniProgress,
+    borderRadius: radius.pill,
+    overflow: 'hidden',
+    marginTop: space.xs,
+    marginRight: space.xs,
+  },
+  progressFill: { height: '100%', borderRadius: radius.pill },
   main: {
     flex: 1,
     // 長い題でも再生ボタンを押し出さず、題のほうを省略する

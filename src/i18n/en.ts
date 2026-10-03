@@ -70,6 +70,13 @@ export const en: Messages = {
     loadingStream: 'Loading from your feed…',
     loadingFile: 'Loading…',
     retry: 'Load again',
+    close: 'Close player',
+    sourceExport: 'Exported file',
+    sourceRss: 'From your feed',
+    sourceTimeline: 'Draft in progress',
+    recordedOn: (date: string) => `Recorded ${date}`,
+    publishedOn: (date: string) => `Published ${date}`,
+    description: 'Description',
   },
 
   status: {
