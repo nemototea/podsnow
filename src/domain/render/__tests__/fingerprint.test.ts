@@ -23,7 +23,6 @@ const overlay = (id: string, assetId: string): OverlayClip => ({
   gainDb: 0,
   fadeIn: ZERO_SMP,
   fadeOut: ZERO_SMP,
-  duck: false,
   loop: false,
   endMode: 'asset_end',
 });

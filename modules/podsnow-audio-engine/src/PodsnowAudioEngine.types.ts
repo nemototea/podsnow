@@ -36,6 +36,11 @@ export interface RenderOptions {
   format: RenderFormat;
   /** AAC のビットレート（bps）。 */
   bitrate?: number;
+  /**
+   * 出力ファイルのサンプルレート。省略時は RenderDocument と同じ（変換しない）。
+   * 違えば、ミックス・ラウドネス・リミッターのあとに OS のリサンプラーで変換する（AUDIO_DESIGN.md §8.1）。
+   */
+  sampleRate?: number;
 }
 
 export interface RenderProgressEvent {

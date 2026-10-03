@@ -1,11 +1,19 @@
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
+import {
+  insertAtSelection,
+  previewTemplate,
+  TEMPLATE_VARS,
+  type TemplateVar,
+  type TextSelection,
+} from '@/domain/metadata/template';
 import { formatSmp, smp } from '@/domain/time';
 import { splitIntoHeadings } from '@/domain/outline';
 import { useServices } from '@/features/app/ServicesProvider';
 import { kindLabel } from '@/features/show/assetKinds';
+import { useAssetPreview } from '@/features/show/useAssetPreview';
 import { useAsyncData } from '@/features/show/useAsyncData';
 import { errorText, useT, type Messages } from '@/i18n';
 import type { AssetKind, AssetRow } from '@/infra/db/repositories/assetsRepo';
@@ -65,13 +73,8 @@ const SLOT_GAIN: Record<LayoutSlot, keyof ShowLayoutRow> = {
 };
 
 /** 概要欄テンプレートに挿入できる変数（DATA_MODEL.md §4.3）。説明は i18n から。 */
-const PLACEHOLDER_KEYS = [
-  'title',
-  'episode_number',
-  'season',
-  'topics',
-  'show_name',
-] as const satisfies readonly (keyof Messages['showSettings']['placeholders'])[];
+const PLACEHOLDER_KEYS =
+  TEMPLATE_VARS satisfies readonly (keyof Messages['showSettings']['placeholders'])[];
 
 /**
  * 番組設定（FR-SHOW-3, FR-SHOW-4, FR-SHOW-5, FR-META-2）。
@@ -131,6 +134,11 @@ export default function ShowScreen() {
   const [topicDraft, setTopicDraft] = useState<string | null>(null);
   const [templateDraft, setTemplateDraft] = useState<string | null>(null);
   const [picking, setPicking] = useState<LayoutSlot | null>(null);
+  const { playingId: previewingId, toggle: togglePreview, stop: stopPreview } = useAssetPreview();
+  // 概要欄テンプレートの選択範囲。差し込みはここに入れる（Issue #174 F2）
+  const templateSel = useRef<TextSelection | null>(null);
+  // 差し込んだ直後だけカーソルを指定し、次の選択の変化で手放す（常に制御すると入力が引っかかる）
+  const [forcedSel, setForcedSel] = useState<TextSelection | null>(null);
 
   const openShowEditor = () => {
     setShowDraft({
@@ -146,6 +154,8 @@ export default function ShowScreen() {
     setEditing('topics');
   };
   const openTemplateEditor = () => {
+    templateSel.current = null;
+    setForcedSel(null);
     setTemplateDraft(data.template?.body ?? '');
     setEditing('template');
   };
@@ -210,6 +220,15 @@ export default function ShowScreen() {
     showToast({ text: t.showSettings.topicTemplateSaved });
   };
 
+  const insertPlaceholder = (key: TemplateVar) => {
+    if (templateDraft === null) return;
+    const r = insertAtSelection(templateDraft, templateSel.current, `{{${key}}}`);
+    const cursor = { start: r.cursor, end: r.cursor };
+    templateSel.current = cursor;
+    setTemplateDraft(r.text);
+    setForcedSel(cursor);
+  };
+
   const saveDescriptionTemplate = async () => {
     if (templateDraft === null || !data.template) return;
     await updateTemplate(db, data.template.id, templateDraft, now());
@@ -249,6 +268,7 @@ export default function ShowScreen() {
 
   const setSlot = async (slot: LayoutSlot, assetId: string | null) => {
     setPicking(null);
+    stopPreview();
     const key =
       slot === 'opening' ? 'openingAssetId' : slot === 'ending' ? 'endingAssetId' : 'bgmAssetId';
     await updateLayout(db, showId, { [key]: assetId });
@@ -272,13 +292,38 @@ export default function ShowScreen() {
     await reload();
   };
 
-  const assetName = (id: string | null) =>
-    data.assets.find((a) => a.id === id)?.name ?? t.showSettings.chooseAsset;
+  // 見出しと同じ文字を行に繰り返さず、行には値（先頭 1 行・件数）を出す（Issue #174 F3）
+  const placeholderNames = Object.fromEntries(
+    PLACEHOLDER_KEYS.map((k) => [
+      k,
+      t.showSettings.placeholderToken(t.showSettings.placeholders[k]),
+    ]),
+  ) as Record<TemplateVar, string>;
+  const topicHeadings = splitIntoHeadings(data.topicTemplate);
+  const topicsRow = {
+    label: topicHeadings[0] ?? t.common.none,
+    sub: topicHeadings.length ? t.showSettings.topicCount(topicHeadings.length) : null,
+  };
+  const templateBody = data.template?.body.trim() ?? '';
+  const templateLines = templateBody ? templateBody.split('\n') : [];
+  const templateRow = {
+    label: templateLines[0] ? previewTemplate(templateLines[0], placeholderNames) : t.common.none,
+    sub: templateLines.length ? t.showSettings.templateLines(templateLines.length) : null,
+  };
+  const rowA11y = (action: string, row: { label: string; sub: string | null }) =>
+    [action, row.label, row.sub].filter(Boolean).join(', ');
+
+  /** 枠に選んである素材。消された素材を指していれば未選択とみなす。 */
+  const slotAsset = (slot: LayoutSlot) => {
+    const id = (data.layout?.[SLOT_COL[slot]] as string | null) ?? null;
+    return id ? (data.assets.find((a) => a.id === id) ?? null) : null;
+  };
   const pickedId = picking ? ((data.layout?.[SLOT_COL[picking]] as string | null) ?? null) : null;
   const pickList = picking ? data.assets.filter((a) => a.kind === (picking as AssetKind)) : [];
 
   const openAssets = (kind?: LayoutSlot) => {
     setPicking(null);
+    stopPreview();
     router.push(kind ? { pathname: '/show/assets', params: { kind } } : '/show/assets');
   };
 
@@ -360,9 +405,8 @@ export default function ShowScreen() {
       <SectionHeader title={t.showAssets.title} />
       <Card rows>
         <Row
-          icon="music"
-          label={t.showAssets.title}
-          sub={t.showAssets.count(data.assets.length)}
+          icon={data.assets.length ? 'music' : 'plus'}
+          label={data.assets.length ? t.showAssets.count(data.assets.length) : t.showAssets.add}
           accessibilityLabel={t.showAssets.a11yOpen(data.assets.length)}
           onPress={() => openAssets()}
           last
@@ -373,32 +417,56 @@ export default function ShowScreen() {
       <Card style={{ paddingVertical: space.xs }}>
         {(['opening', 'ending', 'bgm'] as LayoutSlot[]).map((slot) => {
           const gain = Number(data.layout?.[SLOT_GAIN[slot]] ?? 0);
+          const asset = slotAsset(slot);
+          const previewing = !!asset && previewingId === asset.id;
           return (
             <View key={slot} style={[st.slot, { borderBottomColor: c.border }]}>
               <View style={{ flex: 1, gap: space.xs }}>
                 <Text style={[st.slotLabel, { color: c.textPrimary }]}>{slotLabel(slot)}</Text>
-                <Chip
-                  icon="music"
-                  label={assetName((data.layout?.[SLOT_COL[slot]] as string | null) ?? null)}
-                  accessibilityLabel={t.showSettings.a11yPickAsset(slotLabel(slot))}
-                  onPress={() => setPicking(slot)}
-                />
+                <View style={st.slotPick}>
+                  <Chip
+                    icon="music"
+                    label={asset?.name ?? t.showSettings.chooseAsset}
+                    accessibilityLabel={t.showSettings.a11yPickAsset(slotLabel(slot))}
+                    onPress={() => setPicking(slot)}
+                  />
+                  {asset ? (
+                    <IconButton
+                      name={previewing ? 'stop' : 'play'}
+                      label={
+                        previewing
+                          ? t.showSettings.a11yStopSlotPreview(slotLabel(slot))
+                          : t.showSettings.a11ySlotPreview(slotLabel(slot))
+                      }
+                      selected={previewing}
+                      onPress={() => void togglePreview(asset)}
+                    />
+                  ) : null}
+                </View>
               </View>
-              <Stepper
-                label={`${gain > 0 ? '+' : ''}${gain} dB`}
-                onMinus={() => bumpGain(slot, -1)}
-                onPlus={() => bumpGain(slot, 1)}
-                a11y={t.showSettings.a11ySlotGain(slotLabel(slot))}
-              />
+              {/* 素材が無い枠に音量は効かないので出さない（Issue #174 F5） */}
+              {asset ? (
+                <Stepper
+                  label={`${gain > 0 ? '+' : ''}${gain} dB`}
+                  onMinus={() => bumpGain(slot, -1)}
+                  onPlus={() => bumpGain(slot, 1)}
+                  a11y={t.showSettings.a11ySlotGain(slotLabel(slot))}
+                />
+              ) : null}
             </View>
           );
         })}
         <View style={[st.slot, { borderBottomWidth: 0 }]}>
-          <View style={st.infoLabel}>
-            <Text style={[st.slotLabel, { color: c.textPrimary, flexShrink: 1 }]}>
-              {t.showSettings.duckingLabel}
+          <View style={st.duckLabel}>
+            <View style={st.infoLabel}>
+              <Text style={[st.slotLabel, { color: c.textPrimary, flexShrink: 1 }]}>
+                {t.showSettings.duckingLabel}
+              </Text>
+              <InfoButton info={t.glossary.ducking} />
+            </View>
+            <Text style={[typography.caption, { color: c.textSecondary }]}>
+              {t.showSettings.duckingSub}
             </Text>
-            <InfoButton info={t.glossary.ducking} />
           </View>
           <Stepper
             label={`${data.layout?.bgm_duck_db ?? -10} dB`}
@@ -411,9 +479,10 @@ export default function ShowScreen() {
       <SectionHeader title={t.showSettings.topicTemplateEyebrow} />
       <Card rows>
         <Row
-          label={t.showSettings.topicTemplateEyebrow}
-          sub={t.showSettings.topicCount(splitIntoHeadings(data.topicTemplate).length)}
-          accessibilityLabel={t.showSettings.a11yEditTopicTemplate}
+          label={topicsRow.label}
+          labelMuted={!topicHeadings.length}
+          {...(topicsRow.sub ? { sub: topicsRow.sub } : {})}
+          accessibilityLabel={rowA11y(t.showSettings.a11yEditTopicTemplate, topicsRow)}
           onPress={openTopicEditor}
           last
         />
@@ -422,9 +491,10 @@ export default function ShowScreen() {
       <SectionHeader title={t.showSettings.templateEyebrow} />
       <Card rows>
         <Row
-          label={t.showSettings.templateEyebrow}
-          sub={data.template?.body.trim() || t.common.none}
-          accessibilityLabel={t.showSettings.a11yEditDescriptionTemplate}
+          label={templateRow.label}
+          labelMuted={!templateLines.length}
+          {...(templateRow.sub ? { sub: templateRow.sub } : {})}
+          accessibilityLabel={rowA11y(t.showSettings.a11yEditDescriptionTemplate, templateRow)}
           onPress={openTemplateEditor}
           last
         />
@@ -509,22 +579,38 @@ export default function ShowScreen() {
               label={t.showSettings.a11yTemplate}
               value={templateDraft}
               onChangeText={setTemplateDraft}
+              onSelectionChange={(e) => {
+                templateSel.current = e.nativeEvent.selection;
+                if (forcedSel) setForcedSel(null);
+              }}
+              {...(forcedSel ? { selection: forcedSel } : {})}
+              help={t.showSettings.templateHelp}
               multiline
             />
             <View style={st.helpWrap}>
               {PLACEHOLDER_KEYS.map((key) => {
-                const token = `{{${key}}}`;
                 const desc = t.showSettings.placeholders[key];
                 return (
                   <Chip
                     key={key}
+                    icon="plus"
                     label={desc}
                     accessibilityLabel={t.showSettings.a11yInsertPlaceholder(desc)}
-                    onPress={() => setTemplateDraft(`${templateDraft}${token}`)}
+                    onPress={() => insertPlaceholder(key)}
                   />
                 );
               })}
             </View>
+            {templateDraft.trim() ? (
+              <View style={st.preview}>
+                <Text style={[typography.label, { color: c.textSecondary }]}>
+                  {t.showSettings.templatePreview}
+                </Text>
+                <Text style={[typography.body, { color: c.textSecondary }]}>
+                  {previewTemplate(templateDraft, placeholderNames)}
+                </Text>
+              </View>
+            ) : null}
             <View style={st.sheetActions}>
               <Button
                 label={t.common.save}
@@ -604,9 +690,12 @@ const st = StyleSheet.create({
     gap: space.sm,
   },
   slotLabel: typography.bodyStrong,
+  slotPick: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   stepper: { flexDirection: 'row', alignItems: 'center' },
-  infoLabel: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: space.xs },
+  duckLabel: { flex: 1, gap: space.xs },
+  infoLabel: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
   stepValue: { ...typography.numeric, ...tabularNums, minWidth: 64, textAlign: 'center' },
   helpWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
+  preview: { gap: space.xs, marginTop: space.md },
   sheetActions: { gap: space.sm, marginTop: space.md },
 });

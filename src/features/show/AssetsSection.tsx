@@ -1,5 +1,4 @@
 import * as DocumentPicker from 'expo-document-picker';
-import { useAudioPlayer } from 'expo-audio';
 import { useCallback, useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
@@ -7,10 +6,10 @@ import { moveItem } from '@/domain/outline';
 import { formatSmp, smp } from '@/domain/time';
 import { useServices } from '@/features/app/ServicesProvider';
 import { ASSET_KIND_ORDER, assetKinds, kindLabel } from '@/features/show/assetKinds';
+import { useAssetPreview } from '@/features/show/useAssetPreview';
 import { useAsyncData } from '@/features/show/useAsyncData';
 import { useT } from '@/i18n';
 import type { AssetKind, AssetRow } from '@/infra/db/repositories/assetsRepo';
-import { joinRoot } from '@/infra/files/layout';
 import { space } from '@/ui/tokens';
 import { Button, Card, Chip, Field, IconButton, ProgressBar, Row, Sheet } from '@/ui/components';
 import { confirmDestructive } from '@/ui/alerts';
@@ -36,7 +35,7 @@ export interface AssetsSectionProps {
 export function AssetsSection({ initialKind, onToast }: AssetsSectionProps) {
   const c = useAppTheme();
   const t = useT();
-  const { assets, show, root, engine, db, now, haptics } = useServices();
+  const { assets, show, engine, db, now, haptics } = useServices();
   const loader = useCallback(() => assets.list(show.id), [assets, show.id]);
   const { data: list, reload } = useAsyncData<AssetRow[]>(loader, []);
   // 用途は切り替え式。空の用途が画面を占めない（DESIGN_SYSTEM.md §2.3）。
@@ -44,10 +43,8 @@ export function AssetsSection({ initialKind, onToast }: AssetsSectionProps) {
   const [renaming, setRenaming] = useState<AssetRow | null>(null);
   const [renameText, setRenameText] = useState('');
   const [importing, setImporting] = useState<{ kind: AssetKind; progress: number } | null>(null);
-  const [playingId, setPlayingId] = useState<string | null>(null);
-
-  // 試聴プレイヤー（expo-audio）。1 つを使い回し、ソースを差し替える。
-  const player = useAudioPlayer(null);
+  // 試聴は PlaybackService を通す（ほかの再生を止め、再生用の音声モードを当てる。Issue #174）
+  const { playingId, toggle: preview, stop: stopPreview } = useAssetPreview();
 
   useEffect(() => {
     const sub = engine.on('onTaskProgress', (e) => {
@@ -55,18 +52,6 @@ export function AssetsSection({ initialKind, onToast }: AssetsSectionProps) {
     });
     return () => sub.remove();
   }, [engine]);
-
-  const preview = (a: AssetRow) => {
-    if (playingId === a.id) {
-      player.pause();
-      setPlayingId(null);
-      return;
-    }
-    player.replace({ uri: `file://${joinRoot(root, a.path)}` });
-    player.seekTo(0);
-    player.play();
-    setPlayingId(a.id);
-  };
 
   const pick = async (kind: AssetKind) => {
     const res = await DocumentPicker.getDocumentAsync({
@@ -108,10 +93,7 @@ export function AssetsSection({ initialKind, onToast }: AssetsSectionProps) {
     });
 
   const remove = async (a: AssetRow) => {
-    if (playingId === a.id) {
-      player.pause();
-      setPlayingId(null);
-    }
+    if (playingId === a.id) stopPreview();
     await assets.remove(a.id);
     await reload();
     onToast(t.showAssets.removed(a.name), async () => {
@@ -195,7 +177,7 @@ export function AssetsSection({ initialKind, onToast }: AssetsSectionProps) {
                       name={playingId === a.id ? 'stop' : 'play'}
                       label={playingId === a.id ? t.showAssets.stop : t.showAssets.preview}
                       selected={playingId === a.id}
-                      onPress={() => preview(a)}
+                      onPress={() => void preview(a)}
                     />
                     <IconButton
                       name={a.is_favorite ? 'starFilled' : 'star'}

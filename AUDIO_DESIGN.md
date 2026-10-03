@@ -4,7 +4,7 @@
 
 ## 1. 要件の要約【事実】
 
-- 収録は非圧縮 PCM（WAV、48 kHz / 16 bit、ステレオ既定・モノラル可）
+- 収録は非圧縮 PCM（WAV、48 kHz / 16 bit / ステレオで固定。設定は持たない。チャンネルとサンプルレートは書き出しで選ぶ。Issue #174）
 - 画面ロック・他アプリ表示中も録音継続（必須）
 - 一時停止／再開、レベルメーター、入力ソース選択（内蔵 / 有線 / Bluetooth / オーディオインターフェース）
 - 収録中のジングル挿入は「イベント記録 + モニター再生」。マイクに回り込ませず書き出し時にミックス
@@ -24,7 +24,7 @@
 | レベルメーター（peak / RMS） | ネイティブ → イベント | 生 PCM が JS に来ないため |
 | Android フォアグラウンドサービス | ネイティブ | `foregroundServiceType="microphone"`（Android 14+ 必須）【確認済み】 |
 | WAV ヘッダ定期更新・fsync・復旧 | ネイティブ | ファイル I/O をリアルタイムスレッドで行う |
-| 素材の試聴（単一ファイル再生） | **JS**（expo-audio `AudioPlayer`） | 十分 |
+| 素材の試聴（単一ファイル再生） | **JS**（expo-audio `AudioPlayer`。`PlaybackService` のファイル再生を共用。§10.1） | 十分 |
 | 収録中のジングルのモニター再生 | JS（expo-audio）【仮説】 | 録音セッションと同居できるか要スパイク（§4.5） |
 | 波形ピーク生成、無音検出 | ネイティブ（`podsnow-audio-engine`） | 数百 MB のファイル走査 |
 | タイムラインのリアルタイムミックス再生 | ネイティブ | expo-audio に複数トラック同期再生・ゲイン自動化はない |
@@ -171,7 +171,19 @@ Encoder: AAC (iOS AVAssetWriter / Android MediaCodec+MediaMuxer) または WAV w
 - ラウドネスは BS.1770-4 に従い各チャンネルの二乗和で測る（L / R の重み 1.0）。同じ音を左右に入れたステレオはモノラルより +3.01 LU と測られる。
 - リミッターのゲインは全チャンネル共通（リンク）。片側だけ大きくても定位は崩れない。
 - ダッキングの声検出は、各フレームで左右の大きいほうを使う（片側マイクの話者も拾う）。
-- 試聴（§7）は常にステレオで鳴らす。ステレオ録音の左右を編集中にも確かめられる。
+- 試聴（§7）は編集タブではステレオで鳴らす（ステレオ録音の左右を編集中にも確かめられる）。書き出しタブでは、選んでいる書き出し設定のチャンネル（モノラル / ステレオ）で鳴らす（`PlaybackService.setTimelineChannels`。Issue #174、ユーザー判断 2026-10-03）。
+
+### 8.1.1 サンプルレートの扱い【事実 + 仮説】
+
+ユーザー判断（2026-10-03、Issue #174）: **録音は 48 kHz 固定。書き出しで 48 kHz か 44.1 kHz を選ぶ。**
+
+- タイムライン・ミックス・ラウドネス測定・リミッターはすべて 48 kHz（`RenderDocument.sampleRate`）で行い、**エンコードの直前に出力のレートへ変換する**（`RenderOptions.sampleRate`）。位置や長さ（`exports.duration_smp` を含む）は 48 kHz のサンプル数のまま。
+- 変換は OS 標準・既存ライブラリのリサンプラーを使い、自前で補間しない（ユーザー判断）。
+  - iOS: `AVAudioConverter`（`sampleRateConverterQuality = .max`、アルゴリズム `Mastering`）。`RenderJob.swift` の `ResamplingSink`【仮説: 実機で未検証】
+  - Android: Media3 の `SonicAudioProcessor`（`androidx.media3:media3-common`。expo-audio と同じ版）。`RenderJob.kt` の `ResamplingSink`【仮説: 実機で未検証】
+    - 線形補間なので高域がわずかに下がる（理論値で 10 kHz が約 -1.3 dB、15 kHz が約 -3 dB）。下げる変換で、劣化させたくなければ 48 kHz を選べばよい。ポッドキャスト配信の用途では受け入れる（ユーザー判断 2026-10-03）。高品質な変換が要る用途になったら Oboe のリサンプラー（ポリフェーズ sinc）を検討する
+- 試聴にはサンプルレートを反映しない（変換は書き出しの最後だけ）。
+- 測定値（`measured_lufs` / `measured_true_peak_db`）は変換前の 48 kHz の値。変換で増えるサンプル間ピークはごくわずかの見込み【仮説】。
 - 素材（BGM / ジングル等）はステレオ 48 kHz で取り込む。モノラルの元ファイルは左右同じになる。この変更より前に取り込んだ素材はモノラルのまま。
 
 ### 8.2 ラウドネスとトゥルーピーク【事実】
@@ -229,7 +241,7 @@ Issue #183。録音前の入力モニター（#169）とロック画面・通知
 - **セッションを無効にしない（`setActive(false)` を呼ばない）。** expo-audio は既定で、自分のプレイヤーが止まる・鳴り終わると 100 ms 後にセッションを無効にする【事実: コード】（`node_modules/expo-audio/ios/AudioModule.swift` の `pause` / `onPlaybackComplete` → `deactivateSession()`）。同じアプリのタイムライン再生や録音が鳴っていても無効にするので、expo-audio のプレイヤーは必ず `keepAudioSessionActive: true` で作る。
   - ファイル再生（`expoFilePlayback.ts`）: 一時停止してタイムライン再生へ切り替えた直後に、タイムラインが止まるのを防ぐ。
   - 録音中のジングルのモニター（§5、`features/episode/monitor.ts`）: 鳴り終わったときに録音の I/O を止めないため【仮説: 有効なセッションを無効にすると動いている I/O が止まる。実機で未検証】。録音側のセッションに相乗りするので `setAudioModeAsync` も呼ばない。
-  - 素材の試聴（番組設定の `features/show/AssetsSection.tsx`、`useAudioPlayer`）は `PlaybackService` の外で、まだこの決まりに沿っていない（既定の `keepAudioSessionActive: false`、音声モードを当てない）。#174 で合わせる（#174 にやることとして追記済み）。#183 では触らない。
+  - 素材の試聴（素材の一覧と、番組設定の既定構成）: `PlaybackService.toggleAssetPreview()` で、ファイル再生と同じプレイヤーを使う（`features/show/useAssetPreview.ts`）。始めるとほかの再生は止まり、録音側が持つ間は始めない。ミニプレーヤーには出さない（`source` は null）。画面を離れたら止める（Issue #174）。
   - 無効にしない代わり、他アプリの音は再生を止めても自動では戻らない。必要になったら #184 で、持ち主が手放すとき（ミニプレーヤーを閉じる等）に限って無効にすることを検討する。
 - ロック画面・通知の操作（#184）は再生側が持つ間だけ出す。録音側が取ったら消す（録音の通知と混ぜない）。状態は `PlaybackService` から出し、アプリ内のプレーヤーと同じ値を見る。
 

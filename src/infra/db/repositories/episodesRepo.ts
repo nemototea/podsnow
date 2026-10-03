@@ -144,11 +144,13 @@ export async function insertEpisode(
     description: string;
     episodeNumber: number;
     season: number;
+    /** 音の仕上げ（JSON）。番組の既定から作る。省略すると列の既定（`{}` = アプリの既定値）。 */
+    soundSettings?: string;
     now: number;
   },
 ): Promise<void> {
   await db.run(
-    'INSERT INTO episodes (id, show_id, title, description, episode_number, season, recorded_at, last_opened_at, guid, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
+    'INSERT INTO episodes (id, show_id, title, description, episode_number, season, sound_settings, recorded_at, last_opened_at, guid, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
     [
       e.id,
       e.showId,
@@ -156,6 +158,7 @@ export async function insertEpisode(
       e.description,
       e.episodeNumber,
       e.season,
+      e.soundSettings ?? '{}',
       e.now,
       e.now,
       // guid は配信後に変えてはいけない（PSP-1）。作成時の id で固定する。

@@ -125,40 +125,24 @@ export default function SettingsScreen() {
         options={THEMES.map((v) => ({ value: v, label: t.settings.theme[v] }))}
       />
 
-      <SectionHeader title={t.settings.recordingEyebrow} />
+      <SectionHeader title={t.settings.generalEyebrow} />
       <Card rows>
         <Row
-          label={t.settings.quality}
-          below={
-            <>
-              {[44100, 48000].map((sr) => (
-                <Chip
-                  key={sr}
-                  label={`${sr / 1000} kHz`}
-                  active={settings.recording.sampleRate === sr}
-                  onPress={() => setRec({ sampleRate: sr })}
-                />
-              ))}
-            </>
+          label={t.settings.haptics}
+          info={t.glossary.haptics}
+          last
+          right={
+            <Toggle
+              accessibilityLabel={t.settings.haptics}
+              value={settings.haptics}
+              onChange={(v) => set('haptics', v)}
+            />
           }
         />
-        <Row
-          label={t.settings.channels}
-          below={
-            <>
-              <Chip
-                label={t.settings.stereo}
-                active={settings.recording.channels === 2}
-                onPress={() => setRec({ channels: 2 })}
-              />
-              <Chip
-                label={t.settings.mono}
-                active={settings.recording.channels === 1}
-                onPress={() => setRec({ channels: 1 })}
-              />
-            </>
-          }
-        />
+      </Card>
+
+      <SectionHeader title={t.settings.recordingEyebrow} />
+      <Card rows>
         <ChoiceMenu
           label={t.settings.inputDefault}
           sub={inputLabel}
@@ -183,13 +167,26 @@ export default function SettingsScreen() {
         ) : null}
         <Row
           label={t.settings.autoResume}
-          last={Platform.OS !== 'android'}
           right={
             <Toggle
+              accessibilityLabel={t.settings.autoResume}
               value={settings.recording.autoResumeAfterInterruption}
               onChange={(v) => setRec({ autoResumeAfterInterruption: v })}
             />
           }
+        />
+        <ChoiceMenu
+          label={t.settings.monitorRow}
+          last={Platform.OS !== 'android'}
+          sub={t.settings.monitor[settings.monitor.jinglePlayback].label}
+          title={t.settings.monitorRow}
+          value={settings.monitor.jinglePlayback}
+          options={MONITOR.map((v) => ({
+            value: v,
+            label: t.settings.monitor[v].label,
+            sub: t.settings.monitor[v].sub,
+          }))}
+          onChange={(v) => void set('monitor', { jinglePlayback: v })}
         />
         {Platform.OS === 'android' ? (
           <ChoiceMenu
@@ -258,30 +255,14 @@ export default function SettingsScreen() {
         />
         <Row
           label={t.settings.silenceAuto}
+          last
           right={
             <Toggle
+              accessibilityLabel={t.settings.silenceAuto}
               value={settings.silence.autoApply}
               onChange={(v) => setSilence({ autoApply: v })}
             />
           }
-        />
-        <Row
-          label={t.settings.haptics}
-          info={t.glossary.haptics}
-          right={<Toggle value={settings.haptics} onChange={(v) => set('haptics', v)} />}
-        />
-        <ChoiceMenu
-          label={t.settings.monitorRow}
-          last
-          sub={t.settings.monitor[settings.monitor.jinglePlayback].label}
-          title={t.settings.monitorRow}
-          value={settings.monitor.jinglePlayback}
-          options={MONITOR.map((v) => ({
-            value: v,
-            label: t.settings.monitor[v].label,
-            sub: t.settings.monitor[v].sub,
-          }))}
-          onChange={(v) => void set('monitor', { jinglePlayback: v })}
         />
       </Card>
 

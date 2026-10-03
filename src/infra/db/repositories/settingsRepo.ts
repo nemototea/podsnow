@@ -7,9 +7,8 @@ export interface AppSettings {
   /** 表示言語。`'system'` は端末のロケールに従う（FR-I18N-3）。 */
   language: LanguagePreference;
   theme: 'dark' | 'light' | 'system';
+  /** 録音の形式（48 kHz・ステレオ）は固定で、ここには持たない（`RECORDING_FORMAT`。Issue #174）。 */
   recording: {
-    sampleRate: number;
-    channels: 1 | 2;
     preferredInputUid: string | null;
     autoResumeAfterInterruption: boolean;
     androidAudioSource: 'mic' | 'voice_recognition' | 'unprocessed' | 'camcorder';
@@ -19,7 +18,7 @@ export interface AppSettings {
   export: {
     defaultPreset: 'podcast' | 'high' | 'wav' | 'custom';
     /** カスタム書き出しの項目。読み出し側で `normalizeCustomExport` を通す。 */
-    custom: { format: 'm4a' | 'wav'; bitrate: number; channels: 1 | 2 };
+    custom: { format: 'm4a' | 'wav'; bitrate: number; channels: 1 | 2; sampleRate: 48000 | 44100 };
   };
   monitor: { jinglePlayback: 'always' | 'headphonesOnly' | 'never' };
   /** ホームの「番組の情報を入れる」カードを閉じたか（取り込み or 新しく始める。FR-SHOW-6） */
@@ -30,15 +29,16 @@ export const DEFAULT_SETTINGS: AppSettings = {
   language: 'system',
   theme: 'system',
   recording: {
-    sampleRate: 48000,
-    channels: 2,
     preferredInputUid: null,
     autoResumeAfterInterruption: false,
     androidAudioSource: 'voice_recognition',
   },
   silence: { minDurationMs: 1500, thresholdDb: -45, padMs: 250, autoApply: false },
   haptics: true,
-  export: { defaultPreset: 'podcast', custom: { format: 'm4a', bitrate: 192_000, channels: 1 } },
+  export: {
+    defaultPreset: 'podcast',
+    custom: { format: 'm4a', bitrate: 192_000, channels: 1, sampleRate: 48000 },
+  },
   monitor: { jinglePlayback: 'headphonesOnly' },
   onboardingDone: false,
 };

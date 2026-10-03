@@ -24,7 +24,6 @@ const clip = (over: Partial<OverlayClip>): OverlayClip => ({
   gainDb: 0,
   fadeIn: ZERO_SMP,
   fadeOut: ZERO_SMP,
-  duck: false,
   loop: false,
   endMode: 'asset_end',
   ...over,

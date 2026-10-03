@@ -34,7 +34,7 @@ import { listTakes } from '@/infra/db/repositories/takesRepo';
 import { joinRoot } from '@/infra/files/layout';
 
 import type { ServiceLabels } from '../app/labels';
-import { parseSoundSettings } from '../audio/renderDocumentFromDb';
+import { parseSoundSettings, soundSettingsFromShow } from '../audio/renderDocumentFromDb';
 
 export interface EpisodeDeps {
   db: SqlExecutor;
@@ -81,6 +81,8 @@ export class EpisodeService {
         description,
         episodeNumber,
         season: show.default_season,
+        // BGM を下げる量は番組の既定を写す。写した後はエピソードの値（Issue #174）
+        soundSettings: await this.defaultSoundSettings(showId),
         now: t,
       });
       const doc: EditableDoc = { voice: [], overlays: await this.defaultOverlays(showId) };
@@ -110,6 +112,12 @@ export class EpisodeService {
       : '';
   }
 
+  /** 新しい回の音の仕上げ（JSON）。番組の既定を写す（Issue #174）。 */
+  private async defaultSoundSettings(showId: string): Promise<string> {
+    const layout = await getLayout(this.deps.db, showId);
+    return soundSettingsFromShow(layout.bgm_duck_db);
+  }
+
   /** 新しい回の素材の配置（番組の既定構成。FR-EP-2）。 */
   private async defaultOverlays(showId: string): Promise<OverlayClip[]> {
     const { db, newId } = this.deps;
@@ -129,7 +137,6 @@ export class EpisodeService {
         kind: 'opening',
         anchor: { type: 'timeline_start', offset: ZERO_SMP },
         gainDb: layout.opening_gain_db,
-        duck: false,
         loop: false,
         endMode: 'asset_end',
       });
@@ -142,7 +149,6 @@ export class EpisodeService {
         kind: 'ending',
         anchor: { type: 'timeline_end', offset: ZERO_SMP },
         gainDb: layout.ending_gain_db,
-        duck: false,
         loop: false,
         endMode: 'asset_end',
       });
@@ -157,7 +163,6 @@ export class EpisodeService {
         gainDb: layout.bgm_gain_db,
         fadeIn: smp(48000),
         fadeOut: smp(96000),
-        duck: true,
         loop: true,
         endMode: 'timeline_end',
       });
@@ -288,7 +293,7 @@ export class EpisodeService {
     const blank = renderFingerprint({
       voice: [],
       overlays: await this.defaultOverlays(ep.show_id),
-      sound: parseSoundSettings(null),
+      sound: parseSoundSettings(await this.defaultSoundSettings(ep.show_id)),
     });
     const current = renderFingerprint({
       voice: doc.voice,
