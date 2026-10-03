@@ -3,8 +3,9 @@
  * 時間は「フレーム数」（= サンプル数 / チャンネル、sampleRate 基準）で返す。
  */
 
+/** `monitoring` は録音前の入力モニター（ファイルに書かない。AUDIO_DESIGN.md §3.6、Issue #169）。 */
 export type RecorderState =
-  'idle' | 'prepared' | 'recording' | 'paused' | 'interrupted' | 'stopping';
+  'idle' | 'prepared' | 'monitoring' | 'recording' | 'paused' | 'interrupted' | 'stopping';
 
 export interface RecorderConfig {
   /** 48000 を推奨。 */
@@ -67,7 +68,7 @@ export type SegmentCloseReason =
 export interface LevelEvent {
   peakDb: number;
   rmsDb: number;
-  /** 現在の Segment に書き込んだ累計フレーム数（一時停止中は増えない）。 */
+  /** 現在の Segment に書き込んだ累計フレーム数（一時停止中は増えない。入力モニター中は 0）。 */
   frames: number;
   clipped: boolean;
 }

@@ -3,9 +3,10 @@ import Foundation
 
 /// AVAudioEngine の入力タップから Int16 PCM を取り出し、WavWriter に書く録音エンジン。
 /// Audio Session の構成、割り込み・ルート変更・メディアサービスリセットの観測も担う（AUDIO_DESIGN.md §3.1, §4）。
+/// 録音前の入力モニター（ファイルに書かず、レベルだけ出す）も同じタップで行う（§3.6、Issue #169）。
 final class RecorderEngine {
   enum State: String {
-    case idle, prepared, recording, paused, interrupted, stopping
+    case idle, prepared, monitoring, recording, paused, interrupted, stopping
   }
 
   struct Config {
@@ -28,6 +29,7 @@ final class RecorderEngine {
   private let engine = AVAudioEngine()
   private var converter: AVAudioConverter?
   private var targetFormat: AVAudioFormat?
+  /// 書き込み先。writeQueue の上でだけ読み書きする。nil の間はモニター（§3.6）。
   private var writer: WavWriter?
   private let writeQueue = DispatchQueue(label: "dev.nemotea.podsnow.recorder.write", qos: .userInitiated)
   private var paused = false
@@ -60,18 +62,61 @@ final class RecorderEngine {
     state = .prepared
   }
 
+  /// 録音前の入力モニターを始める（§3.6）。ファイルは開かず、onLevel（frames = 0）だけ出す。
+  /// セッションは prepare() で録音用に設定済み（録音側が持つ。§10.1）。
+  func startMonitor() throws {
+    guard state == .prepared else { throw RecorderError.invalidState("startMonitor", state) }
+    guard let target = targetFormat else { throw RecorderError.message("not prepared") }
+    try AVAudioSession.sharedInstance().setActive(true)
+    paused = false
+    try installTap(target: target)
+    engine.prepare()
+    do {
+      try engine.start()
+    } catch {
+      removeTap()
+      throw error
+    }
+    state = .monitoring
+  }
+
+  /// モニターを止める。マイクを離す（OS のマイク使用中の表示が消える【仮説】）。セッションは無効にしない（§10.1）。
+  func stopMonitor() throws {
+    guard state == .monitoring else { throw RecorderError.invalidState("stopMonitor", state) }
+    removeTap()
+    if engine.isRunning { engine.stop() }
+    state = .prepared
+  }
+
   func start(path: String) throws {
-    guard state == .prepared || state == .interrupted else {
+    guard state == .prepared || state == .interrupted || state == .monitoring else {
       throw RecorderError.invalidState("start", state)
     }
     guard let target = targetFormat else { throw RecorderError.message("not prepared") }
     try AVAudioSession.sharedInstance().setActive(true)
+    // ヘッダを書き終えた writer を writeQueue の上で渡す。write() は writeQueue で writer を見るので、
+    // モニターから切り替えるときも、渡したあとに変換したバッファから書き込まれる。
+    // 作成に失敗したら例外のまま返し、モニターは続く。
     let w = try WavWriter(path: path, sampleRate: Int(config.sampleRate), channels: config.channels, flushInterval: config.headerFlushInterval)
-    writer = w
-    paused = false
-    try installTap(target: target)
-    engine.prepare()
-    try engine.start()
+    writeQueue.sync { writer = w; paused = false }
+    if state == .monitoring {
+      // タップとエンジンは動かしたまま切り替える（デバイスの再初期化によるギャップを作らない）。
+      state = .recording
+      return
+    }
+    do {
+      try installTap(target: target)
+      engine.prepare()
+      try engine.start()
+    } catch {
+      // 始まらなかった。ヘッダだけのファイルを閉じて返す（Segment は JS 側でも開かれていない）。
+      removeTap()
+      writeQueue.sync {
+        try? writer?.finalize()
+        writer = nil
+      }
+      throw error
+    }
     state = .recording
   }
 
@@ -107,6 +152,7 @@ final class RecorderEngine {
     if state == .recording || state == .paused || state == .interrupted {
       _ = try? stop(reason: "stop")
     }
+    if state == .monitoring { try? stopMonitor() }
     removeTap()
     engine.stop()
     try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
@@ -142,7 +188,7 @@ final class RecorderEngine {
   func setInput(uid: String?) throws {
     config.inputUid = uid
     try configureSession(preferredInputUid: uid)
-    if state == .recording || state == .paused, let target = targetFormat {
+    if state == .recording || state == .paused || state == .monitoring, let target = targetFormat {
       // 入力フォーマットが変わり得るのでタップを張り直す
       removeTap()
       try installTap(target: target)
@@ -203,6 +249,12 @@ final class RecorderEngine {
   }
 
   private func handleBuffer(_ buffer: AVAudioPCMBuffer, target: AVAudioFormat) {
+    if state == .monitoring {
+      // モニターは変換も書き込みもしない。レベルだけ writeQueue で間引いて出す。
+      let (peak, rms) = RecorderEngine.levels(of: buffer)
+      writeQueue.async { [weak self] in self?.emitMonitorLevel(peak: peak, rms: rms) }
+      return
+    }
     guard !paused, state == .recording, let conv = converter else { return }
     let (peak, rms) = RecorderEngine.levels(of: buffer)
     let ratio = target.sampleRate / buffer.format.sampleRate
@@ -229,6 +281,18 @@ final class RecorderEngine {
     writeQueue.async { [weak self] in
       self?.write(data, peak: peak, rms: rms)
     }
+  }
+
+  /// writeQueue の上で呼ぶ。録音へ切り替わったあと（writer がある）は録音側のレベルに任せる。
+  private func emitMonitorLevel(peak: Float, rms: Float) {
+    guard writer == nil else { return }
+    let now = Date()
+    guard now.timeIntervalSince(lastLevelEmit) >= config.levelInterval else { return }
+    lastLevelEmit = now
+    emit("onLevel", [
+      "peakDb": RecorderEngine.db(peak), "rmsDb": RecorderEngine.db(rms),
+      "frames": 0, "clipped": peak >= 0.99,
+    ])
   }
 
   private func write(_ data: Data, peak: Float, rms: Float) {
@@ -309,6 +373,8 @@ final class RecorderEngine {
         _ = closeWriter(reason: "interruption")
         state = .interrupted
       }
+      // モニターは書いていないので、止めて prepared に戻すだけ（再開するかは JS が決める）。
+      if state == .monitoring { try? stopMonitor() }
       emit("onInterruption", ["type": "began", "shouldResume": false])
     case .ended:
       var shouldResume = false
@@ -338,15 +404,19 @@ final class RecorderEngine {
   }
 
   private func handleEngineConfigurationChange() {
-    // 入力フォーマットが変わった（デバイス抜き差し等）。録音中ならタップを張り直して続行する。
-    guard state == .recording || state == .paused, let target = targetFormat else { return }
+    // 入力フォーマットが変わった（デバイス抜き差し等）。録音中・モニター中ならタップを張り直して続行する。
+    guard state == .recording || state == .paused || state == .monitoring, let target = targetFormat else { return }
     do {
       removeTap()
       try installTap(target: target)
       if !engine.isRunning { try engine.start() }
     } catch {
       emit("onError", ["message": "reconfigure: \(error.localizedDescription)", "code": "reconfigure"])
-      _ = try? stop(reason: "route_change")
+      if state == .monitoring {
+        try? stopMonitor()
+      } else {
+        _ = try? stop(reason: "route_change")
+      }
     }
   }
 
@@ -357,6 +427,7 @@ final class RecorderEngine {
       _ = closeWriter(reason: "media_reset")
       state = .interrupted
     }
+    if state == .monitoring { try? stopMonitor() }
     emit("onInterruption", ["type": "began", "shouldResume": false, "reason": "media_reset"])
     emit("onInterruption", ["type": "ended", "shouldResume": false, "reason": "media_reset"])
   }
