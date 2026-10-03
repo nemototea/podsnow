@@ -68,7 +68,6 @@ async function setup() {
           gainDb: -4,
           fadeIn: smp(0),
           fadeOut: smp(0),
-          duck: false,
           loop: false,
           endMode: 'asset_end',
         },

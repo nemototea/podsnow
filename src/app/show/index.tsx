@@ -13,6 +13,7 @@ import { formatSmp, smp } from '@/domain/time';
 import { splitIntoHeadings } from '@/domain/outline';
 import { useServices } from '@/features/app/ServicesProvider';
 import { kindLabel } from '@/features/show/assetKinds';
+import { useAssetPreview } from '@/features/show/useAssetPreview';
 import { useAsyncData } from '@/features/show/useAsyncData';
 import { errorText, useT, type Messages } from '@/i18n';
 import type { AssetKind, AssetRow } from '@/infra/db/repositories/assetsRepo';
@@ -133,6 +134,7 @@ export default function ShowScreen() {
   const [topicDraft, setTopicDraft] = useState<string | null>(null);
   const [templateDraft, setTemplateDraft] = useState<string | null>(null);
   const [picking, setPicking] = useState<LayoutSlot | null>(null);
+  const { playingId: previewingId, toggle: togglePreview, stop: stopPreview } = useAssetPreview();
   // 概要欄テンプレートの選択範囲。差し込みはここに入れる（Issue #174 F2）
   const templateSel = useRef<TextSelection | null>(null);
   // 差し込んだ直後だけカーソルを指定し、次の選択の変化で手放す（常に制御すると入力が引っかかる）
@@ -266,6 +268,7 @@ export default function ShowScreen() {
 
   const setSlot = async (slot: LayoutSlot, assetId: string | null) => {
     setPicking(null);
+    stopPreview();
     const key =
       slot === 'opening' ? 'openingAssetId' : slot === 'ending' ? 'endingAssetId' : 'bgmAssetId';
     await updateLayout(db, showId, { [key]: assetId });
@@ -310,13 +313,17 @@ export default function ShowScreen() {
   const rowA11y = (action: string, row: { label: string; sub: string | null }) =>
     [action, row.label, row.sub].filter(Boolean).join(', ');
 
-  const assetName = (id: string | null) =>
-    data.assets.find((a) => a.id === id)?.name ?? t.showSettings.chooseAsset;
+  /** 枠に選んである素材。消された素材を指していれば未選択とみなす。 */
+  const slotAsset = (slot: LayoutSlot) => {
+    const id = (data.layout?.[SLOT_COL[slot]] as string | null) ?? null;
+    return id ? (data.assets.find((a) => a.id === id) ?? null) : null;
+  };
   const pickedId = picking ? ((data.layout?.[SLOT_COL[picking]] as string | null) ?? null) : null;
   const pickList = picking ? data.assets.filter((a) => a.kind === (picking as AssetKind)) : [];
 
   const openAssets = (kind?: LayoutSlot) => {
     setPicking(null);
+    stopPreview();
     router.push(kind ? { pathname: '/show/assets', params: { kind } } : '/show/assets');
   };
 
@@ -410,32 +417,56 @@ export default function ShowScreen() {
       <Card style={{ paddingVertical: space.xs }}>
         {(['opening', 'ending', 'bgm'] as LayoutSlot[]).map((slot) => {
           const gain = Number(data.layout?.[SLOT_GAIN[slot]] ?? 0);
+          const asset = slotAsset(slot);
+          const previewing = !!asset && previewingId === asset.id;
           return (
             <View key={slot} style={[st.slot, { borderBottomColor: c.border }]}>
               <View style={{ flex: 1, gap: space.xs }}>
                 <Text style={[st.slotLabel, { color: c.textPrimary }]}>{slotLabel(slot)}</Text>
-                <Chip
-                  icon="music"
-                  label={assetName((data.layout?.[SLOT_COL[slot]] as string | null) ?? null)}
-                  accessibilityLabel={t.showSettings.a11yPickAsset(slotLabel(slot))}
-                  onPress={() => setPicking(slot)}
-                />
+                <View style={st.slotPick}>
+                  <Chip
+                    icon="music"
+                    label={asset?.name ?? t.showSettings.chooseAsset}
+                    accessibilityLabel={t.showSettings.a11yPickAsset(slotLabel(slot))}
+                    onPress={() => setPicking(slot)}
+                  />
+                  {asset ? (
+                    <IconButton
+                      name={previewing ? 'stop' : 'play'}
+                      label={
+                        previewing
+                          ? t.showSettings.a11yStopSlotPreview(slotLabel(slot))
+                          : t.showSettings.a11ySlotPreview(slotLabel(slot))
+                      }
+                      selected={previewing}
+                      onPress={() => void togglePreview(asset)}
+                    />
+                  ) : null}
+                </View>
               </View>
-              <Stepper
-                label={`${gain > 0 ? '+' : ''}${gain} dB`}
-                onMinus={() => bumpGain(slot, -1)}
-                onPlus={() => bumpGain(slot, 1)}
-                a11y={t.showSettings.a11ySlotGain(slotLabel(slot))}
-              />
+              {/* 素材が無い枠に音量は効かないので出さない（Issue #174 F5） */}
+              {asset ? (
+                <Stepper
+                  label={`${gain > 0 ? '+' : ''}${gain} dB`}
+                  onMinus={() => bumpGain(slot, -1)}
+                  onPlus={() => bumpGain(slot, 1)}
+                  a11y={t.showSettings.a11ySlotGain(slotLabel(slot))}
+                />
+              ) : null}
             </View>
           );
         })}
         <View style={[st.slot, { borderBottomWidth: 0 }]}>
-          <View style={st.infoLabel}>
-            <Text style={[st.slotLabel, { color: c.textPrimary, flexShrink: 1 }]}>
-              {t.showSettings.duckingLabel}
+          <View style={st.duckLabel}>
+            <View style={st.infoLabel}>
+              <Text style={[st.slotLabel, { color: c.textPrimary, flexShrink: 1 }]}>
+                {t.showSettings.duckingLabel}
+              </Text>
+              <InfoButton info={t.glossary.ducking} />
+            </View>
+            <Text style={[typography.caption, { color: c.textSecondary }]}>
+              {t.showSettings.duckingSub}
             </Text>
-            <InfoButton info={t.glossary.ducking} />
           </View>
           <Stepper
             label={`${data.layout?.bgm_duck_db ?? -10} dB`}
@@ -659,8 +690,10 @@ const st = StyleSheet.create({
     gap: space.sm,
   },
   slotLabel: typography.bodyStrong,
+  slotPick: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   stepper: { flexDirection: 'row', alignItems: 'center' },
-  infoLabel: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: space.xs },
+  duckLabel: { flex: 1, gap: space.xs },
+  infoLabel: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
   stepValue: { ...typography.numeric, ...tabularNums, minWidth: 64, textAlign: 'center' },
   helpWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
   preview: { gap: space.xs, marginTop: space.md },

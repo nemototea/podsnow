@@ -1,6 +1,7 @@
 import type { AppErrorCode } from '@/domain/errors';
 import { ZERO_SMP, type Smp } from '@/domain/time';
 import type { SqlExecutor } from '@/infra/db/executor';
+import { joinRoot } from '@/infra/files/layout';
 
 import type { HomeEpisodeItem } from '../home/HomeService';
 import type { Subscription } from '../recording/RecorderPort';
@@ -43,6 +44,17 @@ export interface TimelinePlaybackItem {
 }
 
 export type PlaybackSource = TimelinePlaybackItem | ExportPlaybackItem | RssPlaybackItem;
+
+/**
+ * 番組の素材の試聴（Issue #174、AUDIO_DESIGN.md §10）。ほかの再生と同じプレイヤーで鳴らすので、
+ * 試聴を始めるとほかの再生は止まる。ミニプレーヤーには出さない（`source` は null）。
+ */
+interface AssetPreviewItem {
+  kind: 'asset';
+  assetId: string;
+  duration: Smp;
+}
+type FileItem = ExportPlaybackItem | RssPlaybackItem | AssetPreviewItem;
 type PlaybackMode = 'timeline' | 'file' | null;
 /** ファイル再生の読み込み状態（Issue #185）。 */
 type FileLoadState = 'loading' | 'ready' | 'failed';
@@ -58,7 +70,7 @@ export class PlaybackService {
   private timelineFrame = 0;
   private playing = false;
   private mode: PlaybackMode = null;
-  private fileItem: ExportPlaybackItem | RssPlaybackItem | null = null;
+  private fileItem: FileItem | null = null;
   private fileUri: string | null = null;
   private fileLoad: FileLoadState = 'ready';
   /** 後から始めた読み込みが先の読み込みの結果で上書きされないように数える。 */
@@ -165,7 +177,7 @@ export class PlaybackService {
     return this.total as Smp;
   }
   get source(): PlaybackSource | null {
-    if (this.mode === 'file') return this.fileItem;
+    if (this.mode === 'file') return this.fileItem?.kind === 'asset' ? null : this.fileItem;
     if (this.mode === 'timeline' && this.loadedEpisode) {
       return this.timelineItem ?? { kind: 'timeline', episodeId: this.loadedEpisode };
     }
@@ -182,6 +194,37 @@ export class PlaybackService {
   }
   get loadedEpisodeId(): string | null {
     return this.loadedEpisode;
+  }
+  /** 試聴中（読み込み中を含む）の素材。止まったら null。 */
+  get previewingAssetId(): string | null {
+    if (this.mode !== 'file' || this.fileItem?.kind !== 'asset' || !this.fileWanted) return null;
+    return this.fileItem.assetId;
+  }
+
+  /**
+   * 素材を試聴する。同じ素材を試聴中なら止める。録音側が音声セッションを持っている間は始めない（§10.1）。
+   * `path` はデータの置き場（root）からの相対パス。始めたら true。
+   */
+  async toggleAssetPreview(asset: {
+    assetId: string;
+    path: string;
+    duration: Smp;
+  }): Promise<boolean> {
+    this.userAction();
+    if (this.previewingAssetId === asset.assetId) {
+      this.releaseFile();
+      return false;
+    }
+    if (this.deps.recorderBusy()) return false;
+    return this.startFile(
+      { kind: 'asset', assetId: asset.assetId, duration: asset.duration },
+      `file://${joinRoot(this.deps.root, asset.path)}`,
+    );
+  }
+
+  /** 試聴を止めて手放す。素材の画面を離れたとき・素材を消すときに呼ぶ。試聴していなければ何もしない。 */
+  stopAssetPreview(): void {
+    if (this.mode === 'file' && this.fileItem?.kind === 'asset') this.releaseFile();
   }
 
   /** タイムラインを（再）読み込みする。ファイル再生中はその状態を奪わない。 */
@@ -423,11 +466,7 @@ export class PlaybackService {
    * 完成ファイル・配信の音声を読み込んで再生する。読み込みを待つ前に「読み込み中」を流し、
    * 失敗しても例外は投げず「失敗」の状態にする（Issue #185）。配信の音声は通信するので遅れることがある。
    */
-  private async startFile(
-    source: ExportPlaybackItem | RssPlaybackItem,
-    uri: string,
-    at: Smp = ZERO_SMP,
-  ): Promise<boolean> {
+  private async startFile(source: FileItem, uri: string, at: Smp = ZERO_SMP): Promise<boolean> {
     if (this.deps.recorderBusy()) return false;
     const seq = ++this.fileLoadSeq;
     await this.deps.engine.pause();

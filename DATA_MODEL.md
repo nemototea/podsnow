@@ -145,7 +145,7 @@ MVP は起動時に 1 行自動作成。【事実】
 | ending_asset_id | TEXT FK nullable | |
 | bgm_asset_id | TEXT FK nullable | |
 | bgm_gain_db | REAL | 既定 -14 |
-| bgm_duck_db | REAL | 既定 -10（声がある区間での追加減衰） |
+| bgm_duck_db | REAL | 既定 -10（声がある区間での追加減衰）。新しいエピソードの既定の下げ幅で、作成時に `episodes.sound_settings.ducking.depthDb` へ写す。写した後はエピソードの値で、ここを変えても作成済みの回は変わらない（Issue #174） |
 | opening_gain_db / ending_gain_db | REAL | |
 
 新規エピソード作成時、この行から `overlay_clips` を生成する。MVP は 1 種類のみ【事実】。将来 `episode_templates` テーブルに一般化。
@@ -289,7 +289,7 @@ Take の「時間軸」は Segment を `seq` 順に連結したもの。割り�
 | src_start_smp / src_end_smp | INTEGER | 素材内の使用範囲（トリム） |
 | gain_db | REAL | |
 | fade_in_smp / fade_out_smp | INTEGER | |
-| duck | INTEGER | BGM 等、声のある区間で減衰させるか |
+| duck | INTEGER | 互換のために残す列。**読まない。** 下げるかどうかは `kind` で決まり（BGM だけ。`domain/timeline/types.ts` の `ducksUnderVoice`）、書き込みは `kind = 'bgm'` のとき 1（Issue #174） |
 | loop | INTEGER | BGM を末尾まで繰り返すか |
 | end_mode | TEXT | `asset_end` / `timeline_end` / `fixed`（BGM 用） |
 | updated_at | INTEGER | |

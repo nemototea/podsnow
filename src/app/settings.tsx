@@ -125,6 +125,22 @@ export default function SettingsScreen() {
         options={THEMES.map((v) => ({ value: v, label: t.settings.theme[v] }))}
       />
 
+      <SectionHeader title={t.settings.generalEyebrow} />
+      <Card rows>
+        <Row
+          label={t.settings.haptics}
+          info={t.glossary.haptics}
+          last
+          right={
+            <Toggle
+              accessibilityLabel={t.settings.haptics}
+              value={settings.haptics}
+              onChange={(v) => set('haptics', v)}
+            />
+          }
+        />
+      </Card>
+
       <SectionHeader title={t.settings.recordingEyebrow} />
       <Card rows>
         <Row
@@ -183,7 +199,6 @@ export default function SettingsScreen() {
         ) : null}
         <Row
           label={t.settings.autoResume}
-          last={Platform.OS !== 'android'}
           right={
             <Toggle
               accessibilityLabel={t.settings.autoResume}
@@ -191,6 +206,19 @@ export default function SettingsScreen() {
               onChange={(v) => setRec({ autoResumeAfterInterruption: v })}
             />
           }
+        />
+        <ChoiceMenu
+          label={t.settings.monitorRow}
+          last={Platform.OS !== 'android'}
+          sub={t.settings.monitor[settings.monitor.jinglePlayback].label}
+          title={t.settings.monitorRow}
+          value={settings.monitor.jinglePlayback}
+          options={MONITOR.map((v) => ({
+            value: v,
+            label: t.settings.monitor[v].label,
+            sub: t.settings.monitor[v].sub,
+          }))}
+          onChange={(v) => void set('monitor', { jinglePlayback: v })}
         />
         {Platform.OS === 'android' ? (
           <ChoiceMenu
@@ -259,6 +287,7 @@ export default function SettingsScreen() {
         />
         <Row
           label={t.settings.silenceAuto}
+          last
           right={
             <Toggle
               accessibilityLabel={t.settings.silenceAuto}
@@ -266,30 +295,6 @@ export default function SettingsScreen() {
               onChange={(v) => setSilence({ autoApply: v })}
             />
           }
-        />
-        <Row
-          label={t.settings.haptics}
-          info={t.glossary.haptics}
-          right={
-            <Toggle
-              accessibilityLabel={t.settings.haptics}
-              value={settings.haptics}
-              onChange={(v) => set('haptics', v)}
-            />
-          }
-        />
-        <ChoiceMenu
-          label={t.settings.monitorRow}
-          last
-          sub={t.settings.monitor[settings.monitor.jinglePlayback].label}
-          title={t.settings.monitorRow}
-          value={settings.monitor.jinglePlayback}
-          options={MONITOR.map((v) => ({
-            value: v,
-            label: t.settings.monitor[v].label,
-            sub: t.settings.monitor[v].sub,
-          }))}
-          onChange={(v) => void set('monitor', { jinglePlayback: v })}
         />
       </Card>
 

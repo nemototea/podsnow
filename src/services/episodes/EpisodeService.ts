@@ -28,6 +28,7 @@ import { listTakes } from '@/infra/db/repositories/takesRepo';
 import { joinRoot } from '@/infra/files/layout';
 
 import type { ServiceLabels } from '../app/labels';
+import { soundSettingsFromShow } from '../audio/renderDocumentFromDb';
 
 export interface EpisodeDeps {
   db: SqlExecutor;
@@ -84,6 +85,8 @@ export class EpisodeService {
         description,
         episodeNumber,
         season: show.default_season,
+        // BGM を下げる量は番組の既定を写す。写した後はエピソードの値（Issue #174）
+        soundSettings: soundSettingsFromShow(layout.bgm_duck_db),
         now: t,
       });
       const overlays: OverlayClip[] = [];
@@ -101,7 +104,6 @@ export class EpisodeService {
           kind: 'opening',
           anchor: { type: 'timeline_start', offset: ZERO_SMP },
           gainDb: layout.opening_gain_db,
-          duck: false,
           loop: false,
           endMode: 'asset_end',
         });
@@ -114,7 +116,6 @@ export class EpisodeService {
           kind: 'ending',
           anchor: { type: 'timeline_end', offset: ZERO_SMP },
           gainDb: layout.ending_gain_db,
-          duck: false,
           loop: false,
           endMode: 'asset_end',
         });
@@ -129,7 +130,6 @@ export class EpisodeService {
           gainDb: layout.bgm_gain_db,
           fadeIn: smp(48000),
           fadeOut: smp(96000),
-          duck: true,
           loop: true,
           endMode: 'timeline_end',
         });

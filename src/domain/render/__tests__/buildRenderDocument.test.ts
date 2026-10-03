@@ -73,7 +73,6 @@ describe('buildRenderDocument', () => {
         gainDb: -4,
         fadeIn: ZERO_SMP,
         fadeOut: ZERO_SMP,
-        duck: false,
         loop: false,
         endMode: 'asset_end',
       },
@@ -87,7 +86,6 @@ describe('buildRenderDocument', () => {
         gainDb: 0,
         fadeIn: ZERO_SMP,
         fadeOut: ZERO_SMP,
-        duck: false,
         loop: false,
         endMode: 'asset_end',
       },
@@ -101,7 +99,6 @@ describe('buildRenderDocument', () => {
         gainDb: -14,
         fadeIn: smp(5),
         fadeOut: smp(5),
-        duck: true,
         loop: true,
         endMode: 'timeline_end',
       },
@@ -131,6 +128,8 @@ describe('buildRenderDocument', () => {
       tlStart: 300 + 1000,
       tlEnd: 1400,
       gainDb: -4,
+      // 声に合わせて下げるのは BGM だけ（Issue #174）
+      duck: false,
     });
     expect(doc.overlays[1]).toMatchObject({
       path: '/assets/M.wav',

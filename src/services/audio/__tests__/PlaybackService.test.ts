@@ -478,6 +478,88 @@ describe('PlaybackService', () => {
 });
 
 // Issue #183: 再生の音声モードと割り込み（AUDIO_DESIGN.md §10）
+describe('PlaybackService asset preview (Issue #174)', () => {
+  const ASSET = { assetId: 'a1', path: 'assets/a1.wav', duration: smp(TOTAL) };
+
+  it('plays the asset after applying the playback mode, and does not show it as a Home source', async () => {
+    const { filePlayer, session, svc } = await setup();
+    const play = jest.spyOn(filePlayer, 'play');
+    expect(await svc.toggleAssetPreview(ASSET)).toBe(true);
+    expect(filePlayer.calls).toEqual(['load:file:///root/assets/a1.wav', 'play']);
+    expect(session.enterPlayback.mock.invocationCallOrder[0]).toBeLessThan(
+      play.mock.invocationCallOrder[0] ?? Infinity,
+    );
+    expect(svc.previewingAssetId).toBe('a1');
+    // ミニプレーヤーには出さない
+    expect(svc.source).toBeNull();
+  });
+
+  it('stops when the same asset is toggled again, and switches when another is toggled', async () => {
+    const { filePlayer, svc } = await setup();
+    await svc.toggleAssetPreview(ASSET);
+    await svc.toggleAssetPreview({ ...ASSET, assetId: 'a2', path: 'assets/a2.wav' });
+    expect(svc.previewingAssetId).toBe('a2');
+    filePlayer.calls = [];
+    expect(await svc.toggleAssetPreview({ ...ASSET, assetId: 'a2', path: 'assets/a2.wav' })).toBe(
+      false,
+    );
+    expect(filePlayer.calls).toEqual(['pause']);
+    expect(svc.previewingAssetId).toBeNull();
+    expect(svc.isPlaying).toBe(false);
+  });
+
+  it('stops other playback when a preview starts', async () => {
+    const { db, engine, svc } = await setup({ withVoice: true });
+    await db.run(
+      'INSERT INTO exports (id, episode_id, format, preset, status, path, duration_smp, created_at) VALUES (?,?,?,?,?,?,?,?)',
+      ['x1', 'e', 'm4a', '{}', 'done', 'episodes/e/exports/x1.m4a', TOTAL, 2],
+    );
+    await svc.reload('e');
+    await svc.toggle();
+    expect(engine.playing).toBe(true);
+    await svc.toggleAssetPreview(ASSET);
+    expect(engine.playing).toBe(false);
+    // Home の再生を始めると試聴は終わる
+    await svc.toggleHome(await localHomeItem(db));
+    expect(svc.previewingAssetId).toBeNull();
+    expect(svc.source).toMatchObject({ kind: 'export' });
+  });
+
+  it('does not start while the recorder holds the audio session', async () => {
+    const { filePlayer, recorder, svc } = await setup();
+    recorder.busy = true;
+    expect(await svc.toggleAssetPreview(ASSET)).toBe(false);
+    expect(filePlayer.calls).toEqual([]);
+    expect(svc.previewingAssetId).toBeNull();
+  });
+
+  it('is released by stopAssetPreview, and leaves Home playback alone', async () => {
+    const { db, filePlayer, svc } = await setup({ withVoice: true });
+    await svc.toggleAssetPreview(ASSET);
+    filePlayer.calls = [];
+    svc.stopAssetPreview();
+    expect(filePlayer.calls).toEqual(['pause']);
+    expect(svc.previewingAssetId).toBeNull();
+
+    await db.run(
+      'INSERT INTO exports (id, episode_id, format, preset, status, path, duration_smp, created_at) VALUES (?,?,?,?,?,?,?,?)',
+      ['x1', 'e', 'm4a', '{}', 'done', 'episodes/e/exports/x1.m4a', TOTAL, 2],
+    );
+    await svc.toggleHome(await localHomeItem(db));
+    filePlayer.calls = [];
+    svc.stopAssetPreview();
+    expect(filePlayer.calls).toEqual([]);
+    expect(svc.source).toMatchObject({ kind: 'export' });
+  });
+
+  it('ends the preview when the file finishes', async () => {
+    const { filePlayer, svc } = await setup();
+    await svc.toggleAssetPreview(ASSET);
+    filePlayer.emit({ playing: false, ended: true, position: smp(TOTAL) });
+    expect(svc.previewingAssetId).toBeNull();
+  });
+});
+
 describe('PlaybackService audio session (Issue #183)', () => {
   async function withExport(db: ReturnType<typeof createNodeSqliteExecutor>) {
     await db.run(
