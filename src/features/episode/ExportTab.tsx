@@ -585,7 +585,7 @@ export function ExportTab({ ws, onShowToast, onDone, onGoEdit }: ExportTabProps)
           />
           <Button
             label={t.details.reapplyTemplate}
-            kind="ghost"
+            kind="secondary"
             compact
             onPress={() => {
               void getDefaultTemplate(db, show.id).then((tpl) => {

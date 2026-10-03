@@ -323,15 +323,11 @@ Podcast: {{show_name}}
     clearSelection: '選択を解除',
     removeSilence: '無音を詰める',
     deleted: (duration: string) => `${duration} を削除しました`,
-    confirmDelete: (duration: string) => `選択した ${duration} を削除しますか？`,
     hintSelection: (from: string, to: string) => `${from} 〜 ${to} を選択中`,
 
-    silenceTitle: '無音を詰める',
-    silenceSubtitle: '設定のしきい値より静かで長い区間を詰めます',
     silenceNone: '詰められる無音はありませんでした',
-    silencePlan: (count: number, total: string) => `${count} 箇所、合計 ${total} を詰めます`,
-    silenceApply: '詰める',
-    silenceApplied: (count: number) => `${count} 箇所の無音を詰めました`,
+    silenceApplied: (count: number, total: string) =>
+      `${count} 箇所、合計 ${total} の無音を詰めました`,
 
     insertTitle: '素材を入れる',
     insertSubtitle: (at: string) => `${at} に入ります`,
@@ -344,8 +340,6 @@ Podcast: {{show_name}}
     moveHereSub: (at: string) => `${at} に置き直す（発言に追従）`,
     removeOverlay: 'この素材を外す',
     overlayRemoved: '素材を外しました',
-    confirmRemoveOverlay: 'この素材を外しますか？',
-    removeOverlayShort: '外す',
     rangeError: (max: string) => `開始より後、${max} 秒以内の終了位置を指定してください`,
     a11yPlayhead: (pos: string, total: string) => `再生位置 ${pos}、全体 ${total}`,
     a11yUndo: (label: string) => `取り消す：${label}`,
