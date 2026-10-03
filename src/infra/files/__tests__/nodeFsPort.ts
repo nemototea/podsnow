@@ -7,7 +7,7 @@ import type { FsHandle, FsPort } from '@/infra/files/fsPort';
 export const nodeFsPort: FsPort = {
   open(absPath, mode): FsHandle {
     if (mode === 'w') fs.mkdirSync(path.dirname(absPath), { recursive: true });
-    const fd = fs.openSync(absPath, mode === 'w' ? 'w' : 'r');
+    const fd = fs.openSync(absPath, mode === 'rw' ? 'r+' : mode);
     let pos = 0;
     return {
       read: (length) => {
@@ -17,7 +17,10 @@ export const nodeFsPort: FsPort = {
         return new Uint8Array(buf.buffer, buf.byteOffset, n);
       },
       write: (bytes) => {
-        fs.writeSync(fd, bytes);
+        pos += fs.writeSync(fd, bytes, 0, bytes.length, pos);
+      },
+      seek: (offset) => {
+        pos = offset;
       },
       close: () => fs.closeSync(fd),
     };
@@ -28,6 +31,7 @@ export const nodeFsPort: FsPort = {
   delete: (p) => {
     if (fs.existsSync(p)) fs.unlinkSync(p);
   },
+  move: (from, to) => fs.renameSync(from, to),
   list: (d) =>
     fs.existsSync(d)
       ? fs

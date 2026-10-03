@@ -1,8 +1,16 @@
+import * as nodeFs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
+
+import { mp4Boxes, readMp4Tags } from '@/domain/metadata/mp4Tags';
+import { readRiffInfo } from '@/domain/metadata/riffInfo';
 import { smp } from '@/domain/time';
 import { createNodeSqliteExecutor } from '@/infra/db/__tests__/nodeSqliteExecutor';
 import { migrate } from '@/infra/db/migrate';
 import { saveDoc } from '@/infra/db/repositories/editableDocRepo';
 import { listExports } from '@/infra/db/repositories/exportsRepo';
+import { nodeFsPort } from '@/infra/files/__tests__/nodeFsPort';
+import type { FsPort } from '@/infra/files/fsPort';
 import { FakeAudioEngine } from '@/services/audio/__tests__/FakeAudioEngine';
 
 import { DEFAULT_SETTINGS } from '@/infra/db/repositories/settingsRepo';
@@ -20,6 +28,32 @@ import {
 } from '../ExportService';
 
 const flush = () => new Promise((r) => setTimeout(r, 0));
+/** 書き出しの完了処理（メタデータの埋め込みを含む）が終わるまで回す。 */
+const settle = async () => {
+  for (let i = 0; i < 20; i++) await flush();
+};
+
+const FIXTURES = path.join(__dirname, 'fixtures');
+
+/** テストの仮の root（`/root`）を一時ディレクトリに写す FsPort。 */
+function rootedFs(real: string): { fs: FsPort; real: (abs: string) => string } {
+  const map = (abs: string) => (abs.startsWith('/root/') ? path.join(real, abs.slice(6)) : abs);
+  return {
+    real: map,
+    fs: {
+      open: (p, m) => nodeFsPort.open(map(p), m),
+      size: (p) => nodeFsPort.size(map(p)),
+      exists: (p) => nodeFsPort.exists(map(p)),
+      ensureDir: (d) => nodeFsPort.ensureDir(map(d)),
+      delete: (p) => nodeFsPort.delete(map(p)),
+      move: (a, b) => nodeFsPort.move(map(a), map(b)),
+      list: (d) => nodeFsPort.list(map(d)),
+    },
+  };
+}
+
+const tmpDirs: string[] = [];
+afterAll(() => tmpDirs.forEach((d) => nodeFs.rmSync(d, { recursive: true, force: true })));
 
 async function setup() {
   const db = createNodeSqliteExecutor();
@@ -80,6 +114,9 @@ async function setup() {
   const copies: { src: string; dir: string; name: string }[] = [];
   const missing = new Set<string>();
   let id = 0;
+  const tmp = nodeFs.mkdtempSync(path.join(os.tmpdir(), 'podsnow-export-'));
+  tmpDirs.push(tmp);
+  const rooted = rootedFs(tmp);
   const svc = new ExportService({
     db,
     engine,
@@ -92,10 +129,20 @@ async function setup() {
       copies.push({ src, dir, name });
       return Promise.resolve(`file://${dir}/${encodeURIComponent(name)}`);
     },
+    fs: rooted.fs,
     newId: () => `x${++id}`,
     now: () => 5000,
+    utcOffsetMinutes: () => 540,
   });
-  return { db, engine, svc, deleted, copies, missing };
+  /** レンダが書いたことにして、`/root/...` の位置へ実ファイルを置く。 */
+  const place = (abs: string, fixture: string | Buffer) => {
+    const dst = rooted.real(abs);
+    nodeFs.mkdirSync(path.dirname(dst), { recursive: true });
+    if (typeof fixture === 'string') nodeFs.copyFileSync(path.join(FIXTURES, fixture), dst);
+    else nodeFs.writeFileSync(dst, fixture);
+    return dst;
+  };
+  return { db, engine, svc, deleted, copies, missing, place, real: rooted.real };
 }
 
 async function insertExportRow(
@@ -112,7 +159,7 @@ async function insertExportRow(
 
 describe('ExportService', () => {
   it('builds the render document from the DB, tracks progress and finishes', async () => {
-    const { db, engine, svc } = await setup();
+    const { db, engine, svc, place } = await setup();
     const events: string[] = [];
     svc.on('progress', (e) => events.push(`p:${e.progress}`));
     svc.on('done', (e) => events.push(`done:${e.bytes}`));
@@ -135,6 +182,7 @@ describe('ExportService', () => {
 
     engine.emit('onRenderProgress', { jobId: r.jobId, progress: 0.5, phase: 'encoding' });
     await flush();
+    place(r.opts.path, 'moov-last.m4a');
     engine.emit('onRenderDone', {
       jobId: r.jobId,
       path: r.opts.path,
@@ -143,8 +191,7 @@ describe('ExportService', () => {
       measuredTruePeakDb: -3,
       appliedGainDb: 4.5,
     });
-    await flush();
-    await flush();
+    await settle();
     const rows = await listExports(db, 'e');
     expect(rows[0]).toMatchObject({
       id: exportId,
@@ -165,6 +212,123 @@ describe('ExportService', () => {
     await flush();
     await flush();
     expect((await listExports(db, 'e'))[0]?.status).toBe('cancelled');
+  });
+
+  describe('metadata (Issue #56)', () => {
+    async function withShow(db: Awaited<ReturnType<typeof setup>>['db']) {
+      await db.run("UPDATE shows SET name = ?, author = ?, cover_path = ? WHERE id = 's'", [
+        'ねもとのラジオ',
+        'ねもと',
+        'shows/s/cover-1.jpg',
+      ]);
+      await db.run(
+        "UPDATE episodes SET title = ?, episode_number = 12, publish_planned_at = ? WHERE id = 'e'",
+        ['初回ゲスト回', Date.UTC(2026, 9, 3, 12)],
+      );
+    }
+
+    function done(
+      engine: Awaited<ReturnType<typeof setup>>['engine'],
+      r: { jobId: string; opts: { path: string } },
+    ) {
+      engine.emit('onRenderDone', {
+        jobId: r.jobId,
+        path: r.opts.path,
+        frames: 96000,
+        measuredLufs: -16,
+        measuredTruePeakDb: -1.2,
+        appliedGainDb: 3,
+      });
+    }
+
+    it('embeds title, show, author, number, date and artwork into the M4A before finishing', async () => {
+      const { db, engine, svc, place } = await setup();
+      await withShow(db);
+      const cover = place('/root/shows/s/cover-1.jpg', 'cover.jpg');
+      await svc.start('e', EXPORT_PRESETS.podcast);
+      const r = engine.renders[0]!;
+      const file = place(r.opts.path, 'moov-first.m4a');
+      done(engine, r);
+      await settle();
+      expect((await listExports(db, 'e'))[0]?.status).toBe('done');
+
+      const b = new Uint8Array(nodeFs.readFileSync(file));
+      const moov = mp4Boxes(b).find((x) => x.type === 'moov')!;
+      const tags = readMp4Tags(b.subarray(moov.start, moov.start + moov.size));
+      expect(tags).toMatchObject({
+        title: '初回ゲスト回',
+        artist: 'ねもと',
+        album: 'ねもとのラジオ',
+        track: 12,
+        date: '2026-10-03T21:00:00+09:00',
+        genre: 'Podcast',
+        encoder: 'PodsNow 0.1.0',
+      });
+      expect(Buffer.from(tags.cover!.bytes).equals(nodeFs.readFileSync(cover))).toBe(true);
+    });
+
+    it('still embeds the text when the artwork file is missing', async () => {
+      const { db, engine, svc, place } = await setup();
+      await withShow(db);
+      await svc.start('e', EXPORT_PRESETS.podcast);
+      const r = engine.renders[0]!;
+      const file = place(r.opts.path, 'moov-last.m4a');
+      done(engine, r);
+      await settle();
+      expect((await listExports(db, 'e'))[0]?.status).toBe('done');
+      const b = new Uint8Array(nodeFs.readFileSync(file));
+      const moov = mp4Boxes(b).find((x) => x.type === 'moov')!;
+      const tags = readMp4Tags(b.subarray(moov.start, moov.start + moov.size));
+      expect(tags.title).toBe('初回ゲスト回');
+      expect(tags.cover).toBeUndefined();
+    });
+
+    it('writes LIST/INFO into WAV exports', async () => {
+      const { db, engine, svc, place } = await setup();
+      await withShow(db);
+      await svc.start('e', EXPORT_PRESETS.wav);
+      const r = engine.renders[0]!;
+      const h = Buffer.alloc(44);
+      h.write('RIFF', 0);
+      h.writeUInt32LE(36 + 4, 4);
+      h.write('WAVEfmt ', 8);
+      h.writeUInt32LE(16, 16);
+      h.write('data', 36);
+      h.writeUInt32LE(4, 40);
+      const file = place(r.opts.path, Buffer.concat([h, Buffer.alloc(4)]));
+      done(engine, r);
+      await settle();
+      expect((await listExports(db, 'e'))[0]?.status).toBe('done');
+      expect(readRiffInfo(new Uint8Array(nodeFs.readFileSync(file)))).toMatchObject({
+        INAM: '初回ゲスト回',
+        IART: 'ねもと',
+        IPRD: 'ねもとのラジオ',
+        ITRK: '12',
+        ICRD: '2026-10-03',
+      });
+    });
+
+    it('fails the export and deletes the file when the metadata cannot be written', async () => {
+      const { db, engine, svc, place, deleted } = await setup();
+      const failed: string[] = [];
+      const finished: string[] = [];
+      svc.on('failed', (e) => failed.push(e.message));
+      svc.on('done', (e) => finished.push(e.exportId));
+      await svc.start('e', EXPORT_PRESETS.podcast);
+      const r = engine.renders[0]!;
+      place(r.opts.path, Buffer.from('not an mp4 file'));
+      done(engine, r);
+      await settle();
+      const row = (await listExports(db, 'e'))[0]!;
+      expect(row).toMatchObject({ status: 'failed', error: 'export_metadata_failed', path: null });
+      expect(deleted).toEqual([r.opts.path]);
+      expect(failed).toEqual(['export_metadata_failed']);
+      expect(finished).toEqual([]);
+      const ep = await db.get<{ status: string }>('SELECT status FROM episodes WHERE id = ?', [
+        'e',
+      ]);
+      expect(ep?.status).not.toBe('exported');
+    });
   });
 
   it('estimates file sizes', () => {
@@ -321,6 +485,7 @@ describe('episodeExportPreset (DATA_MODEL.md §4.5.1 / Issue #136)', () => {
         deleteFile: () => {
           throw new Error('busy');
         },
+        fs: nodeFsPort,
         newId: () => 'n',
         now: () => 5000,
       });
@@ -414,6 +579,7 @@ describe('episodeExportPreset (DATA_MODEL.md §4.5.1 / Issue #136)', () => {
         fileExists: () => true,
         deleteFile: () => {},
         copyAsNamed: () => Promise.reject(new Error('ENOSPC')),
+        fs: nodeFsPort,
         newId: () => 'n',
         now: () => 5000,
       });

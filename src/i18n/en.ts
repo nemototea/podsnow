@@ -90,6 +90,8 @@ export const en: Messages = {
     recording_resume_failed: 'Could not resume recording',
     disk_space_insufficient: 'Not enough free space on this device',
     export_app_terminated: 'Interrupted because the app was terminated',
+    export_metadata_failed:
+      'Could not write the title and artwork into the file. Please export again',
     import_not_https: 'Only URLs starting with https:// can be loaded',
     import_network_failed: 'Could not connect. Check your connection',
     import_timeout: 'No response. Please try again later',
