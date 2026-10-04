@@ -59,6 +59,15 @@ public class PodsnowRecorderModule: Module {
       try self.getEngine().prepare(c)
     }.runOnQueue(.main)
 
+    // 録音前の入力モニター（ファイルに書かない。AUDIO_DESIGN.md §3.6、Issue #169）
+    AsyncFunction("startMonitorAsync") {
+      try self.getEngine().startMonitor()
+    }.runOnQueue(.main)
+
+    AsyncFunction("stopMonitorAsync") {
+      try self.getEngine().stopMonitor()
+    }.runOnQueue(.main)
+
     AsyncFunction("startAsync") { (path: String) in
       try self.getEngine().start(path: path)
     }.runOnQueue(.main)

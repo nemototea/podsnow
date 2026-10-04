@@ -8,6 +8,8 @@ export function createNativeRecorder(): RecorderPort {
     requestPermissions: () => PodsnowRecorder.requestPermissionsAsync(),
     getPermissions: () => PodsnowRecorder.getPermissionsAsync(),
     prepare: (c) => PodsnowRecorder.prepareAsync(c),
+    startMonitor: () => PodsnowRecorder.startMonitorAsync(),
+    stopMonitor: () => PodsnowRecorder.stopMonitorAsync(),
     start: (p) => PodsnowRecorder.startAsync(p),
     pause: () => PodsnowRecorder.pauseAsync(),
     resume: () => PodsnowRecorder.resumeAsync(),

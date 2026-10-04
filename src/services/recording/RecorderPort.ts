@@ -19,6 +19,11 @@ export interface RecorderPort {
   requestPermissions(): Promise<PermissionResult>;
   getPermissions(): Promise<PermissionResult>;
   prepare(config: RecorderConfig): Promise<void>;
+  /** 録音前の入力モニター（ファイルに書かない）。prepared → monitoring。AUDIO_DESIGN.md §3.6 */
+  startMonitor(): Promise<void>;
+  /** monitoring → prepared */
+  stopMonitor(): Promise<void>;
+  /** prepared / interrupted / monitoring → recording */
   start(path: string): Promise<void>;
   pause(): Promise<void>;
   resume(): Promise<void>;

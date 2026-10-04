@@ -229,6 +229,9 @@ interface AudioEngineModule {
 ### 8.1 RecordingSession（services）
 
 ```
+idle ──startMonitor──▶ monitoring ──stopMonitor / 割り込み──▶ idle
+monitoring ──start──▶ preparing（入力は止めない。失敗したら monitoring へ戻る）
+
 idle ──start──▶ preparing ──ok──▶ recording ◀──resume── paused
                                   │  ▲             ▲
                                   │  └─interruption.ended(shouldResume)──┐
@@ -237,7 +240,9 @@ idle ──start──▶ preparing ──ok──▶ recording ◀──resume�
                                   ├─diskLow/error──▶ stopping
                                   └─stop──▶ stopping ──finalized──▶ idle
 ```
+- `monitoring` は録音前の入力モニター（ファイルに書かない。AUDIO_DESIGN.md §3.6、Issue #169）。音声セッションは録音側が持つ（再生を始めない）が、録音中ではないので取り消し・編集はできる。
 - `interrupted` では Segment を確定し、`takes.status` は `'recording'` のまま（復旧対象）。
+- `interrupted` で止めたら Take を確定し、ネイティブの `stop()` も呼んで `interrupted` → `prepared` に戻す（閉じる Segment は無い）。戻さないと次の `prepare()` が断られ、Android は録音中の通知も残る（Issue #169 で修正）。
 - `stopping` で Take を `'ready'` にし、ピーク生成をキューに入れる。
 
 ### 8.2 ExportJob

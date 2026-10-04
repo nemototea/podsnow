@@ -115,6 +115,9 @@ class PodsnowRecorderModule : Module() {
       }
     }.runOnQueue(Queues.MAIN)
 
+    // 録音前の入力モニター（ファイルに書かない。AUDIO_DESIGN.md §3.6、Issue #169）
+    AsyncFunction("startMonitorAsync") { wrap { getEngine().startMonitor() } }.runOnQueue(Queues.MAIN)
+    AsyncFunction("stopMonitorAsync") { wrap { getEngine().stopMonitor() } }.runOnQueue(Queues.MAIN)
     AsyncFunction("startAsync") { path: String -> wrap { getEngine().start(path) } }.runOnQueue(Queues.MAIN)
     AsyncFunction("pauseAsync") { wrap { getEngine().pause() } }.runOnQueue(Queues.MAIN)
     AsyncFunction("resumeAsync") { wrap { getEngine().resume() } }.runOnQueue(Queues.MAIN)
