@@ -218,6 +218,20 @@ Encoder: AAC (iOS AVAssetWriter / Android MediaCodec+MediaMuxer) または WAV w
 - 両 OS とも同じ実装（`src/services/export/embedMetadata.ts`、バイト列の組み立ては `src/domain/metadata/`）。
   - Android の `MediaMuxer` には題名・アートワークなどファイル単位のメタデータを書く API が無い【確認済み】（公開メソッドは `addTrack` / `setLocation` / `setOrientationHint` / `start` / `stop` / `writeSampleData` / `release`。「Metadata Track」はフレームごとの時刻付きデータで別物）。https://developer.android.com/reference/android/media/MediaMuxer
   - iOS の `AVAssetWriter.metadata` は書ける（書き込み開始後は変更不可）【確認済み】が使わない。片方の OS だけ別経路にすると、同じ値・構造かを片方しか確かめられないため。https://developer.apple.com/documentation/avfoundation/avassetwriter/metadata
+- **ライブラリを使わず自前で書く**（ユーザー判断 2026-10-04）。ffmpeg 等もアプリには入れない。
+  - 理由: 書くのは題名・アートワークの箱 / チャンクだけで音声には触らず、範囲が小さい（約 350 行）。両 OS で 1 つの実装になり、Jest で読み戻して確かめられる。結果は ffprobe・mutagen と照合した（下の「検証」）。
+  - 比べた候補（2026-10-04 時点。React Native で動くかは未確認【仮説】）:
+
+| 候補 | 状況 | 採らなかった理由 |
+|---|---|---|
+| `taglib-wasm`（npm、MIT） | TagLib の WebAssembly 版。MP4 / WAV のタグを書ける | Hermes で WebAssembly が動かない見込み【仮説】 |
+| `mp4box`（npm、BSD-3-Clause） | MP4 の読み書き | iTunes 形式のタグを書けるか未確認 |
+| `music-metadata` / `node-id3`（npm） | 読むだけ / MP3 の ID3 だけ | 用途に合わない |
+| iOS `AVAssetExportSession`（パススルー + `metadata`） | OS 標準 | Android は別に要り、両 OS で実装が分かれる |
+| Android `org.mp4parser:isoparser`（Apache-2.0） | MP4 の箱を組み立てられる | 最終リリース 1.9.56（2022-04）。OS で実装が分かれる |
+| Android `net.jthink:jaudiotagger`（LGPL） | M4A / WAV のタグ・アートワーク | 最終リリース 3.0.1（2021-10）。LGPL |
+
+- 自前の実装を見直す条件: 扱う形式が増える（MP3 の ID3 など）、章（チャプター）を書く、または React Native で動いて保守されているライブラリが見つかったとき。
 - **M4A**: `moov/udta/meta`（ハンドラ `mdir`）の `ilst` に iTunes 形式で書く。値の型は QuickTime の well-known types（UTF-8 = 1、JPEG = 13、PNG = 14、`trkn` は 0）【確認済み】https://developer.apple.com/documentation/quicktime-file-format/well-known_types
   - `moov` を組み直した写しを同じフォルダ（`<exportId>.m4a.tagging`）に書き、できてから元と置き換える。途中で失敗しても元は壊れない。
   - `moov` が `mdat` より前にあれば、大きくなった分だけ `stco` / `co64` をずらす。`MediaMuxer` がどちらに置くかは未確認【仮説】なので、どちらでも動くようにした。
