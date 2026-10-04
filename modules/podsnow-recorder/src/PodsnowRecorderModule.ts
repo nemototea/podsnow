@@ -16,7 +16,18 @@ declare class PodsnowRecorderModule extends NativeModule<PodsnowRecorderModuleEv
 
   /** フォーマットと入力を決め、Audio Session を録音向けに構成する。state: idle → prepared */
   prepareAsync(config: RecorderConfig): Promise<void>;
-  /** 新しい Segment ファイルを開いて録音を開始する。state: prepared|interrupted → recording */
+  /**
+   * 録音前の入力モニターを始める。ファイルには書かず、onLevel（frames = 0）だけ出す。state: prepared → monitoring
+   * Android は音声フォーカスを取るが、前面サービス（録音中の通知）は始めない。AUDIO_DESIGN.md §3.6
+   */
+  startMonitorAsync(): Promise<void>;
+  /** 入力モニターを止めてマイクを離す。state: monitoring → prepared */
+  stopMonitorAsync(): Promise<void>;
+  /**
+   * 新しい Segment ファイルを開いて録音を開始する。state: prepared|interrupted|monitoring → recording
+   * monitoring からは入力を止めずに切り替え、ヘッダを書き終えたあとに届いたバッファから書き込む。
+   * ファイルを開けなければ例外になり、モニターは続く。
+   */
   startAsync(path: string): Promise<void>;
   pauseAsync(): Promise<void>;
   resumeAsync(): Promise<void>;

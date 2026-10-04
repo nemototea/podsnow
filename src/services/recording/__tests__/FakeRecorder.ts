@@ -32,13 +32,32 @@ export class FakeRecorder implements RecorderPort {
   }
   async prepare(config: RecorderConfig) {
     this.calls.push('prepare');
+    // ネイティブと同じく、録音中・割り込み中・モニター中は準備し直せない
+    if (this.state !== 'idle' && this.state !== 'prepared')
+      throw new Error(`bad state ${this.state}`);
     this.config = config;
+    this.state = 'prepared';
+  }
+  /** true にすると次の start() がファイルを開けずに失敗する（ネイティブは状態を変えない）。 */
+  failNextStart = false;
+  async startMonitor() {
+    this.calls.push('startMonitor');
+    if (this.state !== 'prepared') throw new Error(`bad state ${this.state}`);
+    this.state = 'monitoring';
+  }
+  async stopMonitor() {
+    this.calls.push('stopMonitor');
+    if (this.state !== 'monitoring') throw new Error(`bad state ${this.state}`);
     this.state = 'prepared';
   }
   async start(path: string) {
     this.calls.push(`start:${path.split('/').slice(-1)[0]}`);
-    if (this.state !== 'prepared' && this.state !== 'interrupted')
+    if (this.state !== 'prepared' && this.state !== 'interrupted' && this.state !== 'monitoring')
       throw new Error(`bad state ${this.state}`);
+    if (this.failNextStart) {
+      this.failNextStart = false;
+      throw new Error('cannot open file');
+    }
     this.path = path;
     this.frames = 0;
     this.state = 'recording';
@@ -53,6 +72,11 @@ export class FakeRecorder implements RecorderPort {
   }
   async stop(): Promise<SegmentResult> {
     this.calls.push('stop');
+    if (this.state === 'interrupted') {
+      // Segment は割り込みで閉じている。ネイティブは何も閉じず、イベントも出さずに prepared へ戻る
+      this.state = 'prepared';
+      return { ...this.result(), frames: 0, bytes: 0 };
+    }
     const r = this.result();
     this.state = 'prepared';
     // ネイティブは stop() の解決前に onSegmentClosed を出す
@@ -108,6 +132,12 @@ export class FakeRecorder implements RecorderPort {
     const r = this.result();
     this.state = 'interrupted';
     this.emit('onSegmentClosed', { ...r, reason: 'interruption' });
+    this.emit('onInterruption', { type: 'began', shouldResume: false });
+  }
+  /** モニター中の割り込み: ネイティブはモニターを止めて prepared に戻し、状態と割り込みを通知する。 */
+  interruptMonitor() {
+    this.state = 'prepared';
+    this.emit('onStateChange', { state: 'prepared' });
     this.emit('onInterruption', { type: 'began', shouldResume: false });
   }
   endInterruption(shouldResume: boolean) {

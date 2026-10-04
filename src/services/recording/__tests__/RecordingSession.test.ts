@@ -232,7 +232,57 @@ describe('RecordingSession', () => {
     const r = await session.stop();
     expect(r?.durationSmp).toBe(777);
     expect((await getTake(db, takeId))?.status).toBe('ready');
-    expect(recorder.calls).toEqual(['prepare', 'start:seg-0001.wav']);
+    // 新しい Segment は開かず、ネイティブを prepared へ戻すだけ
+    expect(recorder.calls).toEqual(['prepare', 'start:seg-0001.wav', 'stop']);
+    expect(recorder.state).toBe('prepared');
+    const segs = await listSegments(db, takeId);
+    expect(segs).toHaveLength(1);
+    expect(segs[0]).toMatchObject({ duration_smp: 777, reason_closed: 'interruption' });
+  });
+
+  it('割り込み中に止めたあとも、次の録音を始められる', async () => {
+    const { db, recorder, session } = await setup();
+    await session.start('e');
+    recorder.frames = 777;
+    recorder.interrupt();
+    await flush();
+    await session.stop();
+    const second = await session.start('e');
+    expect(session.current).toBe('recording');
+    recorder.frames = 4800;
+    await session.stop();
+    expect((await getTake(db, second))?.status).toBe('ready');
+    expect((await loadDoc(db, 'e')).voice.map((v) => v.srcEnd)).toEqual([777, 4800]);
+  });
+
+  it('割り込み中に止めたあとも、入力モニターを始められる', async () => {
+    const { recorder, session } = await setup();
+    await session.start('e');
+    recorder.frames = 777;
+    recorder.interrupt();
+    await flush();
+    await session.stop();
+    await session.startMonitor();
+    expect(session.current).toBe('monitoring');
+    expect(recorder.state).toBe('monitoring');
+  });
+
+  it('割り込み後にネイティブを戻せなくても Take は確定し、エラーを知らせる', async () => {
+    const { db, recorder, session } = await setup();
+    const errors: string[] = [];
+    session.on('error', (e) => errors.push(e.message));
+    const takeId = await session.start('e');
+    recorder.frames = 777;
+    recorder.interrupt();
+    await flush();
+    recorder.stop = async () => {
+      throw new Error('boom');
+    };
+    const r = await session.stop();
+    expect(r?.durationSmp).toBe(777);
+    expect((await getTake(db, takeId))?.status).toBe('ready');
+    expect(session.current).toBe('idle');
+    expect(errors).toEqual(['recorder stop after interruption: boom']);
   });
 
   it('disk-low safe stop from native finalizes the take', async () => {
@@ -463,6 +513,169 @@ describe('RecordingSession', () => {
     await session.stop();
     expect((await getTake(db, takeId))?.status).toBe('failed');
     expect((await loadDoc(db, 'e')).voice).toEqual([]);
+  });
+
+  describe('入力モニター（Issue #169）', () => {
+    it('ファイルを開かずにレベルだけ受け取り、止めると idle に戻る', async () => {
+      const { db, recorder, session, dirs } = await setup();
+      const states: string[] = [];
+      session.on('state', (s) => states.push(s));
+      const levels: number[] = [];
+      session.on('level', (l) => levels.push(l.frames));
+
+      await session.startMonitor();
+      expect(session.current).toBe('monitoring');
+      expect(recorder.state).toBe('monitoring');
+      expect(recorder.config).toMatchObject({ sampleRate: 48000, channels: 2 });
+      recorder.emit('onLevel', { peakDb: -12, rmsDb: -20, frames: 0, clipped: false });
+      expect(levels).toEqual([0]);
+
+      await session.stopMonitor();
+      expect(session.current).toBe('idle');
+      expect(recorder.state).toBe('prepared');
+      expect(recorder.calls).toEqual(['prepare', 'startMonitor', 'stopMonitor']);
+      expect(states).toEqual(['monitoring', 'idle']);
+      // Take も Segment も作らない
+      expect(dirs).toEqual([]);
+      expect(await db.all('SELECT id FROM takes')).toEqual([]);
+      expect(await listOpenJournals(db)).toEqual([]);
+    });
+
+    it('モニター中は音声セッションを持つが、録音中ではないので取り消しは止めない', async () => {
+      const { session } = await setup();
+      expect(session.holdsAudioSession).toBe(false);
+      await session.startMonitor();
+      expect(session.holdsAudioSession).toBe(true);
+      expect(session.isMonitoring).toBe(true);
+      expect(session.isIdle).toBe(true);
+      await session.start('e');
+      expect(session.holdsAudioSession).toBe(true);
+      expect(session.isIdle).toBe(false);
+    });
+
+    it('準備中も音声セッションを持つ（再生を始めさせない）', async () => {
+      const { recorder, session } = await setup();
+      let busyDuringPrepare: boolean | null = null;
+      const prepare = recorder.prepare.bind(recorder);
+      recorder.prepare = async (c) => {
+        busyDuringPrepare = session.holdsAudioSession;
+        await prepare(c);
+      };
+      await session.startMonitor();
+      expect(busyDuringPrepare).toBe(true);
+    });
+
+    it('モニターから録音へは準備し直さずに切り替え、Take を正しく確定する', async () => {
+      const { db, recorder, session } = await setup();
+      await session.startMonitor();
+      const takeId = await session.start('e');
+      expect(session.current).toBe('recording');
+      expect(recorder.calls).toEqual(['prepare', 'startMonitor', 'start:seg-0001.wav']);
+      expect(await listOpenJournals(db)).toHaveLength(1);
+
+      recorder.frames = 48000 * 3;
+      const r = await session.stop();
+      expect(r).toEqual({ takeId, durationSmp: 144000 });
+      // 録音を止めたらモニターには戻らない（ネイティブは prepared）
+      expect(session.current).toBe('idle');
+      expect(recorder.state).toBe('prepared');
+      const segs = await listSegments(db, takeId);
+      expect(segs).toHaveLength(1);
+      expect(segs[0]).toMatchObject({ duration_smp: 144000, reason_closed: 'stop' });
+      expect((await loadDoc(db, 'e')).voice).toHaveLength(1);
+    });
+
+    it('モニターからの録音でファイルを開けなかったら、モニターに戻り、続けて録れる', async () => {
+      const { db, recorder, session } = await setup();
+      await session.startMonitor();
+      recorder.failNextStart = true;
+      await expect(session.start('e')).rejects.toThrow('cannot open file');
+      expect(session.current).toBe('monitoring');
+      expect(recorder.state).toBe('monitoring');
+      // 失敗した Take は録音中のまま残り、次の起動の復旧で片付く（ファイルが無いので failed）。
+      // モニターからでない開始の失敗と同じ扱い
+      await session.stopMonitor();
+      expect(recorder.state).toBe('prepared');
+      const takeId = await session.start('e');
+      recorder.frames = 4800;
+      await session.stop();
+      expect((await getTake(db, takeId))?.status).toBe('ready');
+    });
+
+    it('空き容量が足りなければ録音を断り、モニターは続ける', async () => {
+      const { recorder, session } = await setup();
+      await session.startMonitor();
+      recorder.availableBytes = 1024;
+      await expect(session.start('e')).rejects.toMatchObject({ code: 'disk_space_insufficient' });
+      expect(session.current).toBe('monitoring');
+      expect(recorder.state).toBe('monitoring');
+    });
+
+    it('割り込みでネイティブがモニターを止めたら idle に戻り、割り込みを通知する', async () => {
+      const { recorder, session } = await setup();
+      const events: string[] = [];
+      session.on('interruption', (e) => events.push(e.type));
+      await session.startMonitor();
+      recorder.interruptMonitor();
+      await flush();
+      expect(session.current).toBe('idle');
+      expect(session.holdsAudioSession).toBe(false);
+      expect(events).toEqual(['began']);
+      // 終わっても自動では再開しない
+      recorder.endInterruption(true);
+      await flush();
+      expect(session.current).toBe('idle');
+      expect(recorder.calls).toEqual(['prepare', 'startMonitor']);
+    });
+
+    it('準備中の状態通知（idle → prepared）をモニターの停止と取り違えない', async () => {
+      const { recorder, session } = await setup();
+      const prepare = recorder.prepare.bind(recorder);
+      recorder.prepare = async (c) => {
+        await prepare(c);
+        recorder.emit('onStateChange', { state: 'prepared' });
+      };
+      await session.startMonitor();
+      expect(session.current).toBe('monitoring');
+    });
+
+    it('準備中に止められたら、始まりきってから止める', async () => {
+      const { recorder, session } = await setup();
+      const starting = session.startMonitor();
+      await session.stopMonitor();
+      await starting;
+      expect(session.current).toBe('idle');
+      expect(recorder.state).toBe('prepared');
+      expect(recorder.calls).toEqual(['prepare', 'startMonitor', 'stopMonitor']);
+    });
+
+    it('録音中・モニター中に startMonitor を呼んでも何もしない', async () => {
+      const { recorder, session } = await setup();
+      await session.startMonitor();
+      await session.startMonitor();
+      await session.start('e');
+      await session.startMonitor();
+      expect(session.current).toBe('recording');
+      expect(recorder.calls).toEqual(['prepare', 'startMonitor', 'start:seg-0001.wav']);
+    });
+
+    it('モニターを始められなければ idle に戻して投げる', async () => {
+      const { recorder, session } = await setup();
+      recorder.startMonitor = async () => {
+        throw new Error('audio focus denied');
+      };
+      await expect(session.startMonitor()).rejects.toThrow('audio focus denied');
+      expect(session.current).toBe('idle');
+      expect(session.holdsAudioSession).toBe(false);
+    });
+
+    it('release はモニターを止める', async () => {
+      const { recorder, session } = await setup();
+      await session.startMonitor();
+      await session.release();
+      expect(session.current).toBe('idle');
+      expect(recorder.state).toBe('idle');
+    });
   });
 });
 

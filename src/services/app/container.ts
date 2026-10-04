@@ -131,8 +131,8 @@ export async function bootstrap(
     fileExists,
     root,
     session: createExpoPlaybackSession(),
-    // 録音側が音声セッションを持つ間は再生を始めない（AUDIO_DESIGN.md §10.1）
-    recorderBusy: () => !recording.isIdle,
+    // 録音側が音声セッションを持つ間（入力モニターを含む）は再生を始めない（AUDIO_DESIGN.md §10.1）
+    recorderBusy: () => recording.holdsAudioSession,
     nowPlaying: createNativeNowPlaying(),
     labels: () => live.labels.nowPlaying,
   });

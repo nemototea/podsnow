@@ -24,10 +24,11 @@ import kotlin.math.sqrt
  * AudioRecord から Int16 PCM を読み出して WavWriter に書く録音エンジン（AUDIO_DESIGN.md §3.2, §4）。
  * Audio Focus の喪失を割り込み、AudioDeviceCallback をルート変更として通知する。
  * フォアグラウンドサービス（RecorderService）はプロセス維持と通知のみを担う。
+ * 録音前の入力モニター（ファイルに書かず、レベルだけ出す）も同じ読み出しループで行う（§3.6、Issue #169）。
  */
 class RecorderEngine(private val context: Context, private val emit: (String, Map<String, Any?>) -> Unit) {
   enum class State(val raw: String) {
-    IDLE("idle"), PREPARED("prepared"), RECORDING("recording"), PAUSED("paused"), INTERRUPTED("interrupted"), STOPPING("stopping")
+    IDLE("idle"), PREPARED("prepared"), MONITORING("monitoring"), RECORDING("recording"), PAUSED("paused"), INTERRUPTED("interrupted"), STOPPING("stopping")
   }
 
   data class Config(
@@ -54,10 +55,10 @@ class RecorderEngine(private val context: Context, private val emit: (String, Ma
   private val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
   private val main = Handler(Looper.getMainLooper())
   private var record: AudioRecord? = null
-  private var writer: WavWriter? = null
+  /** 書き込み先。writer が無い間はモニター（§3.6）。 */
+  private val router = CaptureRouter()
   private var thread: Thread? = null
   @Volatile private var running = false
-  @Volatile private var paused = false
   private var focusRequest: AudioFocusRequest? = null
   private var hasFocus = false
   private var deviceCallback: AudioDeviceCallback? = null
@@ -75,37 +76,90 @@ class RecorderEngine(private val context: Context, private val emit: (String, Ma
     state = State.PREPARED
   }
 
-  fun start(path: String) {
-    check(state == State.PREPARED || state == State.INTERRUPTED) { "start: invalid state ${state.raw}" }
+  /**
+   * 録音前の入力モニターを始める（§3.6）。ファイルは開かず、onLevel（frames = 0）だけ出す。
+   * 録音と同じく音声フォーカスを取る（録音側が音声セッションを持つ。§10.1）。前面サービスは始めない
+   * （「録音中」の通知を出さない。モニターは画面を開いている間だけ使う）。
+   */
+  fun startMonitor() {
+    check(state == State.PREPARED) { "startMonitor: invalid state ${state.raw}" }
     if (!requestFocus()) throw IllegalStateException("audio focus denied")
+    val rec = try {
+      createRecord().also { r ->
+        r.startRecording()
+        if (r.recordingState != AudioRecord.RECORDSTATE_RECORDING) {
+          r.release()
+          throw IllegalStateException("AudioRecord failed to start (busy or permission?)")
+        }
+      }
+    } catch (e: Exception) {
+      // 始まらなかったのにフォーカスだけ持ち続けない
+      abandonFocus()
+      throw e
+    }
+    record = rec
+    router.paused = false
+    running = true
+    thread = Thread({ readLoop(rec) }, "podsnow-recorder").also { it.start() }
+    state = State.MONITORING
+  }
+
+  /** モニターを止める。マイクを離し、音声フォーカスも手放す（使っていないのに他アプリの音を止めたままにしない）。 */
+  fun stopMonitor() {
+    check(state == State.MONITORING) { "stopMonitor: invalid state ${state.raw}" }
+    stopInput()
+    abandonFocus()
+    state = State.PREPARED
+  }
+
+  fun start(path: String) {
+    check(state == State.PREPARED || state == State.INTERRUPTED || state == State.MONITORING) {
+      "start: invalid state ${state.raw}"
+    }
+    if (!requestFocus()) throw IllegalStateException("audio focus denied")
+    if (state == State.MONITORING) {
+      // 入力は動かしたまま、ヘッダを書き終えた writer を渡す。次に読んだバッファから書き込まれる。
+      // WavWriter の作成・前面サービスの開始に失敗したら例外のまま返し、モニターは続く（何も書かない）。
+      val w = WavWriter(path, config.sampleRate, config.channels, config.headerFlushIntervalMs)
+      try {
+        RecorderService.start(context)
+      } catch (e: Exception) {
+        w.finalizeFile()
+        throw e
+      }
+      router.paused = false
+      router.attach(w)
+      state = State.RECORDING
+      return
+    }
     val rec = createRecord()
     val w = WavWriter(path, config.sampleRate, config.channels, config.headerFlushIntervalMs)
-    writer = w
+    router.paused = false
+    router.attach(w)
     record = rec
-    paused = false
     running = true
     RecorderService.start(context)
     rec.startRecording()
     if (rec.recordingState != AudioRecord.RECORDSTATE_RECORDING) {
       running = false
       rec.release(); record = null
-      w.finalizeFile(); writer = null
+      router.detach()?.finalizeFile()
       throw IllegalStateException("AudioRecord failed to start (busy or permission?)")
     }
-    thread = Thread({ readLoop(rec, w) }, "podsnow-recorder").also { it.start() }
+    thread = Thread({ readLoop(rec) }, "podsnow-recorder").also { it.start() }
     state = State.RECORDING
   }
 
   fun pause() {
     check(state == State.RECORDING) { "pause: invalid state ${state.raw}" }
-    paused = true
-    writer?.flushHeader()
+    router.paused = true
+    router.writer?.flushHeader()
     state = State.PAUSED
   }
 
   fun resume() {
     check(state == State.PAUSED) { "resume: invalid state ${state.raw}" }
-    paused = false
+    router.paused = false
     state = State.RECORDING
   }
 
@@ -122,13 +176,14 @@ class RecorderEngine(private val context: Context, private val emit: (String, Ma
     if (state == State.RECORDING || state == State.PAUSED || state == State.INTERRUPTED) {
       runCatching { stop("stop") }
     }
+    if (state == State.MONITORING) stopInput()
     abandonFocus()
     unregisterDeviceCallback()
     RecorderService.stop(context)
     state = State.IDLE
   }
 
-  val frames: Long get() = writer?.frames ?: 0
+  val frames: Long get() = router.writer?.frames ?: 0
 
   fun setInput(uid: String?) {
     config = config.copy(inputUid = uid)
@@ -140,7 +195,11 @@ class RecorderEngine(private val context: Context, private val emit: (String, Ma
 
   // ---- 読み出しループ（専用スレッド）----
 
-  private fun readLoop(rec: AudioRecord, w: WavWriter) {
+  /**
+   * モニターと録音で同じループを回す。書くかどうかは router が決める（モニター中は writer が無い）。
+   * モニターから録音へは、このループを止めずに writer を渡して切り替える（§3.6）。
+   */
+  private fun readLoop(rec: AudioRecord) {
     Process.setThreadPriority(Process.THREAD_PRIORITY_URGENT_AUDIO)
     val bufBytes = bufferSize()
     val buf = ByteArray(bufBytes)
@@ -150,24 +209,26 @@ class RecorderEngine(private val context: Context, private val emit: (String, Ma
       val n = rec.read(buf, 0, buf.size)
       if (n < 0) {
         emitError("read: $n", "read")
-        main.post { runCatching { stop("error") } }
+        failFromLoop("error")
         return
       }
-      if (n == 0 || paused) continue
-      try {
-        w.append(buf, n)
+      if (n == 0) continue
+      val outcome = try {
+        router.route(buf, n)
       } catch (e: Exception) {
         emitError("write: ${e.message}", "write")
-        main.post { runCatching { stop("error") } }
+        failFromLoop("error")
         return
       }
+      if (outcome == CaptureRouter.Outcome.PAUSED) continue
+      val w = if (outcome == CaptureRouter.Outcome.WRITTEN) router.writer else null
       val now = System.currentTimeMillis()
       if (now - lastLevel >= config.levelIntervalMs) {
         lastLevel = now
         val (peak, rms) = levels(buf, n)
-        emit("onLevel", mapOf("peakDb" to db(peak), "rmsDb" to db(rms), "frames" to w.frames, "clipped" to (peak >= 0.99f)))
+        emit("onLevel", mapOf("peakDb" to db(peak), "rmsDb" to db(rms), "frames" to (w?.frames ?: 0L), "clipped" to (peak >= 0.99f)))
       }
-      if (now - lastDisk >= 5000) {
+      if (w != null && now - lastDisk >= 5000) {
         lastDisk = now
         val free = availableBytes(w.path)
         if (free in 0 until config.diskLowThresholdBytes) {
@@ -179,7 +240,19 @@ class RecorderEngine(private val context: Context, private val emit: (String, Ma
     }
   }
 
-  private fun closeCurrent(reason: String): Map<String, Any?>? {
+  /** 読み出しループが続けられなくなった。そのときの状態で、モニターなら止め、録音なら Segment を確定する。 */
+  private fun failFromLoop(reason: String) {
+    main.post {
+      if (state == State.MONITORING) {
+        runCatching { stopMonitor() }
+      } else {
+        runCatching { stop(reason) }
+      }
+    }
+  }
+
+  /** 読み出しスレッドと AudioRecord を止めて解放する。writer には触らない。 */
+  private fun stopInput() {
     running = false
     thread?.let { t -> runCatching { t.join(2000) } }
     thread = null
@@ -188,8 +261,12 @@ class RecorderEngine(private val context: Context, private val emit: (String, Ma
       r.release()
     }
     record = null
-    val w = writer ?: return null
-    writer = null
+  }
+
+  private fun closeCurrent(reason: String): Map<String, Any?>? {
+    // 先にループを止めてから writer を外す。外したあとに append が来ても finalize 済みなら捨てられる。
+    stopInput()
+    val w = router.detach() ?: return null
     try {
       w.finalizeFile()
     } catch (e: Exception) {
@@ -285,6 +362,11 @@ class RecorderEngine(private val context: Context, private val emit: (String, Ma
           state = State.STOPPING
           closeCurrent("interruption")
           state = State.INTERRUPTED
+        }
+        // モニターは書いていないので、止めて prepared に戻すだけ（再開するかは JS が決める）。
+        if (state == State.MONITORING) {
+          stopInput()
+          state = State.PREPARED
         }
         if (change == AudioManager.AUDIOFOCUS_LOSS) hasFocus = false
         emit("onInterruption", mapOf("type" to "began", "shouldResume" to false, "reason" to "focus_$change"))
