@@ -29,8 +29,15 @@ class TimelinePlayer(private val emit: (String, Map<String, Any?>) -> Unit) {
     stopThread()
     mixer?.close()
     doc = d
-    mixer = Mixer(d)
+    // 試聴として使う: 書き出しと同じゲイン → リミッターをかける（AUDIO_DESIGN.md §7.1）
+    mixer = Mixer(d).also { it.enablePreview() }
     position = 0
+  }
+
+  /** 音の仕上げを読み直さずに差し替える（§7.1）。再生中でも止めない。反映は再生スレッドの次のブロックから。 */
+  @Synchronized
+  fun updateSound(s: TimelineSound) {
+    mixer?.updateSound(s)
   }
 
   @Synchronized

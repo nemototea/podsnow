@@ -9,6 +9,9 @@ import { createNodeSqliteExecutor } from '@/infra/db/__tests__/nodeSqliteExecuto
 import { migrate } from '@/infra/db/migrate';
 import { saveDoc } from '@/infra/db/repositories/editableDocRepo';
 import { listExports } from '@/infra/db/repositories/exportsRepo';
+import { getLoudnessCache, saveLoudnessMeasure } from '@/infra/db/repositories/loudnessCacheRepo';
+import { LOUDNESS_ALGO } from '@/domain/render/loudnessCache';
+import { currentSourceFingerprint } from '../sourceFingerprint';
 import { nodeFsPort } from '@/infra/files/__tests__/nodeFsPort';
 import type { FsPort } from '@/infra/files/fsPort';
 import { FakeAudioEngine } from '@/services/audio/__tests__/FakeAudioEngine';
@@ -376,6 +379,88 @@ describe('ExportService', () => {
       expect(tags.title).toBe('初回ゲスト回');
       expect(tags.cover).toBeUndefined();
       expect(tmpOpens).toBe(2);
+    });
+  });
+
+  describe('loudness cache (Issue #158)', () => {
+    it('uses the gain measured for the preview and does not overwrite it', async () => {
+      const { db, engine, svc } = await setup();
+      const fingerprint = await currentSourceFingerprint(db, 'e');
+      await saveLoudnessMeasure(db, 'e', {
+        fingerprint,
+        channels: 1,
+        algo: LOUDNESS_ALGO,
+        gainDb: 3.25,
+        targetLufs: -16,
+        inputLufs: -19,
+        measuredAt: 1,
+      });
+      await svc.start('e', EXPORT_PRESETS.podcast);
+      const r = engine.renders[0]!;
+      expect((r.doc as { loudness: { gainDb?: number } }).loudness.gainDb).toBe(3.25);
+      engine.emit('onRenderDone', {
+        jobId: r.jobId,
+        path: r.opts.path,
+        frames: 96000,
+        measuredLufs: -16,
+        measuredTruePeakDb: -1.1,
+        appliedGainDb: 3.25,
+        inputLufs: -120,
+      });
+      await settle();
+      expect((await getLoudnessCache(db, 'e'))[0]?.measuredAt).toBe(1);
+    });
+
+    it('measures when the cached gain is for another sound or channel count, and saves it', async () => {
+      const { db, engine, svc } = await setup();
+      await saveLoudnessMeasure(db, 'e', {
+        fingerprint: await currentSourceFingerprint(db, 'e'),
+        channels: 2,
+        algo: LOUDNESS_ALGO,
+        gainDb: 1,
+        targetLufs: -16,
+        inputLufs: null,
+        measuredAt: 1,
+      });
+      await svc.start('e', EXPORT_PRESETS.podcast);
+      const r = engine.renders[0]!;
+      expect((r.doc as { loudness: { gainDb?: number } }).loudness.gainDb).toBeUndefined();
+      engine.emit('onRenderDone', {
+        jobId: r.jobId,
+        path: r.opts.path,
+        frames: 96000,
+        measuredLufs: -16,
+        measuredTruePeakDb: -1.2,
+        appliedGainDb: 4.5,
+        inputLufs: -20.5,
+      });
+      await settle();
+      const cache = await getLoudnessCache(db, 'e');
+      expect(cache.map((c) => [c.channels, c.gainDb, c.inputLufs])).toEqual([
+        [1, 4.5, -20.5],
+        [2, 1, null],
+      ]);
+      expect(cache[0]?.fingerprint).toBe(await currentSourceFingerprint(db, 'e'));
+    });
+
+    it('does not save a gain when loudness adjustment is off', async () => {
+      const { db, engine, svc } = await setup();
+      await db.run('UPDATE episodes SET sound_settings = ? WHERE id = ?', [
+        JSON.stringify({ loudness: { enabled: false } }),
+        'e',
+      ]);
+      await svc.start('e', EXPORT_PRESETS.podcast);
+      const r = engine.renders[0]!;
+      engine.emit('onRenderDone', {
+        jobId: r.jobId,
+        path: r.opts.path,
+        frames: 96000,
+        measuredLufs: -23,
+        measuredTruePeakDb: -6,
+        appliedGainDb: 0,
+      });
+      await settle();
+      expect(await getLoudnessCache(db, 'e')).toEqual([]);
     });
   });
 

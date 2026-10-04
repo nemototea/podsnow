@@ -154,9 +154,9 @@ interface AudioEngineModule {
   importAsset(src: string, dst: string): Promise<AssetInfo>;           // 任意形式 → WAV 48k
   // 再生
   loadTimeline(doc: RenderDocument): Promise<void>;
-  updateTimelineSound(sound: TimelineSound): Promise<void>;          // 読み直さずにダッキング・ゲイン・リミッターを差し替える（AUDIO_DESIGN.md §7.1）【設計: #158】
+  updateTimelineSoundAsync(soundJson: string): Promise<void>;        // 読み直さずにダッキング・ゲイン・リミッターを差し替える（AUDIO_DESIGN.md §7.1、#158）
   play(atMs: number): Promise<void>; pause(): Promise<void>; seek(ms): Promise<void>;
-  // ラウドネスの測定（試聴と書き出しで同じゲインを使う。AUDIO_DESIGN.md §8.4）【設計: #158】
+  // ラウドネスの測定（試聴と書き出しで同じゲインを使う。AUDIO_DESIGN.md §8.4、#158）
   measureLoudness(doc: RenderDocument): { jobId: string };
   cancelMeasure(jobId: string): void;
   // 書き出し

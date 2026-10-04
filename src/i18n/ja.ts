@@ -445,6 +445,8 @@ Podcast: {{show_name}}
     release: 'リリース',
     threshold: '声のしきい値',
     loudnessTarget: (lufs: number, peak: number) => `${lufs} LUFS・最大ピーク ${peak} dBTP`,
+    /** 試聴の正規化のゲインを裏で測っている間（Issue #158）。 */
+    measuring: (pct: number) => `試聴の音量を測っています（${pct}%）`,
     addBgm: 'BGM を入れる',
     hideAdvanced: '詳細設定を閉じる',
   },

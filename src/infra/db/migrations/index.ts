@@ -4,6 +4,7 @@ import { MIGRATION_0003_OUTLINE_AND_EVENTS } from './0003_outline_and_events';
 import { MIGRATION_0004_EPISODE_EXPORT_PRESET } from './0004_episode_export_preset';
 import { MIGRATION_0005_PODCAST_FEED_METADATA } from './0005_podcast_feed_metadata';
 import { MIGRATION_0006_EXPORT_SOURCE_FINGERPRINT } from './0006_export_source_fingerprint';
+import { MIGRATION_0007_LOUDNESS_CACHE } from './0007_loudness_cache';
 
 export interface Migration {
   /** PRAGMA user_version に対応する。1 から単調増加。 */
@@ -23,4 +24,5 @@ export const MIGRATIONS: readonly Migration[] = [
     name: '0006_export_source_fingerprint',
     sql: MIGRATION_0006_EXPORT_SOURCE_FINGERPRINT,
   },
+  { version: 7, name: '0007_loudness_cache', sql: MIGRATION_0007_LOUDNESS_CACHE },
 ];

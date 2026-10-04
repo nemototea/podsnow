@@ -126,6 +126,12 @@ struct TruePeakInterpolator {
   /// 最後に |x| × bound > floor だったサンプルからの経過数。
   private var sinceLoud = TruePeakInterpolator.tapsPerPhase
 
+  mutating func reset() {
+    for i in 0..<hist.count { hist[i] = 0 }
+    pos = 0
+    sinceLoud = TruePeakInterpolator.tapsPerPhase
+  }
+
   mutating func push(_ x: Float, floor: Float) -> Float {
     let n = TruePeakInterpolator.tapsPerPhase
     hist[pos] = x
@@ -183,8 +189,10 @@ final class TruePeakMeter {
 final class Limiter {
   /// 検出の安全余裕（dB）。4 倍補間の見積もり不足と、ゲイン変化による小さなはみ出しを吸収する。
   static let safetyDb = 0.2
-  private let ceiling: Float
-  private let detectCeiling: Float
+  /// 素通しの天井。Float の音声（±1）では届かない。
+  static let bypassDb = 60.0
+  private var ceiling: Float
+  private var detectCeiling: Float
   private let channels: Int
   private let avgLen: Int
   private let holdLen: Int
@@ -222,6 +230,25 @@ final class Limiter {
     qVal = [Float](repeating: 1, count: avg + detDelay + 1)
     avgRing = [Float](repeating: 1, count: avg)
     avgSum = Double(avg)
+  }
+
+  /// 天井を変える（試聴で音の仕上げを変えたとき。AUDIO_DESIGN.md §7.1）。遅延線と状態はそのまま。
+  /// nil なら素通し（天井を bypassDb に上げる）。遅れは変わらないので、オン・オフで位置がずれない。
+  func setCeiling(_ ceilingDb: Double?) {
+    let db = ceilingDb ?? Limiter.bypassDb
+    ceiling = dbToLinear(db)
+    detectCeiling = dbToLinear(db - Limiter.safetyDb)
+  }
+
+  /// 状態を作りたてに戻す（試聴のシーク。§7.1）。天井は保つ。メモリは確保しない。
+  func reset() {
+    for c in 0..<interp.count { interp[c].reset() }
+    for i in 0..<delayLine.count { delayLine[i] = 0 }
+    delayPos = 0
+    qHead = 0; qTail = 0
+    for i in 0..<avgRing.count { avgRing[i] = 1 }
+    avgPos = 0; avgSum = Double(avgLen)
+    frame = 0; gain = 1
   }
 
   /// in-place。count はフレーム数。buf の各フレームには latency フレーム前の入力にゲインを掛けたものが入る。
@@ -276,8 +303,13 @@ final class LoudnessRenderer {
   static let toleranceLu = 0.1
   /// 初回の補正: リミッターがかかると 1 dB 上げても出力は 1 LU より少なくしか上がらない。
   static let firstSlope = 0.7
+  /// 測定の手順の版。定数や手順を変えたら上げ、保存した測定値を捨てさせる（AUDIO_DESIGN.md §8.4）。
+  static let algoVersion = 1
   private static let measureEnd = 0.4
-  private static let trialEnd = 0.6
+  /// solveGain の進捗はここまで（測定だけのジョブはこれで割って 0〜1 にする）。
+  static let trialEnd = 0.6
+  /// 最初の測定パスが終わった時点の、測定だけのジョブでの進み具合。
+  static let measureFraction = measureEnd / trialEnd
 
   private let doc: RenderDocument
   private let mixer: Mixer
@@ -297,13 +329,16 @@ final class LoudnessRenderer {
   }
 
   /// 目標ラウドネスに合わせるゲイン（dB）。ラウドネス調整が無効なら 0。
-  func solveGain() throws -> Double {
+  /// onInputMeasured は最初の測定パスのあとに「仮のゲイン」（目標 − 入力、リミッターを考えない）で呼ぶ。
+  /// 試聴はこれを先に使う（AUDIO_DESIGN.md §7.1）。
+  func solveGain(onInputMeasured: ((Double) -> Void)? = nil) throws -> Double {
     if !doc.loudnessEnabled { return 0 }
     let tpm = TruePeakMeter(channels: channels)
     inputLufs = try pass(gainDb: 0, limiter: false, tpm: tpm, from: 0, to: LoudnessRenderer.measureEnd, phase: "measuring", write: nil)
     inputTruePeakDb = linearToDb(Double(tpm.peak))
     if inputLufs <= -70 { return 0 }
     var g = max(LoudnessRenderer.minGainDb, min(LoudnessRenderer.maxGainDb, doc.targetLufs - inputLufs))
+    onInputMeasured?(g)
     // リミッターが働かないなら、ゲインをそのまま掛けた出力は目標どおり（線形）
     if inputTruePeakDb + g <= doc.truePeakDbtp { return g }
     var prevG = Double.nan, prevO = Double.nan
@@ -325,9 +360,11 @@ final class LoudnessRenderer {
   }
 
   /// 本番のパス。write(buf, offsetFrames, frames) に書き出すフレームを渡し、その測定値を返す。
-  func render(gainDb: Double, write: @escaping (UnsafeMutablePointer<Float>, Int, Int) throws -> Void) throws -> OutputMeasure {
+  /// measured = false は solveGain を飛ばしたとき（求めてあるゲインを使う、§8.4）で、進捗を 0 から数える。
+  func render(gainDb: Double, measured: Bool = true,
+              write: @escaping (UnsafeMutablePointer<Float>, Int, Int) throws -> Void) throws -> OutputMeasure {
     let tpm = TruePeakMeter(channels: channels)
-    let from: Double = !doc.loudnessEnabled ? 0 : (trials > 0 ? LoudnessRenderer.trialEnd : LoudnessRenderer.measureEnd)
+    let from: Double = (!doc.loudnessEnabled || !measured) ? 0 : (trials > 0 ? LoudnessRenderer.trialEnd : LoudnessRenderer.measureEnd)
     let lufs = try pass(gainDb: gainDb, limiter: doc.loudnessEnabled, tpm: tpm, from: from, to: 1, phase: "encoding", write: write)
     return OutputMeasure(lufs: lufs, truePeakDb: linearToDb(Double(tpm.peak)))
   }
@@ -373,5 +410,38 @@ final class LoudnessRenderer {
       if blocks % 50 == 0 { onProgress(from + (to - from) * Double(f) / Double(max(1, renderEnd)), phase) }
     }
     return meter.integrated()
+  }
+}
+
+/// 裏で測った結果（AUDIO_DESIGN.md §8.4）。
+struct MeasureResult {
+  let gainDb: Double
+  let inputLufs: Double
+  let inputTruePeakDb: Double
+  let trials: Int
+}
+
+/// 試聴のためにゲインだけを求める（AUDIO_DESIGN.md §7.1 / §8.4）。書き出しと同じ solveGain を使う。
+/// onProgress(0〜1, 仮のゲイン or nil)。仮のゲインは最初の測定パスのあとに載せる。
+final class LoudnessMeasureJob {
+  private let doc: RenderDocument
+  private let onProgress: (Double, Double?) -> Void
+  var cancelled = false
+
+  init(doc: RenderDocument, onProgress: @escaping (Double, Double?) -> Void) {
+    self.doc = doc; self.onProgress = onProgress
+  }
+
+  func run() throws -> MeasureResult {
+    let mixer = Mixer(doc: doc)
+    var provisional: Double?
+    let report = onProgress
+    let r = LoudnessRenderer(doc: doc, mixer: mixer, block: 4096, isCancelled: { [unowned self] in self.cancelled },
+                             onProgress: { p, _ in report(max(0, min(1, p / LoudnessRenderer.trialEnd)), provisional) })
+    let g = try r.solveGain(onInputMeasured: { g in
+      provisional = g
+      report(LoudnessRenderer.measureFraction, g)
+    })
+    return MeasureResult(gainDb: g, inputLufs: r.inputLufs, inputTruePeakDb: r.inputTruePeakDb, trials: r.trials)
   }
 }

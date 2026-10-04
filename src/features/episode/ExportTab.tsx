@@ -16,6 +16,7 @@ import {
 } from '@/i18n';
 import { isExportRunning, listExports, type ExportRow } from '@/infra/db/repositories/exportsRepo';
 import { getDefaultTemplate } from '@/infra/db/repositories/showsRepo';
+import type { LoudnessStatus } from '@/services/audio/LoudnessService';
 import { parseSoundSettings, type SoundSettings } from '@/services/audio/renderDocumentFromDb';
 import {
   CUSTOM_BITRATES,
@@ -144,8 +145,18 @@ export function ExportTab({ ws, onShowToast, onDone, onGoEdit }: ExportTabProps)
   const c = useAppTheme();
   const t = useT();
   const locale = useLocale();
-  const { db, show, coverArt, episodes, exporter, playback, settings, updateSettings, haptics } =
-    useServices();
+  const {
+    db,
+    show,
+    coverArt,
+    episodes,
+    exporter,
+    playback,
+    loudness,
+    settings,
+    updateSettings,
+    haptics,
+  } = useServices();
   const { state } = ws;
   const episode = state.episode;
 
@@ -172,6 +183,18 @@ export function ExportTab({ ws, onShowToast, onDone, onGoEdit }: ExportTabProps)
     void playback.setTimelineChannels(previewChannels).catch(() => {});
   }, [playback, previewChannels]);
   useEffect(() => () => void playback.setTimelineChannels(2).catch(() => {}), [playback]);
+  // 試聴に書き出しと同じ正規化をかける。ゲインは保存してあれば使い、無ければ裏で測る（Issue #158）。
+  // 離れたら測定をやめ、調整なしに戻す（編集タブは正規化しない）
+  const episodeId = episode?.id ?? null;
+  const [measure, setMeasure] = useState<LoudnessStatus>(() => loudness.getStatus());
+  useEffect(() => {
+    const sub = loudness.onStatus(setMeasure);
+    return () => sub.remove();
+  }, [loudness]);
+  useEffect(() => {
+    if (episodeId) void loudness.activate(episodeId, previewChannels).catch(() => {});
+  }, [loudness, episodeId, previewChannels]);
+  useEffect(() => () => void loudness.deactivate().catch(() => {}), [loudness]);
   const [history, setHistory] = useState<ExportRow[]>([]);
   const [job, setJob] = useState<{ exportId: string; progress: number; phase: string } | null>(
     null,
@@ -314,10 +337,13 @@ export function ExportTab({ ws, onShowToast, onDone, onGoEdit }: ExportTabProps)
     if (!episode) return;
     await flush();
     setFailure(null);
+    // 書き出しの間は試聴の測定を止める（書き出しが測って保存する。AUDIO_DESIGN.md §8.4）
+    loudness.setExporting(true);
     try {
       const exportId = await exporter.start(episode.id, resolveExportPreset(preset, custom));
       setJob({ exportId, progress: 0, phase: 'measuring' });
     } catch (e) {
+      loudness.setExporting(false);
       setFailure(errorText(t, e));
     }
   };
@@ -400,7 +426,9 @@ export function ExportTab({ ws, onShowToast, onDone, onGoEdit }: ExportTabProps)
           info={t.glossary.loudness}
           {...(sound.loudness.enabled
             ? {
-                sub: t.sound.loudnessTarget(sound.loudness.targetLufs, sound.loudness.truePeakDbtp),
+                sub: measure.measuring
+                  ? `${t.sound.loudnessTarget(sound.loudness.targetLufs, sound.loudness.truePeakDbtp)}\n${t.sound.measuring(Math.round(measure.progress * 100))}`
+                  : t.sound.loudnessTarget(sound.loudness.targetLufs, sound.loudness.truePeakDbtp),
               }
             : {})}
           right={

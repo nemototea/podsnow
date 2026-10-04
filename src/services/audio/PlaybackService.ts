@@ -11,7 +11,11 @@ import type { AudioEnginePort } from './AudioEnginePort';
 import type { FilePlaybackPort } from './FilePlaybackPort';
 import type { NowPlayingCommand, NowPlayingPort } from './NowPlayingPort';
 import type { PlaybackSessionPort } from './PlaybackSessionPort';
-import { renderDocumentFromDb } from './renderDocumentFromDb';
+import {
+  renderDocumentFromDb,
+  timelineSoundJson,
+  type SoundSettings,
+} from './renderDocumentFromDb';
 
 export interface PlaybackEvents {
   state: (e: { playing: boolean; frame: number; ended?: boolean }) => void;
@@ -96,6 +100,11 @@ export class PlaybackService {
   private timelineItem: TimelinePlaybackItem | null = null;
   /** タイムラインを鳴らすチャンネル数。書き出しタブは書き出し設定に合わせる（Issue #174）。 */
   private timelineChannels: 1 | 2 = 2;
+  /**
+   * 試聴にかける正規化のゲイン（AUDIO_DESIGN.md §7.1）。この回・このチャンネル数のときだけ使う。
+   * 書き出しタブ（LoudnessService）が決め、離れたら null（調整なし）に戻す。
+   */
+  private timelineGain: { episodeId: string; channels: 1 | 2; gainDb: number | null } | null = null;
   /**
    * 割り込みで止めた再生（AUDIO_DESIGN.md §10.3）。割り込みの終了で OS が再開を勧めたら、これを再開する。
    * 利用者の操作・録音・別の回の再生で捨てる（`userAction()`）。出力が外れたときは覚えない。
@@ -267,6 +276,7 @@ export class PlaybackService {
     const at = this.loadedEpisode === episodeId ? this.timelineFrame : 0;
     const doc = await renderDocumentFromDb(this.deps.db, this.deps.root, episodeId, {
       channels: this.timelineChannels,
+      loudnessGainDb: this.timelineGainFor(episodeId),
     });
     await this.deps.engine.loadTimeline(JSON.stringify(doc));
     this.loadedEpisode = episodeId;
@@ -278,6 +288,29 @@ export class PlaybackService {
     }
     await this.deps.engine.seek(Math.min(at, doc.totalFrames));
     if (wasPlaying && doc.totalFrames > 0) await this.deps.engine.play(null);
+  }
+
+  /** この回を今のチャンネル数で鳴らすときの正規化のゲイン。決まっていなければ null（調整なし）。 */
+  private timelineGainFor(episodeId: string): number | null {
+    const g = this.timelineGain;
+    return g && g.episodeId === episodeId && g.channels === this.timelineChannels ? g.gainDb : null;
+  }
+
+  /**
+   * 試聴の音の仕上げを、タイムラインを読み直さずに差し替える（AUDIO_DESIGN.md §7.1、Issue #158）。
+   * 再生中でも止めない。`gain` は正規化のゲインと、それを測ったチャンネル数（null なら調整なし）。
+   * 読み込み前・別の回なら覚えておき、次の読み込みで使う。
+   */
+  async setTimelineSound(
+    episodeId: string,
+    sound: SoundSettings,
+    gain: { channels: 1 | 2; gainDb: number | null } | null,
+  ): Promise<void> {
+    this.timelineGain = gain ? { episodeId, ...gain } : null;
+    if (this.loadedEpisode !== episodeId) return;
+    await this.deps.engine.updateTimelineSound(
+      timelineSoundJson(sound, this.timelineGainFor(episodeId)),
+    );
   }
 
   /**

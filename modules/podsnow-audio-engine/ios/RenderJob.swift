@@ -196,7 +196,9 @@ final class RenderJob {
     let mixer = Mixer(doc: doc)
     let r = LoudnessRenderer(doc: doc, mixer: mixer, block: block, isCancelled: { [unowned self] in self.cancelled }, onProgress: onProgress)
     let ch = r.channels
-    let gainDb = try r.solveGain()
+    // 求めてあるゲイン（試聴と同じ値、AUDIO_DESIGN.md §8.4）があれば測定を飛ばす
+    let cached = doc.loudnessEnabled ? doc.gainDb : nil
+    let gainDb = try cached ?? r.solveGain()
     let fileSink: PcmSink = format == "wav"
       ? try WavSink(path: outPath, sampleRate: outputSampleRate, channels: ch)
       : try AacSink(path: outPath, sampleRate: outputSampleRate, channels: ch, bitrate: bitrate)
@@ -205,7 +207,7 @@ final class RenderJob {
       : try ResamplingSink(inner: fileSink, from: doc.sampleRate, to: outputSampleRate, channels: ch, maxFrames: block)
     let pcm = UnsafeMutablePointer<Int16>.allocate(capacity: block * ch)
     defer { pcm.deallocate() }
-    let out = try r.render(gainDb: gainDb) { buf, offset, frames in
+    let out = try r.render(gainDb: gainDb, measured: cached == nil) { buf, offset, frames in
       var k = 0
       for i in (offset * ch)..<((offset + frames) * ch) {
         pcm[k] = Int16((max(-1, min(1, buf[i])) * 32767).rounded())
