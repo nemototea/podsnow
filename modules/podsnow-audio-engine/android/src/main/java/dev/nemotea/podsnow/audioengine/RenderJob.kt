@@ -194,6 +194,7 @@ data class RenderResult(
 /**
  * オフラインレンダリング（AUDIO_DESIGN.md §8）。ラウドネス制御は LoudnessRenderer（§8.2）。
  * 測定パス → （必要ならリミッター込みの測り直し）→ ミックス → ゲイン → リミッター → エンコード
+ * doc.gainDb があれば測定パスと測り直しを飛ばす（§8.4）。
  */
 class RenderJob(
   private val doc: RenderDocument,
@@ -211,14 +212,16 @@ class RenderJob(
     Mixer(doc).use { mixer ->
       val r = LoudnessRenderer(doc, mixer, block, { cancelled }, onProgress)
       val ch = r.channels
-      val gainDb = r.solveGain()
+      // 求めてあるゲイン（試聴と同じ値、AUDIO_DESIGN.md §8.4）があれば測定を飛ばす
+      val cached = if (doc.loudnessEnabled) doc.gainDb else null
+      val gainDb = cached ?: r.solveGain()
       val fileSink: PcmSink = if (format == "wav") WavSink(outPath, outputSampleRate, ch)
       else AacSink(outPath, outputSampleRate, ch, bitrate)
       val sink: PcmSink = if (outputSampleRate == doc.sampleRate) fileSink
       else ResamplingSink(fileSink, doc.sampleRate, outputSampleRate, ch)
       val pcm = ShortArray(block * ch)
       val out = sink.use {
-        r.render(gainDb) { buf, offset, frames ->
+        r.render(gainDb, measured = cached == null) { buf, offset, frames ->
           var k = 0
           for (i in offset * ch until (offset + frames) * ch) {
             pcm[k++] = (buf[i].coerceIn(-1f, 1f) * 32767f).roundToInt().toShort()

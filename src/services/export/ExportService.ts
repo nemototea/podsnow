@@ -7,6 +7,7 @@ import {
   type ExportTags,
 } from '@/domain/metadata/exportTags';
 import { exportFileName } from '@/domain/metadata/fileName';
+import { findCachedGain, LOUDNESS_ALGO } from '@/domain/render/loudnessCache';
 import { SAMPLE_RATE } from '@/domain/time';
 import { APP_VERSION } from '@/domain/version';
 import type { SqlExecutor } from '@/infra/db/executor';
@@ -21,6 +22,7 @@ import {
   updateExportProgress,
   type ExportFormat,
 } from '@/infra/db/repositories/exportsRepo';
+import { getLoudnessCache, saveLoudnessMeasure } from '@/infra/db/repositories/loudnessCacheRepo';
 import type { FsPort } from '@/infra/files/fsPort';
 import { joinRoot, relPaths } from '@/infra/files/layout';
 
@@ -215,7 +217,14 @@ export interface ExportEvents {
 export class ExportService {
   private jobs = new Map<
     string,
-    { exportId: string; episodeId: string; relPath: string; format: ExportFormat }
+    {
+      exportId: string;
+      episodeId: string;
+      relPath: string;
+      format: ExportFormat;
+      /** 測ったゲインを保存するための情報（求めてあるゲインを使ったときは null）。§8.4 */
+      measure: { fingerprint: string; channels: 1 | 2; targetLufs: number } | null;
+    }
   >();
   private subs: Subscription[] = [];
   private listeners = new Map<keyof ExportEvents, Set<(p: never) => void>>();
@@ -250,9 +259,16 @@ export class ExportService {
   async start(episodeId: string, preset: ExportPreset): Promise<string> {
     // 書き出す音の指紋。Home が「今の編集と同じ書き出し」かを見分ける（Issue #168）
     const sourceFingerprint = await currentSourceFingerprint(this.deps.db, episodeId);
+    // 試聴と同じゲインが求めてあれば使い、測定を飛ばす（AUDIO_DESIGN.md §8.4、Issue #158）
+    const cachedGain = findCachedGain(
+      await getLoudnessCache(this.deps.db, episodeId),
+      sourceFingerprint,
+      preset.channels,
+    );
     // ミックスはタイムラインのレート（48 kHz）で行う。出力のレートへはネイティブが最後に変換する
     const doc = await renderDocumentFromDb(this.deps.db, this.deps.root, episodeId, {
       channels: preset.channels,
+      loudnessGainDb: cachedGain,
     });
     if (doc.totalFrames <= 0) throw new AppError('voice_timeline_empty');
     const exportId = this.deps.newId();
@@ -275,7 +291,20 @@ export class ExportService {
       bitrate: preset.bitrate,
       sampleRate: preset.sampleRate,
     });
-    this.jobs.set(jobId, { exportId, episodeId, relPath, format: preset.format });
+    this.jobs.set(jobId, {
+      exportId,
+      episodeId,
+      relPath,
+      format: preset.format,
+      measure:
+        doc.loudness.enabled && cachedGain == null
+          ? {
+              fingerprint: sourceFingerprint,
+              channels: preset.channels,
+              targetLufs: doc.loudness.targetLufs,
+            }
+          : null,
+    });
     await updateExportProgress(this.deps.db, exportId, 'rendering', 0);
     return exportId;
   }
@@ -408,10 +437,21 @@ export class ExportService {
     measuredLufs: number;
     measuredTruePeakDb: number;
     appliedGainDb: number;
+    inputLufs?: number;
   }) {
     const j = this.jobs.get(ev.jobId);
     if (!j) return;
     this.jobs.delete(ev.jobId);
+    // 書き出しが測ったゲインを、試聴と次の書き出しのために残す（AUDIO_DESIGN.md §8.4）
+    if (j.measure) {
+      await saveLoudnessMeasure(this.deps.db, j.episodeId, {
+        ...j.measure,
+        algo: LOUDNESS_ALGO,
+        gainDb: ev.appliedGainDb,
+        inputLufs: ev.inputLufs != null && ev.inputLufs > -70 ? ev.inputLufs : null,
+        measuredAt: this.deps.now(),
+      }).catch(() => {});
+    }
     // 後処理: メタデータの埋め込み（Issue #56）。音声（音量の処理を含む）はネイティブで済んでいる。
     // 埋め込めなくても音声は渡す（形式・音量に問題が無いのに書き出せないのは困る。ユーザー判断 2026-10-03）
     const metadataEmbedded = await this.embedMetadata(j.episodeId, ev.path, j.format);

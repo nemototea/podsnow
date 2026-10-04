@@ -8,6 +8,7 @@ export function createNativeAudioEngine(): AudioEnginePort {
     importAsset: (s, d, o) => PodsnowAudioEngine.importAssetAsync(s, d, o),
     readWavInfo: (p) => PodsnowAudioEngine.readWavInfoAsync(p),
     loadTimeline: (j) => PodsnowAudioEngine.loadTimelineAsync(j),
+    updateTimelineSound: (j) => PodsnowAudioEngine.updateTimelineSoundAsync(j),
     play: (f) => PodsnowAudioEngine.playAsync(f ?? null),
     pause: () => PodsnowAudioEngine.pauseAsync(),
     seek: (f) => PodsnowAudioEngine.seekAsync(f),
@@ -16,6 +17,8 @@ export function createNativeAudioEngine(): AudioEnginePort {
     isPlaying: () => PodsnowAudioEngine.isPlaying(),
     startRender: (j, o) => PodsnowAudioEngine.startRender(j, o),
     cancelRender: (id) => PodsnowAudioEngine.cancelRender(id),
+    measureLoudness: (j) => PodsnowAudioEngine.measureLoudness(j),
+    cancelMeasure: (id) => PodsnowAudioEngine.cancelMeasure(id),
     on: (event, listener) => {
       const sub = PodsnowAudioEngine.addListener(event, listener);
       return { remove: () => sub.remove() };

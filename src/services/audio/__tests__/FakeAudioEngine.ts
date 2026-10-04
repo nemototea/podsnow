@@ -14,6 +14,10 @@ type Listener = (e: never) => void;
 export class FakeAudioEngine implements AudioEnginePort {
   calls: string[] = [];
   renders: { jobId: string; doc: unknown; opts: RenderOptions }[] = [];
+  /** updateTimelineSound で送られた音の仕上げ（JSON を解いたもの）。 */
+  sounds: unknown[] = [];
+  measures: { jobId: string; doc: unknown }[] = [];
+  cancelledMeasures: string[] = [];
   timelines: unknown[] = [];
   imports: ImportOptions[] = [];
   silences: FrameRange[] = [];
@@ -47,6 +51,10 @@ export class FakeAudioEngine implements AudioEnginePort {
     // ネイティブ（TimelinePlayer）と同じく、読み込むと位置は先頭に戻る
     this.totalFrames = doc.totalFrames ?? 0;
     this.position = 0;
+  }
+  async updateTimelineSound(json: string) {
+    this.calls.push('sound');
+    this.sounds.push(JSON.parse(json));
   }
   async play(at?: number | null) {
     this.calls.push(`play:${at ?? 'null'}`);
@@ -84,6 +92,15 @@ export class FakeAudioEngine implements AudioEnginePort {
   }
   cancelRender(jobId: string) {
     this.emit('onRenderError', { jobId, message: 'cancelled', cancelled: true });
+  }
+  measureLoudness(docJson: string) {
+    const jobId = `measure${++this.seq}`;
+    this.measures.push({ jobId, doc: JSON.parse(docJson) });
+    return jobId;
+  }
+  cancelMeasure(jobId: string) {
+    this.cancelledMeasures.push(jobId);
+    this.emit('onMeasureError', { jobId, message: 'cancelled', cancelled: true });
   }
   on<K extends keyof PodsnowAudioEngineModuleEvents>(
     event: K,

@@ -16,6 +16,8 @@ export interface AudioEnginePort {
   importAsset(src: string, dst: string, opts: ImportOptions): Promise<ImportedAsset>;
   readWavInfo(path: string): Promise<WavInfo>;
   loadTimeline(docJson: string): Promise<void>;
+  /** 読み直さずに音の仕上げを差し替える（AUDIO_DESIGN.md §7.1）。 */
+  updateTimelineSound(soundJson: string): Promise<void>;
   play(atFrame?: number | null): Promise<void>;
   pause(): Promise<void>;
   seek(frame: number): Promise<void>;
@@ -24,6 +26,8 @@ export interface AudioEnginePort {
   isPlaying(): boolean;
   startRender(docJson: string, opts: RenderOptions): string;
   cancelRender(jobId: string): void;
+  measureLoudness(docJson: string): string;
+  cancelMeasure(jobId: string): void;
   on<K extends keyof PodsnowAudioEngineModuleEvents>(
     event: K,
     listener: PodsnowAudioEngineModuleEvents[K],

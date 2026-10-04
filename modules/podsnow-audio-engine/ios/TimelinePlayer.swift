@@ -29,9 +29,18 @@ final class TimelinePlayer {
     stop()
     lock.lock()
     doc = d
-    mixer = Mixer(doc: d)
+    // 試聴として使う: 書き出しと同じゲイン → リミッターをかける（AUDIO_DESIGN.md §7.1）
+    let m = Mixer(doc: d)
+    m.enablePreview()
+    mixer = m
     position = 0
     lock.unlock()
+  }
+
+  /// 音の仕上げを読み直さずに差し替える（§7.1）。再生中でも止めない。反映は描画スレッドの次のブロックから。
+  func updateSound(_ s: TimelineSound) {
+    lock.lock(); let m = mixer; lock.unlock()
+    m?.updateSound(s)
   }
 
   func play(at frame: Int64?) throws {

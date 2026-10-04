@@ -62,6 +62,33 @@ export interface RenderDoneEvent {
   inputLufs?: number;
 }
 
+/** ラウドネスの測定（試聴のゲイン、AUDIO_DESIGN.md §7.1 / §8.4）の進み具合。 */
+export interface MeasureProgressEvent {
+  jobId: string;
+  /** 0〜1。 */
+  progress: number;
+  /** 最初の測定パスのあとの仮のゲイン（dB）。確定する前に試聴へ使う。 */
+  gainDb?: number | null;
+}
+
+export interface MeasureDoneEvent {
+  jobId: string;
+  /** 目標に合わせるゲイン（dB）。書き出しの `solveGain` と同じ値。 */
+  gainDb: number;
+  inputLufs: number;
+  inputTruePeakDb: number;
+  /** リミッター込みで測り直した回数。 */
+  trials: number;
+  /** 測定手順の版（`LOUDNESS_ALGO`）。 */
+  algo: number;
+}
+
+export interface MeasureErrorEvent {
+  jobId: string;
+  message: string;
+  cancelled: boolean;
+}
+
 export interface RenderErrorEvent {
   jobId: string;
   message: string;
@@ -121,6 +148,9 @@ export type PodsnowAudioEngineModuleEvents = {
   onRenderProgress: (e: RenderProgressEvent) => void;
   onRenderDone: (e: RenderDoneEvent) => void;
   onRenderError: (e: RenderErrorEvent) => void;
+  onMeasureProgress: (e: MeasureProgressEvent) => void;
+  onMeasureDone: (e: MeasureDoneEvent) => void;
+  onMeasureError: (e: MeasureErrorEvent) => void;
   onPlaybackState: (e: PlaybackStateEvent) => void;
   onPosition: (e: { frame: number }) => void;
   onPlaybackInterruption: (e: PlaybackInterruptionEvent) => void;

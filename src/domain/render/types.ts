@@ -47,7 +47,15 @@ export interface RenderDocument {
   voice: RenderClip[];
   overlays: RenderOverlay[];
   ducking: DuckingSettings;
-  loudness: LoudnessSettings;
+  loudness: RenderLoudness;
+}
+
+/**
+ * RenderDocument のラウドネス。音の仕上げの設定に、求めてあるゲインを足したもの（AUDIO_DESIGN.md §8.4）。
+ * `gainDb` があれば書き出しは測定を飛ばし、試聴はそのゲインで鳴らす。無ければ書き出しは測り、試聴は調整なし。
+ */
+export interface RenderLoudness extends LoudnessSettings {
+  gainDb?: number;
 }
 
 export const DEFAULT_DUCKING: DuckingSettings = {

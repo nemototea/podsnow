@@ -26,7 +26,7 @@ import {
 } from '@/infra/db/repositories/recordingEventsRepo';
 import { listSegments, listTakes, type TakeRow } from '@/infra/db/repositories/takesRepo';
 import { ensureTakePeaks } from '@/services/audio/PeaksService';
-import { soundAffectsPlayback, type SoundSettings } from '@/services/audio/renderDocumentFromDb';
+import { type SoundSettings } from '@/services/audio/renderDocumentFromDb';
 import { planSilenceForTimeline } from '@/services/audio/SilenceService';
 import type { EditingService } from '@/services/editing/EditingService';
 import type { SessionState } from '@/services/recording/RecordingSession';
@@ -286,9 +286,10 @@ export function useWorkspace(episodeId: string) {
       }
       syncFromEditing(e);
       await playback.reload(episodeId).catch(() => {});
+      services.loudness.contentChanged(episodeId);
       void services.episodes.refreshStatus(episodeId);
     },
-    [episodeId, playback, recording, services.episodes, syncFromEditing, t],
+    [episodeId, playback, recording, services.episodes, services.loudness, syncFromEditing, t],
   );
 
   // 録音中（準備・停止処理を含む）は取り消せない。トーストの「取り消す」もここを通る。
@@ -298,8 +299,9 @@ export function useWorkspace(episodeId: string) {
     const op = await e.undo();
     syncFromEditing(e);
     await playback.reload(episodeId).catch(() => {});
+    services.loudness.contentChanged(episodeId);
     return op;
-  }, [episodeId, playback, recording, syncFromEditing]);
+  }, [episodeId, playback, recording, services.loudness, syncFromEditing]);
 
   const redo = useCallback(async () => {
     const e = editingRef.current;
@@ -307,8 +309,9 @@ export function useWorkspace(episodeId: string) {
     const op = await e.redo();
     syncFromEditing(e);
     await playback.reload(episodeId).catch(() => {});
+    services.loudness.contentChanged(episodeId);
     return op;
-  }, [episodeId, playback, recording, syncFromEditing]);
+  }, [episodeId, playback, recording, services.loudness, syncFromEditing]);
 
   // ---- 再生 ----
   const seek = useCallback(
@@ -342,9 +345,10 @@ export function useWorkspace(episodeId: string) {
       const soundSettings = JSON.stringify(next);
       await services.episodes.update(episodeId, { soundSettings });
       patchEpisode({ sound_settings: soundSettings });
-      if (soundAffectsPlayback(prev, next)) await playback.reload(episodeId).catch(() => {});
+      // 読み直さずに試聴へ反映する。正規化のゲインは裏で測り直す（AUDIO_DESIGN.md §7.1、Issue #158）
+      await services.loudness.soundChanged(episodeId, prev, next).catch(() => {});
     },
-    [episodeId, patchEpisode, playback, services.episodes],
+    [episodeId, patchEpisode, services.episodes, services.loudness],
   );
 
   /** 書き出しプリセットの選択をこの回に保存する（DATA_MODEL.md §4.5.1）。 */

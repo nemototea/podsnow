@@ -25,6 +25,7 @@ import { fetchHttp } from '@/infra/net/fetchHttp';
 
 import { AssetsService } from '../assets/AssetsService';
 import type { AudioEnginePort } from '../audio/AudioEnginePort';
+import { LoudnessService } from '../audio/LoudnessService';
 import { PlaybackService } from '../audio/PlaybackService';
 import { EditingService } from '../editing/EditingService';
 import { EpisodeService } from '../episodes/EpisodeService';
@@ -51,6 +52,8 @@ export interface AppServices {
   engine: AudioEnginePort;
   recording: RecordingSession;
   playback: PlaybackService;
+  /** 書き出しタブの試聴の正規化のゲイン（AUDIO_DESIGN.md §7.1、Issue #158）。 */
+  loudness: LoudnessService;
   exporter: ExportService;
   episodes: EpisodeService;
   assets: AssetsService;
@@ -149,6 +152,10 @@ export async function bootstrap(
     newId,
     now,
   });
+  const loudness = new LoudnessService({ db, root, engine, playback, now });
+  // 書き出しの間は測らない。終わったら（書き出しが保存したゲインで）試聴を合わせ直す（AUDIO_DESIGN.md §8.4）
+  exporter.on('done', () => loudness.setExporting(false));
+  exporter.on('failed', () => loudness.setExporting(false));
   const episodes = new EpisodeService({
     db,
     newId,
@@ -197,6 +204,7 @@ export async function bootstrap(
     engine,
     recording,
     playback,
+    loudness,
     exporter,
     episodes,
     assets,

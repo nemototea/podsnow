@@ -55,6 +55,7 @@ class AudioEngineException(message: String) : CodedException("ERR_AUDIO_ENGINE",
 class PodsnowAudioEngineModule : Module() {
   private val executor = Executors.newFixedThreadPool(2)
   private val jobs = ConcurrentHashMap<String, RenderJob>()
+  private val measures = ConcurrentHashMap<String, LoudnessMeasureJob>()
   private var player: TimelinePlayer? = null
   private var jobSeq = 0
   /** タイムライン再生の音声フォーカスと、割り込み・出力の抜去（AUDIO_DESIGN.md §10.2 / §10.3）。 */
@@ -78,7 +79,7 @@ class PodsnowAudioEngineModule : Module() {
   override fun definition() = ModuleDefinition {
     Name("PodsnowAudioEngine")
 
-    Events("onRenderProgress", "onRenderDone", "onRenderError", "onPlaybackState", "onPosition", "onError", "onTaskProgress", "onPlaybackInterruption", "onOutputDisconnected", "onRemoteCommand")
+    Events("onRenderProgress", "onRenderDone", "onRenderError", "onMeasureProgress", "onMeasureDone", "onMeasureError", "onPlaybackState", "onPosition", "onError", "onTaskProgress", "onPlaybackInterruption", "onOutputDisconnected", "onRemoteCommand")
 
     OnCreate {
       val ctx = appContext.reactContext?.applicationContext ?: return@OnCreate
@@ -94,6 +95,7 @@ class PodsnowAudioEngineModule : Module() {
       NowPlayingService.onCommand = null
       NowPlayingService.clear()
       jobs.values.forEach { it.cancelled = true }
+      measures.values.forEach { it.cancelled = true }
       player?.release(); player = null
       executor.shutdownNow()
     }
@@ -134,6 +136,9 @@ class PodsnowAudioEngineModule : Module() {
       }
     }.runOnQueue(Queues.MAIN)
     AsyncFunction("pauseAsync") { wrap { getPlayer().pause(); watcher?.abandonFocusUnlessInterrupted() } }.runOnQueue(Queues.MAIN)
+    AsyncFunction("updateTimelineSoundAsync") { json: String ->
+      wrap { player?.updateSound(TimelineSound.parse(json)) }
+    }.runOnQueue(Queues.MAIN)
     AsyncFunction("seekAsync") { frame: Double -> wrap { getPlayer().seek(frame.toLong()) } }.runOnQueue(Queues.MAIN)
     AsyncFunction("unloadAsync") { player?.release(); player = null; watcher?.abandonFocus() }.runOnQueue(Queues.MAIN)
     Function("getPosition") { (player?.currentFrame ?: 0L).toDouble() }
@@ -187,5 +192,35 @@ class PodsnowAudioEngineModule : Module() {
     }
 
     Function("cancelRender") { jobId: String -> jobs[jobId]?.cancelled = true }
+
+    // ---- ラウドネスの測定（試聴のゲイン、AUDIO_DESIGN.md §7.1 / §8.4。低い優先度のワーカー）----
+    Function("measureLoudness") { docJson: String ->
+      val id = "measure-${++jobSeq}"
+      val doc = try { RenderDocument.parse(docJson) } catch (e: Exception) { throw AudioEngineException("invalid document: ${e.message}") }
+      val job = LoudnessMeasureJob(doc) { p, provisional ->
+        sendEvent("onMeasureProgress", mapOf("jobId" to id, "progress" to p, "gainDb" to provisional))
+      }
+      measures[id] = job
+      executor.execute {
+        android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_BACKGROUND)
+        try {
+          val r = job.run()
+          sendEvent("onMeasureDone", mapOf(
+            "jobId" to id, "gainDb" to r.gainDb, "inputLufs" to r.inputLufs,
+            "inputTruePeakDb" to r.inputTruePeakDb, "trials" to r.trials, "algo" to LoudnessRenderer.ALGO_VERSION,
+          ))
+        } catch (e: InterruptedException) {
+          sendEvent("onMeasureError", mapOf("jobId" to id, "message" to "cancelled", "cancelled" to true))
+        } catch (e: Exception) {
+          sendEvent("onMeasureError", mapOf("jobId" to id, "message" to (e.message ?: e.toString()), "cancelled" to false))
+        } finally {
+          measures.remove(id)
+          android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_DEFAULT)
+        }
+      }
+      id
+    }
+
+    Function("cancelMeasure") { jobId: String -> measures[jobId]?.cancelled = true }
   }
 }

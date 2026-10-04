@@ -109,6 +109,10 @@ class TruePeakInterpolator {
   /** 最後に |x| × BOUND > floor だったサンプルからの経過数。 */
   private var sinceLoud = TAPS_PER_PHASE
 
+  fun reset() {
+    hist.fill(0f); pos = 0; sinceLoud = TAPS_PER_PHASE
+  }
+
   fun push(x: Float, floor: Float): Float {
     hist[pos] = x
     hist[pos + TAPS_PER_PHASE] = x
@@ -178,8 +182,8 @@ class TruePeakMeter(channels: Int = 1) {
  * O(1) / フレーム（最小値は単調キュー、平均は累積和）。
  */
 class Limiter(sampleRate: Int, ceilingDb: Double, channels: Int = 1, lookaheadMs: Double = 5.0, releaseMs: Double = 50.0) {
-  private val ceiling = dbToLinear(ceilingDb)
-  private val detectCeiling = dbToLinear(ceilingDb - SAFETY_DB)
+  private var ceiling = dbToLinear(ceilingDb)
+  private var detectCeiling = dbToLinear(ceilingDb - SAFETY_DB)
   private val ch = maxOf(1, channels)
   private val avgLen = maxOf(1, (sampleRate * lookaheadMs / 1000).toInt())
   /** 補間の遅れ（TAPS_PER_PHASE / 2）とサンプル間の 1。 */
@@ -202,6 +206,25 @@ class Limiter(sampleRate: Int, ceilingDb: Double, channels: Int = 1, lookaheadMs
   private var avgSum = avgLen.toDouble()
   private var frame = 0L
   private var gain = 1f
+
+  /**
+   * 天井を変える（試聴で音の仕上げを変えたとき。AUDIO_DESIGN.md §7.1）。遅延線と状態はそのまま。
+   * null なら素通し（天井を BYPASS_DB に上げる）。遅れは変わらないので、オン・オフで位置がずれない。
+   */
+  fun setCeiling(ceilingDb: Double?) {
+    val db = ceilingDb ?: BYPASS_DB
+    ceiling = dbToLinear(db)
+    detectCeiling = dbToLinear(db - SAFETY_DB)
+  }
+
+  /** 状態を作りたてに戻す（試聴のシーク。AUDIO_DESIGN.md §7.1）。天井は保つ。メモリは確保しない。 */
+  fun reset() {
+    interp.forEach { it.reset() }
+    delayLine.fill(0f); delayPos = 0
+    qHead = 0; qTail = 0
+    avgRing.fill(1f); avgPos = 0; avgSum = avgLen.toDouble()
+    frame = 0L; gain = 1f
+  }
 
   /** in-place。count はフレーム数。buf の各フレームには latency フレーム前の入力にゲインを掛けたものが入る。 */
   fun process(buf: FloatArray, count: Int) {
@@ -238,6 +261,8 @@ class Limiter(sampleRate: Int, ceilingDb: Double, channels: Int = 1, lookaheadMs
   companion object {
     /** 検出の安全余裕（dB）。4 倍補間の見積もり不足と、ゲイン変化による小さなはみ出しを吸収する。 */
     const val SAFETY_DB = 0.2
+    /** 素通しの天井。Float の音声（±1）では届かない。 */
+    const val BYPASS_DB = 60.0
   }
 }
 
@@ -267,8 +292,12 @@ class LoudnessRenderer(
   var trials = 0
     private set
 
-  /** 目標ラウドネスに合わせるゲイン（dB）。ラウドネス調整が無効なら 0。 */
-  fun solveGain(): Double {
+  /**
+   * 目標ラウドネスに合わせるゲイン（dB）。ラウドネス調整が無効なら 0。
+   * onInputMeasured は最初の測定パスのあとに「仮のゲイン」（目標 − 入力、リミッターを考えない）で呼ぶ。
+   * 試聴はこれを先に使う（AUDIO_DESIGN.md §7.1）。
+   */
+  fun solveGain(onInputMeasured: ((Double) -> Unit)? = null): Double {
     if (!doc.loudnessEnabled) return 0.0
     val tpm = TruePeakMeter(channels)
     val input = pass(0.0, limiter = false, tpm = tpm, from = 0.0, to = MEASURE_END, phase = "measuring", write = null)
@@ -276,6 +305,7 @@ class LoudnessRenderer(
     inputTruePeakDb = linearToDb(tpm.peak.toDouble())
     if (inputLufs <= -70) return 0.0
     var g = (doc.targetLufs - inputLufs).coerceIn(MIN_GAIN_DB, MAX_GAIN_DB)
+    onInputMeasured?.invoke(g)
     // リミッターが働かないなら、ゲインをそのまま掛けた出力は目標どおり（線形）
     if (inputTruePeakDb + g <= doc.truePeakDbtp) return g
     var prevG = Double.NaN
@@ -295,11 +325,14 @@ class LoudnessRenderer(
     return g
   }
 
-  /** 本番のパス。write(buf, offsetFrames, frames) に書き出すフレームを渡し、その測定値を返す。 */
-  fun render(gainDb: Double, write: (FloatArray, Int, Int) -> Unit): OutputMeasure {
+  /**
+   * 本番のパス。write(buf, offsetFrames, frames) に書き出すフレームを渡し、その測定値を返す。
+   * measured = false は solveGain を飛ばしたとき（求めてあるゲインを使う、§8.4）で、進捗を 0 から数える。
+   */
+  fun render(gainDb: Double, measured: Boolean = true, write: (FloatArray, Int, Int) -> Unit): OutputMeasure {
     val tpm = TruePeakMeter(channels)
     val from = when {
-      !doc.loudnessEnabled -> 0.0
+      !doc.loudnessEnabled || !measured -> 0.0
       trials > 0 -> TRIAL_END
       else -> MEASURE_END
     }
@@ -353,6 +386,8 @@ class LoudnessRenderer(
   }
 
   companion object {
+    /** 測定の手順の版。定数や手順を変えたら上げ、保存した測定値を捨てさせる（AUDIO_DESIGN.md §8.4）。 */
+    const val ALGO_VERSION = 1
     const val MIN_GAIN_DB = -40.0
     const val MAX_GAIN_DB = 20.0
     const val MAX_TRIALS = 3
@@ -360,6 +395,32 @@ class LoudnessRenderer(
     /** 初回の補正: リミッターがかかると 1 dB 上げても出力は 1 LU より少なくしか上がらない。 */
     const val FIRST_SLOPE = 0.7
     private const val MEASURE_END = 0.4
-    private const val TRIAL_END = 0.6
+    /** solveGain の進捗はここまで（測定だけのジョブはこれで割って 0〜1 にする）。 */
+    const val TRIAL_END = 0.6
+    /** 最初の測定パスが終わった時点の、測定だけのジョブでの進み具合。 */
+    const val MEASURE_FRACTION = MEASURE_END / TRIAL_END
+  }
+}
+
+/** 裏で測った結果（AUDIO_DESIGN.md §8.4）。 */
+data class MeasureResult(val gainDb: Double, val inputLufs: Double, val inputTruePeakDb: Double, val trials: Int)
+
+/**
+ * 試聴のためにゲインだけを求める（AUDIO_DESIGN.md §7.1 / §8.4）。書き出しと同じ solveGain を使う。
+ * onProgress(0〜1, 仮のゲイン or null)。仮のゲインは最初の測定パスのあとに 1 度だけ載せる。
+ */
+class LoudnessMeasureJob(
+  private val doc: RenderDocument,
+  private val onProgress: (Double, Double?) -> Unit,
+) {
+  @Volatile var cancelled = false
+
+  fun run(): MeasureResult = Mixer(doc).use { mixer ->
+    var provisional: Double? = null
+    val r = LoudnessRenderer(doc, mixer, 4096, { cancelled }, { p, _ ->
+      onProgress((p / LoudnessRenderer.TRIAL_END).coerceIn(0.0, 1.0), provisional)
+    })
+    val g = r.solveGain { provisional = it; onProgress(LoudnessRenderer.MEASURE_FRACTION, it) }
+    MeasureResult(g, r.inputLufs, r.inputTruePeakDb, r.trials)
   }
 }

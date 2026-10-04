@@ -23,6 +23,11 @@ declare class PodsnowAudioEngineModule extends NativeModule<PodsnowAudioEngineMo
 
   /** RenderDocument（JSON 文字列）を読み込む。 */
   loadTimelineAsync(docJson: string): Promise<void>;
+  /**
+   * 読み込み済みのタイムラインの音の仕上げ（ダッキング・ゲイン・リミッター）を、読み直さずに差し替える
+   * （AUDIO_DESIGN.md §7.1）。JSON は RenderDocument の `{ ducking, loudness }` と同じ形。
+   */
+  updateTimelineSoundAsync(soundJson: string): Promise<void>;
   playAsync(atFrame?: number | null): Promise<void>;
   pauseAsync(): Promise<void>;
   seekAsync(frame: number): Promise<void>;
@@ -38,6 +43,10 @@ declare class PodsnowAudioEngineModule extends NativeModule<PodsnowAudioEngineMo
   /** バックグラウンドで書き出しを開始し jobId を返す。進捗・完了はイベント。 */
   startRender(docJson: string, opts: RenderOptions): string;
   cancelRender(jobId: string): void;
+
+  /** 試聴のゲインを裏で測り jobId を返す（AUDIO_DESIGN.md §8.4）。進捗・完了はイベント。 */
+  measureLoudness(docJson: string): string;
+  cancelMeasure(jobId: string): void;
 }
 
 export default requireNativeModule<PodsnowAudioEngineModule>('PodsnowAudioEngine');

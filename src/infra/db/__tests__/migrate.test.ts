@@ -281,9 +281,27 @@ describe('migrate', () => {
       ['x1', 'e1', 'm4a', '{}', 'done', 48000, now],
     );
 
-    expect((await migrate(db)).applied).toEqual(['0006_export_source_fingerprint']);
+    expect((await migrate(db, MIGRATIONS.slice(0, 6))).applied).toEqual([
+      '0006_export_source_fingerprint',
+    ]);
     expect(await db.get('SELECT source_fingerprint FROM exports WHERE id = ?', ['x1'])).toEqual({
       source_fingerprint: null,
+    });
+  });
+
+  it('0007 adds episodes.loudness_cache (NULL = not measured yet)', async () => {
+    const db = createNodeSqliteExecutor();
+    await migrate(db, MIGRATIONS.slice(0, 6));
+    const now = Date.now();
+    await db.run('INSERT INTO shows (id, created_at, updated_at) VALUES (?,?,?)', ['s1', now, now]);
+    await db.run(
+      'INSERT INTO episodes (id, show_id, episode_number, created_at, updated_at) VALUES (?,?,?,?,?)',
+      ['e1', 's1', 1, now, now],
+    );
+
+    expect((await migrate(db)).applied).toEqual(['0007_loudness_cache']);
+    expect(await db.get('SELECT loudness_cache FROM episodes WHERE id = ?', ['e1'])).toEqual({
+      loudness_cache: null,
     });
   });
 

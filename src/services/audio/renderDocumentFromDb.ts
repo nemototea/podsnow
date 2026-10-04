@@ -45,11 +45,14 @@ export function soundSettingsFromShow(bgmDuckDb: number): string {
 }
 
 /**
- * 音の仕上げの変更が試聴に効くか。試聴の Mixer はダッキングをかけるが、ラウドネス正規化は
- * 書き出し時だけ（AUDIO_DESIGN.md §8）。効かない変更で読み直して音を途切れさせない。
+ * 試聴へ送る音の仕上げ（`updateTimelineSound` の JSON。AUDIO_DESIGN.md §7.1）。
+ * `gainDb` が null なら未測定で、ネイティブは調整なし（ゲイン 0 dB・リミッター素通し）で鳴らす。
  */
-export function soundAffectsPlayback(prev: SoundSettings, next: SoundSettings): boolean {
-  return JSON.stringify(prev.ducking) !== JSON.stringify(next.ducking);
+export function timelineSoundJson(sound: SoundSettings, gainDb: number | null): string {
+  return JSON.stringify({
+    ducking: sound.ducking,
+    loudness: gainDb == null ? sound.loudness : { ...sound.loudness, gainDb },
+  });
 }
 
 /** DB からエピソードの RenderDocument を組み立てる（ネイティブは DB を読まない）。 */
@@ -57,7 +60,12 @@ export async function renderDocumentFromDb(
   db: SqlExecutor,
   root: string,
   episodeId: string,
-  opts: { channels?: 1 | 2; sampleRate?: number } = {},
+  opts: {
+    channels?: 1 | 2;
+    sampleRate?: number;
+    /** 求めてあるゲイン（AUDIO_DESIGN.md §8.4）。試聴はこれで鳴らし、書き出しは測定を飛ばす。 */
+    loudnessGainDb?: number | null;
+  } = {},
 ): Promise<RenderDocument> {
   const doc = await loadDoc(db, episodeId);
   const ep = await db.get<{ sound_settings: string }>(
@@ -84,7 +92,7 @@ export async function renderDocumentFromDb(
     path: joinRoot(root, a.path),
     duration: a.duration_smp as Smp,
   }));
-  return buildRenderDocument({
+  const rendered = buildRenderDocument({
     sampleRate: opts.sampleRate ?? 48000,
     channels: opts.channels ?? 1,
     voice: doc.voice,
@@ -94,4 +102,7 @@ export async function renderDocumentFromDb(
     ducking: sound.ducking,
     loudness: sound.loudness,
   });
+  if (opts.loudnessGainDb != null)
+    rendered.loudness = { ...rendered.loudness, gainDb: opts.loudnessGainDb };
+  return rendered;
 }

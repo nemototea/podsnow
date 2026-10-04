@@ -283,6 +283,62 @@ describe('PlaybackService', () => {
     expect(engine.timelines[0]).toMatchObject({ channels: 1 });
   });
 
+  describe('preview sound (Issue #158)', () => {
+    const sound = {
+      loudness: { enabled: true, targetLufs: -16, truePeakDbtp: -1 },
+      ducking: { enabled: true, depthDb: -10, attackMs: 50, releaseMs: 500, thresholdDb: -40 },
+    };
+
+    it('changes the sound while playing without reloading the timeline', async () => {
+      const { engine, svc } = await setup({ withVoice: true });
+      await svc.setTimelineChannels(1);
+      await svc.reload('e');
+      await svc.play(smp(48000));
+      const loads = engine.timelines.length;
+      await svc.setTimelineSound('e', sound, { channels: 1, gainDb: 3.5 });
+      expect(engine.timelines).toHaveLength(loads);
+      expect(svc.isPlaying).toBe(true);
+      expect(engine.sounds.at(-1)).toEqual({
+        ducking: sound.ducking,
+        loudness: { ...sound.loudness, gainDb: 3.5 },
+      });
+    });
+
+    it('loads the timeline with the gain only for the channels it was measured for', async () => {
+      const { engine, svc } = await setup({ withVoice: true });
+      await svc.setTimelineChannels(1);
+      await svc.setTimelineSound('e', sound, { channels: 1, gainDb: -2 });
+      // 読み込む前は覚えておくだけ
+      expect(engine.sounds).toHaveLength(0);
+      await svc.reload('e');
+      expect(engine.timelines.at(-1)).toMatchObject({ loudness: { gainDb: -2 } });
+      // ステレオで鳴らすときは、モノラルで測ったゲインを使わない（約 3 LU 違う）
+      await svc.setTimelineChannels(2);
+      expect(
+        (engine.timelines.at(-1) as { loudness: { gainDb?: number } }).loudness.gainDb,
+      ).toBeUndefined();
+      // 別の回のゲインも使わない
+      await svc.setTimelineChannels(1);
+      await svc.setTimelineSound('other', sound, { channels: 1, gainDb: 5 });
+      await svc.reload('e');
+      expect(
+        (engine.timelines.at(-1) as { loudness: { gainDb?: number } }).loudness.gainDb,
+      ).toBeUndefined();
+    });
+
+    it('drops the gain when the export tab is left', async () => {
+      const { engine, svc } = await setup({ withVoice: true });
+      await svc.reload('e');
+      await svc.setTimelineSound('e', sound, { channels: 2, gainDb: 4 });
+      await svc.setTimelineSound('e', sound, null);
+      expect(engine.sounds.at(-1)).toEqual({ ducking: sound.ducking, loudness: sound.loudness });
+      await svc.reload('e');
+      expect(
+        (engine.timelines.at(-1) as { loudness: { gainDb?: number } }).loudness.gainDb,
+      ).toBeUndefined();
+    });
+  });
+
   it('pauses when toggled while playing', async () => {
     const { svc } = await setup({ withVoice: true });
     await svc.reload('e');

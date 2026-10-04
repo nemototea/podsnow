@@ -26,6 +26,9 @@ public class PodsnowAudioEngineModule: Module {
   /// ロック画面・コントロールセンター（AUDIO_DESIGN.md §10.5）。
   private lazy var nowPlaying = NowPlaying { [weak self] name, body in self?.sendEvent(name, body) }
   private var jobs: [String: RenderJob] = [:]
+  private var measures: [String: LoudnessMeasureJob] = [:]
+  /// 試聴のゲインの測定（AUDIO_DESIGN.md §8.4）。再生や書き出しより低い優先度。
+  private let measureQueue = DispatchQueue(label: "dev.nemotea.podsnow.audioengine.measure", qos: .utility, attributes: .concurrent)
   private var jobSeq = 0
   private let workQueue = DispatchQueue(label: "dev.nemotea.podsnow.audioengine.work", qos: .userInitiated, attributes: .concurrent)
   private let jobsLock = NSLock()
@@ -40,7 +43,7 @@ public class PodsnowAudioEngineModule: Module {
   public func definition() -> ModuleDefinition {
     Name("PodsnowAudioEngine")
 
-    Events("onRenderProgress", "onRenderDone", "onRenderError", "onPlaybackState", "onPosition", "onError", "onTaskProgress", "onPlaybackInterruption", "onOutputDisconnected", "onRemoteCommand")
+    Events("onRenderProgress", "onRenderDone", "onRenderError", "onMeasureProgress", "onMeasureDone", "onMeasureError", "onPlaybackState", "onPosition", "onError", "onTaskProgress", "onPlaybackInterruption", "onOutputDisconnected", "onRemoteCommand")
 
     OnCreate {
       self.watcher = PlaybackSessionWatcher(
@@ -52,7 +55,10 @@ public class PodsnowAudioEngineModule: Module {
     OnDestroy {
       self.watcher = nil
       DispatchQueue.main.async { self.nowPlaying.clear() }
-      self.jobsLock.lock(); self.jobs.values.forEach { $0.cancelled = true }; self.jobsLock.unlock()
+      self.jobsLock.lock()
+      self.jobs.values.forEach { $0.cancelled = true }
+      self.measures.values.forEach { $0.cancelled = true }
+      self.jobsLock.unlock()
       self.player?.release()
       self.player = nil
     }
@@ -90,6 +96,10 @@ public class PodsnowAudioEngineModule: Module {
 
     AsyncFunction("pauseAsync") {
       self.getPlayer().pause()
+    }.runOnQueue(.main)
+
+    AsyncFunction("updateTimelineSoundAsync") { (json: String) in
+      self.player?.updateSound(try TimelineSound.parse(json: json))
     }.runOnQueue(.main)
 
     AsyncFunction("seekAsync") { (frame: Double) in
@@ -143,6 +153,38 @@ public class PodsnowAudioEngineModule: Module {
 
     Function("cancelRender") { (jobId: String) in
       self.jobsLock.lock(); self.jobs[jobId]?.cancelled = true; self.jobsLock.unlock()
+    }
+
+    // ---- ラウドネスの測定（試聴のゲイン、AUDIO_DESIGN.md §7.1 / §8.4）----
+    Function("measureLoudness") { (docJson: String) -> String in
+      let doc = try RenderDocument.parse(json: docJson)
+      self.jobSeq += 1
+      let id = "measure-\(self.jobSeq)"
+      let job = LoudnessMeasureJob(doc: doc) { [weak self] p, provisional in
+        var body: [String: Any] = ["jobId": id, "progress": p]
+        if let g = provisional { body["gainDb"] = g }
+        self?.sendEvent("onMeasureProgress", body)
+      }
+      self.jobsLock.lock(); self.measures[id] = job; self.jobsLock.unlock()
+      self.measureQueue.async { [weak self] in
+        defer { self?.jobsLock.lock(); self?.measures[id] = nil; self?.jobsLock.unlock() }
+        do {
+          let r = try job.run()
+          self?.sendEvent("onMeasureDone", [
+            "jobId": id, "gainDb": r.gainDb, "inputLufs": r.inputLufs, "inputTruePeakDb": r.inputTruePeakDb,
+            "trials": r.trials, "algo": LoudnessRenderer.algoVersion,
+          ])
+        } catch AudioEngineError.cancelled {
+          self?.sendEvent("onMeasureError", ["jobId": id, "message": "cancelled", "cancelled": true])
+        } catch {
+          self?.sendEvent("onMeasureError", ["jobId": id, "message": error.localizedDescription, "cancelled": false])
+        }
+      }
+      return id
+    }
+
+    Function("cancelMeasure") { (jobId: String) in
+      self.jobsLock.lock(); self.measures[jobId]?.cancelled = true; self.jobsLock.unlock()
     }
   }
 }
