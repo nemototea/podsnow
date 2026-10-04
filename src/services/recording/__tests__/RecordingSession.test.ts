@@ -232,7 +232,57 @@ describe('RecordingSession', () => {
     const r = await session.stop();
     expect(r?.durationSmp).toBe(777);
     expect((await getTake(db, takeId))?.status).toBe('ready');
-    expect(recorder.calls).toEqual(['prepare', 'start:seg-0001.wav']);
+    // 新しい Segment は開かず、ネイティブを prepared へ戻すだけ
+    expect(recorder.calls).toEqual(['prepare', 'start:seg-0001.wav', 'stop']);
+    expect(recorder.state).toBe('prepared');
+    const segs = await listSegments(db, takeId);
+    expect(segs).toHaveLength(1);
+    expect(segs[0]).toMatchObject({ duration_smp: 777, reason_closed: 'interruption' });
+  });
+
+  it('割り込み中に止めたあとも、次の録音を始められる', async () => {
+    const { db, recorder, session } = await setup();
+    await session.start('e');
+    recorder.frames = 777;
+    recorder.interrupt();
+    await flush();
+    await session.stop();
+    const second = await session.start('e');
+    expect(session.current).toBe('recording');
+    recorder.frames = 4800;
+    await session.stop();
+    expect((await getTake(db, second))?.status).toBe('ready');
+    expect((await loadDoc(db, 'e')).voice.map((v) => v.srcEnd)).toEqual([777, 4800]);
+  });
+
+  it('割り込み中に止めたあとも、入力モニターを始められる', async () => {
+    const { recorder, session } = await setup();
+    await session.start('e');
+    recorder.frames = 777;
+    recorder.interrupt();
+    await flush();
+    await session.stop();
+    await session.startMonitor();
+    expect(session.current).toBe('monitoring');
+    expect(recorder.state).toBe('monitoring');
+  });
+
+  it('割り込み後にネイティブを戻せなくても Take は確定し、エラーを知らせる', async () => {
+    const { db, recorder, session } = await setup();
+    const errors: string[] = [];
+    session.on('error', (e) => errors.push(e.message));
+    const takeId = await session.start('e');
+    recorder.frames = 777;
+    recorder.interrupt();
+    await flush();
+    recorder.stop = async () => {
+      throw new Error('boom');
+    };
+    const r = await session.stop();
+    expect(r?.durationSmp).toBe(777);
+    expect((await getTake(db, takeId))?.status).toBe('ready');
+    expect(session.current).toBe('idle');
+    expect(errors).toEqual(['recorder stop after interruption: boom']);
   });
 
   it('disk-low safe stop from native finalizes the take', async () => {

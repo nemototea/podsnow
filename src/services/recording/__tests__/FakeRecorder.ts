@@ -32,6 +32,9 @@ export class FakeRecorder implements RecorderPort {
   }
   async prepare(config: RecorderConfig) {
     this.calls.push('prepare');
+    // ネイティブと同じく、録音中・割り込み中・モニター中は準備し直せない
+    if (this.state !== 'idle' && this.state !== 'prepared')
+      throw new Error(`bad state ${this.state}`);
     this.config = config;
     this.state = 'prepared';
   }
@@ -69,6 +72,11 @@ export class FakeRecorder implements RecorderPort {
   }
   async stop(): Promise<SegmentResult> {
     this.calls.push('stop');
+    if (this.state === 'interrupted') {
+      // Segment は割り込みで閉じている。ネイティブは何も閉じず、イベントも出さずに prepared へ戻る
+      this.state = 'prepared';
+      return { ...this.result(), frames: 0, bytes: 0 };
+    }
     const r = this.result();
     this.state = 'prepared';
     // ネイティブは stop() の解決前に onSegmentClosed を出す

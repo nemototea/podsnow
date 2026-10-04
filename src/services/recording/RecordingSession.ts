@@ -375,8 +375,18 @@ export class RecordingSession {
   async stop(): Promise<{ takeId: string; durationSmp: Smp } | null> {
     if (!this.active) return null;
     if (this.state === 'interrupted') {
-      // 割り込みで Segment はすでに閉じている。Take を確定するだけ。
-      return this.finalizeTake();
+      // 割り込みで Segment はすでに閉じている。Take を確定し、ネイティブも interrupted から
+      // prepared へ戻す。戻さないと次の prepare()（録音・入力モニター）が断られ、Android は
+      // 前面サービス（録音中の通知）も残る。閉じる Segment が無いので onSegmentClosed は来ない。
+      const r = await this.finalizeTake();
+      if (this.deps.recorder.getState() === 'interrupted') {
+        await this.deps.recorder
+          .stop()
+          .catch((err: Error) =>
+            this.dispatch('error', { message: `recorder stop after interruption: ${err.message}` }),
+          );
+      }
+      return r;
     }
     if (this.state !== 'recording' && this.state !== 'paused') return null;
     this.setState('stopping');
