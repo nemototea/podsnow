@@ -207,6 +207,7 @@ MVP は起動時に 1 行自動作成。【事実】
 | sound_settings | TEXT | JSON: `{ loudness: { enabled, targetLufs: -16, truePeakDbtp: -1 }, ducking: { enabled, depthDb, attackMs, releaseMs } }` |
 | audio_purged_at | INTEGER nullable | 「音声を削除」（FR-EP-4）を実行した時刻。録音だけ消し、行・話数・メタデータ・書き出し履歴は残す。一覧では「音声なし」として表示する |
 | export_preset | TEXT nullable | この回で最後に選んだ書き出しプリセットのキー（`podcast` / `high` / `wav` / `custom`）。NULL = 選んだことがない。§4.5.1 |
+| loudness_cache | TEXT nullable | 【設計: Issue #158、移行 0007】ラウドネス測定の結果。JSON の配列（チャンネル数ごとに最新 1 件、最大 2 件）: `[{ fingerprint, channels, algo, gainDb, inputLufs, inputTruePeakDb, trials, measuredAt }]`。`fingerprint` は §4.13 の `source_fingerprint` と同じ計算。今の指紋・チャンネル数・`algo` と合う値だけを使う。試聴と書き出しが同じゲインを使うため（AUDIO_DESIGN.md §8.4）。キャッシュなので、消えても測り直すだけ。複製では引き継がない（複製した回は最初に開いたときに測る） |
 | guid | TEXT | RSS の `guid`。作成時の `id` を入れ、以後変えない（PSP-1: 一意で、決して変えない）。配信基盤はこの値を RSS に出す（REQUIREMENTS.md FR-PUB-3。#107 §7）。0005 で既存行にも `id` を入れた。索引 `(show_id, guid)` |
 | episode_type | TEXT NOT NULL DEFAULT 'full' | `itunes:episodeType`。`full` / `trailer` / `bonus` |
 | explicit | INTEGER nullable | `itunes:explicit`（0 / 1）。NULL は番組の `explicit` に従う |
