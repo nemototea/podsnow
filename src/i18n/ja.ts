@@ -100,6 +100,8 @@ export const ja = {
     recording_resume_failed: '録音の再開に失敗しました',
     disk_space_insufficient: '端末の空き容量が足りません',
     export_app_terminated: 'アプリが終了したため中断されました',
+    export_metadata_failed:
+      '音声は書き出せましたが、題名やアートワークをファイルに書き込めませんでした',
     import_not_https: 'https:// で始まる URL だけ読み込めます',
     import_network_failed: '接続できませんでした。通信環境を確認してください',
     import_timeout: '応答がありませんでした。しばらくしてからもう一度お試しください',
@@ -479,6 +481,7 @@ Podcast: {{show_name}}
     historyEyebrow: '書き出し履歴',
     cancelled: '書き出しを中止しました',
     historyFailed: (message: string) => `失敗: ${message}`,
+    historyNoMetadata: '題名・アートワークなし',
     historyCancelled: '中止',
     historyRunning: (pct: number) => `進行中 ${pct}%`,
     deleteExport: '書き出しを削除',

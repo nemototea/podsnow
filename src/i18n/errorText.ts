@@ -25,6 +25,7 @@ export function errorCodeText(
     case 'recording_resume_failed':
     case 'disk_space_insufficient':
     case 'export_app_terminated':
+    case 'export_metadata_failed':
     case 'import_not_https':
     case 'import_network_failed':
     case 'import_timeout':

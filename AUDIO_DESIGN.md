@@ -183,6 +183,7 @@ Gain = target(-16 LUFS) − measured（-40〜+20 dB）
 本番パス: Gain → トゥルーピークリミッター（ceiling -1 dBTP）→ 出力を測定 → Encoder
 Encoder: AAC (iOS AVAssetWriter / Android MediaCodec+MediaMuxer) または WAV writer
   ▼ progress イベント → exports.progress
+後処理（JS、§8.3）: 題名・番組名・アートワーク等のメタデータを埋め込む → exports を done に
 ```
 - 中間 PCM は持たず、パスごとにミキサーで作り直す（60 分でも一時ファイルが要らない）。
 - `exports.measured_lufs` / `measured_true_peak` は**書き出したファイル（出力）**の実測値。UI（書き出し履歴・配信の準備）に表示し、目標より 1 LU 以上小さければ「目標に届いていません」と出す。
@@ -239,6 +240,53 @@ Encoder: AAC (iOS AVAssetWriter / Android MediaCodec+MediaMuxer) または WAV w
 
 - 処理時間（参考、サーバー CPU）: 120 秒ステレオで約 2.4 秒（測り直し 2 回を含む）。60 分なら約 1 分強。実機では数倍かかる見込み【仮説】。
 - **未検証**: Swift 実装（この環境でビルドできない）、実機での書き出し時間、AAC エンコード後のトゥルーピーク（エンコーダで少し増える。-1 dBTP の天井はその余裕）。
+
+### 8.3 メタデータの埋め込み（Issue #56、FR-EXP-10）【事実 + 仮説】
+
+ネイティブのレンダ（ミックス・ラウドネス・リミッター・エンコード）が終わったあと、`ExportService` が**後処理として** JS で埋め込み、それから `exports` を `done` にする。`RenderJob` / `Loudness` には手を入れない。
+
+- 両 OS とも同じ実装（`src/services/export/embedMetadata.ts`、バイト列の組み立ては `src/domain/metadata/`）。
+  - Android の `MediaMuxer` には題名・アートワークなどファイル単位のメタデータを書く API が無い【確認済み】（公開メソッドは `addTrack` / `setLocation` / `setOrientationHint` / `start` / `stop` / `writeSampleData` / `release`。「Metadata Track」はフレームごとの時刻付きデータで別物）。https://developer.android.com/reference/android/media/MediaMuxer
+  - iOS の `AVAssetWriter.metadata` は書ける（書き込み開始後は変更不可）【確認済み】が使わない。片方の OS だけ別経路にすると、同じ値・構造かを片方しか確かめられないため。https://developer.apple.com/documentation/avfoundation/avassetwriter/metadata
+- **ライブラリを使わず自前で書く**（ユーザー判断 2026-10-04）。ffmpeg 等もアプリには入れない。
+  - 理由: 書くのは題名・アートワークの箱 / チャンクだけで音声には触らず、範囲が小さい（約 350 行）。両 OS で 1 つの実装になり、Jest で読み戻して確かめられる。結果は ffprobe・mutagen と照合した（下の「検証」）。
+  - 比べた候補（2026-10-04 時点。React Native で動くかは未確認【仮説】）:
+
+| 候補 | 状況 | 採らなかった理由 |
+|---|---|---|
+| `taglib-wasm`（npm、MIT） | TagLib の WebAssembly 版。MP4 / WAV のタグを書ける | Hermes で WebAssembly が動かない見込み【仮説】 |
+| `mp4box`（npm、BSD-3-Clause） | MP4 の読み書き | iTunes 形式のタグを書けるか未確認 |
+| `music-metadata` / `node-id3`（npm） | 読むだけ / MP3 の ID3 だけ | 用途に合わない |
+| iOS `AVAssetExportSession`（パススルー + `metadata`） | OS 標準 | Android は別に要り、両 OS で実装が分かれる |
+| Android `org.mp4parser:isoparser`（Apache-2.0） | MP4 の箱を組み立てられる | 最終リリース 1.9.56（2022-04）。OS で実装が分かれる |
+| Android `net.jthink:jaudiotagger`（LGPL） | M4A / WAV のタグ・アートワーク | 最終リリース 3.0.1（2021-10）。LGPL |
+
+- 自前の実装を見直す条件: 扱う形式が増える（MP3 の ID3 など）、章（チャプター）を書く、または React Native で動いて保守されているライブラリが見つかったとき。
+- **M4A**: `moov/udta/meta`（ハンドラ `mdir`）の `ilst` に iTunes 形式で書く。値の型は QuickTime の well-known types（UTF-8 = 1、JPEG = 13、PNG = 14、`trkn` は 0）【確認済み】https://developer.apple.com/documentation/quicktime-file-format/well-known_types
+  - `moov` を組み直した写しを同じフォルダ（`<exportId>.m4a.tagging`）に書き、できてから元と置き換える。途中で失敗しても元は壊れない。
+  - `moov` が `mdat` より前にあれば、大きくなった分だけ `stco` / `co64` をずらす。`MediaMuxer` がどちらに置くかは未確認【仮説】なので、どちらでも動くようにした。
+  - 既存の `udta/meta` は置き換え、`udta` のほかの子（位置情報など）は残す。
+- **WAV**: 末尾に `LIST/INFO` を足し、RIFF の長さを直す（数百 MB を写さないため、その場で書く）。**アートワークは入れない**（WAV にアートワークの標準は無い。`id3 ` チャンクは慣習で、読めるアプリがまちまち）。文字は UTF-8【仮説: 古い Windows のアプリでは化けることがある】。
+- **埋め込めなくても書き出しは完了にし、音声のファイルを渡す**（形式・音量に問題が無いのにメタデータだけで書き出せないのは困る。ユーザー判断 2026-10-03）。
+  - なるべく埋め込む: アートワークが読めない（無い・JPEG / PNG でない）ときはアートワークを省く。アートワーク込みで失敗したら、アートワーク無しでもう一度試す。
+  - それでも駄目なら、ファイルは埋め込む前のまま（M4A は写しに書くので元は壊れない。WAV は書く前に検査する）。`exports` は `done` で、`error` に警告 `export_metadata_failed` を残す。完了時にトーストで知らせ、書き出し履歴に「題名・アートワークなし」と出す。
+- 長いファイルの写しで画面を止めないよう、4 MB ごとに JS のスレッドを空ける。
+
+| 項目 | MP4 | WAV | 値 |
+|---|---|---|---|
+| 題名 | `©nam` | `INAM` | エピソードのタイトル（空なら書かない） |
+| アーティスト | `©ART` / `aART` | `IART` | 番組の著者（`shows.author`）。空なら番組名 |
+| アルバム | `©alb` | `IPRD` | 番組名 |
+| 話数 | `trkn` | `ITRK` | `episodes.episode_number` |
+| 日付 | `©day` | `ICRD` | 配信日時 `published_at` → 無ければ配信予定 `publish_planned_at`。端末の時差つき ISO 8601（WAV は日付だけ）。どちらも無ければ書かない |
+| ジャンル | `©gen` | `IGNR` | `Podcast`（ID3 の拡張ジャンル名。訳さない） |
+| 書いたアプリ | `©too` | `ISFT` | `PodsNow <version>` |
+| アートワーク | `covr` | — | `shows.cover_path` |
+
+検証
+- 【確認済み: Jest】書き出したファイル（ffmpeg 6.1 で作った AAC。`moov` が後ろ / 前の 2 種類）に埋め込み、読み戻して値・アートワークが一致すること、`mdat` が 1 バイトも変わらずチャンク位置がずれた先を正しく指すこと、壊れたファイルで元が残ること（`src/services/export/__tests__/embedMetadata.test.ts`）。
+- 【確認済み: この作業環境】同じ処理の出力を ffprobe（FFmpeg 6.1.1）と mutagen（Python）で読み、全項目とアートワークを読めた。デコードした音声の MD5 が埋め込み前と一致。
+- **未検証（実機）**: iOS の `AVAssetWriter` と Android の `MediaMuxer` が実際に書いたファイルへの埋め込み、iOS の「ファイル」アプリ・ミュージック、Android のファイルアプリ、配信サービス（Spotify for Creators / stand.fm）のアップロード画面での表示。手順は Issue #56 のコメント。
 
 ## 9. コーデック対応表
 
