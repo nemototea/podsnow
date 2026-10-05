@@ -91,6 +91,13 @@ export class PlaybackService {
   private timelineTotal = 0;
   private timelineFrame = 0;
   private playing = false;
+  /**
+   * タイムライン再生を始めている途中（engine.play の完了待ち）。ネイティブの playing 通知が来る前に
+   * もう一度押されたら「止める」として扱い、始めかけの再生を取り消す（Issue #229）。
+   */
+  private timelineStarting = false;
+  /** 始めかけの再生を取り消すための通し番号。止めるたびに進める。 */
+  private timelineStartSeq = 0;
   private mode: PlaybackMode = null;
   private fileItem: FileItem | null = null;
   private fileUri: string | null = null;
@@ -331,13 +338,27 @@ export class PlaybackService {
 
   private async playTimeline(at?: Smp): Promise<void> {
     if (!this.loadedEpisode || this.deps.recorderBusy()) return;
-    this.deps.filePlayer.pause();
-    await this.enterPlayback();
-    this.mode = 'timeline';
-    this.total = this.timelineTotal;
-    this.frame = at ?? (this.timelineFrame as Smp);
-    this.showNowPlaying();
-    await this.deps.engine.play(at ?? null);
+    const seq = ++this.timelineStartSeq;
+    this.timelineStarting = true;
+    try {
+      this.deps.filePlayer.pause();
+      await this.enterPlayback();
+      // 音声モードを当てている間に止められた
+      if (seq !== this.timelineStartSeq) return;
+      this.mode = 'timeline';
+      this.total = this.timelineTotal;
+      this.frame = at ?? (this.timelineFrame as Smp);
+      this.showNowPlaying();
+      await this.deps.engine.play(at ?? null);
+    } finally {
+      if (seq === this.timelineStartSeq) this.timelineStarting = false;
+    }
+  }
+
+  /** 始めかけのタイムライン再生を取り消す。ネイティブ側は pause で、有効化待ちの再生要求を捨てる。 */
+  private cancelTimelineStart(): void {
+    this.timelineStartSeq++;
+    this.timelineStarting = false;
   }
 
   async pause(): Promise<void> {
@@ -346,6 +367,9 @@ export class PlaybackService {
   }
 
   private async pauseCurrent(): Promise<void> {
+    const starting = this.timelineStarting;
+    this.cancelTimelineStart();
+    if (starting && this.mode !== 'timeline') await this.deps.engine.pause();
     if (this.mode === 'file') {
       this.fileWanted = false;
       this.deps.filePlayer.pause();
@@ -359,7 +383,9 @@ export class PlaybackService {
 
   async pauseTimeline(): Promise<void> {
     this.userAction();
-    if (this.mode === 'timeline') await this.deps.engine.pause();
+    const starting = this.timelineStarting;
+    this.cancelTimelineStart();
+    if (this.mode === 'timeline' || starting) await this.deps.engine.pause();
   }
 
   /** 録音側（録音・入力モニター）が音声セッションを取る前に呼ぶ。止めて、ロック画面からも消す（§10.1 / §10.5）。 */
@@ -374,7 +400,10 @@ export class PlaybackService {
    */
   async leaveEpisode(): Promise<void> {
     this.userAction();
-    if (this.mode !== 'timeline' || this.timelineItem?.homeKey) return;
+    if (this.timelineItem?.homeKey) return;
+    const starting = this.timelineStarting;
+    this.cancelTimelineStart();
+    if (this.mode !== 'timeline' && !starting) return;
     this.hideNowPlaying();
     await this.deps.engine.pause();
   }
@@ -383,7 +412,8 @@ export class PlaybackService {
   async toggle(): Promise<void> {
     this.userAction();
     this.timelineItem = null;
-    if (this.mode === 'timeline' && this.playing) await this.pauseTimeline();
+    if (this.timelineStarting || (this.mode === 'timeline' && this.playing))
+      await this.pauseTimeline();
     else await this.play(this.timelineFrame >= this.timelineTotal ? ZERO_SMP : undefined);
   }
 
@@ -498,7 +528,7 @@ export class PlaybackService {
   async toggleCurrentHome(): Promise<boolean> {
     this.userAction();
     if (!this.source?.homeKey) return false;
-    if (this.playing) await this.pauseCurrent();
+    if (this.playing || this.timelineStarting) await this.pauseCurrent();
     else await this.resumeCurrent();
     return true;
   }

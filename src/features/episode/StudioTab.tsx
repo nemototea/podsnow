@@ -26,12 +26,12 @@ import {
   Notice,
   Row,
   SectionHeader,
-  Sheet,
   Text,
   Toggle,
   useCompact,
   type IconName,
 } from '@/ui/components';
+import { Sheet } from '@/ui/Sheet';
 import { AssetSticker, OnAirLamp } from '@/ui/media';
 import { useAppTheme } from '@/ui/ThemeContext';
 

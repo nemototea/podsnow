@@ -40,10 +40,10 @@ import {
   Row,
   Screen,
   SectionHeader,
-  Sheet,
   Text,
   Toast,
 } from '@/ui/components';
+import { Sheet } from '@/ui/Sheet';
 import { ScreenHeader } from '@/ui/ScreenHeader';
 import { useAppTheme } from '@/ui/ThemeContext';
 import { useToast } from '@/ui/useToast';
