@@ -18,6 +18,9 @@ final class TimelinePlayer {
   private let renderQueue = DispatchQueue(label: "dev.nemotea.podsnow.player.render", qos: .userInteractive)
   private var scratch = UnsafeMutablePointer<Float>.allocate(capacity: 8192)
   private var scratchCap = 8192
+  /// play の要求の通し番号（メインスレッドだけで触る）。pause / stop で進め、有効化を待っている要求を無効にする。
+  private var playRequest = 0
+  private static let sessionQueue = DispatchQueue(label: "dev.nemotea.podsnow.player.session", qos: .userInitiated)
 
   init(emitter: @escaping Emitter) { emit = emitter }
 
@@ -43,14 +46,32 @@ final class TimelinePlayer {
     m?.updateSound(s)
   }
 
-  func play(at frame: Int64?) throws {
-    guard let d = doc, let m = mixer else { throw AudioEngineError.message("no timeline loaded") }
+  /// メインスレッドから呼ぶ。音声セッションを有効にしてからエンジンを起動し、done をメインスレッドで呼ぶ。
+  /// setActive はメインで呼ぶと UI が止まりうる（OS の Hang Risk 警告、Issue #229）ので、専用の直列キューで呼ぶ。
+  /// 有効化を待つ間に pause / stop / load / 次の play が来たら、この要求ではエンジンを起動しない。
+  func play(at frame: Int64?, done: @escaping (Error?) -> Void) {
+    guard let d = doc else { done(AudioEngineError.message("no timeline loaded")); return }
     lock.lock()
     if let f = frame { position = max(0, min(d.totalFrames, f)) }
     lock.unlock()
-    if playing { return }
-    // カテゴリは決めない。再生の音声モードは JS が再生の直前に当てる（AUDIO_DESIGN.md §10.2）
-    try AVAudioSession.sharedInstance().setActive(true)
+    if playing { done(nil); return }
+    playRequest += 1
+    let request = playRequest
+    Self.sessionQueue.async {
+      // カテゴリは決めない。再生の音声モードは JS が再生の直前に当てる（AUDIO_DESIGN.md §10.2）
+      do { try AVAudioSession.sharedInstance().setActive(true) } catch {
+        DispatchQueue.main.async { done(error) }
+        return
+      }
+      DispatchQueue.main.async { [weak self] in
+        guard let self, request == self.playRequest, !self.playing else { done(nil); return }
+        do { try self.startEngine(); done(nil) } catch { done(error) }
+      }
+    }
+  }
+
+  private func startEngine() throws {
+    guard let d = doc, let m = mixer else { throw AudioEngineError.message("no timeline loaded") }
     let ch = m.channels
     guard let fmt = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: Double(d.sampleRate), channels: AVAudioChannelCount(ch), interleaved: false) else {
       throw AudioEngineError.message("format")
@@ -102,6 +123,7 @@ final class TimelinePlayer {
   }
 
   func pause() {
+    playRequest += 1
     guard playing else { return }
     playing = false
     stopEngine()
@@ -118,6 +140,7 @@ final class TimelinePlayer {
   }
 
   func stop() {
+    playRequest += 1
     playing = false
     stopEngine()
   }

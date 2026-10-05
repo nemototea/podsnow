@@ -90,8 +90,11 @@ public class PodsnowAudioEngineModule: Module {
       try self.getPlayer().load(try RenderDocument.parse(json: docJson))
     }.runOnQueue(.main)
 
-    AsyncFunction("playAsync") { (atFrame: Double?) in
-      try self.getPlayer().play(at: atFrame.map { Int64($0) })
+    // 音声セッションの有効化は TimelinePlayer が別キューで行い、エンジンが動いてから resolve する（Issue #229）
+    AsyncFunction("playAsync") { (atFrame: Double?, promise: Promise) in
+      self.getPlayer().play(at: atFrame.map { Int64($0) }) { error in
+        if let error { promise.reject(error) } else { promise.resolve() }
+      }
     }.runOnQueue(.main)
 
     AsyncFunction("pauseAsync") {

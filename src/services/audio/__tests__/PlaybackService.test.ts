@@ -347,6 +347,53 @@ describe('PlaybackService', () => {
     expect(svc.isPlaying).toBe(false);
   });
 
+  // Issue #229: iOS は音声セッションの有効化を別スレッドで待つので、playing の通知は少し遅れて届く。
+  // その間にもう一度押したら「止める」として扱い、始めかけの再生を取り消す。
+  describe('toggled again while starting (Issue #229)', () => {
+    it('pauses instead of starting twice while the engine is starting', async () => {
+      const { engine, svc } = await setup({ withVoice: true });
+      await svc.reload('e');
+      let finish = () => {};
+      let reached = () => {};
+      const playCalled = new Promise<void>((r) => (reached = r));
+      const play = jest.spyOn(engine, 'play').mockImplementation(() => {
+        reached();
+        return new Promise<void>((r) => (finish = r));
+      });
+      const pause = jest.spyOn(engine, 'pause');
+      const first = svc.toggle();
+      await playCalled;
+      await svc.toggle();
+      finish();
+      await first;
+      expect(play).toHaveBeenCalledTimes(1);
+      expect(pause).toHaveBeenCalledTimes(1);
+      expect(svc.isPlaying).toBe(false);
+    });
+
+    it('does not start the engine when paused while the audio mode is being set', async () => {
+      const { engine, session, svc } = await setup({ withVoice: true });
+      await svc.reload('e');
+      let entered = () => {};
+      session.enterPlayback.mockImplementationOnce(() => new Promise<void>((r) => (entered = r)));
+      const play = jest.spyOn(engine, 'play');
+      const first = svc.toggle();
+      await svc.pause();
+      entered();
+      await first;
+      expect(play).not.toHaveBeenCalled();
+      expect(svc.isPlaying).toBe(false);
+    });
+
+    it('plays normally once the start has finished', async () => {
+      const { engine, svc } = await setup({ withVoice: true });
+      await svc.reload('e');
+      await svc.toggle();
+      expect(engine.playing).toBe(true);
+      expect(svc.isPlaying).toBe(true);
+    });
+  });
+
   it('switches from timeline playback to the latest available exported file', async () => {
     const { db, engine, filePlayer, svc } = await setup({ withVoice: true });
     await insertCurrentExport(db, 'x1');

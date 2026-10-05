@@ -1071,6 +1071,5 @@ const s = StyleSheet.create({
 export type { TextStyle, ViewStyle };
 export { Icon, type IconName } from './Icon';
 export { Segmented, type SegmentedProps } from './Segmented';
-export { Sheet, type SheetProps } from './Sheet';
 export { Text, TextInput } from './Text';
 export { concentric, gutter, hit, hitSlop, icon, radius, space, typography };
