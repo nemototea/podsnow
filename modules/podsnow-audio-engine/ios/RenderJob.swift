@@ -136,7 +136,7 @@ final class ResamplingSink: PcmSink {
     buf.frameLength = AVAudioFrameCount(n)
     memcpy(buf.int16ChannelData![0], pcm, n * channels * 2)
     var given = false
-    try drain { status in
+    try drain { _, status in
       if given { status.pointee = .noDataNow; return nil }
       given = true
       status.pointee = .haveData
@@ -146,7 +146,7 @@ final class ResamplingSink: PcmSink {
 
   func finish() throws {
     // 変換器に残っている分（フィルタの遅れ）を出し切ってから閉じる
-    try drain { status in status.pointee = .endOfStream; return nil }
+    try drain { _, status in status.pointee = .endOfStream; return nil }
     try inner.finish()
   }
 
