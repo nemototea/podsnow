@@ -11,7 +11,7 @@ import { embedExportMetadata } from '../embedMetadata';
 
 const FIXTURES = path.join(__dirname, 'fixtures');
 
-/** ffmpeg 6.1 で作った 0.5 秒の AAC（moov が mdat の後ろ / 前）。Lavf の ilst が既に入っている。 */
+/** ffmpeg で作った 0.5 秒の AAC（moov が mdat の後ろ / 前）。Lavf の ilst が既に入っている。作り方は fixtures/README.md。 */
 const M4A_FIXTURES = ['moov-last.m4a', 'moov-first.m4a'] as const;
 
 const TAGS: ExportTags = exportTags({
