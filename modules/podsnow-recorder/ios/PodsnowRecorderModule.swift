@@ -48,7 +48,8 @@ public class PodsnowRecorderModule: Module {
       return ["microphone": status, "notifications": "granted"]
     }
 
-    AsyncFunction("prepareAsync") { (config: RecorderConfigRecord) in
+    // 音声セッションの操作は RecorderEngine が専用キューで行い、続きまで終わってから resolve する（Issue #231）
+    AsyncFunction("prepareAsync") { (config: RecorderConfigRecord, promise: Promise) in
       var c = RecorderEngine.Config()
       c.sampleRate = config.sampleRate
       c.channels = max(1, min(2, config.channels))
@@ -56,20 +57,20 @@ public class PodsnowRecorderModule: Module {
       if let d = config.diskLowThresholdBytes { c.diskLowThresholdBytes = UInt64(max(0, d)) }
       if let h = config.headerFlushIntervalMs { c.headerFlushInterval = max(0.1, h / 1000) }
       if let l = config.levelIntervalMs { c.levelInterval = max(0.01, l / 1000) }
-      try self.getEngine().prepare(c)
+      self.getEngine().prepare(c, done: RecorderModuleSupport.settle(promise))
     }.runOnQueue(.main)
 
     // 録音前の入力モニター（ファイルに書かない。AUDIO_DESIGN.md §3.6、Issue #169）
-    AsyncFunction("startMonitorAsync") {
-      try self.getEngine().startMonitor()
+    AsyncFunction("startMonitorAsync") { (promise: Promise) in
+      self.getEngine().startMonitor(done: RecorderModuleSupport.settle(promise))
     }.runOnQueue(.main)
 
     AsyncFunction("stopMonitorAsync") {
       try self.getEngine().stopMonitor()
     }.runOnQueue(.main)
 
-    AsyncFunction("startAsync") { (path: String) in
-      try self.getEngine().start(path: path)
+    AsyncFunction("startAsync") { (path: String, promise: Promise) in
+      self.getEngine().start(path: path, done: RecorderModuleSupport.settle(promise))
     }.runOnQueue(.main)
 
     AsyncFunction("pauseAsync") {
@@ -84,8 +85,9 @@ public class PodsnowRecorderModule: Module {
       try self.getEngine().stop(reason: "stop")
     }.runOnQueue(.main)
 
-    AsyncFunction("releaseAsync") {
-      self.engine?.release()
+    AsyncFunction("releaseAsync") { (promise: Promise) in
+      guard let e = self.engine else { promise.resolve(); return }
+      e.release { promise.resolve() }
     }.runOnQueue(.main)
 
     Function("getState") { () -> String in
@@ -100,8 +102,8 @@ public class PodsnowRecorderModule: Module {
       RecorderEngine.availableInputs()
     }
 
-    AsyncFunction("setInputAsync") { (uid: String?) in
-      try self.getEngine().setInput(uid: uid)
+    AsyncFunction("setInputAsync") { (uid: String?, promise: Promise) in
+      self.getEngine().setInput(uid: uid, done: RecorderModuleSupport.settle(promise))
     }.runOnQueue(.main)
 
     AsyncFunction("getCurrentInputAsync") { () -> [String: Any]? in
@@ -119,6 +121,15 @@ public class PodsnowRecorderModule: Module {
 
     AsyncFunction("getAvailableDiskBytesAsync") { (path: String) -> Double in
       Double(RecorderEngine.availableBytes(forPath: path) ?? 0)
+    }
+  }
+}
+
+enum RecorderModuleSupport {
+  /// done(Error?) を Promise の resolve / reject に渡す。
+  static func settle(_ promise: Promise) -> (Error?) -> Void {
+    { error in
+      if let error { promise.reject(error) } else { promise.resolve() }
     }
   }
 }
