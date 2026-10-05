@@ -13,6 +13,18 @@ export const INTL_TAG: Readonly<Record<Locale, string>> = { ja: 'ja-JP', en: 'en
 const DATE: Intl.DateTimeFormatOptions = { year: 'numeric', month: 'long', day: 'numeric' };
 const TIME: Intl.DateTimeFormatOptions = { hour: 'numeric', minute: '2-digit' };
 
+/** 年と月（例: `2026年10月` / `October 2026`）。カレンダーの見出し。 */
+export function formatMonth(date: Date, locale: Locale): string {
+  return new Intl.DateTimeFormat(INTL_TAG[locale], { year: 'numeric', month: 'long' }).format(date);
+}
+
+/** 曜日の短い名前を日曜から 7 つ（例: `日` / `S`）。カレンダーの見出し。 */
+export function weekdayNames(locale: Locale): string[] {
+  const f = new Intl.DateTimeFormat(INTL_TAG[locale], { weekday: 'narrow' });
+  // 2026-10-04 は日曜
+  return Array.from({ length: 7 }, (_, i) => f.format(new Date(2026, 9, 4 + i)));
+}
+
 /** 日付（例: `2026年9月30日` / `September 30, 2026`）。 */
 export function formatDate(date: Date, locale: Locale): string {
   return new Intl.DateTimeFormat(INTL_TAG[locale], DATE).format(date);

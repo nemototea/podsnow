@@ -25,6 +25,12 @@ export const ja = {
     done: '完了',
     /** 日付などの値が未設定のとき（Issue #167）。 */
     notSet: '未設定',
+    /** Android の日付選びのカレンダー（Issue #167）。 */
+    calendar: {
+      previousMonth: '前の月',
+      nextMonth: '次の月',
+      today: '今日',
+    },
     add: '追加',
     delete: '削除',
     rename: '名前を変更',
