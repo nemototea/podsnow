@@ -37,6 +37,11 @@ final class RecorderEngine {
   private var lastDiskCheck = Date.distantPast
   private var observers: [NSObjectProtocol] = []
   private var tapInstalled = false
+  /// 音声セッションの操作（setCategory / setActive など）はこの直列キューで行う。メインスレッドで呼ぶと
+  /// UI が止まりうる（OS の Hang Risk 警告、Issue #231）。エンジン・タップ・state はメインスレッドで扱う。
+  private static let sessionQueue = DispatchQueue(label: "dev.nemotea.podsnow.recorder.session", qos: .userInitiated)
+  /// release のたびに進める。セッションの操作を待つ間に release されたら、続きを行わない。
+  private var generation = 0
 
   init(emitter: @escaping Emitter) {
     self.emit = emitter
@@ -49,35 +54,45 @@ final class RecorderEngine {
 
   // MARK: - Public API
 
-  func prepare(_ config: Config) throws {
+  /// 以下の公開 API はメインスレッドから呼び、done もメインスレッドで呼ぶ。
+  func prepare(_ config: Config, done: @escaping (Error?) -> Void) {
     guard state == .idle || state == .prepared else {
-      throw RecorderError.invalidState("prepare", state)
+      done(RecorderError.invalidState("prepare", state)); return
     }
     self.config = config
-    try configureSession(preferredInputUid: config.inputUid)
-    guard let fmt = AVAudioFormat(commonFormat: .pcmFormatInt16, sampleRate: config.sampleRate, channels: AVAudioChannelCount(config.channels), interleaved: true) else {
-      throw RecorderError.message("unsupported format")
-    }
-    targetFormat = fmt
-    state = .prepared
+    afterSession({
+      try RecorderEngine.configureSession(preferredInputUid: config.inputUid, sampleRate: config.sampleRate)
+    }, {
+      guard self.state == .idle || self.state == .prepared else {
+        throw RecorderError.invalidState("prepare", self.state)
+      }
+      guard let fmt = AVAudioFormat(commonFormat: .pcmFormatInt16, sampleRate: config.sampleRate, channels: AVAudioChannelCount(config.channels), interleaved: true) else {
+        throw RecorderError.message("unsupported format")
+      }
+      self.targetFormat = fmt
+      self.state = .prepared
+    }, done: done)
   }
 
   /// 録音前の入力モニターを始める（§3.6）。ファイルは開かず、onLevel（frames = 0）だけ出す。
   /// セッションは prepare() で録音用に設定済み（録音側が持つ。§10.1）。
-  func startMonitor() throws {
-    guard state == .prepared else { throw RecorderError.invalidState("startMonitor", state) }
-    guard let target = targetFormat else { throw RecorderError.message("not prepared") }
-    try AVAudioSession.sharedInstance().setActive(true)
-    paused = false
-    try installTap(target: target)
-    engine.prepare()
-    do {
-      try engine.start()
-    } catch {
-      removeTap()
-      throw error
-    }
-    state = .monitoring
+  func startMonitor(done: @escaping (Error?) -> Void) {
+    guard state == .prepared else { done(RecorderError.invalidState("startMonitor", state)); return }
+    guard targetFormat != nil else { done(RecorderError.message("not prepared")); return }
+    afterSession({ try AVAudioSession.sharedInstance().setActive(true) }, {
+      guard self.state == .prepared else { throw RecorderError.invalidState("startMonitor", self.state) }
+      guard let target = self.targetFormat else { throw RecorderError.message("not prepared") }
+      self.paused = false
+      try self.installTap(target: target)
+      self.engine.prepare()
+      do {
+        try self.engine.start()
+      } catch {
+        self.removeTap()
+        throw error
+      }
+      self.state = .monitoring
+    }, done: done)
   }
 
   /// モニターを止める。マイクを離す（OS のマイク使用中の表示が消える【仮説】）。セッションは無効にしない（§10.1）。
@@ -88,12 +103,23 @@ final class RecorderEngine {
     state = .prepared
   }
 
-  func start(path: String) throws {
+  func start(path: String, done: @escaping (Error?) -> Void) {
+    guard state == .prepared || state == .interrupted || state == .monitoring else {
+      done(RecorderError.invalidState("start", state)); return
+    }
+    guard targetFormat != nil else { done(RecorderError.message("not prepared")); return }
+    // 有効にしてからファイルを作る。有効にできなければファイルは作らない。
+    afterSession({ try AVAudioSession.sharedInstance().setActive(true) }, {
+      try self.startWriting(path: path)
+    }, done: done)
+  }
+
+  /// start の続き（メインスレッド）。待つ間に割り込みなどで state が変わり得るので、条件を確かめ直す。
+  private func startWriting(path: String) throws {
     guard state == .prepared || state == .interrupted || state == .monitoring else {
       throw RecorderError.invalidState("start", state)
     }
     guard let target = targetFormat else { throw RecorderError.message("not prepared") }
-    try AVAudioSession.sharedInstance().setActive(true)
     // ヘッダを書き終えた writer を writeQueue の上で渡す。write() は writeQueue で writer を見るので、
     // モニターから切り替えるときも、渡したあとに変換したバッファから書き込まれる。
     // 作成に失敗したら例外のまま返し、モニターは続く。
@@ -148,15 +174,20 @@ final class RecorderEngine {
     return result ?? [:]
   }
 
-  func release() {
+  /// done はセッションを無効にし終えてから呼ぶ（次の持ち主が有効にしたあとで無効にしないように）。
+  func release(done: (() -> Void)? = nil) {
+    generation += 1
     if state == .recording || state == .paused || state == .interrupted {
       _ = try? stop(reason: "stop")
     }
     if state == .monitoring { try? stopMonitor() }
     removeTap()
     engine.stop()
-    try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
     state = .idle
+    RecorderEngine.sessionQueue.async {
+      try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+      DispatchQueue.main.async { done?() }
+    }
   }
 
   var frames: UInt64 {
@@ -165,7 +196,31 @@ final class RecorderEngine {
 
   // MARK: - Session
 
-  private func configureSession(preferredInputUid: String?) throws {
+  /// session を専用キューで行い、続き（next）をメインスレッドで行ってから done を呼ぶ。
+  /// 待つ間に release されたら続きは行わない。state の変化は next の中で確かめ直す。
+  private func afterSession(_ session: @escaping () throws -> Void, _ next: @escaping () throws -> Void, done: @escaping (Error?) -> Void) {
+    let gen = generation
+    RecorderEngine.sessionQueue.async {
+      do {
+        try session()
+      } catch {
+        DispatchQueue.main.async { done(error) }
+        return
+      }
+      DispatchQueue.main.async { [weak self] in
+        guard let self, gen == self.generation else { done(RecorderError.message("released")); return }
+        do {
+          try next()
+          done(nil)
+        } catch {
+          done(error)
+        }
+      }
+    }
+  }
+
+  /// sessionQueue の上で呼ぶ。self.config は読まない（メインスレッドの値なので引数で受け取る）。
+  private static func configureSession(preferredInputUid: String?, sampleRate: Double) throws {
     let session = AVAudioSession.sharedInstance()
     var options: AVAudioSession.CategoryOptions = [.allowBluetoothA2DP, .defaultToSpeaker]
     if let uid = preferredInputUid,
@@ -175,7 +230,7 @@ final class RecorderEngine {
       options.insert(.allowBluetooth)
     }
     try session.setCategory(.playAndRecord, mode: .default, options: options)
-    try session.setPreferredSampleRate(config.sampleRate)
+    try session.setPreferredSampleRate(sampleRate)
     try session.setPreferredIOBufferDuration(0.02)
     if let uid = preferredInputUid, let port = session.availableInputs?.first(where: { $0.uid == uid }) {
       try session.setPreferredInput(port)
@@ -185,15 +240,19 @@ final class RecorderEngine {
     try session.setActive(true)
   }
 
-  func setInput(uid: String?) throws {
+  func setInput(uid: String?, done: @escaping (Error?) -> Void) {
     config.inputUid = uid
-    try configureSession(preferredInputUid: uid)
-    if state == .recording || state == .paused || state == .monitoring, let target = targetFormat {
-      // 入力フォーマットが変わり得るのでタップを張り直す
-      removeTap()
-      try installTap(target: target)
-      if !engine.isRunning { try engine.start() }
-    }
+    let rate = config.sampleRate
+    afterSession({
+      try RecorderEngine.configureSession(preferredInputUid: uid, sampleRate: rate)
+    }, {
+      if self.state == .recording || self.state == .paused || self.state == .monitoring, let target = self.targetFormat {
+        // 入力フォーマットが変わり得るのでタップを張り直す
+        self.removeTap()
+        try self.installTap(target: target)
+        if !self.engine.isRunning { try self.engine.start() }
+      }
+    }, done: done)
   }
 
   static func describe(_ port: AVAudioSessionPortDescription) -> [String: Any] {
