@@ -22,6 +22,11 @@ export const en: Messages = {
     save: 'Save',
     done: 'Done',
     notSet: 'Not set',
+    calendar: {
+      previousMonth: 'Previous month',
+      nextMonth: 'Next month',
+      today: 'Today',
+    },
     add: 'Add',
     delete: 'Delete',
     rename: 'Rename',

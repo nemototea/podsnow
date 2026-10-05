@@ -1,8 +1,9 @@
-import { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
+import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { formatDate, useLocale, useT } from '@/i18n';
 
+import { CalendarSheet } from './CalendarSheet';
 import type { DateFieldProps } from './DateField';
 import { Text } from './Text';
 import { useAppTheme } from './ThemeContext';
@@ -22,7 +23,8 @@ function format(d: Date): string {
 }
 
 /**
- * Android は OS の日付ピッカー（Issue #167）。押すとダイアログが開く。
+ * Android は押すとアプリのカレンダー（`CalendarSheet`）が下から開く（Issue #167）。
+ * OS の日付ダイアログ（`DateTimePickerAndroid`）は古めかしく、アプリの見た目と合わないので使わない。
  * 値の形式は文字入力・iOS と同じ `YYYY-MM-DD` に揃え、呼び出し側を変えない。
  */
 export function DateField({ label, value, onChange }: DateFieldProps) {
@@ -31,19 +33,12 @@ export function DateField({ label, value, onChange }: DateFieldProps) {
   const locale = useLocale();
   const date = parse(value);
   const shown = date ? formatDate(date, locale) : t.common.notSet;
-  const open = () =>
-    DateTimePickerAndroid.open({
-      value: date ?? new Date(),
-      mode: 'date',
-      onChange: (e, d) => {
-        if (e.type === 'set' && d) onChange(format(d));
-      },
-    });
+  const [open, setOpen] = useState(false);
   return (
     <View style={st.row}>
       <Text style={[typography.label, st.flex, { color: c.textSecondary }]}>{label}</Text>
       <Pressable
-        onPress={open}
+        onPress={() => setOpen(true)}
         accessibilityRole="button"
         accessibilityLabel={`${label}, ${shown}`}
         style={({ pressed }) => [
@@ -59,6 +54,15 @@ export function DateField({ label, value, onChange }: DateFieldProps) {
           {shown}
         </Text>
       </Pressable>
+      {open ? (
+        <CalendarSheet
+          visible
+          title={label}
+          value={date}
+          onSelect={(d) => onChange(format(d))}
+          onClose={() => setOpen(false)}
+        />
+      ) : null}
     </View>
   );
 }

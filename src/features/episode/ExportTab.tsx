@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { AppState, Pressable, StyleSheet, View } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 import { insertTopics, renderTemplate } from '@/domain/metadata/template';
 import { headings } from '@/domain/outline';
@@ -54,14 +54,9 @@ import { DateField } from '@/ui/DateField';
 import { EpisodePlayer } from '@/ui/EpisodePlayer';
 import { useAppTheme } from '@/ui/ThemeContext';
 
-import {
-  applyDetailsPatch,
-  detailsPatch,
-  draftFromEpisode,
-  fromDateInput,
-  type DetailsDraft,
-} from './detailsDraft';
+import { fromDateInput } from './detailsDraft';
 import { shareExport } from './shareExport';
+import type { DetailsDraftState } from './useDetailsDraft';
 import type { Workspace } from './useWorkspace';
 
 const PRESET_KEYS: readonly ExportPresetKey[] = [
@@ -132,6 +127,8 @@ function Stepper({
 
 export interface ExportTabProps {
   ws: Workspace;
+  /** 詳細の入力中の値と自動保存（エピソード画面の `useDetailsDraft`）。 */
+  details: DetailsDraftState;
   onShowToast: (text: string, undo?: () => void) => void;
   onDone: (exportId: string) => void;
   onGoEdit: () => void;
@@ -141,7 +138,7 @@ export interface ExportTabProps {
  * 書き出しタブ（docs/ux-restructure.md §7）。
  * 旧「詳細」「音の仕上げ」「書き出し」の 3 画面を 1 本のスクロールにまとめる。
  */
-export function ExportTab({ ws, onShowToast, onDone, onGoEdit }: ExportTabProps) {
+export function ExportTab({ ws, details, onShowToast, onDone, onGoEdit }: ExportTabProps) {
   const c = useAppTheme();
   const t = useT();
   const locale = useLocale();
@@ -160,12 +157,8 @@ export function ExportTab({ ws, onShowToast, onDone, onGoEdit }: ExportTabProps)
   const { state } = ws;
   const episode = state.episode;
 
-  // 詳細は入力をやめたとき（blur・タブ切替・画面を離れる・アプリを裏へ回す）に自動で保存する（Issue #167）。
-  // 入力中の値は ref にも持ち、離れる瞬間の保存でも最新の値を書く。
-  const [draft, setDraft] = useState<DetailsDraft | null>(null);
-  const draftRef = useRef<DetailsDraft | null>(null);
-  const savedRef = useRef<(Parameters<typeof detailsPatch>[1] & { id: string }) | null>(null);
-  const flushRef = useRef<(reload: boolean) => Promise<void>>(async () => undefined);
+  // 詳細の入力中の値と自動保存はエピソード画面が持つ（タブを切り替えても消えない。Issue #167）
+  const { draft, draftRef, edit, flush } = details;
   const [sound, setSound] = useState<SoundSettings | null>(null);
   const [soundAdvanced, setSoundAdvanced] = useState(false);
   // その回で最後に選んだもの → なければ設定の既定（DATA_MODEL.md §4.5.1）。
@@ -214,66 +207,17 @@ export function ExportTab({ ws, onShowToast, onDone, onGoEdit }: ExportTabProps)
   }, [episode?.id, episodes, show.id]);
   const [undoDescription, setUndoDescription] = useState<(() => void) | null>(null);
 
-  const hydrated = draft !== null;
+  const soundHydrated = sound !== null;
   useEffect(() => {
-    if (!episode || hydrated) return;
+    if (!episode || soundHydrated) return;
     let alive = true;
     void Promise.resolve().then(() => {
-      if (!alive) return;
-      const next = draftFromEpisode(episode);
-      draftRef.current = next;
-      savedRef.current = {
-        id: episode.id,
-        title: episode.title,
-        description: episode.description,
-        episode_number: episode.episode_number,
-        season: episode.season,
-        recorded_at: episode.recorded_at,
-      };
-      setDraft(next);
-      setSound(parseSoundSettings(episode.sound_settings));
+      if (alive) setSound(parseSoundSettings(episode.sound_settings));
     });
     return () => {
       alive = false;
     };
-  }, [episode, hydrated]);
-
-  useEffect(() => {
-    flushRef.current = async (reload: boolean) => {
-      const d = draftRef.current;
-      const saved = savedRef.current;
-      if (!d || !saved) return;
-      const patch = detailsPatch(d, saved);
-      if (!patch) return;
-      savedRef.current = applyDetailsPatch(saved, patch);
-      try {
-        await episodes.update(saved.id, patch);
-      } catch (e) {
-        savedRef.current = saved;
-        onShowToast(errorText(t, e));
-        return;
-      }
-      if (reload) await ws.reloadAll();
-    };
-  });
-  /** 変わった項目だけを保存する。何も変わっていなければ何もしない。 */
-  const flush = useCallback(() => flushRef.current(true), []);
-  useEffect(() => {
-    // タブを切り替える・画面を離れるとき（アンマウント）と、アプリを裏へ回したときにも保存する
-    const sub = AppState.addEventListener('change', (next) => {
-      if (next !== 'active') void flushRef.current(false);
-    });
-    return () => {
-      sub.remove();
-      void flushRef.current(false);
-    };
-  }, []);
-  const edit = (patch: Partial<DetailsDraft>) => {
-    if (!draftRef.current) return;
-    const next = { ...draftRef.current, ...patch };
-    draftRef.current = next;
-    setDraft(next);
-  };
+  }, [episode, soundHydrated]);
 
   const reloadHistory = useCallback(async () => {
     setHistory(await listExports(db, ws.state.episode?.id ?? ''));

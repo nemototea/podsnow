@@ -8,6 +8,7 @@ import { useServices } from '@/features/app/ServicesProvider';
 import { ExportTab } from '@/features/episode/ExportTab';
 import { playMonitor } from '@/features/episode/monitor';
 import { StudioTab } from '@/features/episode/StudioTab';
+import { useDetailsDraft } from '@/features/episode/useDetailsDraft';
 import { Transport } from '@/features/episode/Transport';
 import { useRecordingContext } from '@/features/episode/useRecordingContext';
 import { handToHome } from '@/features/home/handToHome';
@@ -37,15 +38,21 @@ export default function EpisodeScreen() {
   const [tab, setTab] = useState<Tab>('studio');
   const undoToast = useRef<UndoToast | null>(null);
 
-  // 開いて何も入れずに離れた回は捨てる（FR-EP-10、Issue #168）。Home は捨て終わってから一覧を読む
+  // 詳細（タイトルなど）の入力中の値はタブの外で持つ。タブを切り替えても消えない（Issue #167）
+  const details = useDetailsDraft(ws, (e) => showToast({ text: errorText(t, e) }));
+  const { flushNow: flushDetails } = details;
+
+  // 離れるときは、入力中の詳細を保存してから、何も入れずに離れた回を捨てる（FR-EP-10、Issue #168）。
+  // 順番が逆だと、タイトルだけ入れた回が捨てられる。Home は両方が終わってから一覧を読む
   const { episodes } = services;
   useEffect(
     () => () =>
       handToHome(async () => {
+        await flushDetails();
         await episodes.discardIfEmpty(episodeId);
         return null;
       }),
-    [episodeId, episodes],
+    [episodeId, episodes, flushDetails],
   );
 
   // 複製を「開く」と、この画面の上に別の回の画面が積まれる。戻ってきたらこの回を読み込み直す
@@ -239,6 +246,8 @@ export default function EpisodeScreen() {
       return;
     }
     if (next !== tab) services.haptics.play('selection');
+    // 入力欄を押したままタブを押すと blur が起きない（`keyboardShouldPersistTaps="handled"`）ので、ここで保存する
+    void details.flush();
     setTab(next);
   };
 
@@ -386,6 +395,7 @@ export default function EpisodeScreen() {
       ) : (
         <ExportTab
           ws={ws}
+          details={details}
           onShowToast={toast1}
           onGoEdit={() => setTab('studio')}
           onDone={(exportId) =>
