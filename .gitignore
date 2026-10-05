@@ -31,6 +31,7 @@ npm-debug.log*
 *.mp3
 *.flac
 !fixtures/**/*.wav
+!src/services/export/__tests__/fixtures/*.m4a
 
 # IDE
 .idea/
