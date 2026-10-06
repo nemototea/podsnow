@@ -11,7 +11,7 @@ import { settleHandoffs } from '@/features/home/handToHome';
 import { episodeStatusKind, STATUS_ICON, type EpisodeStatusKind } from '@/features/home/statusIcon';
 import { errorText, useT, type Messages } from '@/i18n';
 import type { EpisodeListItem } from '@/infra/db/repositories/episodesRepo';
-import { icon, space, stickerTilt, typography, type Colors } from '@/ui/tokens';
+import { icon, space, stickerTilt, typography, wordmarkSize, type Colors } from '@/ui/tokens';
 import {
   Button,
   Card,
@@ -198,7 +198,7 @@ export default function HomeScreen() {
       }
     >
       <View style={st.top}>
-        <Wordmark width={112} />
+        <Wordmark size={wordmarkSize.home} />
         <IconButton
           name="settings"
           label={t.a11y.settings}

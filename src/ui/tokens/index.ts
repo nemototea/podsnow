@@ -29,6 +29,7 @@ export {
   stroke,
   tabularNums,
   typography,
+  wordmarkSize,
   type FamilyRole,
   type TypeRole,
 } from './scale';

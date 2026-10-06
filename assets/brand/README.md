@@ -1,7 +1,7 @@
 # PodsNow. のロゴとアイコン
 
-> 【事実】Issue #235（ユーザー判断 2026-10-06）でロゴとアイコンを作り直す（案 A）。この文書は新しい決まりを書いている。
-> **このディレクトリのファイルはまだ #190 のもの**（Dela Gothic One、版ズレ、網点の青い地）で、#235 の作業 4 で生成し直す。
+> 【事実】Issue #235（ユーザー判断 2026-10-06）でロゴとアイコンを作り直した（案 A）。
+> 見た目の正は見本 `docs/design-refresh/ds4/mock.html` の `.lg-icon`（アイコン）と `.wm`（横組み）。
 
 ## 表記
 
@@ -17,9 +17,17 @@
 末尾の点だけをアクセントのレモンにする。版ズレ・網点・輪郭線は付けない。
 字形は輪郭（パス）として焼き込むので、通常のテキストで打ち直して近似しない。
 
+**配置は見本の CSS を計算で再現する**（`scripts/brand/geometry.py` の冒頭）。字送りは HarfBuzz で組んだ値（ブラウザと同じくカーニング込み）、
+字間は letter-spacing（アイコン -0.05em、横組み -0.045em）、行の高さは line-height 0.9 で、2 行を左端そろえで積んだ箱をキャンバスの中央に置く。
+【事実】2026-10-06、見本と同じ CSS を Chromium で 1024px に描いた画像と `assets/images/icon.png` を比べ、塗られた範囲が 1px 以内で一致し、
+差は字の縁のアンチエイリアスだけであることを確かめた。横組みの箱の幅も一致した（字の大きさ 100 で 442.8px）。
+
 - 横組み `PodsNow.`: Home の上部、スプラッシュ、ストア素材。改行しない。`Pods` と `Now` の間に空白を入れない。
 - 2 段 `Pods` / `Now.`: アプリアイコン。2 段でも全文を残し、左端を共有する。
-  文字の塊は**縦横とも中央**に置く。地はアプリと同じ黒（`bg`）、文字は白、点はレモン。
+  字の大きさはアイコンの辺の 0.29 倍、文字の箱を**縦横とも中央**に置く。地はアプリと同じ黒（`bg`）、文字は白、点はレモン。
+  小さいアイコン（`icon-small`、favicon）も同じ組み方（見本の 29px で読めることを確かめた）。
+- Android のアダプティブ前景と単色は見本に無いので、同じ組み方のまま字の大きさを 0.193 倍にする。
+  文字の箱の幅が見える円（直径 683px）に占める割合を、iOS のアイコン（辺の 66.6%）とそろえた。
 - 点は録音の印・通知・エラーに転用しない。常時点灯やアニメーションをしない。
 - 見送った案（2026-10-06）: 黄の丸に黒いカプセルの記号（全文を残す方針に反し、他社の丸いマークに近い）、
   アイコン全体を黄の地にする案（A で足りる）。理由の詳細は DESIGN_SYSTEM.md §3.1。
@@ -67,8 +75,8 @@ python3 scripts/brand/generate.py
 ```
 
 標準ライブラリだけで動く。PNG・SVG・`src/ui/brand/wordmark.ts` をまとめて上書きする。**直接編集しない。**
-字形そのものを変えるときだけ `python3 scripts/brand/extract_glyphs.py <Figtree の 900 の静的 TTF>`（fontTools が必要）で
-`scripts/brand/glyphs.py` を作り直す。
+字形そのものを変えるときだけ `python3 scripts/brand/extract_glyphs.py <Figtree[wght].ttf>`（fontTools と uharfbuzz が必要）で
+`scripts/brand/glyphs.py` を作り直す。可変フォントから 900 のインスタンスを切り出し、`PodsNow.` / `Pods` / `Now.` を HarfBuzz で組む。
 
 ## 安全域
 
@@ -88,9 +96,9 @@ Android 12+ のスプラッシュ（SplashScreen API）は、画像を `imageWid
 ## 注意
 
 - `icon.png` は**アルファを持たない RGB**。iOS のアプリアイコンの要件。角丸は焼き込まない。
-- `android-icon-background.png` は単色（#235 から `bg` の黒）。
+- `android-icon-background.png` は単色（`bg` の黒）。
 - アイコンを変えたら `npx expo prebuild --clean` → 再ビルドが必要。
 
-【事実】#235 からアプリはダーク 1 つなので、スプラッシュも OS の配色によらず黒の地 1 つにする
-（`splash-icon.png` だけを使い、`splash-icon-light.png` と `app.json` の `dark` 設定は作業 4 で外す）。
+【事実】#235 からアプリはダーク 1 つなので、スプラッシュも OS の配色によらず黒の地 1 つにした
+（`splash-icon.png` だけを使う。`splash-icon-light.png` と `app.json` の `dark` 設定は外した。`generate.py` が `app.json` を検査する）。
 変更後はネイティブを再生成・再ビルドする。両 OS のリリースビルドでの表示は未検証。

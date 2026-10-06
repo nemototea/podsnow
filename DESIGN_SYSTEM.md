@@ -21,7 +21,7 @@
 - 見本に無い画面・状態（設定、ダイアログ、エラーなど）は、見本の部品と値を組み合わせて作る。新しい見た目が要るときは、
   先に見本に描き足して確かめる。
 
-【事実】この文書は #235 の作業 1（文書を先に直す）で書き換えた。**色のトークン（作業 2）以外の実装はまだ Design system 3 のまま**で、
+【事実】この文書は #235 の作業 1（文書を先に直す）で書き換えた。**色・ロゴ（作業 2・4）以外の実装はまだ Design system 3 のまま**で、
 作業 2〜7 で順に置き換える。何が残っているかは §14。
 
 これまでの経緯: #94 で暫定デザインを刷新（Design system 2）、#122 で録音と編集を「収録」タブにまとめ、
@@ -236,11 +236,13 @@ Design system 3 のスケッチブックのカンペ（表紙・めくり・付�
 
 ### 3.1 造形【事実】Issue #235（ユーザー判断 2026-10-06: 案 A）
 
-- ロゴは **サービス名そのもの** `PodsNow.`。**Figtree**（SIL OFL 1.1）の 900 の字形を土台に、字間を詰めて光学調整し、
-  末尾の点だけをアクセント（レモン）にする。文字全体を新規作字したとは称さない。
+- ロゴは **サービス名そのもの** `PodsNow.`。**Figtree**（SIL OFL 1.1）の 900 の字形を、見本と同じ字間（横組み -0.045em、
+  アイコン -0.05em）で並べ、末尾の点だけをアクセント（レモン）にする。文字全体を新規作字したとは称さない。
+- 配置は見本の CSS（letter-spacing、line-height、中央寄せ）を計算で再現する（`scripts/brand/geometry.py`、`assets/brand/README.md`）。
+  Chromium で描いた見本と生成したアイコンを画素で比べ、1px 以内で一致することを確かめた（2026-10-06）。
 - 版ズレ・網点・輪郭線は付けない。
 - 通常の Text で打ち直して近似しない。アプリ内のロゴも輪郭（SVG パス）で描く（`src/ui/Wordmark.tsx`）。
-- アイコンは `Pods` / `Now.` の **2 段全文**を、**縦横とも中央**に置く（描画範囲の中心をキャンバスの中心に合わせる。§3.3）。
+- アイコンは `Pods` / `Now.` の **2 段全文**。字の大きさは辺の 0.29 倍、行の高さ 0.9 で、2 行を左端そろえで積んだ箱を**縦横とも中央**に置く（見本 `.lg-icon`）。
   地は `bg`（黒）、文字は白、点はレモン。
 - 点は「1 回を完成させる」感覚を担う。録音の印・通知・エラーに転用しない。常に同じ見た目で、点灯・点滅しない。
 - サービス名を全部見せる方針（頭文字や記号だけのマークにしない）は引き継ぐ。
@@ -282,13 +284,13 @@ Design system 3 のスケッチブックのカンペ（表紙・めくり・付�
 
 ```sh
 python3 scripts/brand/generate.py        # 標準ライブラリのみ。SVG・PNG・アプリ内ロゴのデータを書く
-python3 scripts/brand/extract_glyphs.py path/to/Figtree-Black.ttf   # 字形を変えるときだけ（fontTools が必要）
+python3 scripts/brand/extract_glyphs.py 'path/to/Figtree[wght].ttf'   # 字形を変えるときだけ（fontTools と uharfbuzz が必要）
 ```
 
-- 図形の正は `scripts/brand/geometry.py`（字間・点・配置）と `scripts/brand/glyphs.py`（Figtree 900 の輪郭。生成物）。
+- 図形の正は `scripts/brand/geometry.py`（見本の CSS の値と配置の計算）と `scripts/brand/glyphs.py`（Figtree 900 の輪郭と、HarfBuzz で組んだ字送り。生成物）。
 - 色はトークンの生成元 `ramps.py` をそのまま読む。`app.json` の背景色（スプラッシュ、アダプティブ背景）が
   トークンとずれていれば `generate.py` が失敗する。
-- アイコンの 2 段組は、行の大きさと行間だけを決め、位置は実際の描画範囲の中心で合わせる（`two_lines`）。
+- アイコンの 2 段組は、CSS と同じく文字の箱（塗られた範囲ではない）の中心で合わせる（`two_lines`）。
 
 ## 4. タイポグラフィ
 
@@ -868,14 +870,14 @@ npx expo prebuild --clean             # アイコン・書体を変えたらネ�
 
 ## 14. 移行の状況【事実】Issue #235
 
-文書（作業 1）と色のトークン（作業 2）を Design system 4 にした。部品・画面・ロゴの生成物はまだ Design system 3 のまま。
+文書（作業 1）、色のトークン（作業 2）、ロゴとアイコン（作業 4）を Design system 4 にした。部品・画面はまだ Design system 3 のまま。
 
 | 作業 | 対象 | 状況 |
 |---|---|---|
 | 1. 文書 | この文書、`assets/brand/README.md`、REQUIREMENTS.md FR-SET-1、PRODUCT.md、ARCHITECTURE.md | 済み |
 | 2. 色 | `scripts/design/ramps.py` → `src/ui/tokens/colors.ts`（ダーク 1 組、見本の値、情報の色の色相の移動、DS3 の名前は移行用に残す）。テーマの設定とライトの分岐を外した | 済み |
 | 3. 番組の色 | `src/ui/showColors.ts`（純粋関数とテスト）、代表色の取り方の調査 | 未着手 |
-| 4. ロゴ・アイコン | `scripts/brand/`（Figtree 900 の字形、地を黒、点をレモン、ライト用の生成物を外す）、`app.json` | 未着手 |
+| 4. ロゴ・アイコン | `scripts/brand/`（Figtree 900 の字形、見本の CSS の再現、地を黒、点をレモン、ライト用の生成物を外した）、`app.json`、`src/ui/Wordmark.tsx`（字の大きさで指定） | 済み |
 | 5. 書体 | `scripts/fonts/generate.py`（Figtree を足し、Manrope と Dela Gothic One を外す） | 未着手 |
 | 6. 部品 | `src/ui`（§6.1） | 未着手 |
 | 7. 画面 | Home、番組、収録、書き出し、配信の準備、プレーヤー、設定（テーマの項目を外す） | 未着手 |

@@ -28,6 +28,9 @@ export const compactWidth = 360;
 /** ダイアログの最大幅（DESIGN_SYSTEM.md §6.3）。狭い画面では左右に `gutter` を残して縮む。 */
 export const dialogWidth = 400;
 
+/** ロゴ `PodsNow.` の字の大きさ（DESIGN_SYSTEM.md §3、見本 `.wm`）。 */
+export const wordmarkSize = { home: 24 } as const;
+
 /** 番組アートワーク（Issue #133）。 */
 export const artwork = {
   settingsPreview: 128,

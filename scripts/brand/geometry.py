@@ -1,14 +1,21 @@
 """
-PodsNow. のロゴタイプとアイコンの幾何定義（DESIGN_SYSTEM.md §3、Issue #94 / #190）。
+PodsNow. のロゴタイプとアイコンの幾何定義（DESIGN_SYSTEM.md §3、Issue #235 案 A）。
 
 **ここが図形の正**。SVG・PNG・アプリ内のロゴ（`src/ui/brand/wordmark.ts`）はすべて
 この定義から生成するので、互いにずれない。
 
-ロゴはサービス名そのもの `PodsNow.`。Dela Gothic One の字形（`glyphs.py`）を
-土台に字間を光学調整し、末尾の点を独立した角丸正方形として描く。文字には版ズレ（右下へ
-ずらした同じ形の影）を付ける。アイコンは `Pods` / `Now.` の 2 段で全文を残し、縦横とも
-中央に置く。地はリソの青に紙の色の網点。マイク・波形・雪・電波・頭文字だけのマークは使わない
-（assets/brand/README.md）。
+ロゴはサービス名そのもの `PodsNow.`。Figtree 900 の字形（`glyphs.py`）を並べ、末尾の点だけを
+アクセントの色にする。アイコンは `Pods` / `Now.` の 2 段で全文を残す。版ズレ・網点・輪郭線は付けない。
+
+**配置は見本 `docs/design-refresh/ds4/mock.html` の CSS をそのまま計算で再現する。**
+見本はブラウザで字を組んでいるので、字送り（カーニング込み）・字間（letter-spacing）・行の高さ
+（line-height）・中央寄せの決め方を CSS と同じにする。
+
+- 字間: CSS の letter-spacing は各字の後ろに足す（最後の字の後ろにも足す）。
+- 行の箱: 高さは line-height × 字の大きさ。ベースラインは、箱の上端から
+  (line-height − (ascent + descent)) / 2 + ascent の位置（half-leading）。
+- アイコン: 2 行を左端そろえで積んだ箱（幅は長い方の行、高さは 2 行分）を、キャンバスの中央に置く
+  （見本 `.lg-icon` の `place-items: center`）。塗られた範囲の中心ではなく、箱の中心で合わせる。
 
 座標系: 字形はフォント単位（y 上向き）。配置後はキャンバスの px（左上原点・y 下向き）。
 """
@@ -20,83 +27,37 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'design'))
 
 import ramps  # noqa: E402
-from glyphs import GLYPHS  # noqa: E402
+from glyphs import ASCENT, DESCENT, GLYPHS, RUNS, UPM  # noqa: E402
 
 CANVAS = 1024
 
 # 色はトークンの生成元をそのまま読む。ロゴのために別の色を作らない（DESIGN_SYSTEM.md §3.2）。
 DARK = ramps.build('dark')
-if 'light' not in ramps.THEMES:
-    # Issue #235 でテーマがダーク 1 つになった。このスクリプトは Design system 3 のロゴ（ライトの色を使う）を
-    # 描くので、作業 4 で書き直すまで動かさない。生成物（assets/brand、assets/images）はコミット済みのものを使う。
-    sys.exit('scripts/brand は Issue #235 の作業 4 で書き直すまで実行できない（テーマがダーク 1 つになったため）')
-LIGHT = ramps.build('light')
 BG = DARK['bg']
-INK = DARK['brandInk']
-SHADOW = DARK['brandShadow']
-DOT = DARK['brandAccent']
-LIGHT_BG = LIGHT['bg']
-LIGHT_INK = LIGHT['brandInk']
-LIGHT_SHADOW = LIGHT['brandShadow']
-LIGHT_DOT = LIGHT['brandAccent']
-# 黄の点はライトの紙の上で 3:1 を持てないので墨の輪郭と組にする。
-EDGE = LIGHT['controlBorder']
-# アイコンはテーマに関係なく同じ絵（リソの青の地に紙の色の文字）。
-ICON_BG = LIGHT['accentSolid']
-ICON_INK = LIGHT['bg']
-ICON_SHADOW = LIGHT['brandShadow']
+INK = DARK['textPrimary']
+DOT = DARK['accentSolid']
 MONO = '#000000'
 
+# 見本の値（docs/design-refresh/ds4/mock.html）。
+# 横組み `.wm`: font-weight 900、letter-spacing -0.045em、line-height 1。
+WORDMARK_TRACKING = -0.045
+WORDMARK_LINE_HEIGHT = 1.0
+# アイコン `.lg-words`: font-size = アイコンの辺 × 0.29、letter-spacing -0.05em、line-height 0.9。
+ICON_FONT = 0.29
+ICON_TRACKING = -0.05
+ICON_LINE_HEIGHT = 0.9
 
-def _blend(fg: str, bg: str, a: float) -> str:
-    """画像の中だけで使う不透明な中間色（網点）。UI のトークンには使わない（§5.5）。"""
-    f = [int(fg[i : i + 2], 16) for i in (1, 3, 5)]
-    b = [int(bg[i : i + 2], 16) for i in (1, 3, 5)]
-    return '#' + ''.join(f'{round(x * a + y * (1 - a)):02X}' for x, y in zip(f, b))
+# Android のアダプティブ前景と単色は、中央の安全域に収める（generate.py が検査）。
+# 見本に無い形なので、iOS と同じ組み方のまま字の大きさだけを縮める。
+ADAPTIVE_FONT = 0.193  # 箱の幅が見える円（直径 683px）に占める割合を iOS（66.6%）とそろえる
 
-
-# アイコンの網点。紙の色を 28% だけ青に混ぜた色の円を、20 x 20 の格子に置く。
-HALFTONE = _blend(ICON_INK, ICON_BG, 0.28)
-HALFTONE_PITCH = CANVAS / 20
-HALFTONE_R = 9.0
-
-# 字間（フォント単位、unitsPerEm = 1000）。字送りから一律に TRACK を詰め、特定の組だけ KERN で追加調整する。
-TRACK = -12
-KERN = {
-    ('P', 'o'): -36,
-    ('o', 'd'): -6,
-    ('d', 's'): -4,
-    ('s', 'N'): -2,
-    ('N', 'o'): -14,
-    ('o', 'w'): -18,
-}
-
-# 点（ピリオド）。字形ではなく独立した角丸正方形。最後の字の送りの後ろに置く。
-# 輪郭（EDGE）の太さは内側に取る。
-DOT_GAP = 22
-DOT_SIZE = 210
-DOT_RADIUS = 28
-DOT_EDGE = 36
-DOT_ADVANCE = 232
-
-# 版ズレ（フォント単位）。原案の text-shadow 4px 3px / 64px を字の大きさに比例させる。
-MISREG = (62, 47)
-
-# 横組みの基準の箱（wordmark-*.svg）。版ズレの分だけ右下に余白を取る。
-WORDMARK_W, WORDMARK_H = 654, 106
-WORDMARK_LINE = (4, 4, 640)  # (left, top, width)
-
-# アイコンの 2 段組。(left, top, width)。`Now.` は点まで含めた幅を `Pods` とそろえる。
-# left / top は 2 行の相対位置（左端の共有と行間）だけに効く。最終的な位置は `two_lines` が
-# 実際の描画範囲の中心をキャンバス中心に合わせて決める（字形のサイドベアリングや
-# 行間の見込み違いで上下左右にずれないように）。
-ICON_LINES = ((155, 220, 714), (155, 488, 714))  # iOS / ストア（マスク無しの全面）
-ADAPTIVE_LINES = ((267, 303, 490), (267, 487, 490))  # Android 前景・単色（中央の安全域）
-SMALL_LINES = ((135, 214, 754), (135, 500, 754))  # 32px 以下の小サイズ・favicon
-
-# スプラッシュ用の横組み画像（expo-splash-screen の image）。
+# 横組みの SVG と、アプリ内のロゴの字の大きさ（px）。箱は字の大きさ × line-height の高さ。
+WORDMARK_FONT = 100
+# スプラッシュ用の横組み画像（expo-splash-screen の image）。キャンバスの中央に置く。
 SPLASH_W, SPLASH_H = 1200, 240
-SPLASH_LINE = (20, 20, 1160)
+SPLASH_FONT = 200
+
+DOT_GLYPH = 'period'
 
 _TOKEN = re.compile(r'[MLHVQZ]|-?\d+(?:\.\d+)?')
 
@@ -143,184 +104,102 @@ def parse(d: str) -> list[list[tuple[str, tuple[float, ...]]]]:
     return contours
 
 
-def _word(text: str):
-    """字を並べる。戻り値は ([(字, x オフセット)], 送りの合計, 上端)。"""
-    x = 0
-    placed = []
-    ymax = 0.0
-    for i, ch in enumerate(text):
-        if i:
-            x += KERN.get((text[i - 1], ch), 0)
-        g = GLYPHS[ch]
-        placed.append((ch, x))
-        ymax = max(ymax, g['bounds'][3])
-        x += g['advance'] + TRACK
-    return placed, x, ymax
+def run_width(text: str, size: float, tracking: float) -> float:
+    """CSS で組んだときの行の幅（px）。字送り（カーニング込み）+ 各字の後ろの letter-spacing。"""
+    return sum(adv * size / UPM + tracking * size for _g, adv, _o in RUNS[text])
 
 
-def line(text: str, left: float, top: float, width: float):
+def baseline_offset(size: float, line_height: float) -> float:
+    """行の箱の上端からベースラインまで（px）。CSS の half-leading と同じ計算。"""
+    content = (ASCENT + DESCENT) * size / UPM
+    return (line_height * size - content) / 2 + ASCENT * size / UPM
+
+
+def line(text: str, size: float, tracking: float, left: float, baseline: float):
     """
-    1 行を配置し、キャンバス座標の図形を返す。
-
-    `text` が `.` で終わるときだけ点を付ける。幅 `width` は点まで含めた幅。
-    戻り値: {'contours': [[('M'|'L'|'Q', 座標...)...]], 'dot': (x, y, size, radius) | None,
-            'misreg': (dx, dy), 'edge': 点の輪郭の太さ}
+    1 行を配置し、キャンバス座標の図形を返す。点（ピリオド）は字と別の層にする。
+    戻り値: {'ink': [輪郭...], 'dot': [輪郭...]}。輪郭は [('M'|'L'|'Q', 座標...)...]。
     """
-    has_dot = text.endswith('.')
-    placed, advance, ymax = _word(text.rstrip('.'))
-    s = width / (advance + (DOT_ADVANCE if has_dot else 0))
-    base_y = top + ymax * s
+    s = size / UPM
+    ink: list = []
+    dot: list = []
+    x = left
+    for gname, adv, xoff in RUNS[text]:
+        ox = x + xoff * s
 
-    def tx(px: float, py: float) -> tuple[float, float]:
-        return left + px * s, base_y - py * s
+        def tx(px: float, py: float, ox: float = ox) -> tuple[float, float]:
+            return ox + px * s, baseline - py * s
 
-    out = []
-    for ch, ox in placed:
-        for contour in parse(GLYPHS[ch]['d']):
+        for contour in parse(GLYPHS[gname]['d']):
             cc = []
             for cmd, v in contour:
                 if cmd == 'Q':
-                    a = tx(v[0] + ox, v[1])
-                    b = tx(v[2] + ox, v[3])
-                    cc.append(('Q', (*a, *b)))
+                    cc.append(('Q', (*tx(v[0], v[1]), *tx(v[2], v[3]))))
                 else:
-                    cc.append((cmd, tx(v[0] + ox, v[1])))
-            out.append(cc)
-    dot = None
-    if has_dot:
-        dx, dy = tx(advance + DOT_GAP, DOT_SIZE)
-        dot = (dx, dy, DOT_SIZE * s, DOT_RADIUS * s)
-    return {'contours': out, 'dot': dot, 'misreg': (MISREG[0] * s, MISREG[1] * s), 'edge': DOT_EDGE * s}
+                    cc.append((cmd, tx(v[0], v[1])))
+            (dot if gname == DOT_GLYPH else ink).append(cc)
+        x += adv * s + tracking * size
+    return {'ink': ink, 'dot': dot}
 
 
-def wordmark(left: float, top: float, width: float):
-    return line('PodsNow.', left, top, width)
+def wordmark_box(size: float) -> tuple[float, float]:
+    """横組みの箱（幅, 高さ）。見本 `.wm` の span の大きさ。"""
+    return run_width('PodsNow.', size, WORDMARK_TRACKING), WORDMARK_LINE_HEIGHT * size
 
 
-def shift(lines, dx: float, dy: float):
-    """配置済みの行を平行移動する。"""
-    out = []
-    for ln in lines:
-        contours = [
-            [(cmd, tuple(c + (dx if i % 2 == 0 else dy) for i, c in enumerate(v))) for cmd, v in contour]
-            for contour in ln['contours']
-        ]
-        dot = None
-        if ln['dot']:
-            x, y, size, r = ln['dot']
-            dot = (x + dx, y + dy, size, r)
-        out.append({**ln, 'contours': contours, 'dot': dot})
-    return out
+def wordmark(size: float, left: float = 0.0, top: float = 0.0):
+    """横組み `PodsNow.` を、箱の左上を (left, top) に置いて配置する。"""
+    return [line('PodsNow.', size, WORDMARK_TRACKING, left, top + baseline_offset(size, WORDMARK_LINE_HEIGHT))]
 
 
-def layers(lines, misreg: bool = True, edge: bool = True):
+def wordmark_centered(width: float, height: float, size: float):
+    """横組みを、箱の中心がキャンバスの中心に来るように置く（スプラッシュ）。"""
+    w, h = wordmark_box(size)
+    return wordmark(size, (width - w) / 2, (height - h) / 2)
+
+
+def two_lines(font_ratio: float = ICON_FONT, canvas: float = CANVAS):
     """
-    描く順の層に分ける。各層は `line` と同じ形の行の列（render.polygons がそのまま塗れる）。
-    戻り値: {'shadow': 版ズレ, 'ink': 字, 'edge': 点の輪郭, 'dot': 点}。使わない層は空。
+    アイコンの 2 段組（見本 `.lg-icon` / `.lg-words`）。
+    2 行を左端そろえで積んだ箱を、キャンバスの中央に置く。
     """
-    ink = [{'contours': ln['contours'], 'dot': None} for ln in lines]
-    shadow = []
-    if misreg:
-        for ln in lines:
-            dx, dy = ln['misreg']
-            shadow += shift([{'contours': ln['contours'], 'dot': None}], dx, dy)
-    edges, dots = [], []
-    for ln in lines:
-        if not ln['dot']:
-            continue
-        x, y, size, r = ln['dot']
-        if edge:
-            e = ln['edge']
-            edges.append({'contours': [], 'dot': (x, y, size, r)})
-            dots.append({'contours': [], 'dot': (x + e, y + e, size - 2 * e, max(0.0, r - e / 2))})
-        else:
-            dots.append({'contours': [], 'dot': (x, y, size, r)})
-    return {'shadow': shadow, 'ink': ink, 'edge': edges, 'dot': dots}
-
-
-def halftone(size: float = CANVAS):
-    """網点の円（cx, cy, r）の列。"""
-    n = round(size / HALFTONE_PITCH)
+    size = canvas * font_ratio
+    w = max(run_width('Pods', size, ICON_TRACKING), run_width('Now.', size, ICON_TRACKING))
+    h = 2 * ICON_LINE_HEIGHT * size
+    left = (canvas - w) / 2
+    top = (canvas - h) / 2
+    first = top + baseline_offset(size, ICON_LINE_HEIGHT)
+    second = first + ICON_LINE_HEIGHT * size
     return [
-        ((i + 0.5) * HALFTONE_PITCH, (j + 0.5) * HALFTONE_PITCH, HALFTONE_R)
-        for j in range(n)
-        for i in range(n)
+        line('Pods', size, ICON_TRACKING, left, first),
+        line('Now.', size, ICON_TRACKING, left, second),
     ]
 
 
-def two_lines(spec, cx: float = CANVAS / 2, cy: float = CANVAS / 2):
-    """アイコンの 2 段組。描画範囲（`ink_extent`）の中心を (cx, cy) に合わせる。"""
-    (l1, t1, w1), (l2, t2, w2) = spec
-    lines = [line('Pods', l1, t1, w1), line('Now.', l2, t2, w2)]
-    x0, y0, x1, y1 = ink_extent(lines)
-    return shift(lines, cx - (x0 + x1) / 2, cy - (y0 + y1) / 2)
+def layers(lines):
+    """描く順の層（字 → 点）。各層は render.polygons / render.svg_layers がそのまま塗れる行の列。"""
+    return {
+        'ink': [{'contours': ln['ink'], 'dot': None} for ln in lines],
+        'dot': [{'contours': ln['dot'], 'dot': None} for ln in lines],
+    }
+
+
+def _points(lines):
+    for ln in lines:
+        for contour in ln['ink'] + ln['dot']:
+            for _cmd, v in contour:
+                for i in range(0, len(v), 2):
+                    yield v[i], v[i + 1]
 
 
 def extent(lines) -> tuple[float, float, float, float]:
-    """描画される範囲（x0, y0, x1, y1）。制御点と版ズレを含むので実際よりわずかに広い（安全側）。"""
-    xs: list[float] = []
-    ys: list[float] = []
-    for ln in lines:
-        dx, dy = ln.get('misreg', (0.0, 0.0))
-        for contour in ln['contours']:
-            for _cmd, v in contour:
-                xs += v[0::2]
-                ys += v[1::2]
-                xs += [c + dx for c in v[0::2]]
-                ys += [c + dy for c in v[1::2]]
-        if ln['dot']:
-            x, y, size, _r = ln['dot']
-            xs += [x, x + size]
-            ys += [y, y + size]
-    return min(xs), min(ys), max(xs), max(ys)
-
-
-def ink_extent(lines) -> tuple[float, float, float, float]:
-    """実際に塗られる範囲（x0, y0, x1, y1）。二次曲線は極値を解いて求める（制御点は含めない）。"""
-    xs: list[float] = []
-    ys: list[float] = []
-
-    def quad_extrema(p0: float, p1: float, p2: float) -> list[float]:
-        den = p0 - 2 * p1 + p2
-        if den == 0:
-            return []
-        t = (p0 - p1) / den
-        if 0 < t < 1:
-            return [(1 - t) ** 2 * p0 + 2 * (1 - t) * t * p1 + t * t * p2]
-        return []
-
-    for ln in lines:
-        for contour in ln['contours']:
-            px = py = 0.0
-            for cmd, v in contour:
-                if cmd == 'Q':
-                    xs += [v[2], *quad_extrema(px, v[0], v[2])]
-                    ys += [v[3], *quad_extrema(py, v[1], v[3])]
-                    px, py = v[2], v[3]
-                else:
-                    px, py = v
-                    xs.append(px)
-                    ys.append(py)
-        if ln['dot']:
-            x, y, size, _r = ln['dot']
-            xs += [x, x + size]
-            ys += [y, y + size]
+    """描画される範囲（x0, y0, x1, y1）。制御点を含むので実際よりわずかに広い（安全側）。"""
+    pts = list(_points(lines))
+    xs = [p[0] for p in pts]
+    ys = [p[1] for p in pts]
     return min(xs), min(ys), max(xs), max(ys)
 
 
 def max_radius(lines, cx: float = CANVAS / 2, cy: float = CANVAS / 2) -> float:
-    """中心からいちばん遠い点までの距離（版ズレを含む）。Android の安全域の検査に使う。"""
-    worst = 0.0
-    for ln in lines:
-        dx, dy = ln.get('misreg', (0.0, 0.0))
-        for contour in ln['contours']:
-            for _cmd, v in contour:
-                for i in range(0, len(v), 2):
-                    for ox, oy in ((0.0, 0.0), (dx, dy)):
-                        px, py = v[i] + ox, v[i + 1] + oy
-                        worst = max(worst, ((px - cx) ** 2 + (py - cy) ** 2) ** 0.5)
-        if ln['dot']:
-            x, y, size, _r = ln['dot']
-            for px, py in ((x, y), (x + size, y), (x, y + size), (x + size, y + size)):
-                worst = max(worst, ((px - cx) ** 2 + (py - cy) ** 2) ** 0.5)
-    return worst
+    """中心からいちばん遠い点までの距離。Android の安全域の検査に使う（制御点を含むので安全側）。"""
+    return max(((x - cx) ** 2 + (y - cy) ** 2) ** 0.5 for x, y in _points(lines))
