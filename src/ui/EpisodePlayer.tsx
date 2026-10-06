@@ -12,7 +12,7 @@ import { Cassette, Jacket } from './media';
 import { PlayButton } from './PlayButton';
 import { progressRatio, seekSettled, seekTarget } from './seek';
 import { useAppTheme } from './ThemeContext';
-import { artwork, hit, player, radius, space, stroke, tabularNums, typography } from './tokens';
+import { artwork, hit, player, radius, space, tabularNums, typography } from './tokens';
 
 /** 横に何 pt 引いたらシークを始めるか（縦はその 3 倍でシートへ譲る）。 */
 const SEEK_SLOP = space.xs;
@@ -86,18 +86,10 @@ function SeekBar({
         accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]}
         onAccessibilityAction={onAccessibilityAction}
       >
-        <View style={[s.track, { backgroundColor: c.surface, borderColor: c.controlBorder }]}>
-          <View style={[s.fill, { width: `${ratio * 100}%`, backgroundColor: c.accentSolid }]} />
-          <View
-            style={[
-              s.thumb,
-              {
-                left: `${ratio * 100}%`,
-                backgroundColor: c.brandAccent,
-                borderColor: c.controlBorder,
-              },
-            ]}
-          />
+        {/* 見本のミニプレーヤーの進み具合（`.mini .bar`）と同じ作法: 細い地に白の進み、白い丸のつまみ。 */}
+        <View style={[s.track, { backgroundColor: c.surfaceHover }]}>
+          <View style={[s.fill, { width: `${ratio * 100}%`, backgroundColor: c.textPrimary }]} />
+          <View style={[s.thumb, { left: `${ratio * 100}%`, backgroundColor: c.textPrimary }]} />
         </View>
       </View>
     </GestureDetector>
@@ -328,17 +320,15 @@ const s = StyleSheet.create({
   titleBlock: { alignItems: 'center', gap: space.xs },
   seekBlock: { width: '100%' },
   seekHit: { minHeight: hit.min, justifyContent: 'center' },
-  track: { height: player.seekTrack, borderRadius: radius.pill, borderWidth: stroke.selected },
+  track: { height: player.seekTrack, borderRadius: radius.pill },
   fill: { height: '100%', borderRadius: radius.pill },
   thumb: {
     position: 'absolute',
     width: player.seekThumb,
     height: player.seekThumb,
     marginLeft: -player.seekThumb / 2,
-    // 線の内側（高さ seekTrack − 線 2 本）の中心に置く
-    marginTop: -(player.seekThumb - (player.seekTrack - stroke.selected * 2)) / 2,
+    marginTop: -(player.seekThumb - player.seekTrack) / 2,
     borderRadius: radius.pill,
-    borderWidth: stroke.selected,
   },
   times: { flexDirection: 'row', justifyContent: 'space-between' },
   status: { textAlign: 'center', marginTop: space.sm },

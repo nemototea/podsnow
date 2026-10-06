@@ -21,7 +21,7 @@
 - 見本に無い画面・状態（設定、ダイアログ、エラーなど）は、見本の部品と値を組み合わせて作る。新しい見た目が要るときは、
   先に見本に描き足して確かめる。
 
-【事実】この文書は #235 の作業 1（文書を先に直す）で書き換えた。**色・ロゴ・書体（作業 2・4・5）以外の実装はまだ Design system 3 のまま**で、
+【事実】この文書は #235 の作業 1（文書を先に直す）で書き換えた。**画面（作業 7）はまだ Design system 3 の構成のまま**で、
 作業 2〜7 で順に置き換える。何が残っているかは §14。
 
 これまでの経緯: #94 で暫定デザインを刷新（Design system 2）、#122 で録音と編集を「収録」タブにまとめ、
@@ -354,7 +354,7 @@ python3 scripts/brand/extract_glyphs.py 'path/to/Figtree[wght].ttf'   # 字形�
 | `numeric` | 12 / 16 | 500、等幅数字 | `.check .val`、`.chap span` | 行の中の値・時刻 |
 
 - 和文は見出しも Noto Sans JP 700 まで（§4.1）。見本は和文の見出しを 800〜900 で描いているので、実機で 700 と比べ、差が大きければ 900 を足すか相談する（§13）。
-- 字間は欧文だけに付ける。和文は詰めない。
+- 字間は見本どおり、和文にも同じ値を付ける（見本の番組名「夜更けのラジオ」も -2%）。
 - 動く時間は等幅数字（tabular-nums）。収録中は `mm:ss`、1 時間以上は `h:mm:ss`（`formatClock`）。小数は出さない。
 - 操作ラベルは折り返せる（Button は 1 行に固定しない）。
 
@@ -522,18 +522,19 @@ python3 scripts/brand/extract_glyphs.py 'path/to/Figtree[wght].ttf'   # 字形�
 | `ReorderList` | 並べ替えはすべてこれ（FR-UI-1）。行の右端のつまみだけにドラッグを付け、行の押下・スクロールと衝突させない。読み上げには行の操作「上へ移動」「下へ移動」。操作ヒントの文は出さない（§2.3） |
 | `alerts` | `confirmDestructive` / `ask` / `notify`（自作の `Dialog`、§6.3）、`iosActionSheet`。取り消しの効きにくい削除は `confirmDestructive` を通す。取り消せる編集には確認を出さない（FR-UI-2、§6.3）。削除・外す操作のアイコンはゴミ箱（`trash`）と `dangerText` に揃え、✕（`close`）は閉じる操作だけに使う |
 | `Field` | 常に見えるラベル、補足、エラー（読み上げに関連付け）、入力中だけ太く色の変わる輪郭 |
-| `Segmented` | エピソードの「収録 / 書き出し」。チップの形（選択中はアクセントの塗り）。iOS も `UISegmentedControl` をやめてチップにするか、作業 6 で決める【仮説】 |
+| `Segmented` | エピソードの「収録 / 書き出し」（見本 `.seg`）。チップを並べ、選択中はアクセントの塗りに黒の文字。iOS も同じ形（#235 で `UISegmentedControl` をやめた。見本の再現を優先） |
 | `Chip` | 絞り込みと短い選択肢（すべて / 下書き / 書き出し済み、M4A / WAV） |
 | `Toggle` | OS の `Switch`。オンはアクセント（録音の赤は使わない）。iOS のつまみは OS の白のまま |
-| `Toast` | 操作バーの上。**閉じるボタンを持つ**。知らせるだけの通知は 4 秒、操作（「取り消す」など）を含む通知は 6 秒で消す。録音データの安全に関わる通知は時間で消さない（§9、Issue #172） |
+| `Toast` | 白の地に黒の文字（見本 `.toast`）。操作バーの上。**閉じるボタンを持つ**（見本には無い。§13 で確認中）。知らせるだけの通知は 4 秒、操作（「取り消す」など）を含む通知は 6 秒で消す。録音データの安全に関わる通知は時間で消さない（§9、Issue #172） |
 | `InfoButton` | 専門用語の横の ⓘ（§2.2）。押すと `notify` で説明を出す。`Row` / `ChoiceMenu` は `info` で付ける |
 | `Notice` | 画面内の状態表示（注意・エラー・完了）。アイコンと文字を併せる |
 | `Pill` | エピソードの状態（下書き・書き出し済み など）の小さな札。地は `surfaceHover`、文字は `textSecondary`。録音中の札だけ `recSolid` |
 | `ProgressBar` | 実値があれば確定、無ければ不定表示（架空の % を出さない） |
-| `LevelMeter` | 横に並ぶ短い棒（見本は 24 本）。点いた棒は白、`HOT_DB`（-6）より上は `mistakeSolid`。音割れで文言も出す（§2.4） |
+| `LevelBars` | 横に並ぶ短い棒（見本 `.meter` の 24 本）。-40〜0 dBFS を等分して左から点け、添字 19（20 本目）から先は `mistakeSolid`（見本の `i >= 19`。約 -7.5 dB から）。消灯の棒は置く面に白 18% を重ねた色。音割れで文言も出す（§2.4）。対応は `src/ui/levelBars.ts`（テストあり） |
 | `MiniPlayer` | 下書きバー兼ミニプレーヤー。番組の色の塗り、アートワーク、題、状態、録音に戻るマイクと再生。下端に進み具合の細いバー |
 | `PlayButton` / `SeekBlock` | プレーヤーの再生の丸（72）と、離したときだけシークするシークバー（§8、Issue #188） |
-| `TopicCard` | トークテーマのカード（§2.7） |
+| `TopicCard` | トークテーマのカード（§2.7、見本 `.topic`）。補助文字の白の濃さは §13 で確認中 |
+| `EpisodePlayer` のシークバー | 見本に無い。ミニプレーヤーの進み具合（`.mini .bar`）と同じ作法で、太さ 4 の `surfaceHover` の地に白の進み、12 の白い丸のつまみ |
 
 Design system 3 の `OnAirLamp`・`Sticker`・`Cassette`・`Jacket`・`Sketchbook` と、針の `LevelMeter` はやめる（作業 6）。
 
@@ -552,7 +553,7 @@ Design system 3 の `OnAirLamp`・`Sticker`・`Cassette`・`Jacket`・`Sketchboo
 | 名前の変更 | シート（`Sheet`） | — | 同じ |
 | 入力や一覧を伴うシート | `Modal` の `pageSheet`（下スワイプで閉じる） | 題の書体、閉じるボタン | 現行の下からのシート |
 | スイッチ | `Switch` | オン `accentSolid` | 同じ |
-| エピソードのタブ | `UISegmentedControl`（#235 でチップにするか検討。§6.1 `Segmented`） | 書体、選択面 `surfaceRaised` | 現行の `Segmented` |
+| エピソードのタブ | チップ（`Segmented`。#235 で `UISegmentedControl` をやめた） | 見本 `.seg` | 同じ |
 | アイコン | SF Symbols（`expo-symbols`） | 太さ medium、色はトークン | 現行の SVG（線幅 2） |
 | 収録日 | `@react-native-community/datetimepicker`（compact） | `accentText` の色合い | 同じライブラリの `DateTimePickerAndroid.open`（ダイアログ。Issue #167） |
 | 触覚 | `expo-haptics`（`services.haptics`、設定でオフにできる） | 録音の開始・停止は impact、タブや選択は selection、完了は success | Android も同じ API |
@@ -629,6 +630,7 @@ SF Symbols。新しい意味を足すときは、この表 → `IconSvg.tsx` →
 | `skipBack15` | 15 秒戻る | `gobackward.15` | プレーヤー |
 | `skipForward30` | 30 秒進む | `goforward.30` | プレーヤー |
 | `refresh` | 読み込み直す・取り込み直す | `arrow.clockwise` | 再生の失敗、番組の再取り込み |
+| `nextTopic` | 次のトークテーマへ送る（送った位置がチャプターになる） | `forward.end.fill` | 収録画面の操作バー、トークテーマのカードの下段（見本の ▶\|。#235） |
 | `mic` / `headphones` | 録音の入力（内蔵マイク / それ以外） | `mic` / `headphones` | 収録の入力の行 |
 
 秒数入りの戻る・進むは、画面移動の山形（`back` / `arrow`）と形を分ける（D5）。数字は SVG では線幅 1.5 で描く。
@@ -865,6 +867,7 @@ npx expo prebuild --clean             # アイコン・書体を変えたらネ�
 |---|---|---|---|
 | 番組の色の上の補助文字 | 半透明の白（72〜85%）。白い文字の下限ちょうどの色の上で重ねると 4.5:1 を割る（見本の「朝のコーヒー会議」の収録画面で 3.29:1） | 文字は 4.5:1（§5.3）。半透明は例外として認めた（§5.4）が、重ねた結果は測って満たす前提だった | 未確認 |
 | 画素を読むための PNG の展開 | — | 依存を足すか自前で書くか | 未確認（作業 7 までに） |
+| 通知（トースト）の閉じるボタン | 見本の白い通知に閉じるボタンは無い | 通知は閉じるボタンを持つ（Issue #172、ユーザー判断 2026-09-30） | 未確認。いまは閉じるボタンを残し、白の地に黒の ✕ で描いている |
 | Home の続きから | 素材のタイルを並べる | 素材は収録画面からも入れられる。Home に置く必要があるか | 未確認 |
 
 - **アートワークが無い番組の既定の色**（§2.6）。
@@ -880,7 +883,7 @@ npx expo prebuild --clean             # アイコン・書体を変えたらネ�
 
 ## 14. 移行の状況【事実】Issue #235
 
-文書（作業 1）、色のトークン（作業 2）、ロゴとアイコン（作業 4）、書体（作業 5）を Design system 4 にした。部品・画面と文字の役割尺度（§4.2）はまだ Design system 3 のまま。
+文書（作業 1）、色のトークン（作業 2）、番組の色の計算（作業 3）、ロゴとアイコン（作業 4）、書体（作業 5）、部品（作業 6）を Design system 4 にした。画面（作業 7）はまだ Design system 3 の構成のまま。
 
 | 作業 | 対象 | 状況 |
 |---|---|---|
@@ -889,7 +892,7 @@ npx expo prebuild --clean             # アイコン・書体を変えたらネ�
 | 3. 番組の色 | `src/ui/showColors.ts`（見本の計算）と `src/ui/dominantColor.ts`（代表色）の純粋関数とテスト。画素の読み出し方を調べた | 計算は済み。画素の読み出しと保存は作業 7（§2.6、§13） |
 | 4. ロゴ・アイコン | `scripts/brand/`（Figtree 900 の字形、見本の CSS の再現、地を黒、点をレモン、ライト用の生成物を外した）、`app.json`、`src/ui/Wordmark.tsx`（字の大きさで指定） | 済み |
 | 5. 書体 | `scripts/fonts/generate.py`（Figtree 400〜900 を足し、Manrope と Dela Gothic One を外した）、`app.json`、`family` トークン、`scripts/fonts/verify.py` | 済み（役割ごとの大きさ・太さを見本の値にするのは作業 6） |
-| 6. 部品 | `src/ui`（§6.1） | 未着手 |
+| 6. 部品 | `src/ui`（§6.1）。文字の役割尺度・余白・角丸・触れる面を見本の値にし、Button・Card・Row・Chip・Pill・Toast・Notice・Field・IconButton・Segmented・Sheet・Dialog・PlayButton・Artwork を見本の形にした。`TopicCard`・`LevelBars` を足した | 済み。Design system 3 だけの部品（Cassette・Jacket・Sticker・OnAirLamp・Sketchbook・針の LevelMeter）は、使っている画面を作り直す作業 7 で消す |
 | 7. 画面 | Home、番組、収録、書き出し、配信の準備、プレーヤー、設定（テーマの項目を外す） | 未着手 |
 | 8. 実機確認 | §10.2 | 未着手 |
 

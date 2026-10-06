@@ -217,9 +217,11 @@ describe('トークンの全体', () => {
 });
 
 describe('寸法', () => {
-  it('余白は 4 の倍数（hair だけ例外）', () => {
+  it('余白は 4 の倍数か、見本だけの値（hair と、値を名前にした x6 / x10 / x14 / x20 / x22）', () => {
     for (const [name, v] of Object.entries(space)) {
-      if (name !== 'hair') expect(v % 4).toBe(0);
+      if (name === 'hair') continue;
+      if (/^x\d+$/.test(name)) expect(name).toBe(`x${v}`);
+      else expect(v % 4).toBe(0);
     }
   });
 
@@ -243,8 +245,11 @@ describe('寸法', () => {
 });
 
 describe('書体', () => {
-  it('11px を下回るサイズは無い', () => {
-    for (const role of Object.values(typography)) expect(role.fontSize).toBeGreaterThanOrEqual(11);
+  it('11px を下回るのは見本の小さな名札と目盛りだけ（overline 10.5、tick 10）', () => {
+    for (const [name, role] of Object.entries(typography)) {
+      if (name === 'overline' || name === 'tick') expect(role.fontSize).toBeGreaterThanOrEqual(10);
+      else expect(role.fontSize).toBeGreaterThanOrEqual(11);
+    }
   });
 
   it('18px 未満は太さ 400 以上（細い字は本文サイズで消える）', () => {
@@ -259,10 +264,10 @@ describe('書体', () => {
     }
   });
 
-  it('数値の役割に等幅数字を組み込み、同梱済みの Figtree 500 / 700 / 800 を使う', () => {
+  it('数値の役割に等幅数字を組み込み、同梱済みの Figtree を使う', () => {
     for (const role of Object.values(typography)) {
       if ('fontFamily' in role && role.fontFamily === family.numeric) {
-        expect(['500', '700', '800']).toContain(role.fontWeight);
+        expect(['400', '500', '700', '800']).toContain(role.fontWeight);
         expect(role.fontVariant).toContain('tabular-nums');
       }
     }
@@ -274,10 +279,12 @@ describe('書体', () => {
     }
   });
 
-  it('主要な操作の高さは 48 以上、通常のボタンは 52 以上', () => {
+  it('触れる面は 48 以上。見た目が小さい操作（ボタン 44、アイコン 32）は hitSlop で 48 に届く', () => {
     expect(hit.min).toBeGreaterThanOrEqual(48);
-    expect(hit.button).toBeGreaterThanOrEqual(52);
-    expect(hit.record).toBeGreaterThan(hit.button);
+    for (const size of [hit.button, hit.icon, hit.iconLarge, hit.rowAction, hit.roundAction]) {
+      expect(size + 2 * hitSlop(size)).toBeGreaterThanOrEqual(hit.min);
+    }
+    expect(hit.record).toBeGreaterThan(hit.roundAction);
   });
 
   it('入力欄は hit.min 以上で、枠が太くなっても字の位置が動かない', () => {

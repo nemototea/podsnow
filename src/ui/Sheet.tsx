@@ -11,7 +11,7 @@ import { DialogHost } from './Dialog';
 import { useSheetScroll } from './sheetScroll';
 import { Text } from './Text';
 import { useAppTheme } from './ThemeContext';
-import { radius, space, typography } from './tokens';
+import { grabber, radius, space, typography } from './tokens';
 
 export interface SheetProps {
   visible: boolean;
@@ -77,6 +77,7 @@ export function Sheet({ visible, onClose, title, subtitle, children, scrollTo }:
             ]}
             accessibilityViewIsModal
           >
+            <View style={[st.grab, { backgroundColor: c.grabber }]} />
             <View style={st.sheetHead}>
               <View style={st.flex}>
                 {title ? (
@@ -121,10 +122,17 @@ const st = StyleSheet.create({
   scroll: { flexShrink: 1 },
   sheet: {
     flexShrink: 1,
-    borderTopLeftRadius: radius.xl,
-    borderTopRightRadius: radius.xl,
+    // 見本 `.sheet`: 上辺の角丸 14、内側の上 12、つまみ 36×4。
+    borderTopLeftRadius: radius.x14,
+    borderTopRightRadius: radius.x14,
     paddingTop: space.md,
-    gap: space.xs,
+    gap: space.md,
+  },
+  grab: {
+    alignSelf: 'center',
+    width: grabber.width,
+    height: grabber.height,
+    borderRadius: radius.pill,
   },
   sheetHead: {
     flexDirection: 'row',
@@ -132,5 +140,5 @@ const st = StyleSheet.create({
     gap: space.sm,
     paddingTop: space.xs,
   },
-  sheetClose: { marginRight: -space.md, marginTop: -space.sm },
+  sheetClose: { marginRight: -space.xs },
 });

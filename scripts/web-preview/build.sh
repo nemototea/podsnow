@@ -20,6 +20,7 @@ cp -r "$HERE/shims" "$OUT_DIR/shims"
 cp "$HERE/metro.config.js" "$OUT_DIR/metro.config.js"
 cp "$HERE/sim/recorderAdapter.ts.txt" "$OUT_DIR/src/infra/native/recorderAdapter.ts"
 cp "$HERE/sim/audioEngineAdapter.ts.txt" "$OUT_DIR/src/infra/native/audioEngineAdapter.ts"
+cp "$HERE/sim/nowPlayingAdapter.ts.txt" "$OUT_DIR/src/infra/native/nowPlayingAdapter.ts"
 sed -i 's/seekAt(e.nativeEvent.locationX)/seekAt((e.nativeEvent as any).pageX - (e.currentTarget as any).getBoundingClientRect().left)/' \
   "$OUT_DIR/src/features/episode/Waveform.tsx"
 cd "$OUT_DIR"

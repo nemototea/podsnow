@@ -1,0 +1,12 @@
+import type { NowPlayingPort } from '@/services/audio/NowPlayingPort';
+
+/** Web プレビュー用。ロック画面・通知は無いので何もしない。 */
+export function createNativeNowPlaying(): NowPlayingPort {
+  return {
+    update() {},
+    clear() {},
+    onCommand() {
+      return { remove() {} };
+    },
+  };
+}

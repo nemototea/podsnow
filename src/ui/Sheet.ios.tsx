@@ -11,7 +11,7 @@ import { useSheetScroll, type Scrollable } from './sheetScroll';
 import type { SheetProps } from './Sheet';
 import { Text } from './Text';
 import { useAppTheme } from './ThemeContext';
-import { space, typography } from './tokens';
+import { grabber, radius, space, typography } from './tokens';
 
 export type { SheetProps };
 
@@ -38,7 +38,8 @@ export function Sheet({ visible, onClose, title, subtitle, children, scrollTo }:
         style={[st.root, { backgroundColor: c.surfaceRaised }]}
         accessibilityViewIsModal
       >
-        <View style={[st.head, { paddingLeft: g, paddingRight: g - space.md }]}>
+        <View style={[st.grab, { backgroundColor: c.grabber }]} />
+        <View style={[st.head, { paddingLeft: g, paddingRight: g - space.xs }]}>
           <View style={st.flex}>
             {title ? (
               <Text
@@ -73,11 +74,19 @@ export function Sheet({ visible, onClose, title, subtitle, children, scrollTo }:
 const st = StyleSheet.create({
   root: { flex: 1 },
   flex: { flex: 1 },
+  // 見本 `.sheet .grab`。ページシートの上端に置く。
+  grab: {
+    alignSelf: 'center',
+    width: grabber.width,
+    height: grabber.height,
+    borderRadius: radius.pill,
+    marginTop: space.md,
+  },
   head: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: space.sm,
-    paddingTop: space.lg,
+    paddingTop: space.md,
     paddingBottom: space.sm,
   },
 });

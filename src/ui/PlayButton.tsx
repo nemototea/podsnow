@@ -4,12 +4,15 @@ import Animated, { useAnimatedStyle, withTiming } from 'react-native-reanimated'
 
 import { Icon, type IconName } from './Icon';
 import { useAppTheme } from './ThemeContext';
-import { buttonDepth, icon, motion, player, radius, space, stroke } from './tokens';
+import { icon, motion, player, radius, space } from './tokens';
 import { useReducedMotion } from './useReducedMotion';
 
+/** 主操作の丸を押したときの縮み（見本 `.recbtn:active`）。 */
+const PRESSED_SCALE = 0.95;
+
 /**
- * プレーヤーの再生・一時停止（Issue #171 D5、#188）。前後のボタン（`IconButton`）より大きい丸に
- * 硬い影を付け、主操作と分かるようにする。形は収録の丸（`Transport`）と同じ作法（DESIGN_SYSTEM.md §6）。
+ * プレーヤーの再生・一時停止（Issue #171 D5、#188）。前後のボタン（`IconButton`）より大きい白い丸に
+ * 黒の記号（見本 `.recbtn` / `.minicircle` と同じ作法。DESIGN_SYSTEM.md §6）。線と影は持たず、押すと縮む。
  */
 export function PlayButton({
   name,
@@ -25,15 +28,13 @@ export function PlayButton({
   const c = useAppTheme();
   const reduced = useReducedMotion();
   const [held, setHeld] = useState(false);
-  const down = held && !reduced;
-  const travel = buttonDepth.travelLarge;
   const pressStyle = useAnimatedStyle(() => ({
     transform: [
-      { translateX: reduced ? 0 : withTiming(down ? travel : 0, { duration: motion.instant }) },
-      { translateY: reduced ? 0 : withTiming(down ? travel : 0, { duration: motion.instant }) },
+      {
+        scale: reduced ? 1 : withTiming(held ? PRESSED_SCALE : 1, { duration: motion.instant }),
+      },
     ],
   }));
-  const offset = down ? buttonDepth.pressedOffset : buttonDepth.offsetLarge;
   return (
     <Pressable
       onPress={onPress}
@@ -43,30 +44,15 @@ export function PlayButton({
       accessibilityLabel={label}
       accessibilityState={busy ? { busy } : {}}
     >
-      {({ pressed }) => (
-        <Animated.View
-          style={[
-            pressStyle,
-            s.circle,
-            {
-              borderColor: c.controlBorder,
-              backgroundColor: pressed ? c.surfaceHover : c.surface,
-              boxShadow:
-                Platform.OS === 'android' && Number(Platform.Version) < 28
-                  ? []
-                  : [{ offsetX: offset, offsetY: offset, blurRadius: 0, color: c.controlShadow }],
-            },
-          ]}
-        >
-          {busy ? (
-            <ActivityIndicator color={c.textSecondary} />
-          ) : (
-            <View style={name === 'play' ? s.playNudge : null}>
-              <Icon name={name} color={c.textPrimary} size={icon.lg} />
-            </View>
-          )}
-        </Animated.View>
-      )}
+      <Animated.View style={[pressStyle, s.circle, { backgroundColor: c.inverseSurface }]}>
+        {busy ? (
+          <ActivityIndicator color={c.inverseText} />
+        ) : (
+          <View style={name === 'play' ? s.playNudge : null}>
+            <Icon name={name} color={c.inverseText} size={icon.lg} />
+          </View>
+        )}
+      </Animated.View>
     </Pressable>
   );
 }
@@ -76,7 +62,6 @@ const s = StyleSheet.create({
     width: player.playButton,
     height: player.playButton,
     borderRadius: radius.pill,
-    borderWidth: stroke.selected,
     alignItems: 'center',
     justifyContent: 'center',
   },

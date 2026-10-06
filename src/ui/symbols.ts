@@ -39,6 +39,7 @@ export const SYMBOLS: Record<IconName, SFSymbol> = {
   artwork: 'photo',
   close: 'xmark',
   refresh: 'arrow.clockwise',
+  nextTopic: 'forward.end.fill',
   warning: 'exclamationmark.triangle',
   route: 'arrow.left.arrow.right',
   trash: 'trash',

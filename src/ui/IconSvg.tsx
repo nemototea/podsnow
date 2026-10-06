@@ -96,6 +96,11 @@ const SHAPES = {
   ],
   close: [p('m6 6 12 12M18 6 6 18')],
   refresh: [p('M20 10a8 8 0 1 0 0 6M20 4v6h-6')],
+  // 次のトークテーマへ送る（見本の収録画面の ▶| 。DESIGN_SYSTEM.md §6.4）。
+  nextTopic: [
+    p('M6 5v14l10-7Z', true),
+    { k: 'rect', x: 17, y: 5, w: 2.5, h: 14, r: 1, fill: true },
+  ],
   warning: [p('m12 3 10 18H2Z'), p('M12 9v5m0 3v1')],
   // 録音の入力が切り替わった印
   route: [p('M4 8h15m0 0-4-4m4 4-4 4M20 16H5m0 0 4-4m-4 4 4 4')],
