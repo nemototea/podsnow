@@ -58,6 +58,7 @@ import {
   motion,
   pill as pillSize,
   pressScale,
+  pressedOpacity,
   radius,
   shadow,
   space,
@@ -88,6 +89,10 @@ interface ScreenProps {
   bottomBar?: ReactNode;
   /** 画面上端の安全域を自分で取る（ネイティブのヘッダーを出さない Home だけ）。 */
   edgeTop?: boolean;
+  /**
+   * 下部バーを余白も地の色も付けずに置く（見本 `.sheet` のように、バー自身が地の色と下の安全域を持つとき）。
+   */
+  bottomBarBare?: boolean;
 }
 
 export function Screen(props: ScreenProps) {
@@ -106,6 +111,7 @@ function ScreenBody({
   overlay,
   bottomBar,
   edgeTop,
+  bottomBarBare,
 }: ScreenProps) {
   const c = useAppTheme();
   const insets = useSafeAreaInsets();
@@ -132,14 +138,18 @@ function ScreenBody({
         )}
         {bottomBar ? (
           <View
-            style={[
-              s.bottomBar,
-              {
-                paddingBottom: insets.bottom + space.sm + floating,
-                paddingHorizontal: g,
-                backgroundColor: c.bg,
-              },
-            ]}
+            style={
+              bottomBarBare
+                ? { paddingBottom: floating }
+                : [
+                    s.bottomBar,
+                    {
+                      paddingBottom: insets.bottom + space.sm + floating,
+                      paddingHorizontal: g,
+                      backgroundColor: c.bg,
+                    },
+                  ]
+            }
             onLayout={(e) => setBarHeight(e.nativeEvent.layout.height)}
           >
             {bottomBar}
@@ -216,7 +226,11 @@ export function IconButton({
             : (color ?? (selected ? c.textPrimary : c.textSecondary));
         return (
           <>
-            {busy ? <ActivityIndicator color={fg} /> : <Icon name={name} color={fg} />}
+            {busy ? (
+              <ActivityIndicator color={fg} />
+            ) : (
+              <Icon name={name} color={fg} size={icon.action} />
+            )}
             {showLabel ? <Text style={[typography.overline, { color: fg }]}>{label}</Text> : null}
           </>
         );
@@ -334,6 +348,7 @@ export function Button({
   accessibilityLabel,
   icon: iconName,
   compact,
+  large,
 }: {
   label: string;
   onPress: () => void;
@@ -344,6 +359,8 @@ export function Button({
   accessibilityLabel?: string;
   icon?: IconName;
   compact?: boolean;
+  /** 画面の主操作（見本 `.ex .btn.pri`、高さ 50・15 の文字・20 のアイコン）。 */
+  large?: boolean;
 }) {
   const c = useAppTheme();
   const reduced = useReducedMotion();
@@ -412,6 +429,7 @@ export function Button({
       style={[
         s.button,
         compact ? s.buttonCompact : null,
+        large ? s.buttonLarge : null,
         { backgroundColor: l.bg, borderColor: l.border },
         pressStyle,
         style,
@@ -420,9 +438,13 @@ export function Button({
       {busy ? (
         <ActivityIndicator color={l.fg} />
       ) : iconName ? (
-        <Icon name={iconName} color={l.fg} size={icon.sm} />
+        <Icon name={iconName} color={l.fg} size={large ? icon.button : icon.sm} />
       ) : null}
-      <Text style={[typography.label, s.buttonLabel, { color: l.fg }]}>{label}</Text>
+      <Text
+        style={[large ? typography.labelLarge : typography.label, s.buttonLabel, { color: l.fg }]}
+      >
+        {label}
+      </Text>
     </AnimatedPressable>
   );
 }
@@ -728,9 +750,12 @@ export function Chip({
   icon: iconName,
   accessibilityLabel,
   disabled,
+  raised,
 }: {
   label: string;
   active?: boolean;
+  /** `surfaceRaised` の面（シート）の上に置くとき。地を一段明るくする。 */
+  raised?: boolean;
   onPress?: () => void;
   /** 分類の色を付けるとき（素材の種類など）。選んでいる間の地と文字に使う。 */
   tone?: { text: string; border: string; subtle: string };
@@ -739,7 +764,13 @@ export function Chip({
   disabled?: boolean;
 }) {
   const c = useAppTheme();
-  const bg = active ? (tone ? tone.subtle : c.accentSolid) : c.surfaceRaised;
+  const bg = active
+    ? tone
+      ? tone.subtle
+      : c.accentSolid
+    : raised
+      ? c.surfaceHover
+      : c.surfaceRaised;
   const fg = disabled
     ? c.textDisabled
     : active
@@ -757,7 +788,7 @@ export function Chip({
       hitSlop={hitSlop(typography.chip.lineHeight + 2 * chipSize.paddingY)}
       style={({ pressed }) => [
         s.chip,
-        { backgroundColor: !active && pressed ? c.surfaceHover : bg },
+        { backgroundColor: !active && pressed ? (raised ? c.border : c.surfaceHover) : bg },
       ]}
     >
       {iconName ? <Icon name={iconName} color={fg} size={icon.sm} /> : null}
@@ -958,7 +989,7 @@ export function Field({
 }
 
 /** 文字だけの操作を押している間の薄さ。 */
-const PRESSED_OPACITY = 0.6;
+const PRESSED_OPACITY = pressedOpacity;
 const AnimatedPressable = Reanimated.createAnimatedComponent(Pressable);
 const DISMISS_DRAG = 24;
 const DRAG_START = 4;
@@ -1006,6 +1037,7 @@ const s = StyleSheet.create({
     gap: space.sm,
   },
   buttonCompact: { paddingHorizontal: space.md },
+  buttonLarge: { minHeight: hit.buttonLarge },
   buttonLabel: { textAlign: 'center', flexShrink: 1 },
   // 見本 `.field`: 上下 10、下に 1px の区切り。触れる面は 48 以上。
   row: {

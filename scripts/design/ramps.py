@@ -152,35 +152,6 @@ CONTRAST_EXCEPTIONS = {
 
 OVERLAY_ALPHA = '33'  # 20%。下の波形が透ける濃さ
 
-# ---------------------------------------------------------------- Design system 3 の部品のための色（移行用）
-
-# #235 の作業 6 で部品を作り直すまで、Design system 3 の部品（2px の線と硬い影、ロゴの版ズレ、
-# 網点、カンペ）が読む名前を残す。値は Design system 4 の画面に紛れる控えめな色にしてある。
-# 作業 6 で部品を消したら、ここも消す。新しいコードから読まない。
-LEGACY = {
-    'dark': {
-        'controlEdge': 'surfaceHover',
-        'controlBorder': 'surfaceHover',
-        'controlShadow': 'bg',
-        'controlShadowSoft': 'bg',
-        'brandInk': 'textPrimary',
-        'brandShadow': 'bg',
-        'brandAccent': 'accentSolid',
-        'halftone': 'surface',
-    },
-}
-LEGACY_FIXED = {
-    'dark': {
-        'sketchCover': (0.2543, 0.0365, 158.5),
-        'sketchCoverAlt': (0.7822, 0.1571, 77.5),
-        'sketchPaper': (0.9435, 0.0303, 90.3),
-        'sketchBoard': (0.3958, 0.0127, 81.8),
-        'sketchInk': (0.2002, 0.0000, 0.0),
-        'sketchInkSoft': (0.3694, 0.0129, 81.7),
-    },
-}
-
-
 def _hex(lch: tuple[float, float, float]) -> str:
     return k.to_hex(*lch)
 
@@ -229,8 +200,4 @@ def build(theme: str) -> dict[str, str]:
     t['selectionOverlay'] = t['accentSolid'] + OVERLAY_ALPHA
     t['recordingOverlay'] = t['recSolid'] + OVERLAY_ALPHA
 
-    for name, src in LEGACY[theme].items():
-        t[name] = t[src]
-    for name, lch in LEGACY_FIXED[theme].items():
-        t[name] = _hex(lch)
     return t

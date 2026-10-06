@@ -1,7 +1,9 @@
-import { useFocusEffect, useRouter } from 'expo-router';
+import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { compositeHex } from '@/domain/color/showColors';
 import {
   insertAtSelection,
   previewTemplate,
@@ -9,13 +11,19 @@ import {
   type TemplateVar,
   type TextSelection,
 } from '@/domain/metadata/template';
-import { formatSmp, smp } from '@/domain/time';
 import { splitIntoHeadings } from '@/domain/outline';
+import { htmlToPlainText } from '@/domain/podcast/parseFeed';
+import { formatSmp, smp } from '@/domain/time';
 import { useServices } from '@/features/app/ServicesProvider';
+import { episodeStatusKind, type EpisodeStatusKind } from '@/features/home/statusIcon';
+import { useEpisodeActions } from '@/features/home/useEpisodeActions';
+import { useHome } from '@/features/home/useHome';
+import { usePlaybackStatus } from '@/features/player/usePlayback';
 import { kindLabel } from '@/features/show/assetKinds';
 import { useAssetPreview } from '@/features/show/useAssetPreview';
 import { useAsyncData } from '@/features/show/useAsyncData';
-import { errorText, useT, type Messages } from '@/i18n';
+import { useShowColors } from '@/features/show/useShowColors';
+import { errorText, formatShortDate, useLocale, useT, type Messages } from '@/i18n';
 import type { AssetKind, AssetRow } from '@/infra/db/repositories/assetsRepo';
 import {
   getDefaultTemplate,
@@ -28,28 +36,67 @@ import {
   type ShowRow,
   type TemplateRow,
 } from '@/infra/db/repositories/showsRepo';
-import { artwork, hit, motion, space, tabularNums, typography } from '@/ui/tokens';
+import { confirmDestructive } from '@/ui/alerts';
+import { Artwork } from '@/ui/Artwork';
+import { Avatar } from '@/ui/Avatar';
+import { CircleButton } from '@/ui/CircleButton';
 import {
   Button,
-  Card,
   Chip,
   Field,
   Icon,
   IconButton,
   InfoButton,
+  Pill,
   Row,
   Screen,
-  SectionHeader,
   Text,
   Toast,
+  useGutter,
 } from '@/ui/components';
+import type { IconName } from '@/ui/IconSvg';
+import type { MenuAction } from '@/ui/menuTypes';
+import { MoreMenu } from '@/ui/MoreMenu';
 import { Sheet } from '@/ui/Sheet';
-import { ScreenHeader } from '@/ui/ScreenHeader';
+import { ShowGradient } from '@/ui/ShowGradient';
 import { useAppTheme } from '@/ui/ThemeContext';
-import { useToast } from '@/ui/useToast';
-import { Artwork } from '@/ui/Artwork';
-import { confirmDestructive } from '@/ui/alerts';
+import {
+  artwork,
+  hit,
+  icon,
+  motion,
+  pressedOpacity,
+  space,
+  stroke,
+  tabularNums,
+  typography,
+} from '@/ui/tokens';
 import { useReducedMotion } from '@/ui/useReducedMotion';
+import { useToast } from '@/ui/useToast';
+
+/** 著者の行と操作の白の濃さ（見本 `.showhead .by`、`.actions .ib` の 75%）。 */
+const BY_ALPHA = 0.75;
+
+/** 一覧の切り替え（見本 `.eplist .chip`「エピソード / 素材 / ひな形」）。 */
+const SECTIONS = ['episodes', 'assets', 'templates'] as const;
+type Section = (typeof SECTIONS)[number];
+
+function isSection(v: string | undefined): v is Section {
+  return SECTIONS.some((s) => s === v);
+}
+
+function statusLabel(t: Messages, kind: EpisodeStatusKind): string {
+  switch (kind) {
+    case 'published':
+      return t.home.badgePublished;
+    case 'noAudio':
+      return t.home.badgeNoAudio;
+    case 'new':
+      return t.home.badgeNew;
+    default:
+      return t.status[kind];
+  }
+}
 
 interface Loaded {
   show: ShowRow | null;
@@ -92,6 +139,30 @@ export default function ShowScreen() {
   const router = useRouter();
   const reduced = useReducedMotion();
   const [artworkBusy, setArtworkBusy] = useState(false);
+  const insets = useSafeAreaInsets();
+  const gutter = useGutter();
+  const locale = useLocale();
+  const colors = useShowColors();
+  const player = usePlaybackStatus();
+  const { list, playable, reload: reloadList } = useHome();
+  const params = useLocalSearchParams<{ section?: string }>();
+  const [section, setSection] = useState<Section>(
+    isSection(params.section) ? params.section : 'episodes',
+  );
+  const [creating, setCreating] = useState(false);
+  const notify = useCallback((text: string) => showToast({ text }), [showToast]);
+  const episodeActions = useEpisodeActions(reloadList, notify);
+
+  const create = async () => {
+    if (creating) return;
+    setCreating(true);
+    try {
+      const ep = await services.episodes.create(showId);
+      router.push(`/episode/${ep.id}`);
+    } finally {
+      setCreating(false);
+    }
+  };
 
   const loader = useCallback(async (): Promise<Loaded> => {
     const [show, layout, template, list, topics] = await Promise.all([
@@ -121,7 +192,8 @@ export default function ShowScreen() {
   useFocusEffect(
     useCallback(() => {
       void reload();
-    }, [reload]),
+      void reloadList();
+    }, [reload, reloadList]),
   );
 
   const [editing, setEditing] = useState<'show' | 'topics' | 'template' | null>(null);
@@ -327,178 +399,343 @@ export default function ShowScreen() {
     router.push(kind ? { pathname: '/show/assets', params: { kind } } : '/show/assets');
   };
 
+  const cover = services.coverArt.uri(data.show?.cover_path ?? null);
+  const showName = data.show?.name ?? services.show.name;
+  const author = data.show?.author ?? '';
+  const by = compositeHex(c.textPrimary, BY_ALPHA, colors.header);
+  const actionColor = compositeHex(c.textPrimary, BY_ALPHA, colors.header);
+
+  const showMenu: MenuAction[] = [
+    {
+      key: 'artwork',
+      icon: 'artwork',
+      label: data.show?.cover_path ? t.showSettings.changeArtwork : t.showSettings.chooseArtwork,
+      onPress: () => void pickArtwork(),
+    },
+    ...(data.show?.cover_path
+      ? [
+          {
+            key: 'removeArtwork',
+            icon: 'trash' as const,
+            label: t.showSettings.removeArtwork,
+            destructive: true,
+            onPress: () =>
+              confirmDestructive({
+                title: t.showSettings.removeArtwork,
+                message: t.showSettings.confirmRemoveArtwork,
+                confirmLabel: t.common.delete,
+                cancelLabel: t.common.cancel,
+                onConfirm: () => void removeArtwork(),
+              }),
+          },
+        ]
+      : []),
+    {
+      key: 'import',
+      icon: 'refresh',
+      label: services.show.feed_url ? t.home.reimportShow : t.home.importShow,
+      onPress: () => router.push('/import'),
+    },
+  ];
+
   return (
-    <Screen overlay={<Toast toast={toast} onAction={act} onDismiss={dismiss} />}>
-      <ScreenHeader title={t.showSettings.title} subtitle={services.show.name} />
+    <Screen padded={false} overlay={<Toast toast={toast} onAction={act} onDismiss={dismiss} />}>
+      <Stack.Screen options={{ headerShown: false, title: showName }} />
 
-      <SectionHeader title={t.showSettings.showEyebrow} />
-      <Card>
-        <View style={st.artworkBlock}>
-          <Text style={[typography.bodyStrong, { color: c.textPrimary }]}>
-            {t.showSettings.artwork}
+      {/* 見本 `.showhead`: 番組の色から地の色へのグラデーション（DESIGN_SYSTEM.md §2.6） */}
+      <View style={[st.head, { paddingTop: insets.top + space.x10, paddingHorizontal: gutter }]}>
+        <ShowGradient
+          stops={[
+            [colors.header, 0],
+            [colors.headerEnd, 0.48],
+            [c.bg, 1],
+          ]}
+        />
+        <View style={st.headTop}>
+          <IconButton
+            name="back"
+            color={c.textPrimary}
+            label={t.a11y.back}
+            onPress={() => router.back()}
+          />
+        </View>
+        <View style={st.cover}>
+          <Artwork
+            uri={cover}
+            name={showName}
+            size={artwork.showHeader}
+            label={t.showSettings.artworkA11y}
+            transition={reduced ? 0 : motion.quick}
+            shadow="large"
+          />
+        </View>
+        <Text
+          style={[typography.display, st.name, { color: c.textPrimary }]}
+          accessibilityRole="header"
+        >
+          {showName}
+        </Text>
+        <View style={st.by}>
+          {author ? (
+            <>
+              <Avatar name={author} size="sm" />
+              <Text style={[typography.chipStrong, { color: c.textPrimary }]} numberOfLines={1}>
+                {author}
+              </Text>
+              <Text style={[typography.byline, { color: by }]}>·</Text>
+            </>
+          ) : null}
+          <Text style={[typography.byline, { color: by }]}>
+            {t.home.showCardCount(list.length)}
           </Text>
-          <View style={st.artworkRow}>
-            <Artwork
-              uri={services.coverArt.uri(data.show?.cover_path ?? null)}
-              size={artwork.settingsPreview}
-              label={t.showSettings.artworkA11y}
-              transition={reduced ? 0 : motion.quick}
+        </View>
+        <View style={st.actions}>
+          <IconButton
+            name="edit"
+            color={actionColor}
+            label={t.showSettings.a11yEditShowInfo}
+            onPress={openShowEditor}
+          />
+          <MoreMenu
+            label={t.showSettings.a11yShowMenu}
+            title={showName}
+            actions={showMenu}
+            color={actionColor}
+            disabled={artworkBusy}
+          />
+          <View style={st.grow} />
+          <CircleButton
+            kind="accent"
+            name="mic"
+            label={t.showSettings.newEpisode}
+            busy={creating}
+            onPress={() => void create()}
+          />
+        </View>
+      </View>
+
+      <View style={[st.body, { paddingHorizontal: gutter }]}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={st.chips}
+        >
+          {SECTIONS.map((key) => (
+            <Chip
+              key={key}
+              label={t.showSettings.sections[key]}
+              active={section === key}
+              onPress={() => setSection(key)}
             />
-            <View style={st.artworkActions}>
-              <Button
-                label={
-                  data.show?.cover_path
-                    ? t.showSettings.changeArtwork
-                    : t.showSettings.chooseArtwork
-                }
-                kind="secondary"
-                icon="artwork"
-                onPress={() => void pickArtwork()}
-                busy={artworkBusy}
-              />
-              {data.show?.cover_path ? (
-                <Button
-                  label={t.showSettings.removeArtwork}
-                  kind="danger"
-                  icon="trash"
-                  disabled={artworkBusy}
-                  onPress={() =>
-                    confirmDestructive({
-                      title: t.showSettings.removeArtwork,
-                      message: t.showSettings.confirmRemoveArtwork,
-                      confirmLabel: t.common.delete,
-                      cancelLabel: t.common.cancel,
-                      onConfirm: () => void removeArtwork(),
-                    })
-                  }
-                />
-              ) : null}
-            </View>
-          </View>
-        </View>
-        <View style={st.showSummary}>
-          <Text style={[typography.heading, { color: c.textPrimary }]}>{data.show?.name}</Text>
-          {data.show?.author ? (
-            <Text style={[typography.caption, { color: c.textSecondary }]}>{data.show.author}</Text>
-          ) : null}
-          {data.show?.description ? (
-            <Text style={[typography.body, { color: c.textSecondary }]} numberOfLines={3}>
-              {data.show.description}
+          ))}
+        </ScrollView>
+
+        {section === 'episodes'
+          ? list.map((item) => {
+              const e = item.local;
+              const kind = episodeStatusKind(item);
+              const done = kind === 'exported' || kind === 'published';
+              const at = e?.recorded_at ?? item.publishedAt ?? e?.created_at ?? null;
+              const desc = item.feed?.description
+                ? htmlToPlainText(item.feed.description)
+                : (e?.description.trim() ?? '');
+              const title = item.title || t.home.untitled;
+              const label =
+                item.episodeNumber === null
+                  ? title
+                  : `${t.episode.number(item.episodeNumber)} ${title}`;
+              const active = player.source?.homeKey === item.key;
+              const canPlay = playable.has(item.key);
+              return (
+                <View key={item.key} style={[st.epi, { borderBottomColor: c.border }]}>
+                  <Pressable
+                    onPress={() => (e ? router.push(`/episode/${e.id}`) : undefined)}
+                    disabled={!e}
+                    accessibilityRole={e ? 'button' : undefined}
+                    accessibilityLabel={[label, statusLabel(t, kind), desc]
+                      .filter(Boolean)
+                      .join(', ')}
+                    style={({ pressed }) => [
+                      st.epiText,
+                      pressed ? { opacity: pressedOpacity } : null,
+                    ]}
+                  >
+                    <View style={st.epiDate}>
+                      {done ? null : <Pill label={statusLabel(t, kind)} />}
+                      {at === null ? null : (
+                        <Text style={[typography.small, { color: c.textSecondary }]}>
+                          {formatShortDate(at, locale)}
+                        </Text>
+                      )}
+                    </View>
+                    <Text
+                      style={[
+                        typography.rowTitleStrong,
+                        { color: item.title ? c.textPrimary : c.textSecondary },
+                      ]}
+                    >
+                      {label}
+                    </Text>
+                    {desc ? (
+                      <Text
+                        style={[typography.caption, { color: c.textSecondary }]}
+                        numberOfLines={2}
+                      >
+                        {desc}
+                      </Text>
+                    ) : null}
+                  </Pressable>
+                  <View style={st.ctl}>
+                    {e ? (
+                      done ? (
+                        <IconButton
+                          name="share"
+                          label={t.showSettings.a11yShareEpisode(label)}
+                          onPress={() => router.push(`/episode/${e.id}/share`)}
+                        />
+                      ) : (
+                        <IconButton
+                          name="edit"
+                          label={t.showSettings.a11yEditEpisode(label)}
+                          onPress={() => router.push(`/episode/${e.id}`)}
+                        />
+                      )
+                    ) : null}
+                    {e ? (
+                      <MoreMenu
+                        label={t.home.a11yEpisodeMenu(e.episode_number)}
+                        title={label}
+                        actions={episodeActions(e)}
+                      />
+                    ) : null}
+                    <View style={st.grow} />
+                    <Text style={[typography.small, st.dur, { color: c.textSecondary }]}>
+                      {done
+                        ? statusLabel(t, kind)
+                        : e?.audio_purged_at
+                          ? t.home.badgeNoAudio
+                          : formatSmp(smp(item.durationSmp))}
+                    </Text>
+                    {e && !done ? (
+                      <CircleButton
+                        name="mic"
+                        label={t.home.miniRecord}
+                        onPress={() => router.push(`/episode/${e.id}`)}
+                      />
+                    ) : canPlay ? (
+                      <CircleButton
+                        name={active && player.playing ? 'pause' : 'play'}
+                        label={active && player.playing ? t.a11y.pause : t.a11y.play}
+                        busy={active && player.loading}
+                        onPress={() => void player.toggleHome(item)}
+                      />
+                    ) : null}
+                  </View>
+                </View>
+              );
+            })
+          : null}
+
+        {section === 'assets' ? (
+          <>
+            <ListRow
+              icon={data.assets.length ? 'music' : 'plus'}
+              label={data.assets.length ? t.showAssets.count(data.assets.length) : t.showAssets.add}
+              accessibilityLabel={t.showAssets.a11yOpen(data.assets.length)}
+              onPress={() => openAssets()}
+            />
+            <Text
+              style={[typography.subheading, st.subheading, { color: c.textPrimary }]}
+              accessibilityRole="header"
+            >
+              {t.showSettings.layoutEyebrow}
             </Text>
-          ) : null}
-        </View>
-        <Button
-          label={t.showSettings.editShowInfo}
-          accessibilityLabel={t.showSettings.a11yEditShowInfo}
-          icon="edit"
-          kind="secondary"
-          onPress={openShowEditor}
-        />
-        <Button
-          label={services.show.feed_url ? t.home.reimportShow : t.home.importShow}
-          icon="refresh"
-          kind="ghost"
-          onPress={() => router.push('/import')}
-        />
-      </Card>
-
-      <SectionHeader title={t.showAssets.title} />
-      <Card rows>
-        <Row
-          icon={data.assets.length ? 'music' : 'plus'}
-          label={data.assets.length ? t.showAssets.count(data.assets.length) : t.showAssets.add}
-          accessibilityLabel={t.showAssets.a11yOpen(data.assets.length)}
-          onPress={() => openAssets()}
-          last
-        />
-      </Card>
-
-      <SectionHeader title={t.showSettings.layoutEyebrow} />
-      <Card style={{ paddingVertical: space.xs }}>
-        {(['opening', 'ending', 'bgm'] as LayoutSlot[]).map((slot) => {
-          const gain = Number(data.layout?.[SLOT_GAIN[slot]] ?? 0);
-          const asset = slotAsset(slot);
-          const previewing = !!asset && previewingId === asset.id;
-          return (
-            <View key={slot} style={[st.slot, { borderBottomColor: c.border }]}>
-              <View style={{ flex: 1, gap: space.xs }}>
-                <Text style={[st.slotLabel, { color: c.textPrimary }]}>{slotLabel(slot)}</Text>
-                <View style={st.slotPick}>
-                  <Chip
-                    icon="music"
-                    label={asset?.name ?? t.showSettings.chooseAsset}
-                    accessibilityLabel={t.showSettings.a11yPickAsset(slotLabel(slot))}
-                    onPress={() => setPicking(slot)}
-                  />
+            {(['opening', 'ending', 'bgm'] as LayoutSlot[]).map((slot) => {
+              const gain = Number(data.layout?.[SLOT_GAIN[slot]] ?? 0);
+              const asset = slotAsset(slot);
+              const previewing = !!asset && previewingId === asset.id;
+              return (
+                <View key={slot} style={[st.slot, { borderBottomColor: c.border }]}>
+                  <View style={st.slotText}>
+                    <Text style={[typography.fieldLabel, { color: c.textSecondary }]}>
+                      {slotLabel(slot)}
+                    </Text>
+                    <View style={st.slotPick}>
+                      <Chip
+                        icon="music"
+                        label={asset?.name ?? t.showSettings.chooseAsset}
+                        accessibilityLabel={t.showSettings.a11yPickAsset(slotLabel(slot))}
+                        onPress={() => setPicking(slot)}
+                      />
+                      {asset ? (
+                        <IconButton
+                          name={previewing ? 'stop' : 'play'}
+                          label={
+                            previewing
+                              ? t.showSettings.a11yStopSlotPreview(slotLabel(slot))
+                              : t.showSettings.a11ySlotPreview(slotLabel(slot))
+                          }
+                          selected={previewing}
+                          onPress={() => void togglePreview(asset)}
+                        />
+                      ) : null}
+                    </View>
+                  </View>
+                  {/* 素材が無い枠に音量は効かないので出さない（Issue #174 F5） */}
                   {asset ? (
-                    <IconButton
-                      name={previewing ? 'stop' : 'play'}
-                      label={
-                        previewing
-                          ? t.showSettings.a11yStopSlotPreview(slotLabel(slot))
-                          : t.showSettings.a11ySlotPreview(slotLabel(slot))
-                      }
-                      selected={previewing}
-                      onPress={() => void togglePreview(asset)}
+                    <Stepper
+                      label={`${gain > 0 ? '+' : ''}${gain} dB`}
+                      onMinus={() => bumpGain(slot, -1)}
+                      onPlus={() => bumpGain(slot, 1)}
+                      a11y={t.showSettings.a11ySlotGain(slotLabel(slot))}
                     />
                   ) : null}
                 </View>
+              );
+            })}
+            <View style={[st.slot, { borderBottomColor: c.border }]}>
+              <View style={st.slotText}>
+                <View style={st.infoLabel}>
+                  <Text style={[typography.bodyStrong, st.shrink, { color: c.textPrimary }]}>
+                    {t.showSettings.duckingLabel}
+                  </Text>
+                  <InfoButton info={t.glossary.ducking} />
+                </View>
+                <Text style={[typography.caption, { color: c.textSecondary }]}>
+                  {t.showSettings.duckingSub}
+                </Text>
               </View>
-              {/* 素材が無い枠に音量は効かないので出さない（Issue #174 F5） */}
-              {asset ? (
-                <Stepper
-                  label={`${gain > 0 ? '+' : ''}${gain} dB`}
-                  onMinus={() => bumpGain(slot, -1)}
-                  onPlus={() => bumpGain(slot, 1)}
-                  a11y={t.showSettings.a11ySlotGain(slotLabel(slot))}
-                />
-              ) : null}
+              <Stepper
+                label={`${data.layout?.bgm_duck_db ?? -10} dB`}
+                onMinus={() => bumpDuck(-1)}
+                onPlus={() => bumpDuck(1)}
+                a11y={t.showSettings.a11yDuckAmount}
+              />
             </View>
-          );
-        })}
-        <View style={[st.slot, { borderBottomWidth: 0 }]}>
-          <View style={st.duckLabel}>
-            <View style={st.infoLabel}>
-              <Text style={[st.slotLabel, { color: c.textPrimary, flexShrink: 1 }]}>
-                {t.showSettings.duckingLabel}
-              </Text>
-              <InfoButton info={t.glossary.ducking} />
-            </View>
-            <Text style={[typography.caption, { color: c.textSecondary }]}>
-              {t.showSettings.duckingSub}
-            </Text>
-          </View>
-          <Stepper
-            label={`${data.layout?.bgm_duck_db ?? -10} dB`}
-            onMinus={() => bumpDuck(-1)}
-            onPlus={() => bumpDuck(1)}
-            a11y={t.showSettings.a11yDuckAmount}
-          />
-        </View>
-      </Card>
-      <SectionHeader title={t.showSettings.topicTemplateEyebrow} />
-      <Card rows>
-        <Row
-          label={topicsRow.label}
-          labelMuted={!topicHeadings.length}
-          {...(topicsRow.sub ? { sub: topicsRow.sub } : {})}
-          accessibilityLabel={rowA11y(t.showSettings.a11yEditTopicTemplate, topicsRow)}
-          onPress={openTopicEditor}
-          last
-        />
-      </Card>
+          </>
+        ) : null}
 
-      <SectionHeader title={t.showSettings.templateEyebrow} />
-      <Card rows>
-        <Row
-          label={templateRow.label}
-          labelMuted={!templateLines.length}
-          {...(templateRow.sub ? { sub: templateRow.sub } : {})}
-          accessibilityLabel={rowA11y(t.showSettings.a11yEditDescriptionTemplate, templateRow)}
-          onPress={openTemplateEditor}
-          last
-        />
-      </Card>
+        {section === 'templates' ? (
+          <>
+            <ListRow
+              heading={t.showSettings.topicTemplateEyebrow}
+              label={topicsRow.label}
+              muted={!topicHeadings.length}
+              {...(topicsRow.sub ? { sub: topicsRow.sub } : {})}
+              accessibilityLabel={rowA11y(t.showSettings.a11yEditTopicTemplate, topicsRow)}
+              onPress={openTopicEditor}
+            />
+            <ListRow
+              heading={t.showSettings.templateEyebrow}
+              label={templateRow.label}
+              muted={!templateLines.length}
+              {...(templateRow.sub ? { sub: templateRow.sub } : {})}
+              accessibilityLabel={rowA11y(t.showSettings.a11yEditDescriptionTemplate, templateRow)}
+              onPress={openTemplateEditor}
+            />
+          </>
+        ) : null}
+      </View>
 
       <Sheet
         visible={editing === 'show'}
@@ -676,23 +913,95 @@ function Stepper({
   );
 }
 
+/**
+ * 番組画面の素材・ひな形の行（見本 `.field` の作法: 上に小さい名前、下に値、下端に線）。押すと編集を開く。
+ */
+function ListRow({
+  heading,
+  label,
+  sub,
+  icon: iconName,
+  muted,
+  onPress,
+  accessibilityLabel,
+}: {
+  heading?: string;
+  label: string;
+  sub?: string;
+  icon?: IconName;
+  muted?: boolean;
+  onPress: () => void;
+  accessibilityLabel: string;
+}) {
+  const c = useAppTheme();
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
+      style={({ pressed }) => [
+        st.listRow,
+        { borderBottomColor: c.border },
+        pressed ? { opacity: pressedOpacity } : null,
+      ]}
+    >
+      {iconName ? <Icon name={iconName} color={c.textSecondary} size={icon.sm} /> : null}
+      <View style={st.slotText}>
+        {heading ? (
+          <Text style={[typography.fieldLabel, { color: c.textSecondary }]}>{heading}</Text>
+        ) : null}
+        <Text
+          style={[typography.rowTitle, { color: muted ? c.textSecondary : c.textPrimary }]}
+          numberOfLines={1}
+        >
+          {label}
+        </Text>
+        {sub ? <Text style={[typography.small, { color: c.textSecondary }]}>{sub}</Text> : null}
+      </View>
+      <Icon name="arrow" color={c.textTertiary} size={icon.sm} />
+    </Pressable>
+  );
+}
+
 const st = StyleSheet.create({
-  artworkBlock: { gap: space.sm, marginBottom: space.lg },
-  artworkRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: space.lg },
-  artworkActions: { flex: 1, minWidth: artwork.settingsPreview, gap: space.sm },
-  showSummary: { gap: space.xs, marginBottom: space.lg },
+  // 見本 `.showhead`: 左右 16、下 16、行の間 14。上はステータスバーの下から 10。
+  head: { paddingBottom: space.lg, gap: space.x14 },
+  headTop: { flexDirection: 'row', justifyContent: 'space-between' },
+  cover: { alignItems: 'center' },
+  name: { marginTop: space.x6 },
+  by: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
+  actions: { flexDirection: 'row', alignItems: 'center', gap: space.x6 },
+  grow: { flex: 1 },
+  // 見本 `.eplist`: 左右 16、下 16。チップの下 4。
+  body: { paddingBottom: space.lg },
+  chips: { gap: space.sm, paddingBottom: space.xs },
+  // 見本 `.epi`: 上下 14、行の間 6、下端に線。
+  epi: { paddingVertical: space.x14, gap: space.x6, borderBottomWidth: stroke.hairline },
+  epiText: { gap: space.x6 },
+  epiDate: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
+  ctl: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
+  dur: { marginRight: space.sm },
+  subheading: { marginTop: space.xl, marginBottom: space.xs },
+  listRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.md,
+    minHeight: hit.min,
+    paddingVertical: space.x10,
+    borderBottomWidth: stroke.hairline,
+  },
   slot: {
     flexDirection: 'row',
     alignItems: 'center',
     minHeight: hit.min,
-    paddingVertical: space.md,
-    borderBottomWidth: StyleSheet.hairlineWidth,
+    paddingVertical: space.x10,
+    borderBottomWidth: stroke.hairline,
     gap: space.sm,
   },
-  slotLabel: typography.bodyStrong,
+  slotText: { flex: 1, minWidth: 0, gap: space.hair },
   slotPick: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
+  shrink: { flexShrink: 1 },
   stepper: { flexDirection: 'row', alignItems: 'center' },
-  duckLabel: { flex: 1, gap: space.xs },
   infoLabel: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
   stepValue: { ...typography.numeric, ...tabularNums, minWidth: 64, textAlign: 'center' },
   helpWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },

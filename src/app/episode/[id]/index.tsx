@@ -7,18 +7,22 @@ import { formatSmp, smp, type Smp } from '@/domain/time';
 import { useServices } from '@/features/app/ServicesProvider';
 import { ExportTab } from '@/features/episode/ExportTab';
 import { playMonitor } from '@/features/episode/monitor';
+import { RecordingView } from '@/features/episode/RecordingView';
 import { StudioTab } from '@/features/episode/StudioTab';
+import { useLivePeaks } from '@/features/episode/livePeaks';
+import { useShowColors } from '@/features/show/useShowColors';
 import { useDetailsDraft } from '@/features/episode/useDetailsDraft';
-import { Transport } from '@/features/episode/Transport';
 import { useRecordingContext } from '@/features/episode/useRecordingContext';
 import { handToHome } from '@/features/home/handToHome';
 import { useWorkspace } from '@/features/episode/useWorkspace';
 import { errorCodeText, errorText, useT } from '@/i18n';
 import type { AssetRow } from '@/infra/db/repositories/assetsRepo';
-import { space } from '@/ui/tokens';
+import { space, typography } from '@/ui/tokens';
 import { ask, confirmDestructive, notify } from '@/ui/alerts';
-import { Loading, Screen, Segmented, Toast } from '@/ui/components';
-import { HeaderMenu } from '@/ui/HeaderMenu';
+import { IconButton, Loading, Screen, Segmented, Text, Toast } from '@/ui/components';
+import type { MenuAction } from '@/ui/menuTypes';
+import { MoreMenu } from '@/ui/MoreMenu';
+import { useAppTheme } from '@/ui/ThemeContext';
 import { ScreenHeader } from '@/ui/ScreenHeader';
 import { undoToastFate, useToast, type UndoToast } from '@/ui/useToast';
 
@@ -37,6 +41,8 @@ export default function EpisodeScreen() {
   const { toast, show: showToast, act, dismiss } = useToast();
   const [tab, setTab] = useState<Tab>('studio');
   const undoToast = useRef<UndoToast | null>(null);
+  const c = useAppTheme();
+  const colors = useShowColors();
 
   // 詳細（タイトルなど）の入力中の値はタブの外で持つ。タブを切り替えても消えない（Issue #167）
   const details = useDetailsDraft(ws, (e) => showToast({ text: errorText(t, e) }));
@@ -67,6 +73,7 @@ export default function EpisodeScreen() {
   const interrupted = state.recording === 'interrupted';
   const busy = state.recording === 'preparing' || state.recording === 'stopping';
   const live = isRec || interrupted || busy;
+  const livePeaks = useLivePeaks(state.level, live);
 
   const showError = useCallback(
     (message: string, title: string = t.common.error) =>
@@ -276,138 +283,166 @@ export default function EpisodeScreen() {
     router.back();
   };
 
-  return (
-    <Screen
-      overlay={<Toast toast={toast} onAction={act} onDismiss={dismiss} />}
-      {...(tab === 'export'
-        ? {}
-        : {
-            bottomBar: (
-              <Transport
-                ws={ws}
-                recCtx={recCtx}
-                onToggleRec={() => void toggleRec()}
-                onFinishInterrupted={() => void finishFromInterruption()}
-              />
-            ),
-          })}
-    >
-      <ScreenHeader
-        title={t.episode.number(episode.episode_number)}
-        // 題が未設定なら 2 行目は出さない。括弧書きの仮の題は未完成に見える（Issue #195）
-        {...(episode.title ? { subtitle: episode.title } : {})}
-        lockBack={live}
-        onLockedBack={() => showToast({ text: t.record.cannotLeave })}
-      />
-      <HeaderMenu
-        label={t.episode.a11yMenu}
-        title={episode.title || t.episode.number(episode.episode_number)}
-        disabled={live}
-        // 取り消しはどのタブからも使える。録音中は押せない（FR-EDIT-7、Issue #122）
-        buttons={[
+  const title = `${t.episode.number(episode.episode_number)} ${episode.title || t.home.untitled}`;
+  const overlay = <Toast toast={toast} onAction={act} onDismiss={dismiss} />;
+  const lockedBack = () => showToast({ text: t.record.cannotLeave });
+  const menu: MenuAction[] = [
+    {
+      key: 'duplicate',
+      icon: 'copy',
+      label: t.episode.menu.duplicate,
+      onPress: () =>
+        void services.episodes.duplicate(episodeId).then((d) =>
+          showToast({
+            text: t.episode.duplicated(t.episode.number(d.episode_number)),
+            action: t.common.open,
+            onAction: () => router.push(`/episode/${d.id}` as never),
+          }),
+        ),
+    },
+    // 「…」の項目は Home と同じ（Issue #168 E5）。削除の結果は Home へ戻って Home で出す
+    ...(episode.audio_purged_at
+      ? []
+      : [
           {
-            key: 'undo',
-            icon: 'undo',
-            label: state.undoLabel ? t.edit.a11yUndo(state.undoLabel) : t.common.undo,
-            disabled: live || !state.canUndo,
-            onPress: () => void ws.undo().then((op) => op && toast1(t.undo.undid(op.label))),
-          },
-          {
-            key: 'redo',
-            icon: 'redo',
-            label: state.redoLabel ? t.edit.a11yRedo(state.redoLabel) : t.common.redo,
-            disabled: live || !state.canRedo,
-            onPress: () => void ws.redo().then((op) => op && toast1(t.undo.redid(op.label))),
-          },
-        ]}
-        actions={[
-          {
-            key: 'duplicate',
-            icon: 'copy',
-            label: t.episode.menu.duplicate,
+            key: 'purge',
+            icon: 'noAudio' as const,
+            label: t.episode.menu.purgeAudio,
             onPress: () =>
-              void services.episodes.duplicate(episodeId).then((d) =>
-                showToast({
-                  text: t.episode.duplicated(t.episode.number(d.episode_number)),
-                  action: t.common.open,
-                  onAction: () => router.push(`/episode/${d.id}` as never),
-                }),
-              ),
-          },
-          // 「…」の項目は Home と同じ（Issue #168 E5）。削除の結果は Home へ戻って Home で出す
-          ...(episode.audio_purged_at
-            ? []
-            : [
-                {
-                  key: 'purge',
-                  icon: 'noAudio' as const,
-                  label: t.episode.menu.purgeAudio,
-                  onPress: () =>
-                    confirmDestructive({
-                      title: t.episode.menu.purgeAudio,
-                      message: t.episode.menu.purgeAudioSub,
-                      confirmLabel: t.common.delete,
-                      cancelLabel: t.common.cancel,
-                      onConfirm: () => leaveAfter('purge'),
-                    }),
-                },
-              ]),
-          {
-            key: 'remove',
-            icon: 'trash',
-            label: t.episode.menu.remove,
-            destructive: true,
-            onPress: () => {
               confirmDestructive({
-                title: t.episode.menu.remove,
-                message: t.episode.menu.removeMessage,
+                title: t.episode.menu.purgeAudio,
+                message: t.episode.menu.purgeAudioSub,
                 confirmLabel: t.common.delete,
                 cancelLabel: t.common.cancel,
-                onConfirm: () => leaveAfter('remove'),
-              });
-            },
+                onConfirm: () => leaveAfter('purge'),
+              }),
           },
-        ]}
-      />
+        ]),
+    {
+      key: 'remove',
+      icon: 'trash',
+      label: t.episode.menu.remove,
+      destructive: true,
+      onPress: () => {
+        confirmDestructive({
+          title: t.episode.menu.remove,
+          message: t.episode.menu.removeMessage,
+          confirmLabel: t.common.delete,
+          cancelLabel: t.common.cancel,
+          onConfirm: () => leaveAfter('remove'),
+        });
+      },
+    },
+  ];
 
-      <View style={st.tabs}>
-        <Segmented
-          value={tab}
-          onChange={changeTab}
-          disabled={() => live}
-          options={[
-            { value: 'studio', label: t.episode.tabs.studio },
-            { value: 'export', label: t.episode.tabs.export },
-          ]}
-        />
-      </View>
+  const nav = (
+    <ScreenHeader
+      hidden
+      title={t.episode.number(episode.episode_number)}
+      lockBack={live}
+      onLockedBack={lockedBack}
+    />
+  );
 
-      {tab === 'studio' ? (
-        <StudioTab
+  // 録音中は画面全体を番組の色にする（見本 3.「収録」）
+  if (live) {
+    return (
+      <Screen scroll={false} padded={false} overlay={overlay}>
+        {nav}
+        <RecordingView
           ws={ws}
           recCtx={recCtx}
-          onInsertAsset={(a, at) => void insertAsset(a, at)}
-          onOpenAssets={() => router.push('/show')}
-          onShowToast={toast1}
-          onError={showError}
-          onGoExport={() => setTab('export')}
+          colors={colors}
+          showName={services.show.name}
+          title={title}
+          livePeaks={livePeaks}
+          onToggleRec={() => void toggleRec()}
+          onFinishInterrupted={() => void finishFromInterruption()}
+          onInsertAsset={(a) => void insertAsset(a)}
+          onLockedBack={lockedBack}
         />
-      ) : (
-        <ExportTab
-          ws={ws}
-          details={details}
-          onShowToast={toast1}
-          onGoEdit={() => setTab('studio')}
-          onDone={(exportId) =>
-            router.push(`/episode/${episodeId}/share?exportId=${exportId}` as never)
-          }
+      </Screen>
+    );
+  }
+
+  // 見本 `.ephead`: 戻る・題・取り消し / やり直し・「…」、その下に「収録 / 書き出し」のチップ
+  const header = (
+    <View style={st.head}>
+      {nav}
+      <View style={st.headRow}>
+        <IconButton name="back" label={t.a11y.back} onPress={() => router.back()} />
+        <Text
+          style={[typography.screenTitle, st.headTitle, { color: c.textPrimary }]}
+          numberOfLines={1}
+          accessibilityRole="header"
+        >
+          {title}
+        </Text>
+        {/* 取り消しはどのタブからも使える（FR-EDIT-7、Issue #122） */}
+        <IconButton
+          name="undo"
+          label={state.undoLabel ? t.edit.a11yUndo(state.undoLabel) : t.common.undo}
+          disabled={!state.canUndo}
+          onPress={() => void ws.undo().then((op) => op && toast1(t.undo.undid(op.label)))}
         />
-      )}
+        <IconButton
+          name="redo"
+          label={state.redoLabel ? t.edit.a11yRedo(state.redoLabel) : t.common.redo}
+          disabled={!state.canRedo}
+          onPress={() => void ws.redo().then((op) => op && toast1(t.undo.redid(op.label)))}
+        />
+        <MoreMenu
+          label={t.episode.a11yMenu}
+          title={episode.title || t.episode.number(episode.episode_number)}
+          actions={menu}
+        />
+      </View>
+      <Segmented
+        value={tab}
+        onChange={changeTab}
+        options={[
+          { value: 'studio', label: t.episode.tabs.studio },
+          { value: 'export', label: t.episode.tabs.export },
+        ]}
+      />
+    </View>
+  );
+
+  if (tab === 'studio') {
+    return (
+      <StudioTab
+        ws={ws}
+        recCtx={recCtx}
+        header={header}
+        overlay={overlay}
+        onRecord={() => void toggleRec()}
+        onInsertAsset={(a, at) => void insertAsset(a, at)}
+        onOpenAssets={() => router.push('/show/assets')}
+        onShowToast={toast1}
+        onError={showError}
+      />
+    );
+  }
+
+  return (
+    <Screen edgeTop overlay={overlay}>
+      {header}
+      <ExportTab
+        ws={ws}
+        details={details}
+        onShowToast={toast1}
+        onGoEdit={() => setTab('studio')}
+        onDone={(exportId) =>
+          router.push(`/episode/${episodeId}/share?exportId=${exportId}` as never)
+        }
+      />
     </Screen>
   );
 }
 
 const st = StyleSheet.create({
-  tabs: { marginTop: space.xs, marginBottom: space.lg },
-  sheetActions: { gap: space.sm },
+  // 見本 `.ephead`: 下 12、行の間 12。
+  head: { gap: space.md, marginBottom: space.md },
+  headRow: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
+  headTitle: { flex: 1, textAlign: 'center' },
 });

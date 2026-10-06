@@ -96,7 +96,7 @@ OFL ファイルは配布に伴うライセンス文なので残す。上記は 
 | 対象 | 現状【事実】 | 次に判断すること【仮説】 |
 |---|---|---|
 | Gesture Handler / Reanimated | 波形ハンドルでは使用済み。並べ替えは Issue #119 / #121 で既存ライブラリのドラッグ（`src/ui/ReorderList.tsx`）に統一した（トークテーマ・この回の録音・素材）。見た目の上下ボタンは廃止し、読み上げ向けに行の `accessibilityActions`（上へ移動 / 下へ移動）を残した | iOS のスクロール・ページシートの下スワイプとの競合は未検証（`docs/device-checklist.md` UX-8〜UX-11） |
-| Reanimated | `LevelMeter.tsx` は React の View を描画し、`useWorkspace.ts` はレベルイベントごとに state を更新している | 実機で録音中の描画負荷を測り、必要ならレベル購読の分離や shared value 化を検討。遅いと確認したわけではない |
+| Reanimated | `LevelBars.tsx`（作業 7 で `LevelMeter.tsx` から替えた）は React の View を描画し、`useWorkspace.ts` はレベルイベントごとに state を更新している | 実機で録音中の描画負荷を測り、必要ならレベル購読の分離や shared value 化を検討。遅いと確認したわけではない |
 | DateTimePicker | iOS はコンパクト表示、Android は `DateTimePickerAndroid.open` のダイアログ（Issue #167） | — |
 | Noto Sans JP | 全4ウェイトが使用中だが同梱容量の大半を占める | 未使用削除ではなく、文字範囲・字形・実ウェイトを含む軽量化設計として扱う |
 

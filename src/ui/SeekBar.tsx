@@ -8,11 +8,10 @@ import { formatClock, smp, type Smp } from '@/domain/time';
 import { useT } from '@/i18n';
 
 import { IconButton, Text } from './components';
-import { Cassette, Jacket } from './media';
 import { PlayButton } from './PlayButton';
 import { progressRatio, seekSettled, seekTarget } from './seek';
 import { useAppTheme } from './ThemeContext';
-import { artwork, hit, player, radius, space, tabularNums, typography } from './tokens';
+import { hit, player, radius, space, tabularNums, typography } from './tokens';
 
 /** 横に何 pt 引いたらシークを始めるか（縦はその 3 倍でシートへ譲る）。 */
 const SEEK_SLOP = space.xs;
@@ -217,107 +216,7 @@ export function PlayerControls({
   );
 }
 
-/**
- * 再生の見立て（DESIGN_SYSTEM.md §2.6）。編集中のタイムライン（`timeline`）はカセット、
- * 書き出したファイル・配信中の音声（`export` / `rss`）はレコードジャケット（#203）。
- */
-export type PlayerMedium = 'tape' | 'disc';
-
-export function EpisodePlayer({
-  medium,
-  artworkUri,
-  showName,
-  title,
-  episodeNumber,
-  position,
-  duration,
-  playing,
-  loading = false,
-  loadingLabel,
-  errorMessage = null,
-  onToggle,
-  onSeek,
-}: {
-  medium: PlayerMedium;
-  artworkUri: string | null;
-  /** アートワークが無いときのジャケットの表紙に使う（Issue #193）。 */
-  showName?: string | undefined;
-  title: string;
-  episodeNumber: number | null;
-  position: Smp;
-  duration: Smp;
-  playing: boolean;
-  /** 音声の読み込み・バッファ待ち（Issue #185）。再生ボタンが回転表示になる。 */
-  loading?: boolean;
-  loadingLabel?: string | undefined;
-  /** 読み込みに失敗した理由と次の操作。出ている間、再生ボタンは「読み込み直す」になる。 */
-  errorMessage?: string | null;
-  onToggle: () => void;
-  onSeek: (to: Smp) => void;
-}) {
-  const c = useAppTheme();
-  const t = useT();
-  const [width, setWidth] = useState(0);
-  const code = episodeNumber === null ? null : t.episode.number(episodeNumber);
-  return (
-    <View style={s.player} onLayout={(e) => setWidth(e.nativeEvent.layout.width)}>
-      {medium === 'tape' ? (
-        width > 0 ? (
-          <Cassette
-            width={Math.min(width - space.sm, CASSETTE_MAX)}
-            progress={duration > 0 ? position / duration : 0}
-            playing={playing}
-            title={title || t.home.untitled}
-            code={code}
-          />
-        ) : null
-      ) : (
-        <Jacket
-          uri={artworkUri}
-          name={showName}
-          size={artwork.player}
-          playing={playing}
-          label={t.player.artwork}
-        />
-      )}
-      <View style={s.titleBlock}>
-        <Text
-          style={[typography.heading, { color: title ? c.textPrimary : c.textSecondary }]}
-          numberOfLines={2}
-        >
-          {title || t.home.untitled}
-        </Text>
-        {code === null ? null : (
-          <Text style={[typography.numeric, { color: c.accentText }]}>{code}</Text>
-        )}
-      </View>
-      <SeekBlock
-        position={position}
-        duration={duration}
-        loading={loading}
-        loadingLabel={loadingLabel}
-        errorMessage={errorMessage}
-        onSeek={onSeek}
-      />
-      <PlayerControls
-        position={position}
-        duration={duration}
-        playing={playing}
-        loading={loading}
-        failed={!!errorMessage}
-        onToggle={onToggle}
-        onSeek={onSeek}
-      />
-    </View>
-  );
-}
-
-/** カセットの原寸（DESIGN_SYSTEM.md §2.6）。広い画面でもこれより大きくしない。 */
-export const CASSETTE_MAX = 358;
-
 const s = StyleSheet.create({
-  player: { alignItems: 'center', gap: space.lg },
-  titleBlock: { alignItems: 'center', gap: space.xs },
   seekBlock: { width: '100%' },
   seekHit: { minHeight: hit.min, justifyContent: 'center' },
   track: { height: player.seekTrack, borderRadius: radius.pill },

@@ -54,6 +54,7 @@ export const ja = {
   },
 
   a11y: {
+    back: '戻る',
     close: '閉じる',
     settings: '設定',
     movedTo: (label: string, position: number, total: number) =>
@@ -74,9 +75,6 @@ export const ja = {
     rewind: '15秒戻る',
     forward: '30秒進む',
     open: 'プレーヤーを開く',
-    /** カセットの A 面の印（DESIGN_SYSTEM.md §2.6）。 */
-    sideA: 'A',
-    tape: '編集中のタイムライン',
     stop: '再生を止めて閉じる',
     /** 再生を押してから音が出るまで（Issue #185）。配信の音声は通信することを示す。 */
     loadingStream: '配信から読み込み中…',
@@ -184,11 +182,24 @@ Podcast: {{show_name}}
   },
 
   home: {
-    showCardMeta: (author: string, episodes: number) =>
-      author ? `${author} · ${episodes} 本` : `${episodes} 本`,
-    /** 番組を設定していないが、エピソードはあるときの番組カード（FR-SHOW-6、Issue #168）。 */
-    showCardUnsetMeta: (episodes: number) => `番組の情報が未設定 · ${episodes} 本`,
-    sectionEpisodes: 'エピソード',
+    /** 番組カードの本数（見本 `.showcard small`）。 */
+    showCardCount: (episodes: number) => `${episodes} エピソード`,
+    /** 番組を設定していないときの番組カード（FR-SHOW-6、Issue #168）。 */
+    showCardUnset: '番組の情報が未設定',
+    /** 絞り込みのチップ（見本 `.home .chip`）。 */
+    filters: { all: 'すべて', draft: '下書き', exported: '書き出し済み' },
+    /** 続きからの素材のタイル（見本 `.quick .mat`）。 */
+    shortcuts: {
+      openingEnding: 'オープニング・エンディング',
+      bgmJingle: 'BGM・ジングル',
+      topicTemplate: 'トークテーマのひな形',
+    },
+    sectionShows: 'あなたの番組',
+    sectionRecent: '最近のエピソード',
+    /** 下書きバー（見本 `.mini .t small`「下書き · 18:04 · 録音を続ける」）。 */
+    miniDraft: (status: string, duration: string) => `${status} · ${duration} · 録音を続ける`,
+    miniRecord: '録音に戻る',
+    miniOpenDraft: (title: string) => `${title} を開く`,
     badgeNew: '未録音',
     badgePublished: '配信済み',
     /** `code` は `episode.number` で作った話数の表記。 */
@@ -206,7 +217,7 @@ Podcast: {{show_name}}
     /** `code` は `episode.number` で作った話数の表記。 */
     reviewRecordingOf: (code: string) => `${code} の録音を確認する`,
     a11yEpisodeMenu: (n: number) => `エピソード ${n} の操作`,
-    a11yOpenShow: (name: string) => `${name} の番組設定を開く`,
+    a11yOpenShow: (name: string) => `${name} を開く`,
     importShow: '配信中の番組を取り込む',
     reimportShow: '番組の情報を読み込み直す',
     onboardingTitle: '番組の情報を入れる',
@@ -257,6 +268,20 @@ Podcast: {{show_name}}
   },
 
   record: {
+    /** 収録画面の波形の左上の札（見本 `.wavebox .pill.rec`）。 */
+    recPill: 'REC',
+    chapterTag: (n: number, heading: string) => `チャプター ${n} · ${heading}`,
+    /** 収録画面の題の下（見本「テイク 4 · 末尾に追加」）。 */
+    appendAtEnd: '末尾に追加',
+    insertAtPosition: (at: string) => `${at} に差し込み`,
+    /** トークテーマのカードの下段（見本 `.topic .next`）。 */
+    nextMakesChapter: (heading: string) => `次へ送るとチャプターになります: ${heading}`,
+    notStarted: '次へ送ると最初のチャプターが始まります',
+    levelDb: (db: number) => `${db} dB`,
+    close: '閉じる',
+    a11yMenuLocked: '録音中は操作できません',
+    nextTopicShort: '次のトークテーマへ',
+    stop: '録音を止める',
     cannotLeave: '録音中は戻れません。停止してください',
     diskLow: '空き容量が少ないため録音を停止しました',
     /** 録音を始められなかったときのダイアログの題（Issue #165）。 */
@@ -268,8 +293,6 @@ Podcast: {{show_name}}
     takeInserted: (duration: string, at: string) => `${at} に録音を差し込みました（${duration}）`,
 
     talkingNow: 'いま話していること',
-    upNext: (heading: string) => `次: ${heading}`,
-    openList: '一覧',
     /** 話題を進めたときの読み上げ。画面の通知は出さない（#190）。 */
     a11yAdvanced: (heading: string) => `「${heading}」へ進みました`,
     topicsTitle: 'トークテーマと台本',
@@ -301,17 +324,12 @@ Podcast: {{show_name}}
     bluetoothTitle: 'Bluetooth マイクは音質が落ちます',
     talkingPoints: 'トークテーマ',
     progress: (done: number, total: number) => `${done}/${total}`,
-    a11yTalked: '話し終えた',
     nextTopic: (heading: string) => `次へ：${heading}`,
-    firstTopic: (heading: string) => `話し始める：${heading}`,
-    assetsTitle: 'ジングル・効果音',
     a11yInsertNow: (name: string) => `${name} をいまの位置に入れる`,
-    a11yInsertAt: (name: string) => `${name} を再生位置に入れる`,
     a11yDeleteTopic: (heading: string) => `${heading} を削除`,
     confirmDeleteTopic: (heading: string) => `「${heading}」を削除しますか？`,
     confirmDeleteTopicNote: '書いた台本も一緒に消える',
     addTopics: 'トークテーマを追加',
-    finish: '録音を終える',
     start: '録音を開始',
     startHere: 'ここから録音',
     savingOnDevice: (left: string) => `保存中 · 残り約 ${left}`,
@@ -324,25 +342,6 @@ Podcast: {{show_name}}
     a11yLevel: (db: number) => `入力レベル ${db} dB`,
     a11yLevelIdle: '入力レベル（録音していません）',
     clipped: '音が割れています。マイクから少し離れてください',
-    /** 看板の語（DESIGN_SYSTEM.md §2.4）。recording のときだけ点灯する。読み上げには使わない。 */
-    onAir: 'ON AIR',
-    /** 看板の語。LevelEvent.clipped で点くランプ。 */
-    clipLamp: '音割れ',
-    /** 看板の語。「次へ」で送った位置（チャプターの始まり）。 */
-    cue: (time: string) => `CUE ${time}`,
-    /** カンペのページ番号（DESIGN_SYSTEM.md §2.7）。 */
-    pageNo: (n: number) => `No.${n}`,
-    /** カンペの表紙のラベル。話し始める前に見せる。 */
-    coverCount: (n: number) => `${n} ページ`,
-    a11yCover: (n: number) => `トークテーマ ${n} ページ。まだ始めていません`,
-    /** カンペの付箋（DESIGN_SYSTEM.md §2.7）。外れた話題をまとめた付箋の文字。 */
-    moreTab: (n: number) => `+${n}`,
-    a11yIndex: (current: number, total: number, done: number, left: number) =>
-      `トークテーマ ${current} / ${total}。済み ${done}、残り ${left}`,
-    a11yTab: (n: number, heading: string, state: string) => `${n}. ${heading}、${state}`,
-    a11yUpcoming: 'これから',
-    a11yMoreBefore: (n: number) => `済んだトークテーマ ${n} 本`,
-    a11yMoreAfter: (n: number) => `これからのトークテーマ ${n} 本`,
     permTitle: 'マイクへのアクセス',
     permBody: '声を録音するために、マイクへのアクセスを許可してください',
     permAllow: '許可する',
@@ -351,6 +350,14 @@ Podcast: {{show_name}}
   },
 
   edit: {
+    enterNumbers: '秒数で指定',
+    /** 選択のシート（見本 `.sheet .info`「選択中 04:31.2 – 04:35.4 · 4.2 秒」）。 */
+    selectedInfo: (from: string, to: string, seconds: string) =>
+      `選択中 ${from} – ${to} · ${seconds} 秒`,
+    playheadInfo: (pos: string, total: string) => `${pos} / ${total}`,
+    chaptersTitle: 'チャプター',
+    a11yChapterMenu: (heading: string) => `${heading} のトークテーマを開く`,
+    editTopics: 'トークテーマを編集',
     emptyTitle: 'まだ録音がありません',
     emptySub: '下の録音ボタンで始めます。途中の位置を選んで録ると、そこに差し込まれます',
     insertBefore: '前に素材',
@@ -359,7 +366,6 @@ Podcast: {{show_name}}
     clearSelection: '選択を解除',
     removeSilence: '無音を詰める',
     deleted: (duration: string) => `${duration} を削除しました`,
-    hintSelection: (from: string, to: string) => `${from} 〜 ${to} を選択中`,
 
     silenceNone: '詰められる無音はありませんでした',
     silenceApplied: (count: number, total: string) =>
@@ -379,13 +385,9 @@ Podcast: {{show_name}}
     a11yPlayhead: (pos: string, total: string) => `再生位置 ${pos}、全体 ${total}`,
     a11yUndo: (label: string) => `取り消す：${label}`,
     a11yRedo: (label: string) => `やり直す：${label}`,
-    laneVoice: '声',
-    laneAssets: '素材',
     startSec: '開始（秒）',
     endSec: '終了（秒）',
-    cutSelection: '選択範囲を削除',
     playSelection: '選択範囲を試聴',
-    toExport: '書き出しへ進む',
     a11yOverlay: (kind: string, name: string) => `${kind}：${name}`,
     a11yChapter: (heading: string) => `チャプター ${heading}`,
     a11yChapterHint: 'タップで移動、長押しでチャプター全体を選択',
@@ -440,7 +442,7 @@ Podcast: {{show_name}}
   },
 
   sound: {
-    title: '音の仕上げ',
+    embed: 'アートワークとタイトルを埋め込む',
     loudness: '声の音量をそろえる',
     recommended: '（推奨）',
     truePeak: 'トゥルーピーク上限',
@@ -451,7 +453,6 @@ Podcast: {{show_name}}
     attack: 'アタック',
     release: 'リリース',
     threshold: '声のしきい値',
-    loudnessTarget: (lufs: number, peak: number) => `${lufs} LUFS・最大ピーク ${peak} dBTP`,
     /** 試聴の正規化のゲインを裏で測っている間（Issue #158）。 */
     measuring: (pct: number) => `試聴の音量を測っています（${pct}%）`,
     addBgm: 'BGM を入れる',
@@ -459,7 +460,7 @@ Podcast: {{show_name}}
   },
 
   export: {
-    title: '書き出し',
+    estimatedSizeShort: (size: string) => `約 ${size}`,
     presets: {
       podcast: { label: 'Podcast', spec: 'M4A · 128 kbps · モノラル' },
       high: { label: '高音質', spec: 'M4A · 256 kbps · ステレオ' },
@@ -482,10 +483,9 @@ Podcast: {{show_name}}
     lufs: (value: string) => `${value} LUFS`,
     lufsBelowTarget: (value: string, target: number) =>
       `${value} LUFS（目標 ${target} LUFS に届いていません）`,
-    estimatedSize: '推定サイズ',
     phaseMeasuring: '音を整えています',
     phaseRendering: 'ファイルを作成しています',
-    run: '音声を書き出す',
+    run: '書き出して共有',
     emptyVoice: 'まだ録音がありません。収録タブで録音してから書き出します',
     historyEyebrow: '書き出し履歴',
     cancelled: '書き出しを中止しました',
@@ -507,6 +507,7 @@ Podcast: {{show_name}}
   },
 
   pack: {
+    fieldsHeading: '配信サービスに貼る情報',
     title: '配信の準備',
     shareFile: '音声ファイルを共有',
     noExport: '書き出し済みの音声ファイルがありません',
@@ -598,10 +599,14 @@ Podcast: {{show_name}}
   },
 
   showSettings: {
+    /** 番組画面の一覧の切り替え（見本 `.eplist .chip`）。 */
+    sections: { episodes: 'エピソード', assets: '素材', templates: 'ひな形' },
+    a11yShowMenu: '番組の操作',
+    newEpisode: '新しいエピソードを録音',
+    a11yEditEpisode: (label: string) => `${label} を編集`,
+    a11yShareEpisode: (label: string) => `${label} を共有`,
     topicTemplateEyebrow: 'トークテーマのひな形',
     topicTemplatePlaceholder: 'オープニング\n今日の話題\nお便り\nお知らせ\nエンディング',
-    title: '番組の設定',
-    showEyebrow: '番組',
     editShowInfo: '番組情報を編集',
     a11yEditShowInfo: '番組名、概要、著者、既定のシーズンを編集',
     a11ySaveShowInfo: '完了して番組情報を保存',
@@ -610,7 +615,6 @@ Podcast: {{show_name}}
     description: '概要',
     author: '著者',
     defaultSeason: '既定のシーズン',
-    artwork: 'アートワーク',
     artworkA11y: '番組のアートワーク',
     chooseArtwork: '画像を選ぶ',
     changeArtwork: '画像を変更',

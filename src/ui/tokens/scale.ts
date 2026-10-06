@@ -42,8 +42,6 @@ export const wordmarkSize = { home: 24 } as const;
 
 /** 番組アートワーク（Issue #133 / #235。見本の大きさ）。 */
 export const artwork = {
-  settingsPreview: 128,
-  player: 184,
   /** プレーヤー画面のアートワークの一辺の上限（Issue #188）。狭い画面では幅に合わせて縮む。 */
   playerSheet: 280,
   /** ミニプレーヤー（見本 `.mini .art`）。 */
@@ -52,12 +50,12 @@ export const artwork = {
   row: 52,
   /** 書き出しタブの上（見本 `.exhero .art`）。 */
   exportHero: 84,
+  /** 続きからの素材のタイルのアイコン（見本 `.mat` の 20）。 */
+  matIcon: 20,
   /** Home の番組カード（見本 `.showcard .art`）。 */
   showCard: 128,
   /** 番組画面の上部（見本 `.showhead .art`）。 */
   showHeader: 196,
-  /** Home のレコードジャケットの一辺の上限（#190）。狭い画面では盤まで収まる大きさに縮む。 */
-  homeJacket: 240,
 } as const;
 
 /** 音声プレーヤー（Issue #135）。 */
@@ -78,6 +76,8 @@ export const player = {
 export const radius = {
   /** アートワーク、塊、状態の札、素材のレーン。 */
   xs: 4,
+  /** 収録画面の止める印（見本 `.recbtn i`）。 */
+  x6: 6,
   /** カード、ミニプレーヤー、通知、波形パネル。 */
   sm: 8,
   /** トークテーマのカード（見本 `.topic`）。 */
@@ -137,25 +137,8 @@ export const typography = {
     fontFamily: family.numeric,
     ...tabularNums,
   },
-  /** 編集の再生位置（見本に無い。timer より一段小さく）。 */
-  clock: {
-    fontSize: 32,
-    lineHeight: 40,
-    fontWeight: '700',
-    fontFamily: family.numeric,
-    ...tabularNums,
-  },
-  clockCompact: {
-    fontSize: 24,
-    lineHeight: 32,
-    fontWeight: '700',
-    fontFamily: family.numeric,
-    ...tabularNums,
-  },
   /** 番組名（見本 `.showhead h3`）。 */
   display: { fontSize: 26, lineHeight: 31, fontWeight: '900', letterSpacing: -0.52 },
-  /** 移行用: Design system 3 の看板の語とステッカーの文字。#235 の作業 7 で部品と一緒に消す。 */
-  sign: { fontSize: 20, lineHeight: 24, fontWeight: '800' },
   /** Home のセクション見出し（見本 `.h2`）。 */
   title: { fontSize: 22, lineHeight: 28, fontWeight: '800', letterSpacing: -0.22 },
   /** 収録画面のエピソードの題（見本 `.np .title b`）。 */
@@ -178,14 +161,28 @@ export const typography = {
   bodyStrong: { fontSize: 13.5, lineHeight: 20, fontWeight: '600' },
   /** ボタン（見本 `.btn`）。 */
   label: { fontSize: 14, lineHeight: 18, fontWeight: '800' },
+  /** 書き出しの主操作（見本 `.ex .btn.pri` の 15）。 */
+  labelLarge: { fontSize: 15, lineHeight: 19, fontWeight: '800' },
   /** チップ、ミニプレーヤーの題、番組カードの名前（見本 `.chip`）。 */
   chip: { fontSize: 13, lineHeight: 16, fontWeight: '600' },
+  /** ミニプレーヤーの題、番組カードの名前、収録画面の番組名（見本 `.mini .t b`、`.showcard b`、`.np .head b`）。 */
+  chipStrong: { fontSize: 13, lineHeight: 16, fontWeight: '700' },
+  /** 番組画面の著者の行（見本 `.showhead .by`）。 */
+  byline: { fontSize: 13, lineHeight: 16, fontWeight: '400' },
   /** 補助情報、概要（見本 `.ep .t span`、`.epi p`）。 */
   caption: { fontSize: 12.5, lineHeight: 19, fontWeight: '400' },
+  /** 続きからのタイル、ジングルの押しボタン（見本 `.quick button`、`.pads button`）。 */
+  captionStrong: { fontSize: 12.5, lineHeight: 16, fontWeight: '700' },
   /** 日付・時間・状態の補足（見本 `.mini .t small`、`.epi .d`）。 */
   small: { fontSize: 12, lineHeight: 16, fontWeight: '400' },
+  /** 小さい押しボタン（見本 `.copybtn`）。 */
+  smallStrong: { fontSize: 12, lineHeight: 16, fontWeight: '700' },
+  /** 行の上の小さい名前（見本 `.field small`）。 */
+  fieldLabel: { fontSize: 11.5, lineHeight: 14, fontWeight: '400' },
   /** カードの上段、波形パネルの名札（見本 `.topic small`、`.wavebox .chap`）。 */
   meta: { fontSize: 11, lineHeight: 14, fontWeight: '800', letterSpacing: 0.66 },
+  /** 収録画面の上部の状態（見本 `.np .head small`。字間 10%）。 */
+  eyebrow: { fontSize: 10.5, lineHeight: 13, fontWeight: '700', letterSpacing: 1.05 },
   /** 状態の札、下部タブ、素材のレーン名（見本 `.pill`、`.tabs button`、`.layer`）。 */
   overline: { fontSize: 10.5, lineHeight: 13, fontWeight: '700', letterSpacing: 0.21 },
   /** 行の中の値・時刻（見本 `.check .val`、`.chap span`）。 */
@@ -210,8 +207,22 @@ export type TypeRole = keyof typeof typography;
 
 /** アイコンの大きさ。24 を基準に線幅 2 で描く（`src/ui/Icon.tsx`）。 */
 export const icon = {
+  /** 完了の印の中（見本 `.check .dot` の 12）。 */
+  dot: 12,
+  /** 文の中の小さい印（見本 `next-sm` の 13）。 */
+  tiny: 13,
+  /** ボタン・押しボタンの中（見本 `mic-sm`、`note` の 15）。 */
+  inline: 15,
+  /** 一覧の白い丸の中（見本 `.minicircle` の 16）。 */
+  circle: 16,
   sm: 18,
+  /** 主操作のボタンの中（見本 `share` の 20）。 */
+  button: 20,
+  /** アイコンだけの操作（見本 `.ib` の 22）。 */
+  action: 22,
   md: 24,
+  /** 番組画面の録音の丸の中（見本 `mic-lg` の 26）。 */
+  round: 26,
   lg: 28,
 } as const;
 
@@ -226,6 +237,8 @@ export const hit = {
   min: 48,
   /** 通常のボタンの見た目の高さ（見本 `.btn`）。触れる面は hitSlop で 48 にする。 */
   button: 44,
+  /** 画面の主操作（見本 `.ex .btn.pri` の 50）。 */
+  buttonLarge: 50,
   /** 収録の丸ボタン（見本 `.recbtn`）。再生系と録音系で同じ大きさ（#128）。 */
   record: 72,
   /** 番組画面の録音の丸（見本 `.bigplay`）。 */
@@ -283,6 +296,37 @@ export const shadow = {
   artworkLarge: '0 16px 40px rgba(0, 0, 0, 0.55)',
 } as const;
 
+/** 編集の波形のパネル（見本 4.「編集」の `.timeline`）。 */
+export const timeline = {
+  /** 目盛りの行（文字 12 と下の 8）。 */
+  ruler: 20,
+  /** 声のレーン（見本 `.lane` の 72）。 */
+  lane: 72,
+  /** 素材のレーン（見本 `.layer` の 24）。 */
+  layer: 24,
+  /** 選択の端のつまみ（見本 `.chunk.sel::before` の 6 × 28）。 */
+  handleW: 6,
+  handleH: 28,
+} as const;
+
+/** 収録画面（見本 3.「収録」）。 */
+export const recordView = {
+  /** 波形のパネルの高さ（見本 `.wavebox`）。 */
+  wave: 200,
+  /** 棒の高さに使わない上下の余白の和と、棒の中心を下へずらす量（見本の `h - 56`、`h / 2 + 10`）。 */
+  waveInset: 56,
+  waveShift: 10,
+  /** 録音の丸の中の止める印（見本 `.recbtn i` の 26）。待機中の丸い印は 30。 */
+  stopMark: 26,
+  recordMark: 30,
+} as const;
+
+/** 頭文字の丸（見本 `.avatar` 32、`.showhead .by .avatar` 22）。 */
+export const avatar = { md: 32, sm: 22 } as const;
+
+/** 続きからのタイルの高さ（見本 `.quick button` 52。アートワークも同じ辺）。 */
+export const quickTile = 52;
+
 /** チップ（見本 `.chip`）。上下 7・左右 14。 */
 export const chip = { paddingY: 7, paddingX: space.x14 } as const;
 
@@ -321,33 +365,5 @@ export const motion = {
 /** 押し込みの縮小率（better-ui: 0.95 より小さいと大げさに見える）。 */
 export const pressScale = 0.96;
 
-/**
- * 押せる物の硬い影と押し込み（DESIGN_SYSTEM.md §6、#190）。右下へずらしたぼかさない影で、
- * 押すと影の分だけ沈む。小は副操作・ステッカー、大は主操作と録音の丸。配置は動かさず描画だけを移動する。
- */
-export const buttonDepth = {
-  offset: 3,
-  offsetLarge: 5,
-  travel: 2,
-  travelLarge: 4,
-  pressedOffset: 1,
-} as const;
-
-/**
- * ステッカーの傾き（度、DESIGN_SYSTEM.md §2.5）。項目ごとに固定し、押しても変えない。
- * 一覧では添字で順に使う（`stickerTilt(i)`）。
- */
-export const sticker = { tilts: [-4, 3, -2, 4, -3, 6], lamp: -4 } as const;
-
-/** 版ズレ（DESIGN_SYSTEM.md §2.5）。大きな数字の右下にずらす影。 */
-export const misreg = { x: 3, y: 2 } as const;
-
-/** 網点（DESIGN_SYSTEM.md §2.5）。面の飾りだけに使い、文字の下に置かない。 */
-export const halftone = { pitch: 7, dot: 1.3 } as const;
-
-/** 再生の見立て（§2.6）。リールとレコード盤が 1 回転する時間（ms）。 */
-export const spin = { reel: 2400, disc: 3200 } as const;
-
-export function stickerTilt(i: number): number {
-  return sticker.tilts[((i % sticker.tilts.length) + sticker.tilts.length) % sticker.tilts.length]!;
-}
+/** 押している間の不透明度（地の色が無い行・カード）。 */
+export const pressedOpacity = 0.6;

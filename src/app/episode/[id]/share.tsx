@@ -1,6 +1,6 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 import { formatAllMetadata } from '@/domain/metadata/template';
 import { formatClock, smp } from '@/domain/time';
@@ -14,12 +14,16 @@ import { listExports, type ExportRow } from '@/infra/db/repositories/exportsRepo
 import { fileExists } from '@/infra/files/fileSystem';
 import { joinRoot } from '@/infra/files/layout';
 import { exportLoudness } from '@/services/export/ExportService';
-import { space, tabularNums, typography } from '@/ui/tokens';
-import { Button, Card, Loading, Notice, Screen, Text, Toast } from '@/ui/components';
+import { hitSlop, radius, space, stroke, tabularNums, typography } from '@/ui/tokens';
+import { Button, Loading, Notice, Screen, Text, Toast } from '@/ui/components';
 import { ScreenHeader } from '@/ui/ScreenHeader';
 import { useAppTheme } from '@/ui/ThemeContext';
 import { useToast } from '@/ui/useToast';
 
+/**
+ * コピーの行（見本 `.field`）。上に小さい名前、下に値、右に丸い端の「コピー」。コピーできたら
+ * アクセントの塗りの「コピー済み」になる（書き込みが成功してから。DESIGN_SYSTEM.md §8）。
+ */
 function CopyBlock({
   label,
   value,
@@ -34,22 +38,40 @@ function CopyBlock({
   const c = useAppTheme();
   const t = useT();
   return (
-    <View style={[st.copyBlock, { borderBottomColor: c.border }]}>
-      <View style={st.copyHead}>
-        <Text style={[typography.label, { color: c.textSecondary, flex: 1 }]}>{label}</Text>
-        <Button
-          label={copied ? t.common.copied : t.common.copy}
-          icon={copied ? 'check' : 'copy'}
-          kind="secondary"
-          compact
-          disabled={!value}
-          accessibilityLabel={copied ? t.pack.a11yCopied(label) : t.pack.a11yCopy(label)}
-          onPress={onCopy}
-        />
+    <View style={[st.field, { borderBottomColor: c.border }]}>
+      <View style={st.fieldText}>
+        <Text style={[typography.fieldLabel, { color: c.textSecondary }]}>{label}</Text>
+        <Text
+          style={[typography.rowTitle, { color: value ? c.textPrimary : c.textTertiary }]}
+          numberOfLines={2}
+          selectable
+        >
+          {value || t.common.empty}
+        </Text>
       </View>
-      <Text style={[typography.body, { color: value ? c.textPrimary : c.textTertiary }]} selectable>
-        {value || t.common.empty}
-      </Text>
+      <Pressable
+        onPress={onCopy}
+        disabled={!value}
+        accessibilityRole="button"
+        accessibilityLabel={copied ? t.pack.a11yCopied(label) : t.pack.a11yCopy(label)}
+        accessibilityState={{ disabled: !value }}
+        hitSlop={hitSlop(typography.smallStrong.lineHeight + space.x6 * 2)}
+        style={({ pressed }) => [
+          st.copy,
+          copied
+            ? { backgroundColor: c.accentSolid, borderColor: c.accentSolid }
+            : { borderColor: pressed ? c.textPrimary : c.borderStrong },
+        ]}
+      >
+        <Text
+          style={[
+            typography.smallStrong,
+            { color: !value ? c.textDisabled : copied ? c.accentOnSolid : c.textPrimary },
+          ]}
+        >
+          {copied ? t.common.copied : t.common.copy}
+        </Text>
+      </Pressable>
     </View>
   );
 }
@@ -159,7 +181,7 @@ export default function DistributionPackScreen() {
             />
           )}
 
-          <Card>
+          <View style={[st.fileCard, { backgroundColor: c.surface }]}>
             <View style={st.file}>
               <Text style={[typography.bodyStrong, { color: c.textPrimary }]}>{fileName}</Text>
               <Text style={[typography.numeric, tabularNums, { color: c.textSecondary }]}>
@@ -176,12 +198,13 @@ export default function DistributionPackScreen() {
               </Text>
             ) : null}
             <Button
+              large
               label={t.pack.shareFile}
               icon="share"
               disabled={!exists}
               onPress={() => void share()}
             />
-          </Card>
+          </View>
         </>
       ) : (
         <Notice
@@ -198,7 +221,13 @@ export default function DistributionPackScreen() {
         />
       )}
 
-      <Card>
+      <View>
+        <Text
+          style={[typography.subheading, st.fieldsHead, { color: c.textPrimary }]}
+          accessibilityRole="header"
+        >
+          {t.pack.fieldsHeading}
+        </Text>
         <CopyBlock
           label={t.pack.titleEyebrow}
           value={episode.title}
@@ -217,7 +246,7 @@ export default function DistributionPackScreen() {
           copied={copied === 'meta'}
           onCopy={() => doCopy('meta', allMeta)}
         />
-      </Card>
+      </View>
 
       <Button
         label={t.pack.backHome}
@@ -229,12 +258,25 @@ export default function DistributionPackScreen() {
 }
 
 const st = StyleSheet.create({
-  top: { height: space.lg },
-  file: { gap: space.xs, marginBottom: space.lg },
-  copyBlock: {
-    gap: space.sm,
-    paddingVertical: space.md,
-    borderBottomWidth: StyleSheet.hairlineWidth,
+  top: { height: space.sm },
+  // 見本 `.checks` と同じ面（`surface`、角丸 8、内側 14）
+  fileCard: { borderRadius: radius.sm, padding: space.x14, gap: space.md },
+  file: { gap: space.xs },
+  fieldsHead: { marginTop: space.x20, marginBottom: space.xs },
+  // 見本 `.field`: 上下 10、間 12、下端に線。
+  field: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.md,
+    paddingVertical: space.x10,
+    borderBottomWidth: stroke.hairline,
   },
-  copyHead: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
+  fieldText: { flex: 1, minWidth: 0, gap: space.hair },
+  // 見本 `.copybtn`: 上下 6・左右 12、丸い端、1 の輪郭。
+  copy: {
+    paddingVertical: space.x6,
+    paddingHorizontal: space.md,
+    borderRadius: radius.pill,
+    borderWidth: stroke.hairline,
+  },
 });

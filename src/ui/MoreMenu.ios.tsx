@@ -16,7 +16,7 @@ export type { MoreMenuProps };
  * iOS はネイティブのプルダウンメニュー（DESIGN_SYSTEM.md §6.2）。項目の補足は出さない
  * （iOS のメニューは 1 行の動詞で並べる）。
  */
-export function MoreMenu({ label, title, actions, disabled }: MoreMenuProps) {
+export function MoreMenu({ label, title, actions, disabled, color }: MoreMenuProps) {
   const c = useAppTheme();
   const items = actions.map((a) => (
     <Button
@@ -33,8 +33,8 @@ export function MoreMenu({ label, title, actions, disabled }: MoreMenuProps) {
         label={
           <Image
             systemName="ellipsis"
-            size={icon.md}
-            color={disabled ? c.textDisabled : c.textPrimary}
+            size={icon.action}
+            color={disabled ? c.textDisabled : (color ?? c.textSecondary)}
             modifiers={[frame({ width: hit.min, height: hit.min })]}
           />
         }

@@ -67,7 +67,7 @@ export function Artwork({
   name?: string | undefined;
   /** 画像の入れ替え時間。動きを減らすときは 0。 */
   transition?: number;
-  /** 角丸を持たない（移行用: Design system 3 のレコードジャケットの中に置くとき）。 */
+  /** 角丸を持たない（見本 `.quick .art`。タイルの角丸の中に置くとき）。 */
   frameless?: boolean;
   /** 落ち影（見本 `.showcard .art` / `.showhead .art`）。大きい表示だけに付ける。 */
   shadow?: 'card' | 'large';
@@ -90,7 +90,7 @@ export function Artwork({
         importantForAccessibility: 'no-hide-descendants' as const,
       };
   let content;
-  if ((!uri || failed === uri) && name?.trim()) {
+  if ((!uri || failed === uri) && name?.trim() && size >= NAME_MIN) {
     content = <NameCover name={name.trim()} size={size} />;
   } else if (!uri || failed === uri) {
     content = (

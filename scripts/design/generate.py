@@ -110,7 +110,6 @@ HEADER = '''// scripts/design/generate.py が生成。直接編集せず scripts
 // 役割の名前だけを置く。`#FFE34D` のような値を画面から直接使わない（DESIGN_SYSTEM.md §5）。
 // テーマはダーク 1 つ（Issue #235）。見本 docs/design-refresh/ds4/mock.html の色はそのままの値で、
 // 見本に無い色は OKLCh で計算し、文字と境界は目標コントラスト比から逆算してある。
-// 「移行用」の名前は Design system 3 の部品のためだけに残している。新しいコードから読まない。
 
 '''
 
@@ -126,12 +125,6 @@ def emit(themes: dict[str, dict[str, str]]) -> str:
     lines.append('} as const;\n\n')
     lines.append('export type ThemeName = keyof typeof colors;\n')
     lines.append('export type Colors = (typeof colors)[ThemeName];\n')
-    lines.append('\n/** 移行用（Design system 3 の部品が読む名前）。#235 の作業 6 で消す。 */\n')
-    legacy = list(r.LEGACY['dark']) + list(r.LEGACY_FIXED['dark'])
-    lines.append('export const legacyColorNames = [\n')
-    for name in legacy:
-        lines.append(f"  '{name}',\n")
-    lines.append('] as const;\n')
     return ''.join(lines)
 
 

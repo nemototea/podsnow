@@ -3,7 +3,6 @@
 // 役割の名前だけを置く。`#FFE34D` のような値を画面から直接使わない（DESIGN_SYSTEM.md §5）。
 // テーマはダーク 1 つ（Issue #235）。見本 docs/design-refresh/ds4/mock.html の色はそのままの値で、
 // 見本に無い色は OKLCh で計算し、文字と境界は目標コントラスト比から逆算してある。
-// 「移行用」の名前は Design system 3 の部品のためだけに残している。新しいコードから読まない。
 
 export const colors = {
   dark: {
@@ -72,40 +71,8 @@ export const colors = {
     overlayScrim: '#00000099',
     selectionOverlay: '#FFE34D33',
     recordingOverlay: '#FF4D4D33',
-    controlEdge: '#2E2E2E',
-    controlBorder: '#2E2E2E',
-    controlShadow: '#121212',
-    controlShadowSoft: '#121212',
-    brandInk: '#FFFFFF',
-    brandShadow: '#121212',
-    brandAccent: '#FFE34D',
-    halftone: '#1A1A1A',
-    sketchCover: '#12281C',
-    sketchCoverAlt: '#EFA91E',
-    sketchPaper: '#F4ECD6',
-    sketchBoard: '#4A463F',
-    sketchInk: '#161616',
-    sketchInkSoft: '#433F38',
   },
 } as const;
 
 export type ThemeName = keyof typeof colors;
 export type Colors = (typeof colors)[ThemeName];
-
-/** 移行用（Design system 3 の部品が読む名前）。#235 の作業 6 で消す。 */
-export const legacyColorNames = [
-  'controlEdge',
-  'controlBorder',
-  'controlShadow',
-  'controlShadowSoft',
-  'brandInk',
-  'brandShadow',
-  'brandAccent',
-  'halftone',
-  'sketchCover',
-  'sketchCoverAlt',
-  'sketchPaper',
-  'sketchBoard',
-  'sketchInk',
-  'sketchInkSoft',
-] as const;

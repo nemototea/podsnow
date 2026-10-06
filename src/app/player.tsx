@@ -8,12 +8,17 @@ import { usePlayback } from '@/features/player/usePlayback';
 import { usePlayerItem } from '@/features/player/usePlayerItem';
 import { errorCodeText, formatDate, useLocale, useT, type Messages } from '@/i18n';
 import type { PlaybackSource } from '@/services/audio/PlaybackService';
-import { IconButton, Screen, SectionHeader, Text, useGutter } from '@/ui/components';
-import { CASSETTE_MAX, PlayerControls, SeekBlock } from '@/ui/EpisodePlayer';
-import { Cassette, Jacket, jacketWidth } from '@/ui/media';
-import { progressRatio } from '@/ui/seek';
+import { compositeHex } from '@/domain/color/showColors';
+import { useShowColors } from '@/features/show/useShowColors';
+import { Artwork } from '@/ui/Artwork';
+import { IconButton, Screen, Text, useGutter } from '@/ui/components';
+import { PlayerControls, SeekBlock } from '@/ui/SeekBar';
+import { ShowGradient } from '@/ui/ShowGradient';
 import { useAppTheme } from '@/ui/ThemeContext';
-import { artwork, space, typography } from '@/ui/tokens';
+import { artwork, radius, space, typography } from '@/ui/tokens';
+
+/** 番組の色の上の補助文字の白の濃さ（見本 `.np .title span` の 72%）。 */
+const SUB_ALPHA = 0.72;
 
 function sourceLabel(t: Messages, source: PlaybackSource): string {
   if (source.kind === 'rss') return t.player.sourceRss;
@@ -36,6 +41,8 @@ export default function PlayerScreen() {
   const gutter = useGutter();
   const source = player.source?.homeKey ? player.source : null;
   const item = usePlayerItem(source?.homeKey ?? null);
+  const colors = useShowColors();
+  const sub = compositeHex(c.textPrimary, SUB_ALPHA, colors.nowPlaying);
 
   // 再生を止めた・再生元が消えたら、空の画面を残さずに閉じる
   const closed = useRef(false);
@@ -64,78 +71,82 @@ export default function PlayerScreen() {
   const meta = [date, sourceLabel(t, source)].filter(Boolean).join(' · ');
 
   return (
-    <Screen>
-      <View style={st.top}>
-        <IconButton name="close" label={t.player.close} onPress={close} />
-      </View>
-      <View style={st.media}>
-        {/* 再生の見立て（DESIGN_SYSTEM.md §2.6） */}
-        {source.kind === 'timeline' ? (
-          <Cassette
-            width={Math.min(room, CASSETTE_MAX)}
-            progress={progressRatio(player.position, player.duration)}
-            playing={player.playing}
-            title={title || t.home.untitled}
-            code={code}
-          />
-        ) : (
-          <Jacket
+    <Screen padded={false} overlay={null}>
+      {/* 地は収録画面と同じ番組の色のグラデーション（DESIGN_SYSTEM.md §8） */}
+      <ShowGradient
+        stops={[
+          [colors.nowPlaying, 0],
+          [colors.nowPlayingMid, 0.55],
+          [c.bg, 1],
+        ]}
+      />
+      <View style={[st.body, { paddingHorizontal: gutter }]}>
+        <View style={st.top}>
+          <IconButton name="chevron" color={c.textPrimary} label={t.player.close} onPress={close} />
+        </View>
+        <View style={st.media}>
+          <Artwork
             uri={services.coverArt.uri(services.show.cover_path)}
             name={services.show.name}
-            size={Math.min(artwork.playerSheet, room / jacketWidth(1))}
-            playing={player.playing}
+            size={Math.min(artwork.playerSheet, room)}
             label={t.player.artwork}
+            shadow="large"
           />
-        )}
-      </View>
-      <View style={st.titleBlock}>
-        <Text style={[typography.label, { color: c.textSecondary }]} numberOfLines={1}>
-          {services.show.name}
-        </Text>
-        {code === null ? null : (
-          <Text style={[typography.numeric, { color: c.accentText }]}>{code}</Text>
-        )}
-        <Text
-          style={[typography.title, { color: title ? c.textPrimary : c.textSecondary }]}
-          accessibilityRole="header"
-          numberOfLines={3}
-        >
-          {title || t.home.untitled}
-        </Text>
-        <Text style={[typography.caption, { color: c.textSecondary }]}>{meta}</Text>
-      </View>
-      <SeekBlock
-        position={player.position}
-        duration={player.duration}
-        loading={player.loading}
-        loadingLabel={source.kind === 'rss' ? t.player.loadingStream : t.player.loadingFile}
-        errorMessage={player.error ? errorCodeText(t, player.error) : null}
-        onSeek={(to) => void player.seek(to)}
-      />
-      <View style={st.controls}>
-        <PlayerControls
+        </View>
+        <View style={st.titleBlock}>
+          <Text
+            style={[typography.nowPlaying, { color: title ? c.textPrimary : sub }]}
+            accessibilityRole="header"
+            numberOfLines={2}
+          >
+            {code === null ? title || t.home.untitled : `${code} ${title || t.home.untitled}`}
+          </Text>
+          <Text style={[typography.body, { color: sub }]} numberOfLines={1}>
+            {services.show.name}
+          </Text>
+          <Text style={[typography.small, { color: sub }]}>{meta}</Text>
+        </View>
+        <SeekBlock
           position={player.position}
           duration={player.duration}
-          playing={player.playing}
           loading={player.loading}
-          failed={!!player.error}
-          onToggle={() => void player.toggleCurrent()}
+          loadingLabel={source.kind === 'rss' ? t.player.loadingStream : t.player.loadingFile}
+          errorMessage={player.error ? errorCodeText(t, player.error) : null}
           onSeek={(to) => void player.seek(to)}
         />
+        <View style={st.controls}>
+          <PlayerControls
+            position={player.position}
+            duration={player.duration}
+            playing={player.playing}
+            loading={player.loading}
+            failed={!!player.error}
+            onToggle={() => void player.toggleCurrent()}
+            onSeek={(to) => void player.seek(to)}
+          />
+        </View>
+        {details.description ? (
+          <View style={[st.about, { backgroundColor: c.surface }]}>
+            <Text
+              style={[typography.subheading, { color: c.textPrimary }]}
+              accessibilityRole="header"
+            >
+              {t.player.description}
+            </Text>
+            <Text style={[typography.body, { color: c.textSecondary }]}>{details.description}</Text>
+          </View>
+        ) : null}
       </View>
-      {details.description ? (
-        <>
-          <SectionHeader title={t.player.description} />
-          <Text style={[typography.body, { color: c.textSecondary }]}>{details.description}</Text>
-        </>
-      ) : null}
     </Screen>
   );
 }
 
 const st = StyleSheet.create({
-  top: { flexDirection: 'row', justifyContent: 'flex-end', marginRight: -space.md },
-  media: { alignItems: 'center', marginBottom: space.xl },
-  titleBlock: { gap: space.xs, marginBottom: space.lg },
-  controls: { alignItems: 'center', marginTop: space.lg },
+  body: { paddingTop: space.sm, paddingBottom: space.xxxl, gap: space.lg },
+  top: { flexDirection: 'row', justifyContent: 'flex-start' },
+  media: { alignItems: 'center', marginVertical: space.sm },
+  titleBlock: { gap: space.xs },
+  controls: { alignItems: 'center' },
+  // 歌詞カードの置き方（番組の色の下の地に、`surface` の角丸の面）
+  about: { borderRadius: radius.sm, padding: space.lg, gap: space.sm, marginTop: space.lg },
 });

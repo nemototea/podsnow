@@ -1,55 +1,48 @@
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { formatClock, formatSmp, smp } from '@/domain/time';
 import { useServices } from '@/features/app/ServicesProvider';
+import { draftBar, pickDraft, useDraftBar } from '@/features/home/draftBar';
+import { settleHandoffs } from '@/features/home/handToHome';
+import { episodeStatusKind, type EpisodeStatusKind } from '@/features/home/statusIcon';
+import { useEpisodeActions } from '@/features/home/useEpisodeActions';
 import { useHome } from '@/features/home/useHome';
 import { usePlaybackStatus } from '@/features/player/usePlayback';
-import { HomeArtwork } from '@/features/home/HomeArtwork';
-import { settleHandoffs } from '@/features/home/handToHome';
-import { episodeStatusKind, STATUS_ICON, type EpisodeStatusKind } from '@/features/home/statusIcon';
-import { errorText, useT, type Messages } from '@/i18n';
-import type { EpisodeListItem } from '@/infra/db/repositories/episodesRepo';
-import { icon, space, stickerTilt, typography, wordmarkSize, type Colors } from '@/ui/tokens';
+import { useT, type Messages } from '@/i18n';
+import type { AssetKind } from '@/infra/db/repositories/assetsRepo';
+import type { HomeEpisodeItem } from '@/services/home/HomeService';
+import { Artwork } from '@/ui/Artwork';
+import { Avatar } from '@/ui/Avatar';
 import {
   Button,
   Card,
+  Chip,
   Icon,
   IconButton,
   Notice,
-  Row,
+  Pill,
   Screen,
-  SectionHeader,
   Text,
   Toast,
 } from '@/ui/components';
-import { useAppTheme } from '@/ui/ThemeContext';
-import { useToast } from '@/ui/useToast';
-import { confirmDestructive } from '@/ui/alerts';
-import type { MenuAction } from '@/ui/menuTypes';
+import type { IconName } from '@/ui/IconSvg';
 import { MoreMenu } from '@/ui/MoreMenu';
+import { useAppTheme } from '@/ui/ThemeContext';
+import {
+  artwork,
+  pressedOpacity,
+  quickTile,
+  radius,
+  space,
+  typography,
+  wordmarkSize,
+} from '@/ui/tokens';
+import { useToast } from '@/ui/useToast';
 import { Wordmark } from '@/ui/Wordmark';
-import { Sticker } from '@/ui/media';
 
-/**
- * エピソードの状態のステッカーの色（DESIGN_SYSTEM.md §2.5、#190）。文字は必ず出し、
- * 色は淡い地と同じ系統の文字（tone）の組でコントラストを保つ。
- */
-function statusTone(c: Colors, kind: EpisodeStatusKind): { fill: string; ink: string } {
-  switch (kind) {
-    case 'published':
-      return { fill: c.successSubtle, ink: c.successText };
-    case 'noAudio':
-      return { fill: c.surfaceRaised, ink: c.textSecondary };
-    case 'new':
-      return { fill: c.surface, ink: c.textPrimary };
-    case 'exported':
-      return { fill: c.accentSubtle, ink: c.accentText };
-    default:
-      return { fill: c.mistakeSubtle, ink: c.mistakeText };
-  }
-}
+type Filter = 'all' | 'draft' | 'exported';
 
 function statusText(t: Messages, kind: EpisodeStatusKind): string {
   switch (kind) {
@@ -64,6 +57,20 @@ function statusText(t: Messages, kind: EpisodeStatusKind): string {
   }
 }
 
+/** 絞り込み（見本の「すべて / 下書き / 書き出し済み」）。 */
+function matches(filter: Filter, kind: EpisodeStatusKind): boolean {
+  if (filter === 'all') return true;
+  const done = kind === 'exported' || kind === 'published';
+  return filter === 'exported' ? done : !done;
+}
+
+/** 続きからの素材のタイル（見本 `.quick .mat`）。行き先は番組画面の素材・ひな形。 */
+const SHORTCUTS: readonly { key: string; icon: IconName; kind?: AssetKind }[] = [
+  { key: 'openingEnding', icon: 'music', kind: 'opening' },
+  { key: 'bgmJingle', icon: 'music', kind: 'bgm' },
+  { key: 'topicTemplate', icon: 'list' },
+];
+
 export default function HomeScreen() {
   const c = useAppTheme();
   const t = useT();
@@ -72,10 +79,14 @@ export default function HomeScreen() {
   const { show, episodes, recovered } = services;
   const { list, playable, loading, reload } = useHome();
   const player = usePlaybackStatus();
+  const draft = useDraftBar();
   const [onboardingDone, setOnboardingDone] = useState(services.settings.onboardingDone);
   const { toast, show: showToast, act, dismiss } = useToast();
   const [creating, setCreating] = useState(false);
   const [recoveredOpen, setRecoveredOpen] = useState(recovered.length > 0);
+  const [filter, setFilter] = useState<Filter>('all');
+  const notify = useCallback((text: string) => showToast({ text }), [showToast]);
+  const episodeActions = useEpisodeActions(reload, notify);
 
   // エピソード画面から戻ったら、引き継いだ削除・空の回の片付け（Issue #168）を待ってから読み直す
   useFocusEffect(
@@ -92,6 +103,11 @@ export default function HomeScreen() {
     }, [reload, showToast]),
   );
 
+  // 下書きバー（ミニプレーヤー）に出す回を一覧から決める
+  useEffect(() => {
+    if (!loading) draftBar.set(pickDraft(list));
+  }, [list, loading]);
+
   const create = async () => {
     if (creating) return;
     setCreating(true);
@@ -103,73 +119,6 @@ export default function HomeScreen() {
     }
   };
 
-  /** 録音と書き出しのファイルもすぐ消えるので、取り消しは出さない（Issue #152）。 */
-  const remove = async (e: EpisodeListItem) => {
-    try {
-      await episodes.remove(e.id);
-      showToast({ text: t.home.removed(t.episode.number(e.episode_number)) });
-    } catch (err) {
-      showToast({ text: errorText(t, err) });
-    }
-    await reload();
-  };
-
-  const purgeAudio = async (e: EpisodeListItem) => {
-    try {
-      await episodes.purgeAudio(e.id);
-      showToast({ text: t.home.audioPurged(t.episode.number(e.episode_number)) });
-    } catch (err) {
-      showToast({ text: errorText(t, err) });
-    }
-    await reload();
-  };
-
-  const duplicate = async (e: EpisodeListItem) => {
-    const d = await episodes.duplicate(e.id);
-    await reload();
-    showToast({ text: t.episode.duplicated(t.episode.number(d.episode_number)) });
-  };
-
-  const episodeActions = (e: EpisodeListItem): MenuAction[] => [
-    {
-      key: 'duplicate',
-      icon: 'copy',
-      label: t.episode.menu.duplicate,
-      onPress: () => void duplicate(e),
-    },
-    ...(e.audio_purged_at
-      ? []
-      : [
-          {
-            key: 'purge',
-            icon: 'noAudio' as const,
-            label: t.episode.menu.purgeAudio,
-            onPress: () =>
-              confirmDestructive({
-                title: t.episode.menu.purgeAudio,
-                message: t.episode.menu.purgeAudioSub,
-                confirmLabel: t.common.delete,
-                cancelLabel: t.common.cancel,
-                onConfirm: () => void purgeAudio(e),
-              }),
-          },
-        ]),
-    {
-      key: 'remove',
-      icon: 'trash',
-      label: t.episode.menu.remove,
-      destructive: true,
-      onPress: () =>
-        confirmDestructive({
-          title: t.episode.menu.remove,
-          message: t.episode.menu.removeMessage,
-          confirmLabel: t.common.delete,
-          cancelLabel: t.common.cancel,
-          onConfirm: () => void remove(e),
-        }),
-    },
-  ];
-
   // 番組を設定していなくても、エピソードが 1 本でもあれば番組カードを出す（FR-SHOW-6、Issue #168 E1）
   const showSetUp = onboardingDone || show.feed_imported_at !== null;
   const showOnboarding = !loading && !showSetUp && !list.some((item) => item.local);
@@ -180,181 +129,296 @@ export default function HomeScreen() {
     router.push('/show');
   };
 
+  const cover = services.coverArt.uri(show.cover_path);
+  const open = (item: HomeEpisodeItem) => {
+    const e = item.local;
+    if (e) router.push(`/episode/${e.id}`);
+    else if (playable.has(item.key))
+      void player.toggleHome(item).then((ok) => {
+        if (ok) router.push('/player');
+      });
+  };
+
+  // 続きから: 途中の回（左）と、よく使う素材（右）を交互に並べる（見本 `.quick`）
+  const inProgress = list
+    .filter((item) => {
+      const kind = episodeStatusKind(item);
+      return kind === 'new' || kind === 'draft' || kind === 'ready';
+    })
+    .slice(0, SHORTCUTS.length);
+  const tiles: (
+    { type: 'episode'; item: HomeEpisodeItem } | { type: 'shortcut'; index: number }
+  )[] = [];
+  for (let i = 0; i < SHORTCUTS.length; i++) {
+    const item = inProgress[i];
+    if (item) tiles.push({ type: 'episode', item });
+    tiles.push({ type: 'shortcut', index: i });
+  }
+
+  const visible = list.filter((item) => matches(filter, episodeStatusKind(item)));
+
   // 復元した録音は、回ごとに確認できるようにする（Issue #168 E8）
   const rec = recovered[0];
   const recoveredEpisodes = [...new Set(recovered.map((r) => r.episodeId))];
 
   return (
-    <Screen
-      edgeTop
-      overlay={<Toast toast={toast} onAction={act} onDismiss={dismiss} />}
-      bottomBar={
-        <Button
-          label={t.home.newEpisodeCta}
-          icon="plus"
-          onPress={() => void create()}
-          busy={creating}
-        />
-      }
-    >
-      <View style={st.top}>
-        <Wordmark size={wordmarkSize.home} />
-        <IconButton
-          name="settings"
-          label={t.a11y.settings}
-          onPress={() => router.push('/settings')}
-        />
-      </View>
-
-      {!showOnboarding && show.cover_path ? (
-        <HomeArtwork
-          uri={services.coverArt.uri(show.cover_path)!}
-          playing={player.playing && player.source?.kind !== 'timeline'}
-        />
-      ) : null}
-
-      {showOnboarding ? (
-        <Card>
-          <Text style={[typography.heading, { color: c.textPrimary }]} accessibilityRole="header">
-            {t.home.onboardingTitle}
-          </Text>
-          <Text style={[typography.body, st.onboardingBody, { color: c.textSecondary }]}>
-            {t.home.onboardingBody}
-          </Text>
-          <View style={st.onboardingActions}>
-            <Button
-              label={t.home.onboardingImport}
-              icon="download"
-              onPress={() => router.push('/import')}
+    <Screen edgeTop overlay={<Toast toast={toast} onAction={act} onDismiss={dismiss} />}>
+      <View style={st.home}>
+        {/* 見本 `.wmrow`: ロゴと右端のアバター（設定への入口） */}
+        <View style={st.top}>
+          <Wordmark size={wordmarkSize.home} />
+          <View style={st.topRight}>
+            {showOnboarding ? null : (
+              <IconButton
+                name="plus"
+                color={c.textPrimary}
+                label={t.home.newEpisodeCta}
+                busy={creating}
+                onPress={() => void create()}
+              />
+            )}
+            <Avatar
+              name={show.author || show.name}
+              accessibilityLabel={t.a11y.settings}
+              onPress={() => router.push('/settings')}
             />
-            <Button label={t.home.onboardingNew} kind="secondary" onPress={() => void startNew()} />
           </View>
-        </Card>
-      ) : (
-        <Card
-          onPress={() => router.push('/show')}
-          accessibilityLabel={t.home.a11yOpenShow(show.name)}
-          style={st.showCard}
-        >
-          <View style={st.showCardTop}>
-            <View style={st.showCardText}>
-              <Text
-                style={[typography.display, { color: c.textPrimary }]}
-                accessibilityRole="header"
-                numberOfLines={2}
-              >
-                {show.name}
-              </Text>
-              <Text style={[typography.caption, { color: c.textSecondary }]} numberOfLines={2}>
-                {showSetUp
-                  ? t.home.showCardMeta(show.author, list.length)
-                  : t.home.showCardUnsetMeta(list.length)}
-              </Text>
-            </View>
-            <Icon name="arrow" color={c.textTertiary} size={icon.sm} />
-          </View>
-        </Card>
-      )}
+        </View>
 
-      {rec && recoveredOpen ? (
-        <Notice
-          kind="warning"
-          title={
-            recovered.length > 1
-              ? t.home.recoveredTitleMany(recovered.length)
-              : t.home.recoveredTitle
-          }
-          body={
-            recovered.length > 1
-              ? t.home.recoveredBodyMany
-              : t.home.recoveredBody(formatClock(rec.durationSmp))
-          }
-          action={
-            <View style={st.noticeActions}>
-              {recoveredEpisodes.length > 1 ? (
-                // 複数の回にまたがるときは回ごとのボタン。開いても通知は閉じない（ほかの回も見られるように）
-                recoveredEpisodes.map((episodeId) => {
-                  const number = list.find((i) => i.local?.id === episodeId)?.episodeNumber;
-                  return (
-                    <Button
-                      key={episodeId}
-                      label={
-                        number === null || number === undefined
-                          ? t.home.reviewRecording
-                          : t.home.reviewRecordingOf(t.episode.number(number))
-                      }
-                      kind="secondary"
-                      compact
-                      onPress={() => router.push(`/episode/${episodeId}`)}
-                    />
-                  );
-                })
-              ) : (
-                <Button
-                  label={t.home.reviewRecording}
-                  kind="secondary"
-                  compact
-                  onPress={() => {
-                    setRecoveredOpen(false);
-                    router.push(`/episode/${rec.episodeId}`);
-                  }}
-                />
-              )}
+        {showOnboarding ? (
+          <Card>
+            <Text style={[typography.heading, { color: c.textPrimary }]} accessibilityRole="header">
+              {t.home.onboardingTitle}
+            </Text>
+            <Text style={[typography.body, st.onboardingBody, { color: c.textSecondary }]}>
+              {t.home.onboardingBody}
+            </Text>
+            <View style={st.onboardingActions}>
               <Button
-                label={t.common.close}
-                kind="ghost"
-                compact
-                onPress={() => setRecoveredOpen(false)}
+                label={t.home.onboardingImport}
+                icon="download"
+                onPress={() => router.push('/import')}
+              />
+              <Button
+                label={t.home.onboardingNew}
+                kind="secondary"
+                onPress={() => void startNew()}
               />
             </View>
-          }
-        />
-      ) : null}
+          </Card>
+        ) : null}
 
-      {list.length > 0 ? (
-        <>
-          {/* 本数は番組カードにだけ出す（DESIGN_SYSTEM.md §8、Issue #168 E6） */}
-          <SectionHeader title={t.home.sectionEpisodes} />
-          {list.map((item, i) => {
-            const e = item.local;
-            const number = item.episodeNumber;
-            const active = player.source?.homeKey === item.key;
-            const kind = episodeStatusKind(item);
-            const tone = statusTone(c, kind);
-            return (
-              <Row
-                key={item.key}
-                {...(number === null ? {} : { mono: t.episode.number(number) })}
-                label={item.title || t.home.untitled}
-                labelMuted={!item.title}
-                below={
-                  <Sticker
-                    label={statusText(t, kind)}
-                    icon={STATUS_ICON[kind]}
-                    fill={tone.fill}
-                    ink={tone.ink}
-                    tilt={stickerTilt(i)}
+        {list.length > 0 ? (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={st.chips}
+          >
+            {(['all', 'draft', 'exported'] as const).map((f) => (
+              <Chip
+                key={f}
+                label={t.home.filters[f]}
+                active={filter === f}
+                onPress={() => setFilter(f)}
+              />
+            ))}
+          </ScrollView>
+        ) : null}
+
+        {rec && recoveredOpen ? (
+          <Notice
+            kind="warning"
+            title={
+              recovered.length > 1
+                ? t.home.recoveredTitleMany(recovered.length)
+                : t.home.recoveredTitle
+            }
+            body={
+              recovered.length > 1
+                ? t.home.recoveredBodyMany
+                : t.home.recoveredBody(formatClock(rec.durationSmp))
+            }
+            action={
+              <View style={st.noticeActions}>
+                {recoveredEpisodes.length > 1 ? (
+                  // 複数の回にまたがるときは回ごとのボタン。開いても通知は閉じない（ほかの回も見られるように）
+                  recoveredEpisodes.map((episodeId) => {
+                    const number = list.find((i) => i.local?.id === episodeId)?.episodeNumber;
+                    return (
+                      <Button
+                        key={episodeId}
+                        label={
+                          number === null || number === undefined
+                            ? t.home.reviewRecording
+                            : t.home.reviewRecordingOf(t.episode.number(number))
+                        }
+                        kind="secondary"
+                        compact
+                        onPress={() => router.push(`/episode/${episodeId}`)}
+                      />
+                    );
+                  })
+                ) : (
+                  <Button
+                    label={t.home.reviewRecording}
+                    kind="secondary"
+                    compact
+                    onPress={() => {
+                      setRecoveredOpen(false);
+                      router.push(`/episode/${rec.episodeId}`);
+                    }}
                   />
-                }
-                sub={
-                  e?.audio_purged_at && !item.feed
-                    ? t.home.badgeNoAudio
-                    : formatSmp(smp(item.durationSmp))
-                }
-                accessibilityLabel={`${item.title || t.home.untitled}, ${statusText(t, kind)}`}
-                last={i === list.length - 1}
-                {...(e
-                  ? { onPress: () => router.push(`/episode/${e.id}`) }
-                  : playable.has(item.key)
-                    ? {
-                        onPress: () =>
-                          void player.toggleHome(item).then((ok) => {
-                            if (ok) router.push('/player');
-                          }),
-                      }
-                    : {})}
-                right={
-                  <View style={st.rowActions}>
+                )}
+                <Button
+                  label={t.common.close}
+                  kind="ghost"
+                  compact
+                  onPress={() => setRecoveredOpen(false)}
+                />
+              </View>
+            }
+          />
+        ) : null}
+
+        {showOnboarding ? null : (
+          <View style={st.quick}>
+            {tiles.map((tile) => {
+              if (tile.type === 'episode') {
+                const { item } = tile;
+                const label = itemLabel(t, item);
+                return (
+                  <Pressable
+                    key={item.key}
+                    onPress={() => open(item)}
+                    accessibilityRole="button"
+                    accessibilityLabel={label}
+                    style={({ pressed }) => [
+                      st.tile,
+                      { backgroundColor: pressed ? c.surfaceHover : c.surfaceRaised },
+                    ]}
+                  >
+                    <Artwork uri={cover} name={show.name} size={quickTile} frameless />
+                    <Text
+                      style={[typography.captionStrong, st.tileText, { color: c.textPrimary }]}
+                      numberOfLines={2}
+                    >
+                      {label}
+                    </Text>
+                    {draft?.key === item.key ? (
+                      <View style={[st.live, { backgroundColor: c.accentSolid }]} />
+                    ) : null}
+                  </Pressable>
+                );
+              }
+              const sc = SHORTCUTS[tile.index]!;
+              const label = t.home.shortcuts[sc.key as keyof Messages['home']['shortcuts']];
+              return (
+                <Pressable
+                  key={sc.key}
+                  onPress={() =>
+                    router.push(
+                      sc.kind
+                        ? { pathname: '/show/assets', params: { kind: sc.kind } }
+                        : { pathname: '/show', params: { section: 'templates' } },
+                    )
+                  }
+                  accessibilityRole="button"
+                  accessibilityLabel={label}
+                  style={({ pressed }) => [
+                    st.tile,
+                    { backgroundColor: pressed ? c.surfaceHover : c.surfaceRaised },
+                  ]}
+                >
+                  <View style={[st.mat, { backgroundColor: c.surfaceHover }]}>
+                    <Icon name={sc.icon} color={c.textSecondary} size={artwork.matIcon} />
+                  </View>
+                  <Text
+                    style={[typography.captionStrong, st.tileText, { color: c.textPrimary }]}
+                    numberOfLines={2}
+                  >
+                    {label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        )}
+
+        {showOnboarding ? null : (
+          <View style={st.section}>
+            <Text style={[typography.title, { color: c.textPrimary }]} accessibilityRole="header">
+              {t.home.sectionShows}
+            </Text>
+            <Pressable
+              onPress={() => router.push('/show')}
+              accessibilityRole="button"
+              accessibilityLabel={t.home.a11yOpenShow(show.name)}
+              style={({ pressed }) => [st.showCard, pressed ? st.pressed : null]}
+            >
+              <Artwork uri={cover} name={show.name} size={artwork.showCard} shadow="card" />
+              <View style={st.showCardText}>
+                <Text style={[typography.chipStrong, { color: c.textPrimary }]} numberOfLines={1}>
+                  {show.name}
+                </Text>
+                {/* 本数は番組カードにだけ出す（DESIGN_SYSTEM.md §8、Issue #168 E6） */}
+                <Text style={[typography.small, { color: c.textSecondary }]} numberOfLines={1}>
+                  {showSetUp ? t.home.showCardCount(list.length) : t.home.showCardUnset}
+                </Text>
+              </View>
+            </Pressable>
+          </View>
+        )}
+
+        {visible.length > 0 ? (
+          <View style={st.section}>
+            <Text style={[typography.title, { color: c.textPrimary }]} accessibilityRole="header">
+              {t.home.sectionRecent}
+            </Text>
+            <View style={st.list}>
+              {visible.map((item) => {
+                const e = item.local;
+                const active = player.source?.homeKey === item.key;
+                const kind = episodeStatusKind(item);
+                const label = itemLabel(t, item);
+                const duration =
+                  e?.audio_purged_at && !item.feed ? null : formatSmp(smp(item.durationSmp));
+                return (
+                  <View key={item.key} style={st.ep}>
+                    <Pressable
+                      onPress={() => open(item)}
+                      disabled={!e && !playable.has(item.key)}
+                      accessibilityRole="button"
+                      accessibilityLabel={[label, statusText(t, kind), duration]
+                        .filter(Boolean)
+                        .join(', ')}
+                      style={({ pressed }) => [st.epMain, pressed ? st.pressed : null]}
+                    >
+                      <Artwork uri={cover} name={show.name} size={artwork.row} />
+                      <View style={st.epText}>
+                        <Text
+                          style={[
+                            typography.rowTitle,
+                            { color: item.title ? c.textPrimary : c.textSecondary },
+                          ]}
+                          numberOfLines={1}
+                        >
+                          {label}
+                        </Text>
+                        <View style={st.epMeta}>
+                          <Pill
+                            label={statusText(t, kind)}
+                            kind={
+                              kind === 'exported' || kind === 'published' ? 'strong' : 'default'
+                            }
+                          />
+                          {duration ? (
+                            <Text style={[typography.caption, { color: c.textSecondary }]}>
+                              {duration}
+                            </Text>
+                          ) : null}
+                        </View>
+                      </View>
+                    </Pressable>
                     {playable.has(item.key) ? (
                       <IconButton
                         name={
@@ -383,27 +447,54 @@ export default function HomeScreen() {
                       />
                     ) : null}
                   </View>
-                }
-              />
-            );
-          })}
-        </>
-      ) : null}
+                );
+              })}
+            </View>
+          </View>
+        ) : null}
+      </View>
     </Screen>
   );
 }
 
+/** 一覧とタイルの題（見本「#43 寝る前に読む本」）。題が無ければ「タイトル未設定」。 */
+function itemLabel(t: Messages, item: HomeEpisodeItem): string {
+  const title = item.title || t.home.untitled;
+  return item.episodeNumber === null ? title : `${t.episode.number(item.episodeNumber)} ${title}`;
+}
+
 const st = StyleSheet.create({
-  top: {
+  // 見本 `.home`: 上 6、左右 16（Screen の gutter）、まとまりの間 22。
+  home: { marginTop: space.x6 - space.sm, gap: space.x22 },
+  top: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  topRight: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
+  chips: { gap: space.sm },
+  // 見本 `.quick`: 2 列、間 8。タイルは高さ 52、角丸 4、右の余白 8、間 8。
+  quick: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
+  tile: {
+    flexBasis: '45%',
+    flexGrow: 1,
+    height: quickTile,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    marginRight: -space.md,
+    gap: space.sm,
+    borderRadius: radius.xs,
+    overflow: 'hidden',
+    paddingRight: space.sm,
   },
-  showCard: { marginTop: space.xl },
-  showCardTop: { flexDirection: 'row', alignItems: 'center', gap: space.md },
-  showCardText: { flex: 1, gap: space.xs },
-  rowActions: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
+  tileText: { flex: 1 },
+  mat: { width: quickTile, height: quickTile, alignItems: 'center', justifyContent: 'center' },
+  live: { width: space.sm, height: space.sm, borderRadius: radius.pill },
+  section: { gap: space.md },
+  // 見本 `.showcard`: 幅 128、間 8（番組名と本数の間は 2）。
+  showCard: { width: artwork.showCard, gap: space.sm },
+  showCardText: { gap: space.hair },
+  list: { gap: space.x14 },
+  ep: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
+  epMain: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: space.md },
+  epText: { flex: 1, minWidth: 0, gap: space.hair + 1 },
+  epMeta: { flexDirection: 'row', alignItems: 'center', gap: space.x6 },
+  pressed: { opacity: pressedOpacity },
   noticeActions: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm, marginTop: space.sm },
   onboardingBody: { marginTop: space.xs, marginBottom: space.lg },
   onboardingActions: { gap: space.sm },

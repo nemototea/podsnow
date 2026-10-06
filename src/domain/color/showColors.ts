@@ -158,3 +158,9 @@ export function deriveShowColors(dominant: string): ShowColors {
   }
   return out;
 }
+
+/**
+ * アートワークが無い・代表色を取れない番組の代表色（無彩色。番組の色は灰色の段になる）。
+ * 【仮説】既定の色は未決（DESIGN_SYSTEM.md §13）。決まるまで見本の無彩色のアートワークと同じ扱いにする。
+ */
+export const DEFAULT_SHOW_DOMINANT = '#808080';

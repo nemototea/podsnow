@@ -1,5 +1,4 @@
 import { contrast } from '../contrast';
-import { legacyColorNames } from '../tokens/colors';
 import {
   colors,
   concentric,
@@ -103,8 +102,8 @@ describe.each(THEMES)('%s テーマの色', (theme) => {
   });
 
   it('ロゴの文字と点は黒の地から見える', () => {
-    expect(contrast(c.brandInk, c.bg)).toBeGreaterThanOrEqual(4.5);
-    expect(contrast(c.brandAccent, c.bg)).toBeGreaterThanOrEqual(3);
+    expect(contrast(c.textPrimary, c.bg)).toBeGreaterThanOrEqual(4.5);
+    expect(contrast(c.accentSolid, c.bg)).toBeGreaterThanOrEqual(3);
   });
 
   it('主操作の塗りは、背景か輪郭のどちらかで形が 3:1 以上に分かる', () => {
@@ -178,10 +177,6 @@ describe('トークンの全体', () => {
     });
   });
 
-  it('移行用の名前（Design system 3 の部品が読む）は一覧にあるものだけ', () => {
-    for (const name of legacyColorNames) expect(colors.dark).toHaveProperty(name);
-  });
-
   it('透過を持つトークンは、下を隠してはいけない重ねだけ', () => {
     const alpha = Object.entries(colors.dark)
       .filter(([, v]) => v.length === 9)
@@ -245,9 +240,10 @@ describe('寸法', () => {
 });
 
 describe('書体', () => {
-  it('11px を下回るのは見本の小さな名札と目盛りだけ（overline 10.5、tick 10）', () => {
+  it('11px を下回るのは見本の小さな名札と目盛りだけ（overline / eyebrow 10.5、tick 10）', () => {
     for (const [name, role] of Object.entries(typography)) {
-      if (name === 'overline' || name === 'tick') expect(role.fontSize).toBeGreaterThanOrEqual(10);
+      if (name === 'overline' || name === 'eyebrow' || name === 'tick')
+        expect(role.fontSize).toBeGreaterThanOrEqual(10);
       else expect(role.fontSize).toBeGreaterThanOrEqual(11);
     }
   });
