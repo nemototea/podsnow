@@ -101,9 +101,22 @@ function sweep(): string[] {
         const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
         const m = l - c / 2;
         const [r, g, b] =
-          h < 60 ? [c, x, 0] : h < 120 ? [x, c, 0] : h < 180 ? [0, c, x] : h < 240 ? [0, x, c] : h < 300 ? [x, 0, c] : [c, 0, x];
+          h < 60
+            ? [c, x, 0]
+            : h < 120
+              ? [x, c, 0]
+              : h < 180
+                ? [0, c, x]
+                : h < 240
+                  ? [0, x, c]
+                  : h < 300
+                    ? [x, 0, c]
+                    : [c, 0, x];
         out.push(
-          '#' + [r + m, g + m, b + m].map((v) => `0${Math.round(v * 255).toString(16)}`.slice(-2)).join(''),
+          '#' +
+            [r + m, g + m, b + m]
+              .map((v) => `0${Math.round(v * 255).toString(16)}`.slice(-2))
+              .join(''),
         );
       }
     }
@@ -132,15 +145,18 @@ describe('番組の色（見本の derive() と同じ計算。DESIGN_SYSTEM.md �
     }
   });
 
-  it.each(sweep())('%s: 主操作のレモンは番組画面・ミニプレーヤーの上で 3:1 以上ある', (dominant) => {
-    const c = deriveShowColors(dominant);
-    for (const role of ['header', 'nowPlaying', 'miniPlayer'] as const) {
-      expect({ role, ok: contrastHex(colors.dark.accentSolid, c[role]) >= 3 }).toEqual({
-        role,
-        ok: true,
-      });
-    }
-  });
+  it.each(sweep())(
+    '%s: 主操作のレモンは番組画面・ミニプレーヤーの上で 3:1 以上ある',
+    (dominant) => {
+      const c = deriveShowColors(dominant);
+      for (const role of ['header', 'nowPlaying', 'miniPlayer'] as const) {
+        expect({ role, ok: contrastHex(colors.dark.accentSolid, c[role]) >= 3 }).toEqual({
+          role,
+          ok: true,
+        });
+      }
+    },
+  );
 
   // 見本は番組の色の上の補助文字を半透明の白（72〜85%）で描く。白い文字の下限（4.5:1）ちょうどの色の上では
   // 重ねた結果が 4.5:1 を割る（見本の「朝のコーヒー会議」でも 3.29:1）。DESIGN_SYSTEM.md §13 で確認中。
