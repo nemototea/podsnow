@@ -37,7 +37,7 @@ export function DateField({ label, value, onChange }: DateFieldProps) {
         display="compact"
         locale={locale === 'ja' ? 'ja-JP' : 'en-US'}
         accentColor={c.accentText}
-        themeVariant={c.isDark ? 'dark' : 'light'}
+        themeVariant="dark"
         accessibilityLabel={label}
         onChange={(_e, d) => {
           if (d) onChange(format(d));

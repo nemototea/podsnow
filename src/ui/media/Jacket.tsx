@@ -3,7 +3,7 @@ import Svg, { Circle, Path } from 'react-native-svg';
 
 import { Artwork } from '../Artwork';
 import { useAppTheme } from '../ThemeContext';
-import { buttonDepth, colors, radius, spin, stroke } from '../tokens';
+import { buttonDepth, radius, spin, stroke } from '../tokens';
 import { SpinView, useSpin } from './useSpin';
 
 /** 盤の直径（ジャケットに対する比）と、右からのぞく割合。 */
@@ -48,8 +48,8 @@ export function Jacket({
   const disc = size * DISC;
   const inner = size - stroke.selected * 2;
   // 盤はカセットのテープと同じく、テーマによらず墨
-  const ink = colors.light.textPrimary;
-  const groove = colors.dark.border;
+  const ink = c.sketchInk;
+  const groove = c.border;
   return (
     <View style={{ width: jacketWidth(size), height: size }}>
       <SpinView

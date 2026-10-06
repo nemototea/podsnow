@@ -6,7 +6,7 @@ import { Icon } from './Icon';
 import { Halftone } from './media/Halftone';
 import { Text } from './Text';
 import { useAppTheme } from './ThemeContext';
-import { colors, icon, radius, space, stroke, typography } from './tokens';
+import { icon, radius, space, stroke, typography } from './tokens';
 
 /** 番組名を載せる最小の辺。これより小さいと読めないので、点だけにする。 */
 const NAME_MIN = 96;
@@ -23,8 +23,8 @@ const HALFTONE_MIN = 61;
 function NameCover({ name, size }: { name: string; size: number }) {
   const c = useAppTheme();
   // カセットのラベルと同じく、紙と墨はテーマによらない
-  const paper = colors.light.bg;
-  const ink = colors.light.textPrimary;
+  const paper = c.sketchPaper;
+  const ink = c.sketchInk;
   const large = size >= DISPLAY_MIN;
   const dot = large ? space.md : size >= NAME_MIN ? space.sm : space.xs + space.hair;
   return (
@@ -32,12 +32,10 @@ function NameCover({ name, size }: { name: string; size: number }) {
       style={[
         s.cover,
         { padding: large ? space.md : space.sm },
-        { backgroundColor: c.isDark ? c.surfaceRaised : c.accentSolid },
+        { backgroundColor: c.surfaceRaised },
       ]}
     >
-      {size >= HALFTONE_MIN ? (
-        <Halftone color={c.isDark ? c.halftone : c.accentSolidPressed} />
-      ) : null}
+      {size >= HALFTONE_MIN ? <Halftone color={c.halftone} /> : null}
       {size >= NAME_MIN ? (
         <View
           style={[s.label, { backgroundColor: paper, borderColor: ink, borderRadius: radius.sm }]}

@@ -2,155 +2,112 @@
 """
 デザイントークンの色を決める唯一の場所（DESIGN_SYSTEM.md §5）。
 
-`color.py` の OKLCh で計算する。目分量の hex をここにも他のどこにも置かない。
+Design system 4（Issue #235）。テーマはダーク 1 つ。**見た目の正は見本
+`docs/design-refresh/ds4/mock.html`** で、見本に値がある色はその hex をそのまま使う（`MOCK`）。
+OKLCh の往復で 1 段ずれないように、見本の値は変換せずに書き出す。
 
-二種類の段がある。
+見本に値が無い色だけを OKLCh で決める（`FIXED`）か、目標コントラスト比から明度を逆算する（`SOLVED`）。
+逆算は、面を動かしても文字が追従し、読めない組み合わせが残らないようにするため。
 
-- **面と塗り**は OKLCh（明度・彩度・色相）を決め打ちする。読みやすさではなく見た目の決めごとだから。
-- **文字と境界**は彩度と色相だけを決め、明度は目標コントラスト比から逆算する。面を動かしても
-  勝手に追従し、読めない組み合わせが残らない。
-
-Design system 3（Issue #190「リソグラフの深夜ラジオ」）で、面を紙（ダークは黒い紙）、線と影を墨、
-主操作をリソの青、録音を蛍光ピンク、破壊的操作を朱にした。値はデザインキャンバスの色を再現する OKLCh。
-ただしライトの録音（`recSolid`）は、紙の上で 3:1 を持てる所まで明度を下げてある。ロゴの版ズレに
-使う蛍光ピンク（`brandShadow`）は飾りなので原案のまま（DESIGN_SYSTEM.md §3.2）。
-
-Issue #205 で、ダークの `bg` を無彩色の `#121212` からライトの紙と同じ色相の暖かい黒（L 0.24）に
-持ち上げた。面の段と淡い地（`*Subtle` / `*Fill`）も同じだけ上げて段差を保つ。線と影の決まりは変えない。
-面が明るくなった分、ダークの補助文字（`textSecondary` / `textTertiary`）は目標比を下げ、
-本文との明るさの差を #190 と同じくらいに保つ（いちばん明るい面 `surfaceHover` の上で 6:1 / 4.8:1）。
+番組の色（アートワークから計算する色。DESIGN_SYSTEM.md §2.6）はトークンに置かない。
+`src/ui/showColors.ts` が実行時に計算する。
 
 出典（【確認済み】）:
-- 段ごとの役割: https://www.radix-ui.com/colors/docs/palette-composition/understanding-the-scale
 - コントラスト要件 1.4.3 / 1.4.11: https://www.w3.org/TR/WCAG22/#contrast-minimum
 """
 
 import color as k
 
-THEMES = ('dark', 'light')
+THEMES = ('dark',)
 
 # ひとつの色相にひとつの意味。代表色相（塗りの色相）で 30° 以上離す（generate.py が検査）。
-# `voice` は墨（ダークは紙の色）で無彩色なので色相の比較から外す。
+# `voice` は無彩色なので色相の比較から外す。
 HUES = {
-    'rec': 355.3,  # 蛍光ピンク。録音中・ON AIR
-    'danger': 31.6,  # 朱。破壊的操作
-    'mistake': 90.0,  # 黄（ライトの塗りは黄土）。注意・割り込み
-    'success': 151.0,  # 緑。完了
-    'insert': 206.0,  # ティール。差し込み素材
-    'accent': 261.5,  # リソの青。主操作・選択状態
-    'music': 294.0,  # 紫。BGM
+    'rec': 25.0,  # 赤 #FF4D4D（見本 --rec）。録音中
+    'mistake': 73.2,  # 琥珀 #FFB340（見本のレベルの帯）。注意・割り込み・音割れ
+    'accent': 98.4,  # レモン #FFE34D（見本 --accent）。主操作・選択・完了
+    'success': 152.4,  # 緑。完了の通知
+    'insert': 202.6,  # ティール。差し込み素材
+    'music': 291.5,  # 紫。BGM
+    'danger': 355.0,  # ローズ。破壊的操作
 }
 NEAR_NEUTRAL = ('voice',)
 
-# ---------------------------------------------------------------- 決め打ちの段（L, C, h）
+# 見本の色相のまま使うので、30° に届かない組み合わせ（DESIGN_SYSTEM.md §13 で確認中）。
+# レモン（98°）と琥珀（73°）は、黄と橙として見分けがつく。見本を優先して検査の例外にする。
+HUE_GAP_EXCEPTIONS = {('mistake', 'accent')}
+
+# ---------------------------------------------------------------- 見本の値（hex のまま）
+
+MOCK = {
+    'dark': {
+        # 無彩色の面（見本 --bg / --s1 / --s2 / --s3 / --line）
+        'bg': '#121212',
+        'surface': '#1A1A1A',
+        'surfaceRaised': '#242424',
+        'surfaceHover': '#2E2E2E',
+        'border': '#2F2F2F',
+        # 文字（見本 --fg / --sub）
+        'textPrimary': '#FFFFFF',
+        'textSecondary': '#B3B3B3',
+        # 副操作ボタンとコピーの輪郭（見本 .btn.sec / .copybtn の #7a7a7a）
+        'borderStrong': '#7A7A7A',
+        # 焦点（見本 button:focus-visible の --fg）
+        'focusRing': '#FFFFFF',
+        # アクセント（見本 --accent / --accent-ink、選択中の塊の地 .chunk.sel）
+        'accentSolid': '#FFE34D',
+        'accentOnSolid': '#000000',
+        'accentText': '#FFE34D',
+        'accentBorder': '#FFE34D',
+        'accentSubtle': '#3D3A22',
+        # 録音（見本 --rec）
+        'recSolid': '#FF4D4D',
+        # 注意・音割れ（見本 .meter i.on.hot）
+        'mistakeSolid': '#FFB340',
+        # 波形（見本 .chunk / .chunk:hover / .chunk i）
+        'voiceSolid': '#8C8C8C',
+        'voiceFill': '#2E2E2E',
+        'voiceFillAlt': '#3A3A3A',
+        'voiceText': '#FFFFFF',
+        # 見本だけにある値（DESIGN_SYSTEM.md §5.1）
+        'waveBar': '#8C8C8C',
+        'laneFill': '#4A4A4A',
+        'grabber': '#555555',
+        'avatar': '#535353',
+        'pillStrong': '#2A2A2A',
+        # 白い通知（見本 .toast）
+        'inverseSurface': '#FFFFFF',
+        'inverseText': '#000000',
+    },
+}
+
+# ---------------------------------------------------------------- 見本に無い色（L, C, h）
 
 FIXED = {
     'dark': {
-        'controlEdge': (0.9528, 0.0127, 86.8),
-        'bg': (0.2400, 0.0080, 86.8),
-        'surface': (0.2800, 0.0090, 84.6),
-        'surfaceRaised': (0.3200, 0.0100, 78.2),
-        'surfaceHover': (0.3600, 0.0110, 75.3),
-        'border': (0.3900, 0.0120, 80.7),
-        'textPrimary': (0.9528, 0.0127, 86.8),
-        'accentSolid': (0.6648, 0.1771, 264.6),
-        'accentSolidPressed': (0.6090, 0.1813, 264.3),
-        'accentOnSolid': (0.1638, 0.0000, 0.0),
-        'accentSubtle': (0.3432, 0.0525, 265.1),
-        'recSolid': (0.7113, 0.2113, 353.1),
-        'recOnSolid': (0.1822, 0.0000, 0.0),
-        'recSubtle': (0.3340, 0.0500, 345.5),
-        'dangerSolid': (0.7057, 0.1877, 32.9),
-        'dangerSolidPressed': (0.6528, 0.1927, 32.9),
-        'dangerOnSolid': (0.1822, 0.0000, 0.0),
-        'dangerSubtle': (0.3291, 0.0434, 31.3),
-        'voiceSolid': (0.9528, 0.0127, 86.8),
-        'voiceFill': (0.3600, 0.0110, 75.3),
-        'voiceFillAlt': (0.3900, 0.0120, 80.7),
-        'voiceSubtle': (0.3200, 0.0100, 78.2),
+        'accentSolidPressed': (0.8600, 0.1600, 98.4),
+        'recOnSolid': (0.0000, 0.0000, 0.0),
+        'recSubtle': (0.3000, 0.0700, 25.0),
+        'dangerSolid': (0.7000, 0.1900, 355.0),
+        'dangerSolidPressed': (0.6500, 0.1900, 355.0),
+        'dangerOnSolid': (0.0000, 0.0000, 0.0),
+        'dangerSubtle': (0.3000, 0.0600, 355.0),
+        'voiceSubtle': (0.2768, 0.0000, 0.0),
         'musicSolid': (0.7091, 0.1656, 291.5),
-        'musicOnSolid': (0.1822, 0.0000, 0.0),
+        'musicOnSolid': (0.0000, 0.0000, 0.0),
         'musicFill': (0.3589, 0.0554, 293.2),
         'musicFillAlt': (0.3880, 0.0645, 293.8),
         'musicSubtle': (0.3097, 0.0376, 295.1),
         'insertSolid': (0.7510, 0.1190, 202.6),
-        'insertOnSolid': (0.1822, 0.0000, 0.0),
+        'insertOnSolid': (0.0000, 0.0000, 0.0),
         'insertFill': (0.3565, 0.0350, 210.5),
         'insertFillAlt': (0.3928, 0.0399, 210.8),
         'insertSubtle': (0.3237, 0.0289, 210.5),
-        'mistakeSolid': (0.9135, 0.1643, 98.4),
-        'mistakeFill': (0.3788, 0.0457, 97.9),
-        'mistakeFillAlt': (0.4174, 0.0530, 98.2),
-        'mistakeSubtle': (0.3546, 0.0418, 98.7),
+        'mistakeFill': (0.3700, 0.0500, 73.2),
+        'mistakeFillAlt': (0.4100, 0.0560, 73.2),
+        'mistakeSubtle': (0.3400, 0.0450, 73.2),
         'successSolid': (0.7714, 0.1652, 152.4),
         'successSubtle': (0.3376, 0.0451, 153.8),
-    },
-    'light': {
-        'controlEdge': (0.2002, 0.0000, 0.0),
-        'bg': (0.9528, 0.0127, 86.8),
-        'surface': (0.9823, 0.0069, 88.6),
-        'surfaceRaised': (0.9289, 0.0157, 86.4),
-        'surfaceHover': (0.9165, 0.0170, 88.0),
-        'border': (0.8128, 0.0250, 85.8),
-        'textPrimary': (0.2002, 0.0000, 0.0),
-        'accentSolid': (0.5196, 0.1943, 261.5),
-        'accentSolidPressed': (0.4651, 0.1730, 261.5),
-        'accentOnSolid': (1.0000, 0.0000, 0.0),
-        'accentSubtle': (0.9208, 0.0276, 265.4),
-        'recSolid': (0.6295, 0.2227, 355.3),
-        'recOnSolid': (0.2002, 0.0000, 0.0),
-        'recSubtle': (0.9321, 0.0334, 349.1),
-        'dangerSolid': (0.5421, 0.1860, 31.6),
-        'dangerSolidPressed': (0.4829, 0.1665, 31.8),
-        'dangerOnSolid': (1.0000, 0.0000, 0.0),
-        'dangerSubtle': (0.9339, 0.0274, 31.7),
-        'voiceSolid': (0.2002, 0.0000, 0.0),
-        'voiceFill': (0.9018, 0.0187, 86.2),
-        'voiceFillAlt': (0.8650, 0.0230, 87.2),
-        'voiceSubtle': (0.9289, 0.0157, 86.4),
-        'musicSolid': (0.5552, 0.1562, 294.0),
-        'musicOnSolid': (1.0000, 0.0000, 0.0),
-        'musicFill': (0.9157, 0.0305, 300.3),
-        'musicFillAlt': (0.8728, 0.0462, 299.3),
-        'musicSubtle': (0.9423, 0.0207, 301.1),
-        'insertSolid': (0.5510, 0.0943, 206.2),
-        'insertOnSolid': (1.0000, 0.0000, 0.0),
-        'insertFill': (0.9041, 0.0318, 204.0),
-        'insertFillAlt': (0.8932, 0.0351, 205.5),
-        'insertSubtle': (0.9526, 0.0170, 201.4),
-        'mistakeSolid': (0.5602, 0.1170, 77.5),
-        'mistakeFill': (0.9135, 0.1643, 98.4),
-        'mistakeFillAlt': (0.8745, 0.1694, 97.2),
-        'mistakeSubtle': (0.9135, 0.1643, 98.4),
-        'successSolid': (0.5702, 0.1421, 151.0),
-        'successSubtle': (0.9398, 0.0273, 157.4),
-    },
-}
-
-# ロゴと飾りの色（DESIGN_SYSTEM.md §3.2、§2.5）。文字の下に置かないので逆算しない。
-# sketch* はトークテーマのカンペ（スケッチブック、§2.7）。紙はテーマに関係なく紙の色で、墨の文字を載せる。
-BRAND = {
-    'dark': {
-        'brandShadow': (0.7113, 0.2113, 353.1),
-        'brandAccent': (0.9135, 0.1643, 98.4),
-        'halftone': (0.4241, 0.1200, 263.8),
-        'sketchCover': (0.2543, 0.0365, 158.5),
-        'sketchCoverAlt': (0.7822, 0.1571, 77.5),
-        'sketchPaper': (0.9435, 0.0303, 90.3),
-        'sketchBoard': (0.3958, 0.0127, 81.8),
-        'sketchInk': (0.2002, 0.0000, 0.0),
-        'sketchInkSoft': (0.3694, 0.0129, 81.7),
-    },
-    'light': {
-        'brandShadow': (0.6950, 0.2229, 355.3),
-        'brandAccent': (0.9135, 0.1643, 98.4),
-        'halftone': (0.7819, 0.0830, 263.9),
-        'sketchCover': (0.2543, 0.0365, 158.5),
-        'sketchCoverAlt': (0.7822, 0.1571, 77.5),
-        'sketchPaper': (0.9735, 0.0180, 89.4),
-        'sketchBoard': (0.6686, 0.0261, 85.8),
-        'sketchInk': (0.2002, 0.0000, 0.0),
-        'sketchInkSoft': (0.3731, 0.0079, 75.3),
     },
 }
 
@@ -159,59 +116,64 @@ BRAND = {
 # 本文が載りうる面。文字と境界は、このうち（と自分の淡い地のうち）いちばん比を稼げない面から逆算する。
 TEXT_SURFACES = ('bg', 'surface', 'surfaceRaised', 'surfaceHover')
 
+# 目盛りの文字（textTertiary）が載る面。見本は波形パネル（surface）の上だけで使う。
+TERTIARY_SURFACES = ('bg', 'surface')
+
 SOLVED = {
     'dark': {
-        'textSecondary': (0.0120, 85.0, 6.00),
-        'textTertiary': (0.0140, 85.0, 4.80),
-        'textDisabled': (0.0140, 85.0, 3.40),
-        'borderStrong': (0.0140, 85.0, 3.60),
-        'accentText': (0.1500, 264.6, 6.00),
-        'accentBorder': (0.1700, 264.6, 3.60),
-        'focusRing': (0.1700, 264.6, 4.50),
-        'dangerText': (0.1500, 32.9, 6.00),
-        'dangerBorder': (0.1700, 32.9, 3.60),
-        'recText': (0.1700, 353.1, 6.00),
-        'musicText': (0.1400, 291.5, 6.00),
-        'musicBorder': (0.1500, 291.5, 3.60),
-        'insertText': (0.1100, 202.6, 6.00),
-        'insertBorder': (0.1100, 202.6, 3.60),
-        'mistakeText': (0.1500, 98.4, 7.00),
-        'mistakeBorder': (0.1500, 98.4, 3.60),
-        'voiceBorder': (0.0140, 85.0, 3.60),
-        'successText': (0.1500, 152.4, 6.00),
-    },
-    'light': {
-        'textSecondary': (0.0080, 85.0, 8.00),
-        'textTertiary': (0.0100, 85.0, 5.60),
-        'textDisabled': (0.0100, 85.0, 3.40),
-        'borderStrong': (0.0100, 85.0, 4.50),
-        'accentText': (0.1900, 261.5, 5.50),
-        'accentBorder': (0.1900, 261.5, 3.60),
-        'focusRing': (0.1900, 261.5, 4.50),
-        'dangerText': (0.1800, 31.6, 5.50),
-        'dangerBorder': (0.1900, 31.6, 3.60),
-        'recText': (0.2000, 355.3, 5.50),
-        'voiceText': (0.0000, 0.0, 12.00),
-        'voiceBorder': (0.0000, 0.0, 4.00),
-        'musicText': (0.1500, 294.0, 5.50),
-        'musicBorder': (0.1500, 294.0, 3.60),
-        'insertText': (0.0990, 206.4, 5.50),
-        'insertBorder': (0.0990, 206.4, 3.60),
-        'mistakeText': (0.1100, 77.5, 5.50),
-        'mistakeBorder': (0.1170, 77.5, 3.60),
-        'successText': (0.1400, 150.9, 5.50),
+        # 見本の --dim #7A7A7A は 4.5:1 に届かない（bg 4.36、surface 4.05）。DESIGN_SYSTEM.md §13 で確認中。
+        # 確認が取れるまで、載る面（bg / surface）で 4.5:1 になる最小の灰にしておく。
+        'textTertiary': (0.0000, 0.0, 4.50),
+        'textDisabled': (0.0000, 0.0, 3.00),
+        'dangerText': (0.1500, 355.0, 4.50),
+        'dangerBorder': (0.1700, 355.0, 3.00),
+        # 見本の赤 #FF4D4D は surfaceHover の上で 4.15:1。文字に使うときだけ少し明るくする（§13）。
+        'recText': (0.1900, 25.0, 4.50),
+        'musicText': (0.1400, 291.5, 4.50),
+        'musicBorder': (0.1500, 291.5, 3.00),
+        'insertText': (0.1100, 202.6, 4.50),
+        'insertBorder': (0.1100, 202.6, 3.00),
+        'mistakeText': (0.1400, 73.2, 4.50),
+        'mistakeBorder': (0.1400, 73.2, 3.00),
+        'voiceBorder': (0.0000, 0.0, 3.00),
+        'successText': (0.1500, 152.4, 4.50),
     },
 }
 
-# dark では塗りそのものが文字・輪郭として十分に明るいので、同じ値を使う（別の段を作らない）。
-SAME_AS = {
-    'dark': {
-        'voiceText': 'voiceSolid',
-    },
-    'light': {},
+# どの面に対して逆算するか。書いていない役割は TEXT_SURFACES（と自分の淡い地）。
+SOLVE_AGAINST = {
+    'textTertiary': TERTIARY_SURFACES,
 }
 
 OVERLAY_ALPHA = '33'  # 20%。下の波形が透ける濃さ
+
+# ---------------------------------------------------------------- Design system 3 の部品のための色（移行用）
+
+# #235 の作業 6 で部品を作り直すまで、Design system 3 の部品（2px の線と硬い影、ロゴの版ズレ、
+# 網点、カンペ）が読む名前を残す。値は Design system 4 の画面に紛れる控えめな色にしてある。
+# 作業 6 で部品を消したら、ここも消す。新しいコードから読まない。
+LEGACY = {
+    'dark': {
+        'controlEdge': 'surfaceHover',
+        'controlBorder': 'surfaceHover',
+        'controlShadow': 'bg',
+        'controlShadowSoft': 'bg',
+        'brandInk': 'textPrimary',
+        'brandShadow': 'bg',
+        'brandAccent': 'accentSolid',
+        'halftone': 'surface',
+    },
+}
+LEGACY_FIXED = {
+    'dark': {
+        'sketchCover': (0.2543, 0.0365, 158.5),
+        'sketchCoverAlt': (0.7822, 0.1571, 77.5),
+        'sketchPaper': (0.9435, 0.0303, 90.3),
+        'sketchBoard': (0.3958, 0.0127, 81.8),
+        'sketchInk': (0.2002, 0.0000, 0.0),
+        'sketchInkSoft': (0.3694, 0.0129, 81.7),
+    },
+}
 
 
 def _hex(lch: tuple[float, float, float]) -> str:
@@ -244,38 +206,26 @@ def _subtle_of(role: str) -> str | None:
 
 
 def build(theme: str) -> dict[str, str]:
-    lighter = theme == 'dark'
-    t = {name: _hex(lch) for name, lch in FIXED[theme].items()}
+    t = dict(MOCK[theme])
+    for name, lch in FIXED[theme].items():
+        t[name] = _hex(lch)
     for role, (C, h, target) in SOLVED[theme].items():
-        against = [t[s] for s in TEXT_SURFACES]
+        against = [t[s] for s in SOLVE_AGAINST.get(role, TEXT_SURFACES)]
         subtle = _subtle_of(role)
-        if subtle:
+        if subtle and role not in SOLVE_AGAINST:
             against.append(t[subtle])
-        t[role] = _solve(C, h, target, against, lighter)
-    for role, src in SAME_AS[theme].items():
-        t[role] = t[src]
+        t[role] = _solve(C, h, target, against, lighter=True)
 
-    # ロゴと飾り（§3.2、§2.5）。点（brandAccent）は黄で、ライトの紙の上では 3:1 を持てないので、
-    # 必ず墨の輪郭（controlBorder）と組にして描く（generate.py が輪郭との比を検査する）。
-    for role, lch in BRAND[theme].items():
-        t[role] = _hex(lch)
-    t['brandInk'] = t['textPrimary'] if lighter else t['accentSolid']
-    # 線と影は本文と同じインク。ライトは墨、ダークは紙の色（DESIGN_SYSTEM.md §6）。
-    # Design system 3 では主操作の枠も同じ線で描く（controlEdge = textPrimary）。
-    t['controlBorder'] = t['textPrimary']
-    t['controlShadow'] = t['textPrimary']
-    # 副操作（secondary）の影だけは弱いインク（Issue #173）。主操作と収録の丸の影と差をつけ、
-    # 1 画面に何本も並んでも騒がしくしない。両テーマとも、本文が載る面すべてから 3:1 で逆算する。
-    t['controlShadowSoft'] = _solve(
-        0.0120, 85.0, 3.0, [t[s] for s in TEXT_SURFACES], lighter
-    )
-
-    t['overlayScrim'] = '#00000099' if theme == 'dark' else '#00000066'
-
+    t['overlayScrim'] = '#00000099'
     # 波形に重ねる帯（選択範囲・録音中）。ここだけは透過で持つ。下の波形を隠すと
     # 「どこを選んでいるか」より先に「何が録れているか」が読めなくなるため
-    # （DESIGN_SYSTEM.md §5.5）。意味そのものは不透明な輪郭 `accentBorder` /
+    # （DESIGN_SYSTEM.md §5.4）。意味そのものは不透明な輪郭 `accentBorder` /
     # `recSolid` が運ぶので、帯が薄くても情報は落ちない。
     t['selectionOverlay'] = t['accentSolid'] + OVERLAY_ALPHA
     t['recordingOverlay'] = t['recSolid'] + OVERLAY_ALPHA
+
+    for name, src in LEGACY[theme].items():
+        t[name] = t[src]
+    for name, lch in LEGACY_FIXED[theme].items():
+        t[name] = _hex(lch)
     return t

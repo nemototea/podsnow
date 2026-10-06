@@ -658,18 +658,11 @@ export function ExportTab({ ws, details, onShowToast, onDone, onGoEdit }: Export
                 style={[
                   st.radio,
                   {
-                    borderColor: on ? (c.isDark ? c.accentSolid : c.accentBorder) : c.borderStrong,
+                    borderColor: on ? c.accentSolid : c.borderStrong,
                   },
                 ]}
               >
-                {on ? (
-                  <View
-                    style={[
-                      st.radioDot,
-                      { backgroundColor: c.isDark ? c.accentSolid : c.accentBorder },
-                    ]}
-                  />
-                ) : null}
+                {on ? <View style={[st.radioDot, { backgroundColor: c.accentSolid }]} /> : null}
               </View>
               <View style={st.flex}>
                 <Text style={[typography.bodyStrong, { color: c.textPrimary }]}>

@@ -33,32 +33,21 @@ TRACKS = ('voice', 'music', 'insert', 'mistake')
 def checks(t: dict[str, str], theme: str) -> list[tuple[str, str, float, str]]:
     out: list[tuple[str, str, float, str]] = []
     for s in TEXT_SURFACES:
-        for fg in ('textPrimary', 'textSecondary', 'textTertiary'):
+        for fg in ('textPrimary', 'textSecondary'):
             out.append((fg, s, 4.5, 'WCAG 1.4.3 本文'))
         out.append(('textDisabled', s, 3.0, '無効状態。1.4.3 の対象外だが見えなくはしない'))
-        out.append(('borderStrong', s, 3.0, 'WCAG 1.4.11 操作部品の輪郭'))
+        out.append(('borderStrong', s, 3.0, 'WCAG 1.4.11 副操作ボタンの輪郭'))
         out.append(('focusRing', s, 3.0, 'WCAG 1.4.11 / 2.4.13 焦点の輪'))
         out.append(('recSolid', s, 3.0, 'WCAG 1.4.11 録音中の表示'))
         for role in HUE_ROLES:
             out.append((f'{role}Text', s, 4.5, 'WCAG 1.4.3 本文'))
+    for s in r.TERTIARY_SURFACES:
+        out.append(('textTertiary', s, 4.5, 'WCAG 1.4.3 目盛り（波形パネルの上だけで使う）'))
     for role in HUE_ROLES:
-        out.append((f'{role}Text', f'{role}Subtle', 4.5, 'チップの地の上のラベル'))
+        out.append((f'{role}Text', f'{role}Subtle', 4.5, '淡い地の上のラベル'))
     for role in ('accent', 'danger', 'voice', 'music', 'insert', 'mistake'):
         for s in TEXT_SURFACES + (f'{role}Subtle',):
             out.append((f'{role}Border', s, 3.0, 'WCAG 1.4.11 輪郭'))
-    # ロゴの文字は表示先の地で読める。黄の点は墨の輪郭と組にするので、輪郭との比を測る（§3.2）。
-    for s in ('bg', 'surface'):
-        out.append(('brandInk', s, 4.5, 'ロゴの文字'))
-    if theme == 'light':
-        out.append(('brandAccent', 'controlBorder', 3.0, 'ロゴの点とステッカーの黄は墨の輪郭で形を示す'))
-    else:
-        out.append(('brandAccent', 'bg', 3.0, 'ロゴの点が黒い紙から見える'))
-    # 線と硬い影（DESIGN_SYSTEM.md §6）。影は bg に置いた下部バーの上にも出る。
-    for s in TEXT_SURFACES:
-        out.append(('controlBorder', s, 3.0, 'WCAG 1.4.11 操作部品とカードの輪郭'))
-        out.append(('controlShadow', s, 3.0, '硬い影が面から見える'))
-        out.append(('controlShadowSoft', s, 3.0, '副操作の弱い影も面から見える（#173）'))
-        out.append(('controlEdge', s, 3.0, 'WCAG 1.4.11 主操作の輪郭'))
     for s in ('accentSolid', 'accentSolidPressed'):
         out.append((s, 'bg', 3.0, 'WCAG 1.4.11 主操作の塗りだけで形が分かる'))
     out += [
@@ -66,13 +55,18 @@ def checks(t: dict[str, str], theme: str) -> list[tuple[str, str, float, str]]:
         ('accentOnSolid', 'accentSolidPressed', 4.5, '押下中も読める'),
         ('dangerOnSolid', 'dangerSolid', 4.5, '破壊的操作のラベル'),
         ('dangerOnSolid', 'dangerSolidPressed', 4.5, '押下中も読める'),
-        ('recOnSolid', 'recSolid', 4.5, '録音ボタンの記号'),
-        ('insertOnSolid', 'insertSolid', 4.5, '素材のステッカーの名前（#190）'),
-        ('sketchInk', 'sketchPaper', 4.5, 'カンペの話題名（#190）'),
-        ('sketchInkSoft', 'sketchPaper', 4.5, 'カンペの台本とページ番号（#190）'),
-        ('sketchPaper', 'sketchCover', 4.5, 'スケッチブックの表紙のラベル（#190）'),
-        ('musicOnSolid', 'musicSolid', 4.5, 'BGM のステッカーの名前（#190）'),
-        ('textPrimary', 'accentSubtle', 4.5, 'チップの地の上のラベル'),
+        ('recOnSolid', 'recSolid', 4.5, '録音中の札の文字'),
+        ('insertOnSolid', 'insertSolid', 4.5, '差し込み素材の塗りの上の名前'),
+        ('musicOnSolid', 'musicSolid', 4.5, 'BGM の塗りの上の名前'),
+        ('textPrimary', 'accentSubtle', 4.5, '選択中の塊の地の上の文字'),
+        ('accentSolid', 'accentSubtle', 3.0, '選択中の塊の波形と輪郭（見本 .chunk.sel）'),
+        ('textPrimary', 'laneFill', 4.5, '素材のレーンの名前（見本 .layer）'),
+        ('textSecondary', 'pillStrong', 4.5, '書き出し済みの札（見本 .pill.ok）'),
+        ('textPrimary', 'avatar', 4.5, 'アバターの頭文字'),
+        ('inverseText', 'inverseSurface', 4.5, '白い通知（見本 .toast）'),
+        ('waveBar', 'voiceFill', 3.0, '波形の棒が塊の地から見える（見本 .chunk i）'),
+        ('waveBar', 'surface', 3.0, '波形の棒が波形パネルから見える'),
+        ('accentSolid', 'surfaceRaised', 3.0, '選択中のチップがシートの上でも分かる'),
         ('successSolid', 'bg', 3.0, 'WCAG 1.4.11 完了の印'),
         ('dangerSolid', 'bg', 3.0, 'WCAG 1.4.11 塗りだけで形が分かる'),
     ]
@@ -96,17 +90,24 @@ def verify(t: dict[str, str], theme: str) -> list[str]:
             bad.append(f'{theme}: {fg} on {bg} = {got:.2f}:1 < {need}:1（{why}）')
     hues = sorted(r.HUES.items(), key=lambda kv: kv[1])
     for (n1, h1), (n2, h2) in zip(hues, hues[1:] + [(hues[0][0], hues[0][1] + 360)]):
-        if h2 - h1 < MIN_HUE_GAP:
+        if h2 - h1 < MIN_HUE_GAP and (n1, n2) not in r.HUE_GAP_EXCEPTIONS:
             bad.append(f'色相 {n1} と {n2} が {h2 - h1:.0f}° しか離れていない（{MIN_HUE_GAP}° 以上）')
     if t['voiceSolid'] == t['successSolid'] or t['voiceText'] == t['successText']:
         bad.append(f'{theme}: 声トラックと完了が同じ色（DESIGN_SYSTEM.md §5.2）')
+    if t['recSolid'] == t['dangerSolid'] or t['recText'] == t['dangerText']:
+        bad.append(f'{theme}: 録音と破壊的操作が同じ色（DESIGN_SYSTEM.md §5.2）')
+    for name, want in r.MOCK[theme].items():
+        if t[name] != want:
+            bad.append(f'{theme}: {name} が見本の値 {want} と違う（{t[name]}）')
     return bad
 
 
 HEADER = '''// scripts/design/generate.py が生成。直接編集せず scripts/design/ramps.py を直すこと。
 //
-// 役割の名前だけを置く。`#D8F36A` のような値を画面から直接使わない（DESIGN_SYSTEM.md §5）。
-// 値は OKLCh で計算し、文字と境界は目標コントラスト比から逆算してある。
+// 役割の名前だけを置く。`#FFE34D` のような値を画面から直接使わない（DESIGN_SYSTEM.md §5）。
+// テーマはダーク 1 つ（Issue #235）。見本 docs/design-refresh/ds4/mock.html の色はそのままの値で、
+// 見本に無い色は OKLCh で計算し、文字と境界は目標コントラスト比から逆算してある。
+// 「移行用」の名前は Design system 3 の部品のためだけに残している。新しいコードから読まない。
 
 '''
 
@@ -122,6 +123,12 @@ def emit(themes: dict[str, dict[str, str]]) -> str:
     lines.append('} as const;\n\n')
     lines.append('export type ThemeName = keyof typeof colors;\n')
     lines.append('export type Colors = (typeof colors)[ThemeName];\n')
+    lines.append('\n/** 移行用（Design system 3 の部品が読む名前）。#235 の作業 6 で消す。 */\n')
+    legacy = list(r.LEGACY['dark']) + list(r.LEGACY_FIXED['dark'])
+    lines.append('export const legacyColorNames = [\n')
+    for name in legacy:
+        lines.append(f"  '{name}',\n")
+    lines.append('] as const;\n')
     return ''.join(lines)
 
 

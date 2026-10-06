@@ -38,7 +38,7 @@ export function Segmented<T extends string>({
         // 選べない項目は UISegmentedControl 側の選択を元に戻す（制御値が変わらないため作り直す）。
         if (next.value !== value && disabled?.(next.value)) setNonce((n) => n + 1);
       }}
-      appearance={c.isDark ? 'dark' : 'light'}
+      appearance="dark"
       backgroundColor={c.surface}
       tintColor={c.surfaceRaised}
       fontStyle={{

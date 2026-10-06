@@ -26,6 +26,10 @@ CANVAS = 1024
 
 # 色はトークンの生成元をそのまま読む。ロゴのために別の色を作らない（DESIGN_SYSTEM.md §3.2）。
 DARK = ramps.build('dark')
+if 'light' not in ramps.THEMES:
+    # Issue #235 でテーマがダーク 1 つになった。このスクリプトは Design system 3 のロゴ（ライトの色を使う）を
+    # 描くので、作業 4 で書き直すまで動かさない。生成物（assets/brand、assets/images）はコミット済みのものを使う。
+    sys.exit('scripts/brand は Issue #235 の作業 4 で書き直すまで実行できない（テーマがダーク 1 つになったため）')
 LIGHT = ramps.build('light')
 BG = DARK['bg']
 INK = DARK['brandInk']

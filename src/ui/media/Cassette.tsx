@@ -5,7 +5,7 @@ import { useT } from '@/i18n';
 
 import { Text } from '../Text';
 import { useAppTheme } from '../ThemeContext';
-import { buttonDepth, colors, space, spin, stroke, typography } from '../tokens';
+import { buttonDepth, space, spin, stroke, typography } from '../tokens';
 import { packRadius } from './geometry';
 import { Halftone } from './Halftone';
 import { SpinView, useSpin } from './useSpin';
@@ -43,8 +43,8 @@ export function Cassette({
 }) {
   const c = useAppTheme();
   const t = useT();
-  const paper = colors.light.bg;
-  const ink = colors.light.textPrimary;
+  const paper = c.sketchPaper;
+  const ink = c.sketchInk;
   const k = width / W;
   const spinStyle = useSpin(playing, spin.reel);
   const left = packRadius(1 - progress);
@@ -75,11 +75,11 @@ export function Cassette({
           {
             borderRadius: 16 * k,
             borderColor: c.controlBorder,
-            backgroundColor: c.isDark ? c.surfaceRaised : c.accentSolid,
+            backgroundColor: c.surfaceRaised,
           },
         ]}
       >
-        <Halftone color={c.isDark ? c.halftone : c.accentSolidPressed} />
+        <Halftone color={c.halftone} />
         <Svg width={width} height={H * k} viewBox={`0 0 ${W} ${H}`} style={StyleSheet.absoluteFill}>
           {SCREWS.map(([x, y]) => (
             <Circle
@@ -110,7 +110,7 @@ export function Cassette({
           <Rect
             {...rect(WINDOW)}
             rx={WINDOW.h / 2}
-            fill={colors.light.surfaceHover}
+            fill={c.sketchBoard}
             stroke={ink}
             strokeWidth={2}
           />
@@ -123,7 +123,7 @@ export function Cassette({
           />
           <Path
             d="M62 225 L83 174 Q85 168 91 168 L267 168 Q273 168 275 174 L296 225"
-            fill={c.isDark ? c.surface : c.accentSolidPressed}
+            fill={c.surface}
             stroke={c.controlBorder}
             strokeWidth={2}
           />

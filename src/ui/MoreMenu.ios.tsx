@@ -28,7 +28,7 @@ export function MoreMenu({ label, title, actions, disabled }: MoreMenuProps) {
     />
   ));
   return (
-    <Host matchContents colorScheme={c.isDark ? 'dark' : 'light'}>
+    <Host matchContents colorScheme="dark">
       <Menu
         label={
           <Image

@@ -376,7 +376,7 @@ export function Button({
         };
       case 'secondary':
         return {
-          bg: pressed ? c.surfaceHover : c.isDark ? c.surfaceRaised : c.surface,
+          bg: pressed ? c.surfaceHover : c.surfaceRaised,
           border: c.controlBorder,
           fg: c.textPrimary,
         };

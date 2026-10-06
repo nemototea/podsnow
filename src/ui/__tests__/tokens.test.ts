@@ -1,4 +1,5 @@
 import { contrast } from '../contrast';
+import { legacyColorNames } from '../tokens/colors';
 import {
   colors,
   concentric,
@@ -26,7 +27,8 @@ const TONES = [
   'mistake',
 ] as const satisfies readonly ToneName[];
 
-const THEMES = ['dark', 'light'] as const;
+// テーマはダーク 1 つ（Issue #235、FR-SET-1）。
+const THEMES = ['dark'] as const;
 
 /** 本文が載りうる面。文字はこのどれに載っても読めなければならない。 */
 const TEXT_SURFACES = ['bg', 'surface', 'surfaceRaised', 'surfaceHover'] as const;
@@ -35,7 +37,6 @@ const TEXT_SURFACES = ['bg', 'surface', 'surfaceRaised', 'surfaceHover'] as cons
 const BODY_TEXT = [
   'textPrimary',
   'textSecondary',
-  'textTertiary',
   'accentText',
   'dangerText',
   'recText',
@@ -94,14 +95,15 @@ describe.each(THEMES)('%s テーマの色', (theme) => {
     expect(contrast(c.musicOnSolid, c.musicSolid)).toBeGreaterThanOrEqual(4.5);
   });
 
-  it('ロゴの文字は表示先の地で読め、黄の点は輪郭か地から 3:1 以上で見分けられる', () => {
+  it('目盛りの文字（textTertiary）は、載る面（bg / surface）の上で 4.5:1 以上ある', () => {
     for (const surface of ['bg', 'surface'] as const) {
-      expect(contrast(c.brandInk, c[surface])).toBeGreaterThanOrEqual(4.5);
+      expect(contrast(c.textTertiary, c[surface])).toBeGreaterThanOrEqual(4.5);
     }
-    // ライトの黄は紙の上で 3:1 を持てないので、墨の輪郭と組にして描く（DESIGN_SYSTEM.md §3.2）
-    const byOutline = contrast(c.brandAccent, c.controlBorder) >= 3;
-    const byGround = contrast(c.brandAccent, c.bg) >= 3;
-    expect(byOutline || byGround).toBe(true);
+  });
+
+  it('ロゴの文字と点は黒の地から見える', () => {
+    expect(contrast(c.brandInk, c.bg)).toBeGreaterThanOrEqual(4.5);
+    expect(contrast(c.brandAccent, c.bg)).toBeGreaterThanOrEqual(3);
   });
 
   it('主操作の塗りは、背景か輪郭のどちらかで形が 3:1 以上に分かる', () => {
@@ -145,9 +147,35 @@ describe.each(THEMES)('%s テーマの色', (theme) => {
   });
 });
 
-describe('両テーマで同じ役割が揃っている', () => {
-  it('トークンの名前が一致する', () => {
-    expect(Object.keys(colors.dark).sort()).toEqual(Object.keys(colors.light).sort());
+describe('トークンの全体', () => {
+  it('テーマはダーク 1 つだけ', () => {
+    expect(Object.keys(colors)).toEqual(['dark']);
+  });
+
+  it('見本（docs/design-refresh/ds4/mock.html）の色はそのままの値', () => {
+    expect(colors.dark).toMatchObject({
+      bg: '#121212',
+      surface: '#1A1A1A',
+      surfaceRaised: '#242424',
+      surfaceHover: '#2E2E2E',
+      border: '#2F2F2F',
+      textPrimary: '#FFFFFF',
+      textSecondary: '#B3B3B3',
+      borderStrong: '#7A7A7A',
+      accentSolid: '#FFE34D',
+      accentOnSolid: '#000000',
+      accentSubtle: '#3D3A22',
+      recSolid: '#FF4D4D',
+      mistakeSolid: '#FFB340',
+      waveBar: '#8C8C8C',
+      laneFill: '#4A4A4A',
+      inverseSurface: '#FFFFFF',
+      inverseText: '#000000',
+    });
+  });
+
+  it('移行用の名前（Design system 3 の部品が読む）は一覧にあるものだけ', () => {
+    for (const name of legacyColorNames) expect(colors.dark).toHaveProperty(name);
   });
 
   it('透過を持つトークンは、下を隠してはいけない重ねだけ', () => {
@@ -274,31 +302,4 @@ describe('書体', () => {
     expect(steps).toEqual([...steps].sort((a, b) => b - a));
     expect(new Set(steps).size).toBe(steps.length);
   });
-});
-
-describe('ボタンの輪郭と硬い影', () => {
-  it.each(['dark', 'light'] as const)(
-    '%s: 副操作の輪郭と影は、ボタンが載る面から見分けられる',
-    (theme) => {
-      const c = colors[theme];
-      for (const surface of TEXT_SURFACES) {
-        expect(contrast(c.controlBorder, c[surface])).toBeGreaterThanOrEqual(3);
-        expect(contrast(c.controlShadow, c[surface])).toBeGreaterThanOrEqual(3);
-        expect(contrast(c.controlShadowSoft, c[surface])).toBeGreaterThanOrEqual(3);
-      }
-    },
-  );
-
-  it.each(['dark', 'light'] as const)(
-    '%s: 主操作の枠は面から見分けられ、塗りは押下中も背景から区別できる',
-    (theme) => {
-      const c = colors[theme];
-      for (const surface of TEXT_SURFACES) {
-        expect(contrast(c.controlEdge, c[surface])).toBeGreaterThanOrEqual(3);
-      }
-      for (const fill of ['accentSolid', 'accentSolidPressed'] as const) {
-        expect(contrast(c[fill], c.bg)).toBeGreaterThanOrEqual(3);
-      }
-    },
-  );
 });

@@ -438,7 +438,7 @@ Home のサービス層だけが両方を 1 一覧へ投影する。`episode_id`
 ### 4.16 `app_settings`
 `expo-sqlite/kv-store`（【確認済み】AsyncStorage 互換の KV）を使う案と、専用テーブル `app_settings(key TEXT PK, value TEXT)` の案がある。型安全性のため専用テーブル + Zod スキーマ【仮説】。
 
-キー例: `theme`, `recording.preferredInput`, `silence.minDurationMs`, `silence.thresholdDb`, `silence.autoApply`, `haptics`, `export.defaultPreset`（`podcast` / `high` / `wav` / `custom`）, `export.custom`（`{ format: m4a|wav, bitrate, channels: 1|2, sampleRate: 48000|44100 }`。録音は 48 kHz / ステレオ固定で、設定に持たない。Issue #174）, `interruption.autoResume`, `monitor.jinglePlayback`（`always` / `headphonesOnly` / `never`）。
+キー例: `recording.preferredInput`, `silence.minDurationMs`, `silence.thresholdDb`, `silence.autoApply`, `haptics`, `export.defaultPreset`（`podcast` / `high` / `wav` / `custom`）, `export.custom`（`{ format: m4a|wav, bitrate, channels: 1|2, sampleRate: 48000|44100 }`。録音は 48 kHz / ステレオ固定で、設定に持たない。Issue #174）, `interruption.autoResume`, `monitor.jinglePlayback`（`always` / `headphonesOnly` / `never`）。
 
 ## 5. タイムラインのセマンティクス（domain/timeline）
 

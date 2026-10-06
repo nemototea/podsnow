@@ -1,4 +1,4 @@
-import { DarkTheme, DefaultTheme, Stack, ThemeProvider as NavThemeProvider } from 'expo-router';
+import { DarkTheme, Stack, ThemeProvider as NavThemeProvider } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -17,7 +17,7 @@ function Navigation() {
   const c = useAppTheme();
   const t = useT();
   const fontFamily = useFontFamily();
-  const nav = c.isDark ? DarkTheme : DefaultTheme;
+  const nav = DarkTheme;
   return (
     <NavThemeProvider
       value={{
@@ -68,19 +68,17 @@ function Navigation() {
       </Stack>
       <MiniPlayer />
       <DialogHost />
-      <StatusBar style={c.isDark ? 'light' : 'dark'} />
+      <StatusBar style="light" />
     </NavThemeProvider>
   );
 }
 
 function Themed() {
   const services = useServices();
-  const [theme, setTheme] = useState(services.settings.theme);
   const [language, setLanguage] = useState(services.settings.language);
   useEffect(
     () =>
       services.onSettingsChange((s) => {
-        setTheme(s.theme);
         setLanguage(s.language);
       }).remove,
     [services],
@@ -89,7 +87,7 @@ function Themed() {
     <LocaleProvider pref={language}>
       {/* 設定で選んだ言語を、DB に書き込む既定文言にも反映する（FR-I18N-6）。 */}
       <ServiceLabelsSync />
-      <ThemeProvider pref={theme}>
+      <ThemeProvider>
         <Navigation />
       </ThemeProvider>
     </LocaleProvider>
@@ -111,7 +109,7 @@ export default function RootLayout() {
           <LocaleProvider>
             <ServicesProvider
               fallback={
-                <ThemeProvider pref="system">
+                <ThemeProvider>
                   <Booting />
                 </ThemeProvider>
               }

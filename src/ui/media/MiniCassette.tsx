@@ -1,7 +1,7 @@
 import { StyleSheet, View } from 'react-native';
 
 import { useAppTheme } from '../ThemeContext';
-import { colors, radius, space, spin, stroke } from '../tokens';
+import { radius, space, spin, stroke } from '../tokens';
 import { SpinView, useSpin } from './useSpin';
 
 /** ミニプレーヤー用の小さいカセット（DESIGN_SYSTEM.md §2.6）。読み上げは親が持つ。 */
@@ -19,7 +19,7 @@ export function MiniCassette({ size, playing }: { size: number; playing: boolean
           width: size * 1.4,
           height: size,
           borderColor: c.controlBorder,
-          backgroundColor: c.isDark ? c.surfaceHover : c.accentSolid,
+          backgroundColor: c.surfaceHover,
         },
       ]}
     >
@@ -28,21 +28,17 @@ export function MiniCassette({ size, playing }: { size: number; playing: boolean
           s.window,
           {
             height: reel + space.sm,
-            backgroundColor: colors.light.bg,
-            borderColor: colors.light.textPrimary,
+            backgroundColor: c.sketchPaper,
+            borderColor: c.sketchInk,
           },
         ]}
       >
         {[0, 1].map((i) => (
           <SpinView
             key={i}
-            style={[
-              s.reel,
-              { width: reel, height: reel, borderColor: colors.light.textPrimary },
-              spinStyle,
-            ]}
+            style={[s.reel, { width: reel, height: reel, borderColor: c.sketchInk }, spinStyle]}
           >
-            <View style={[s.tooth, { backgroundColor: colors.light.textPrimary }]} />
+            <View style={[s.tooth, { backgroundColor: c.sketchInk }]} />
           </SpinView>
         ))}
       </View>

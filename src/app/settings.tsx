@@ -35,7 +35,6 @@ interface Loaded {
 /** 選択肢は「値の並び」だけ持ち、ラベルは i18n から引く（Issue #80）。 */
 /** 表示テーマと同じく「システム」を最後に置く。 */
 const LANGUAGES: readonly AppSettings['language'][] = ['ja', 'en', 'system'];
-const THEMES: readonly AppSettings['theme'][] = ['dark', 'light', 'system'];
 const SILENCE_LEN = [1000, 1500, 2000, 3000];
 const SILENCE_DB = [-40, -45, -50, -55];
 const SILENCE_PAD = [100, 250, 400];
@@ -116,13 +115,6 @@ export default function SettingsScreen() {
         value={settings.language}
         onChange={(v) => void set('language', v)}
         options={LANGUAGES.map((v) => ({ value: v, label: t.settings.language[v] }))}
-      />
-
-      <SectionHeader title={t.settings.appearanceEyebrow} />
-      <Segmented
-        value={settings.theme}
-        onChange={(v) => void set('theme', v)}
-        options={THEMES.map((v) => ({ value: v, label: t.settings.theme[v] }))}
       />
 
       <SectionHeader title={t.settings.generalEyebrow} />
