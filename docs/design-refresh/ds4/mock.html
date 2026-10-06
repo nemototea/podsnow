@@ -14,7 +14,7 @@
   --line: #2f2f2f;
   --fg: #ffffff;
   --sub: #b3b3b3;
-  --dim: #7a7a7a;
+  --dim: #828282;
   --accent: #ffe34d;
   --accent-ink: #000000;
   --rec: #ff4d4d;
@@ -232,6 +232,8 @@ figcaption span { color: var(--sub); font-size: 13.5px; line-height: 1.7; }
 .playhead::before { content: ""; position: absolute; top: -4px; left: -4px; width: 10px; height: 10px; border-radius: 50%; background: #fff; }
 .layers { margin: 10px 12px 0; display: grid; gap: 6px; }
 .layer { height: 24px; border-radius: 4px; font-size: 10.5px; font-weight: 700; display: flex; align-items: center; padding: 0 8px; background: #4a4a4a; color: #fff; }
+.layer.insert { background: #254146; }
+.layer.music { background: #3e3757; }
 .chapters { margin: 14px 16px 0; display: grid; gap: 2px; }
 .chapters h4 { margin: 0 0 6px; font-size: 15px; font-weight: 800; }
 .chap { display: flex; align-items: center; gap: 12px; padding: 8px 0; font-size: 13.5px; }
@@ -479,8 +481,8 @@ figcaption span { color: var(--sub); font-size: 13.5px; line-height: 1.7; }
           <div class="lane" id="lane"></div>
           <div class="playhead"></div>
           <div class="layers">
-            <div class="layer" style="width:34%">Opening</div>
-            <div class="layer" style="width:62%;margin-left:30%">BGM · -18 dB</div>
+            <div class="layer insert" style="width:34%">Opening</div>
+            <div class="layer music" style="width:62%;margin-left:30%">BGM · -18 dB</div>
           </div>
         </div>
         <div class="chapters">

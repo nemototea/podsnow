@@ -90,7 +90,8 @@ describe.each(THEMES)('%s テーマの色', (theme) => {
       expect(contrast(c[`${role}OnSolid`], c[`${role}Solid`])).toBeGreaterThanOrEqual(4.5);
       expect(contrast(c[`${role}OnSolid`], c[`${role}SolidPressed`])).toBeGreaterThanOrEqual(4.5);
     }
-    expect(contrast(c.recOnSolid, c.recSolid)).toBeGreaterThanOrEqual(4.5);
+    // 録音中の札「REC」は見本どおり白の文字（ユーザー判断 2026-10-06、#235）。4.5:1 には届かないが 3:1 は保つ
+    expect(contrast(c.recOnSolid, c.recSolid)).toBeGreaterThanOrEqual(3);
     expect(contrast(c.insertOnSolid, c.insertSolid)).toBeGreaterThanOrEqual(4.5);
     expect(contrast(c.musicOnSolid, c.musicSolid)).toBeGreaterThanOrEqual(4.5);
   });
@@ -161,14 +162,17 @@ describe('トークンの全体', () => {
       border: '#2F2F2F',
       textPrimary: '#FFFFFF',
       textSecondary: '#B3B3B3',
+      textTertiary: '#828282',
       borderStrong: '#7A7A7A',
       accentSolid: '#FFE34D',
       accentOnSolid: '#000000',
       accentSubtle: '#3D3A22',
       recSolid: '#FF4D4D',
+      recOnSolid: '#FFFFFF',
       mistakeSolid: '#FFB340',
       waveBar: '#8C8C8C',
-      laneFill: '#4A4A4A',
+      musicFill: '#3E3757',
+      insertFill: '#254146',
       inverseSurface: '#FFFFFF',
       inverseText: '#000000',
     });

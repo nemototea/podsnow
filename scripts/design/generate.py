@@ -60,7 +60,8 @@ def checks(t: dict[str, str], theme: str) -> list[tuple[str, str, float, str]]:
         ('musicOnSolid', 'musicSolid', 4.5, 'BGM の塗りの上の名前'),
         ('textPrimary', 'accentSubtle', 4.5, '選択中の塊の地の上の文字'),
         ('accentSolid', 'accentSubtle', 3.0, '選択中の塊の波形と輪郭（見本 .chunk.sel）'),
-        ('textPrimary', 'laneFill', 4.5, '素材のレーンの名前（見本 .layer）'),
+        ('textPrimary', 'musicFill', 4.5, 'BGM のレーンの名前（見本 .layer.music）'),
+        ('textPrimary', 'insertFill', 4.5, '差し込み素材のレーンの名前（見本 .layer.insert）'),
         ('textSecondary', 'pillStrong', 4.5, '書き出し済みの札（見本 .pill.ok）'),
         ('textPrimary', 'avatar', 4.5, 'アバターの頭文字'),
         ('inverseText', 'inverseSurface', 4.5, '白い通知（見本 .toast）'),
@@ -85,6 +86,8 @@ MIN_HUE_GAP = 30.0
 def verify(t: dict[str, str], theme: str) -> list[str]:
     bad = []
     for fg, bg, need, why in checks(t, theme):
+        if (fg, bg) in r.CONTRAST_EXCEPTIONS:
+            continue
         got = k.contrast(t[fg], t[bg])
         if got < need:
             bad.append(f'{theme}: {fg} on {bg} = {got:.2f}:1 < {need}:1（{why}）')
@@ -145,8 +148,11 @@ def main() -> int:
         f.write(emit(themes))
     n = len(themes['dark'])
     print(f'書き出し {os.path.relpath(OUT, ROOT)}（{n} トークン x {len(r.THEMES)} テーマ）')
-    n_checks = sum(len(checks(themes[theme], theme)) for theme in r.THEMES)
+    n_checks = sum(len(checks(themes[theme], theme)) for theme in r.THEMES) - len(r.CONTRAST_EXCEPTIONS)
     print(f'検証 {n_checks} 組のコントラストが基準を満たしている')
+    for (fg, bg), why in r.CONTRAST_EXCEPTIONS.items():
+        got = k.contrast(themes['dark'][fg], themes['dark'][bg])
+        print(f'例外 {fg} on {bg} = {got:.2f}:1（{why}）')
     return 0
 
 

@@ -33,8 +33,8 @@ HUES = {
 }
 NEAR_NEUTRAL = ('voice',)
 
-# 見本の色相のまま使うので、30° に届かない組み合わせ（DESIGN_SYSTEM.md §13 で確認中）。
-# レモン（98°）と琥珀（73°）は、黄と橙として見分けがつく。見本を優先して検査の例外にする。
+# 見本の色相のまま使うので、30° に届かない組み合わせ。
+# レモン（98°）と琥珀（73°）は、黄と橙として見分けがつく（ユーザー判断 2026-10-06、#235。DESIGN_SYSTEM.md §5.2）。
 HUE_GAP_EXCEPTIONS = {('mistake', 'accent')}
 
 # ---------------------------------------------------------------- 見本の値（hex のまま）
@@ -50,6 +50,9 @@ MOCK = {
         # 文字（見本 --fg / --sub）
         'textPrimary': '#FFFFFF',
         'textSecondary': '#B3B3B3',
+        # 目盛り（見本 --dim）。見本の #7A7A7A は 4.5:1 に届かないので #828282 にした（ユーザー判断 2026-10-06）。
+        # bg と surface の上だけで使う（TERTIARY_SURFACES）。
+        'textTertiary': '#828282',
         # 副操作ボタンとコピーの輪郭（見本 .btn.sec / .copybtn の #7a7a7a）
         'borderStrong': '#7A7A7A',
         # 焦点（見本 button:focus-visible の --fg）
@@ -60,8 +63,9 @@ MOCK = {
         'accentText': '#FFE34D',
         'accentBorder': '#FFE34D',
         'accentSubtle': '#3D3A22',
-        # 録音（見本 --rec）
+        # 録音（見本 --rec）。札「REC」の文字は白（見本 .pill.rec。CONTRAST_EXCEPTIONS）
         'recSolid': '#FF4D4D',
+        'recOnSolid': '#FFFFFF',
         # 注意・音割れ（見本 .meter i.on.hot）
         'mistakeSolid': '#FFB340',
         # 波形（見本 .chunk / .chunk:hover / .chunk i）
@@ -69,9 +73,11 @@ MOCK = {
         'voiceFill': '#2E2E2E',
         'voiceFillAlt': '#3A3A3A',
         'voiceText': '#FFFFFF',
+        # 素材のレーン（見本 .layer.music / .layer.insert。ユーザー判断 2026-10-06）
+        'musicFill': '#3E3757',
+        'insertFill': '#254146',
         # 見本だけにある値（DESIGN_SYSTEM.md §5.1）
         'waveBar': '#8C8C8C',
-        'laneFill': '#4A4A4A',
         'grabber': '#555555',
         'avatar': '#535353',
         'pillStrong': '#2A2A2A',
@@ -86,7 +92,6 @@ MOCK = {
 FIXED = {
     'dark': {
         'accentSolidPressed': (0.8600, 0.1600, 98.4),
-        'recOnSolid': (0.0000, 0.0000, 0.0),
         'recSubtle': (0.3000, 0.0700, 25.0),
         'dangerSolid': (0.7000, 0.1900, 355.0),
         'dangerSolidPressed': (0.6500, 0.1900, 355.0),
@@ -95,12 +100,10 @@ FIXED = {
         'voiceSubtle': (0.2768, 0.0000, 0.0),
         'musicSolid': (0.7091, 0.1656, 291.5),
         'musicOnSolid': (0.0000, 0.0000, 0.0),
-        'musicFill': (0.3589, 0.0554, 293.2),
         'musicFillAlt': (0.3880, 0.0645, 293.8),
         'musicSubtle': (0.3097, 0.0376, 295.1),
         'insertSolid': (0.7510, 0.1190, 202.6),
         'insertOnSolid': (0.0000, 0.0000, 0.0),
-        'insertFill': (0.3565, 0.0350, 210.5),
         'insertFillAlt': (0.3928, 0.0399, 210.8),
         'insertSubtle': (0.3237, 0.0289, 210.5),
         'mistakeFill': (0.3700, 0.0500, 73.2),
@@ -121,13 +124,10 @@ TERTIARY_SURFACES = ('bg', 'surface')
 
 SOLVED = {
     'dark': {
-        # 見本の --dim #7A7A7A は 4.5:1 に届かない（bg 4.36、surface 4.05）。DESIGN_SYSTEM.md §13 で確認中。
-        # 確認が取れるまで、載る面（bg / surface）で 4.5:1 になる最小の灰にしておく。
-        'textTertiary': (0.0000, 0.0, 4.50),
         'textDisabled': (0.0000, 0.0, 3.00),
         'dangerText': (0.1500, 355.0, 4.50),
         'dangerBorder': (0.1700, 355.0, 3.00),
-        # 見本の赤 #FF4D4D は surfaceHover の上で 4.15:1。文字に使うときだけ少し明るくする（§13）。
+        # 見本の赤 #FF4D4D は surfaceHover の上で 4.15:1。文字に使うときだけ逆算した色にする（§5.1）。
         'recText': (0.1900, 25.0, 4.50),
         'musicText': (0.1400, 291.5, 4.50),
         'musicBorder': (0.1500, 291.5, 3.00),
@@ -141,8 +141,13 @@ SOLVED = {
 }
 
 # どの面に対して逆算するか。書いていない役割は TEXT_SURFACES（と自分の淡い地）。
-SOLVE_AGAINST = {
-    'textTertiary': TERTIARY_SURFACES,
+SOLVE_AGAINST: dict[str, tuple[str, ...]] = {}
+
+# 基準に届かないことを承知で採った組み合わせ（前景, 背景）: 理由。generate.py は検査せず、一覧を出す。
+CONTRAST_EXCEPTIONS = {
+    ('recOnSolid', 'recSolid'): (
+        '録音中の札「REC」は見本どおり赤の地に白の文字（3.27:1）。ユーザー判断 2026-10-06（#235）'
+    ),
 }
 
 OVERLAY_ALPHA = '33'  # 20%。下の波形が透ける濃さ
