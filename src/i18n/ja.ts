@@ -142,10 +142,10 @@ Podcast: {{show_name}}
 
   /** Android の録音中通知（フォアグラウンドサービス）。 */
   androidNotification: {
-    title: 'PodsNow — 録音中',
+    title: 'PodsNow — REC中',
     text: 'タップして戻る',
     channelName: '録音',
-    channelDescription: '録音中に表示されます',
+    channelDescription: 'REC中に表示されます',
   },
 
   /** ロック画面・通知の再生操作（Issue #184、AUDIO_DESIGN.md §10.5）。 */
@@ -288,7 +288,8 @@ Podcast: {{show_name}}
     pause: '一時停止',
     resume: '再開',
     finishFirst: '録音を終えてから移動してください',
-    stateRecording: '録音中',
+    /** 録音している状態の表示は「REC中」（ユーザー判断 2026-10-06、#235。DESIGN_SYSTEM.md §2.2）。 */
+    stateRecording: 'REC中',
     statePaused: '一時停止中',
     stateInterrupted: '割り込みで止まっています',
     statePreparing: 'マイクを準備しています',

@@ -106,10 +106,14 @@ describe('文言カタログ', () => {
       'YYYY',
     ]);
 
-    // 看板の語（DESIGN_SYSTEM.md §2.4）。ステッカーやランプに書く語だけ、決まった場所で許す。
+    // 決まった場所でだけ許す語。看板の語（DESIGN_SYSTEM.md §2.4。#235 で消す部品のもの）と、
+    // 録音している状態の表示「REC」（ユーザー判断 2026-10-06、#235。§2.1 の例外、§2.2 の用語の表）。
     const SIGNS: Record<string, readonly string[]> = {
       'record.onAir': ['AIR'],
       'record.cue': ['CUE'],
+      'record.stateRecording': ['REC'],
+      'androidNotification.title': ['REC'],
+      'androidNotification.channelDescription': ['REC'],
     };
 
     it.each(LOCALES)('%s に全部大文字の語が無い（略語と看板の語を除く）', (locale) => {

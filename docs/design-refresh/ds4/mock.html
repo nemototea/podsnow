@@ -429,7 +429,7 @@ figcaption span { color: var(--sub); font-size: 13.5px; line-height: 1.7; }
       <div class="np">
         <div class="head">
           <button class="ib" data-ic="down"></button>
-          <div><small id="recState">収録中</small><b data-b="name"></b></div>
+          <div><small id="recState">REC中</small><b data-b="name"></b></div>
           <button class="ib" data-ic="more"></button>
         </div>
         <div class="wavebox">
@@ -818,13 +818,13 @@ figcaption span { color: var(--sub); font-size: 13.5px; line-height: 1.7; }
     recording = !recording; paused = false;
     recBtn.classList.toggle('idle', !recording);
     recBtn.setAttribute('aria-label', recording ? '録音を止める' : '録音する');
-    st.textContent = recording ? '収録中' : '停止中 · テイク確定';
+    st.textContent = recording ? 'REC中' : '停止中 · テイク確定';
     if (!recording) setMeter(0);
   });
   pauseBtn.addEventListener('click', function () {
     if (!recording) return;
     paused = !paused;
-    st.textContent = paused ? '一時停止中' : '収録中';
+    st.textContent = paused ? '一時停止中' : 'REC中';
   });
   document.querySelectorAll('#pads button').forEach(function (b) {
     b.addEventListener('click', function () { b.classList.add('hit'); setTimeout(function () { b.classList.remove('hit'); }, 300); });
