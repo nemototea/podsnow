@@ -78,12 +78,12 @@
 
 | 対象 | TTF の実サイズ合計（非圧縮） | 判断 |
 |---|---:|---|
-| Manrope 400 / 500 / 600 / 700 | 389,980 bytes（約0.39 MB） | 英語 UI、日英共通の数字に使用。残す |
+| Figtree 400 / 500 / 600 / 700 / 800 / 900 | 240,616 bytes（約0.24 MB） | 英語 UI、日英共通の数字、見出しの極太に使用（#235 で Manrope と Dela Gothic One から替えた） |
 | Noto Sans JP 400 / 500 / 600 / 700 | 23,052,480 bytes（約23.05 MB） | 日本語 UI に使用。残すが軽量化の検討対象 |
 
 【事実】`app.json`、`Text.tsx` / `fonts.ts`、`tokens/scale.ts`、`scripts/fonts/generate.py` と実ファイルを照合。
 400 は本文、500 は補助情報、600 はラベル・見出し、700 はタイトルに使う。孤立したフォントファイルは無い。
-IBM Plex Mono は #110 で削除済み。ロゴの Manrope 800 は輪郭データとして使い、800 の TTF は同梱していない。
+IBM Plex Mono は #110 で削除済み。Manrope と Dela Gothic One は #235 で削除した。ロゴは Figtree 900 の輪郭データで描く。
 OFL ファイルは配布に伴うライセンス文なので残す。上記は APK / IPA の圧縮後サイズではない。
 
 【仮説】Noto Sans JP の軽量化には効果が見込めるが、OS 書体への変更は日英・OS 間の表示差を増やす。

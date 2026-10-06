@@ -27,8 +27,8 @@ PODSNOW_ROOT="$ROOT" CI=1 npx expo export -p web --output-dir dist --clear
 cp "$ROOT/node_modules/sql.js/dist/sql-wasm.wasm" dist/
 mkdir -p dist/fonts && cp "$ROOT"/assets/fonts/*.ttf dist/fonts/
 python3 - <<'PY'
-names = {400: 'Regular', 500: 'Medium', 600: 'SemiBold', 700: 'Bold'}
-fams = [('Manrope', 'Manrope', [400, 500, 600, 700]), ('Noto Sans JP', 'NotoSansJP', [400, 500, 600, 700]), ('Dela Gothic One', 'DelaGothicOne', [400])]
+names = {400: 'Regular', 500: 'Medium', 600: 'SemiBold', 700: 'Bold', 800: 'ExtraBold', 900: 'Black'}
+fams = [('Figtree', 'Figtree', [400, 500, 600, 700, 800, 900]), ('Noto Sans JP', 'NotoSansJP', [400, 500, 600, 700])]
 faces = ''.join(
     f"@font-face{{font-family:'{f}';src:url('/fonts/{p}-{names[w]}.ttf') format('truetype');font-weight:{w};font-display:block}}"
     for f, p, ws in fams for w in ws

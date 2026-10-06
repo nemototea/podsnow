@@ -259,26 +259,18 @@ describe('書体', () => {
     }
   });
 
-  it('数値の役割に等幅数字を組み込み、同梱済みの Manrope 500 / 700 を使う', () => {
+  it('数値の役割に等幅数字を組み込み、同梱済みの Figtree 500 / 700 / 800 を使う', () => {
     for (const role of Object.values(typography)) {
       if ('fontFamily' in role && role.fontFamily === family.numeric) {
-        expect(['500', '700']).toContain(role.fontWeight);
+        expect(['500', '700', '800']).toContain(role.fontWeight);
         expect(role.fontVariant).toContain('tabular-nums');
       }
     }
   });
 
-  it('Dela Gothic One の役割は同梱した 400 だけを使う（1 ウェイトの書体）', () => {
-    const roles = Object.values(typography).filter(
-      (role) => 'fontFamily' in role && role.fontFamily === family.display,
-    );
-    expect(roles.length).toBeGreaterThan(0);
-    for (const role of roles) expect(role.fontWeight).toBe('400');
-  });
-
-  it('UI の役割は同梱した 400 / 500 / 600 / 700 のどれか', () => {
+  it('役割の太さは同梱した Figtree の 400〜900 のどれか（和文は 700 まで。DESIGN_SYSTEM.md §4.1）', () => {
     for (const role of Object.values(typography)) {
-      expect(['400', '500', '600', '700']).toContain(role.fontWeight);
+      expect(['400', '500', '600', '700', '800', '900']).toContain(role.fontWeight);
     }
   });
 

@@ -21,7 +21,7 @@
 - 見本に無い画面・状態（設定、ダイアログ、エラーなど）は、見本の部品と値を組み合わせて作る。新しい見た目が要るときは、
   先に見本に描き足して確かめる。
 
-【事実】この文書は #235 の作業 1（文書を先に直す）で書き換えた。**色・ロゴ（作業 2・4）以外の実装はまだ Design system 3 のまま**で、
+【事実】この文書は #235 の作業 1（文書を先に直す）で書き換えた。**色・ロゴ・書体（作業 2・4・5）以外の実装はまだ Design system 3 のまま**で、
 作業 2〜7 で順に置き換える。何が残っているかは §14。
 
 これまでの経緯: #94 で暫定デザインを刷新（Design system 2）、#122 で録音と編集を「収録」タブにまとめ、
@@ -316,7 +316,8 @@ python3 scripts/brand/extract_glyphs.py 'path/to/Figtree[wght].ttf'   # 字形�
 - 起動時に外部 CDN から取得しない。ビルド時に `expo-font` の config plugin で埋め込む（`app.json`）。
 - 【仮説】和文の見出しは Noto Sans JP 700 のまま。見本は 900 で描いたが、1 ウェイト約 5.8 MB 増えるので、
   実機で 700 と比べてから足すか決める。
-- 【仮説】Figtree の静的ウェイト 6 本の容量は原本（可変 1 本 62,712 バイト）から見て合計 0.5 MB 未満。作業 5 で測る。
+- 【事実】Figtree の静的ウェイト 6 本の合計は 240,616 バイト（作業 5 で測った）。Manrope 4 本と Dela Gothic One の合計（約 2.9 MB）より小さい。
+- 【仮説】`fontWeight` の 800 / 900 を iOS と Android が Figtree の該当ウェイトで描くかは実機で確かめる（DS-1。名前の付き方は 500 / 600 と同じ）。
 
 ### 4.2 役割尺度【事実】見本の CSS から書き写した値
 
@@ -870,7 +871,7 @@ npx expo prebuild --clean             # アイコン・書体を変えたらネ�
 
 ## 14. 移行の状況【事実】Issue #235
 
-文書（作業 1）、色のトークン（作業 2）、ロゴとアイコン（作業 4）を Design system 4 にした。部品・画面はまだ Design system 3 のまま。
+文書（作業 1）、色のトークン（作業 2）、ロゴとアイコン（作業 4）、書体（作業 5）を Design system 4 にした。部品・画面と文字の役割尺度（§4.2）はまだ Design system 3 のまま。
 
 | 作業 | 対象 | 状況 |
 |---|---|---|
@@ -878,7 +879,7 @@ npx expo prebuild --clean             # アイコン・書体を変えたらネ�
 | 2. 色 | `scripts/design/ramps.py` → `src/ui/tokens/colors.ts`（ダーク 1 組、見本の値、情報の色の色相の移動、DS3 の名前は移行用に残す）。テーマの設定とライトの分岐を外した | 済み |
 | 3. 番組の色 | `src/ui/showColors.ts`（純粋関数とテスト）、代表色の取り方の調査 | 未着手 |
 | 4. ロゴ・アイコン | `scripts/brand/`（Figtree 900 の字形、見本の CSS の再現、地を黒、点をレモン、ライト用の生成物を外した）、`app.json`、`src/ui/Wordmark.tsx`（字の大きさで指定） | 済み |
-| 5. 書体 | `scripts/fonts/generate.py`（Figtree を足し、Manrope と Dela Gothic One を外す） | 未着手 |
+| 5. 書体 | `scripts/fonts/generate.py`（Figtree 400〜900 を足し、Manrope と Dela Gothic One を外した）、`app.json`、`family` トークン、`scripts/fonts/verify.py` | 済み（役割ごとの大きさ・太さを見本の値にするのは作業 6） |
 | 6. 部品 | `src/ui`（§6.1） | 未着手 |
 | 7. 画面 | Home、番組、収録、書き出し、配信の準備、プレーヤー、設定（テーマの項目を外す） | 未着手 |
 | 8. 実機確認 | §10.2 | 未着手 |

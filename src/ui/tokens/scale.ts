@@ -70,15 +70,18 @@ export function concentric(outer: number, pad: number): number {
   return Math.max(0, outer - pad);
 }
 
+/**
+ * 書体（DESIGN_SYSTEM.md §4、Issue #235）。欧文 UI・数字・見出しは Figtree、和文は Noto Sans JP。
+ * 見出しの極太（800 / 900）は欧文だけにある。和文は同梱した 700 までで、それより太い指定は
+ * いちばん近い 700 になる【仮説: 実機で確かめる（DS-1）】。
+ */
 export const family = {
-  latin: 'Manrope',
+  latin: 'Figtree',
   ja: 'Noto Sans JP',
-  numeric: 'Manrope',
-  /** 番組名・看板の語（DESIGN_SYSTEM.md §4、#190）。和文も持つので日英で同じ書体。 */
-  display: 'Dela Gothic One',
+  numeric: 'Figtree',
 } as const;
 
-export type FamilyRole = 'ui' | 'numeric' | 'display';
+export type FamilyRole = 'ui' | 'numeric';
 
 /** 数字だけ幅を揃える。本文全体を等幅書体にはしない。 */
 export const tabularNums = { fontVariant: ['tabular-nums' as const] };
@@ -120,10 +123,10 @@ export const typography = {
     fontFamily: family.numeric,
     ...tabularNums,
   },
-  /** 番組名、短い主要見出し。Dela Gothic One は 1 ウェイトだけなので 400。 */
-  display: { fontSize: 32, lineHeight: 40, fontWeight: '400', fontFamily: family.display },
-  /** 看板の語（ON AIR、CUE）とステッカーの文字（DESIGN_SYSTEM.md §2.4）。 */
-  sign: { fontSize: 20, lineHeight: 24, fontWeight: '400', fontFamily: family.display },
+  /** 番組名、短い主要見出し。欧文は Figtree 900（和文は 700 まで）。大きさは作業 6 で見本の値にする。 */
+  display: { fontSize: 32, lineHeight: 40, fontWeight: '900' },
+  /** 移行用: Design system 3 の看板の語とステッカーの文字。#235 の作業 6 で部品と一緒に消す。 */
+  sign: { fontSize: 20, lineHeight: 24, fontWeight: '800' },
   /** 画面タイトル。 */
   title: { fontSize: 24, lineHeight: 34, fontWeight: '700' },
   /** セクション見出し。 */
