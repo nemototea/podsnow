@@ -33,18 +33,24 @@ const WHITE: Rgb = [1, 1, 1];
 export const SHOW_SATURATION_CAP = 0.72;
 
 /**
- * 役割ごとの（彩度の掛け率, 明度の出発点, 白い文字の下限）。見本 `derive()` の値。
- * DESIGN_SYSTEM.md §2.6 の表と同じ。
+ * 役割ごとの（彩度の掛け率, 明度の出発点, 白い文字の下限, 補助文字の白の濃さ）。見本 `derive()` の値。
+ * 補助文字の白の濃さ（見本の半透明の白）があれば、それを重ねた文字も 4.5:1 になるまで暗くする
+ * （確認点 6-D、ユーザー判断 2026-10-06。DESIGN_SYSTEM.md §2.6 / §5.4）。0 は補助文字を置かない役割。
  */
-export const SHOW_TONES: Readonly<Record<keyof ShowColors, readonly [number, number, number]>> = {
-  header: [0.9, 0.36, 4.5],
-  headerEnd: [0.7, 0.2, 7],
-  nowPlaying: [0.85, 0.32, 4.5],
-  nowPlayingMid: [0.6, 0.16, 7],
-  nowPlayingEnd: [0.35, 0.08, 10],
-  topicCard: [1, 0.44, 4.5],
-  miniPlayer: [0.75, 0.27, 4.5],
+export const SHOW_TONES: Readonly<
+  Record<keyof ShowColors, readonly [number, number, number, number]>
+> = {
+  header: [0.9, 0.36, 4.5, 0.75],
+  headerEnd: [0.7, 0.2, 7, 0],
+  nowPlaying: [0.85, 0.32, 4.5, 0.72],
+  nowPlayingMid: [0.6, 0.16, 7, 0],
+  nowPlayingEnd: [0.35, 0.08, 10, 0],
+  topicCard: [1, 0.44, 4.5, 0.8],
+  miniPlayer: [0.75, 0.27, 4.5, 0.72],
 };
+
+/** 補助文字が満たす比（WCAG 1.4.3）。 */
+const SUB_TEXT_MIN = 4.5;
 
 export function hexToRgb(hex: string): Rgb {
   const h = hex.replace('#', '');
@@ -117,14 +123,22 @@ function rounded(rgb: Rgb): Rgb {
   return rgb.map((v) => Math.round(v * 255) / 255) as unknown as Rgb;
 }
 
-/**
- * 指定の明るさで作り、白い文字が `min` を下回るなら暗くする（見本 `tone()`）。
- * 見本は丸める前の色で測るので、境目の色では書き出した `#RRGGBB` が 4.49:1 のように下限をわずかに割る。
- * ここでは丸めた色で測る。見本の 4 番組の色は変わらない（テストで照合）。
- */
-function tone(h: number, s: number, l: number, min: number): Rgb {
+/** 丸めた色 `bg` の上に白を濃さ `alpha` で重ねた色（丸めたもの）。 */
+function whiteOver(bg: Rgb, alpha: number): Rgb {
+  return rounded(bg.map((v) => alpha + v * (1 - alpha)) as unknown as Rgb);
+}
+
+/** 白い文字が `min` 以上で、補助文字（白 `alpha`）も 4.5:1 以上か。丸めた色（書き出す値）で測る。 */
+function readable(rgb: Rgb, min: number, alpha: number): boolean {
+  const r = rounded(rgb);
+  if (contrastRgb(r, WHITE) < min) return false;
+  return !alpha || contrastRgb(whiteOver(r, alpha), r) >= SUB_TEXT_MIN;
+}
+
+/** 指定の明るさで作り、読めなければ 0.01 ずつ暗くする（見本 `tone()`）。 */
+function tone(h: number, s: number, l: number, min: number, alpha: number): Rgb {
   let rgb = hslToRgb(h, s, l);
-  while (contrastRgb(rounded(rgb), WHITE) < min && l > 0.05) {
+  while (!readable(rgb, min, alpha) && l > 0.05) {
     l -= 0.01;
     rgb = hslToRgb(h, s, l);
   }
@@ -136,11 +150,11 @@ export function deriveShowColors(dominant: string): ShowColors {
   const [h, s0] = rgbToHsl(...hexToRgb(dominant));
   const s = Math.min(s0, SHOW_SATURATION_CAP);
   const out = {} as Record<keyof ShowColors, string>;
-  for (const [role, [sat, light, min]] of Object.entries(SHOW_TONES) as [
+  for (const [role, [sat, light, min, alpha]] of Object.entries(SHOW_TONES) as [
     keyof ShowColors,
-    readonly [number, number, number],
+    readonly [number, number, number, number],
   ][]) {
-    out[role] = rgbToHex(tone(h, s * sat, light, min));
+    out[role] = rgbToHex(tone(h, s * sat, light, min, alpha));
   }
   return out;
 }

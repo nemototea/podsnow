@@ -218,7 +218,8 @@ export class PodcastImportService {
       feedUrl: show.feedUrl,
       ...(show.podcastGuid ? { podcastGuid: show.podcastGuid } : {}),
       ...(show.imageUrl ? { coverSourceUrl: show.imageUrl } : {}),
-      ...(coverPath ? { coverPath } : {}),
+      // 代表色は画像が変わったら計算し直す（ShowColorService。DATA_MODEL.md §4.1）
+      ...(coverPath ? { coverPath, coverColor: null } : {}),
       feedImportedAt: t,
     };
     try {

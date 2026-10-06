@@ -1,14 +1,14 @@
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { Icon } from './Icon';
-import { compositeHex } from './showColors';
+import { compositeHex } from '@/domain/color/showColors';
 import { Text } from './Text';
 import { useAppTheme } from './ThemeContext';
 import { radius, space, typography } from './tokens';
 
 /**
- * 補助文字の白の濃さ（見本 `.topic small` 85%、`.topic .next` 80%）。
- * 番組の色によっては 4.5:1 を割る。DESIGN_SYSTEM.md §13 で確認中（決まったら変える）。
+ * 補助文字の白の濃さ（見本 `.topic small` 85%、`.topic .next` 80%）。番組の色（`topicCard`）は
+ * 80% の白を重ねても 4.5:1 になるまで暗くしてある（確認点 6-D、`showColors.ts`）。
  */
 const META_ALPHA = 0.85;
 const NEXT_ALPHA = 0.8;

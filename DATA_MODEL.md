@@ -83,6 +83,7 @@ recovery_journal
 | feed_url | TEXT nullable | RSS の URL（`atom:link rel="self"`、無ければ取得に使った URL）。自分で始めた番組は NULL |
 | podcast_guid | TEXT nullable | `podcast:guid`（UUIDv5） |
 | cover_source_url | TEXT nullable | `itunes:image@href`。取得元の記録で、表示と書き出しは `cover_path` を使う |
+| cover_color | TEXT nullable | アートワークの代表色（`#RRGGBB`）。番組の色の元（DESIGN_SYSTEM.md §2.6）。`cover_path` を変えたら NULL に戻して計算し直す。NULL = アートワークが無い、またはまだ計算していない |
 | feed_imported_at | INTEGER nullable | 最後に RSS から取り込んだ時刻 |
 | created_at / updated_at / deleted_at | INTEGER | Unix ms |
 
@@ -91,6 +92,7 @@ MVP は起動時に 1 行自動作成。【事実】
 番組ごとの既定書き出しプリセット（旧 `default_export_preset`）は持たない。移行 0004 で列を削除した（Issue #136）。
 既定は設定の `export.defaultPreset`（§4.16）の 1 か所だけで、MVP は番組が 1 つなので番組単位の既定は二重の真実になる。【事実】
 `website_url` から `feed_imported_at` までは 0005 で追加した（REQUIREMENTS.md FR-SHOW-3a）。
+`cover_color` は 0008 で追加した（Issue #235）。端末内でアートワークを 16×16 に縮めて計算する（画像を外部に送らない。NFR-2）。計算に失敗しても NULL のまま（番組の色は既定の色になる）。【事実】
 値の範囲は Podcast Standards Project の PSP-1 に従う
 【確認済み】(https://github.com/Podcast-Standards-Project/PSP-1-Podcast-RSS-Specification)。
 取り込んだ値の正規化（`true` / `yes` / `clean` などの揺れ）は `src/domain/podcast/feed.ts` が持つ。

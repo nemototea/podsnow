@@ -29,6 +29,7 @@ async function setup(processor?: ImageProcessorPort, picker?: ImagePickerPort) {
         fs.writeFileSync(normalized, Buffer.from('normalized-jpeg'));
         return { uri: `file://${normalized}`, width: 3000, height: 3000 };
       },
+      samplePixels: async () => ({ rgba: new Uint8Array(), uri: 'file:///unused.png' }),
     } satisfies ImageProcessorPort);
   const service = new CoverArtService({
     db,
@@ -88,6 +89,9 @@ describe('CoverArtService', () => {
     const failing: ImageProcessorPort = {
       normalizeSquareJpeg: async () => {
         throw new Error('decode failed');
+      },
+      samplePixels: async () => {
+        throw new Error('unused');
       },
     };
     const { root, db, show, service } = await setup(failing);

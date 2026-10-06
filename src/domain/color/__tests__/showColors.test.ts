@@ -1,5 +1,6 @@
 import { pickDominantColor } from '../dominantColor';
 import {
+  compositeHex,
   contrastHex,
   deriveShowColors,
   hexToRgb,
@@ -7,11 +8,11 @@ import {
   SHOW_TONES,
   type ShowColors,
 } from '../showColors';
-import { colors } from '../tokens';
 
 import mockPixels from './mockArtworkPixels.json';
+import { sweep } from './sweep';
 
-// 見本 docs/design-refresh/ds4/mock.html の derive() をそのまま実行して得た値（2026-10-06）。
+// 見本 docs/design-refresh/ds4/mock.html の derive() をそのまま実行して得た値（2026-10-06、確認点 6-D の反映後）。
 // 見本の名前: header = --show-a, headerB = --show-b, npA/npB/npC = --np-a/b/c, topic, mini。
 const MOCK: Record<string, [string, ShowColors]> = {
   yoru: [
@@ -22,20 +23,20 @@ const MOCK: Record<string, [string, ShowColors]> = {
       nowPlaying: '#7C3627',
       nowPlayingMid: '#381F1A',
       nowPlayingEnd: '#191210',
-      topicCard: '#B5432B',
+      topicCard: '#A93F28',
       miniPlayer: '#653025',
     },
   ],
   coffee: [
     '#1D8C84',
     {
-      header: '#21827B',
+      header: '#1A6560',
       headerEnd: '#1C4A47',
-      nowPlaying: '#247F79',
+      nowPlaying: '#1B5F5A',
       nowPlayingMid: '#193937',
       nowPlayingEnd: '#101918',
-      topicCard: '#1B837B',
-      miniPlayer: '#236762',
+      topicCard: '#176E68',
+      miniPlayer: '#205F5B',
     },
   ],
   cinema: [
@@ -46,7 +47,7 @@ const MOCK: Record<string, [string, ShowColors]> = {
       nowPlaying: '#842039',
       nowPlayingMid: '#3A1720',
       nowPlayingEnd: '#1A0F12',
-      topicCard: '#C11F48',
+      topicCard: '#B81E45',
       miniPlayer: '#6A2032',
     },
   ],
@@ -70,59 +71,26 @@ const MOCK: Record<string, [string, ShowColors]> = {
       nowPlaying: '#525252',
       nowPlayingMid: '#292929',
       nowPlayingEnd: '#141414',
-      topicCard: '#707070',
+      topicCard: '#636363',
       miniPlayer: '#454545',
     },
   ],
   yellow: [
     '#FFFF00',
     {
-      header: '#7A7A1A',
+      header: '#616115',
       headerEnd: '#4D4D19',
-      nowPlaying: '#77771D',
+      nowPlaying: '#5A5A16',
       nowPlayingMid: '#3A3A17',
       nowPlayingEnd: '#1A1A0F',
-      topicCard: '#767613',
-      miniPlayer: '#6A6A20',
+      topicCard: '#656510',
+      miniPlayer: '#5A5A1B',
     },
   ],
 };
 
 const ROLES = Object.keys(SHOW_TONES) as (keyof ShowColors)[];
 const WHITE = '#FFFFFF';
-
-/** 色相・彩度・明るさを一通り振った代表色（極端なアートワークの代わり）。 */
-function sweep(): string[] {
-  const out: string[] = ['#000000', '#FFFFFF', '#808080'];
-  for (let h = 0; h < 360; h += 15) {
-    for (const s of [0.3, 0.7, 1]) {
-      for (const l of [0.15, 0.5, 0.85]) {
-        const c = (1 - Math.abs(2 * l - 1)) * s;
-        const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
-        const m = l - c / 2;
-        const [r, g, b] =
-          h < 60
-            ? [c, x, 0]
-            : h < 120
-              ? [x, c, 0]
-              : h < 180
-                ? [0, c, x]
-                : h < 240
-                  ? [0, x, c]
-                  : h < 300
-                    ? [x, 0, c]
-                    : [c, 0, x];
-        out.push(
-          '#' +
-            [r + m, g + m, b + m]
-              .map((v) => `0${Math.round(v * 255).toString(16)}`.slice(-2))
-              .join(''),
-        );
-      }
-    }
-  }
-  return out;
-}
 
 describe('番組の色（見本の derive() と同じ計算。DESIGN_SYSTEM.md §2.6）', () => {
   it.each(Object.entries(MOCK))('%s: 見本と同じ色になる', (_name, [dominant, want]) => {
@@ -146,21 +114,29 @@ describe('番組の色（見本の derive() と同じ計算。DESIGN_SYSTEM.md �
   });
 
   it.each(sweep())(
-    '%s: 主操作のレモンは番組画面・ミニプレーヤーの上で 3:1 以上ある',
+    '%s: 見本の半透明の白（72〜85%）を重ねた補助文字も 4.5:1 以上ある（確認点 6-D）',
     (dominant) => {
       const c = deriveShowColors(dominant);
-      for (const role of ['header', 'nowPlaying', 'miniPlayer'] as const) {
-        expect({ role, ok: contrastHex(colors.dark.accentSolid, c[role]) >= 3 }).toEqual({
+      // 見本 .np .title span（72%）、.np .head small（75%）、.topic .next（80%）、.topic small（85%）、
+      // .showhead .by（75%）、.mini .t small（72%）
+      const cases: [keyof ShowColors, number][] = [
+        ['nowPlaying', 0.72],
+        ['nowPlaying', 0.75],
+        ['topicCard', 0.8],
+        ['topicCard', 0.85],
+        ['header', 0.75],
+        ['miniPlayer', 0.72],
+      ];
+      for (const [role, alpha] of cases) {
+        const text = compositeHex(WHITE, alpha, c[role]);
+        expect({ role, alpha, ok: contrastHex(text, c[role]) >= 4.5 }).toEqual({
           role,
+          alpha,
           ok: true,
         });
       }
     },
   );
-
-  // 見本は番組の色の上の補助文字を半透明の白（72〜85%）で描く。白い文字の下限（4.5:1）ちょうどの色の上では
-  // 重ねた結果が 4.5:1 を割る（見本の「朝のコーヒー会議」でも 3.29:1）。DESIGN_SYSTEM.md §13 で確認中。
-  it.todo('見本の半透明の白を重ねた補助文字のコントラスト（§13 で決まったら書く）');
 });
 
 describe('代表色（DESIGN_SYSTEM.md §2.6 の手順 1）', () => {

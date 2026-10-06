@@ -299,9 +299,26 @@ describe('migrate', () => {
       ['e1', 's1', 1, now, now],
     );
 
-    expect((await migrate(db)).applied).toEqual(['0007_loudness_cache']);
+    expect((await migrate(db, MIGRATIONS.slice(0, 7))).applied).toEqual(['0007_loudness_cache']);
     expect(await db.get('SELECT loudness_cache FROM episodes WHERE id = ?', ['e1'])).toEqual({
       loudness_cache: null,
+    });
+  });
+
+  it('0008 adds shows.cover_color (NULL = no artwork or not computed yet)', async () => {
+    const db = createNodeSqliteExecutor();
+    await migrate(db, MIGRATIONS.slice(0, 7));
+    const now = Date.now();
+    await db.run('INSERT INTO shows (id, cover_path, created_at, updated_at) VALUES (?,?,?,?)', [
+      's1',
+      'shows/s1/cover-1.jpg',
+      now,
+      now,
+    ]);
+
+    expect((await migrate(db)).applied).toEqual(['0008_show_cover_color']);
+    expect(await db.get('SELECT cover_color FROM shows WHERE id = ?', ['s1'])).toEqual({
+      cover_color: null,
     });
   });
 

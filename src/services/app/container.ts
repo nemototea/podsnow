@@ -39,6 +39,7 @@ import type { RecorderPort } from '../recording/RecorderPort';
 import { RECORDING_FORMAT, RecordingSession } from '../recording/RecordingSession';
 import { recoverUnfinishedTakes, type RecoveredTake } from '../recording/RecoveryService';
 import { CoverArtService } from '../shows/CoverArtService';
+import { ShowColorService } from '../shows/ShowColorService';
 import { newId } from './ids';
 import type { ServiceLabels } from './labels';
 
@@ -60,6 +61,7 @@ export interface AppServices {
   outline: OutlineService;
   /** 番組アートワークの正規化・永続化・削除（Issue #133）。 */
   coverArt: CoverArtService;
+  showColors: ShowColorService;
   /** 配信中の番組の取り込み（Issue #101）。保存したあとは `reloadShow` で `show` を最新化する。 */
   podcastImport: PodcastImportService;
   /** 設定の「ハプティクス」に従う触覚（DESIGN_SYSTEM.md §6.2）。 */
@@ -181,6 +183,13 @@ export async function bootstrap(
     newId,
     now,
   });
+  const showColors = new ShowColorService({
+    db,
+    fs: expoFsPort,
+    imageProcessor: expoImageProcessor,
+    root,
+    now,
+  });
   const podcastImport = new PodcastImportService({
     db,
     http: fetchHttp,
@@ -210,6 +219,7 @@ export async function bootstrap(
     assets,
     outline,
     coverArt,
+    showColors,
     podcastImport,
     haptics,
     home,

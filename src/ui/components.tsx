@@ -669,6 +669,16 @@ export function Toast({
         ]}
         accessibilityLiveRegion="polite"
         accessibilityRole="alert"
+        // 閉じるボタンは置かない（見本どおり。確認点 7-A、ユーザー判断 2026-10-06）。下へ払うか時間で消える。
+        // 時間で消えない通知も読み上げから閉じられるように、閉じる操作を読み上げの操作に置く。
+        {...(onDismiss
+          ? {
+              accessibilityActions: [{ name: 'dismiss', label: t.a11y.dismiss }],
+              onAccessibilityAction: (e: AccessibilityActionEvent) => {
+                if (e.nativeEvent.actionName === 'dismiss') onDismiss();
+              },
+            }
+          : {})}
       >
         <Text style={[typography.bodyStrong, s.flex, { color: c.inverseText }]}>{toast.text}</Text>
         {toast.action && onAction ? (
@@ -683,15 +693,6 @@ export function Toast({
               {toast.action}
             </Text>
           </Pressable>
-        ) : null}
-        {onDismiss ? (
-          // 見本の通知に閉じるボタンは無い。#172 の決まり（閉じるボタンを持つ）を残して確認中（DESIGN_SYSTEM.md §13）。
-          <IconButton
-            name="close"
-            label={t.a11y.dismiss}
-            onPress={onDismiss}
-            color={c.inverseText}
-          />
         ) : null}
       </Reanimated.View>
     </GestureDetector>
@@ -1026,7 +1027,7 @@ const s = StyleSheet.create({
     position: 'absolute',
     borderRadius: radius.sm,
     paddingLeft: space.x14,
-    paddingRight: space.x6,
+    paddingRight: space.x14,
     paddingVertical: space.md,
     flexDirection: 'row',
     alignItems: 'center',
