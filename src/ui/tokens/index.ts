@@ -13,6 +13,7 @@ export {
   compactWidth,
   concentric,
   dialogWidth,
+  dock,
   family,
   field,
   fieldPadding,

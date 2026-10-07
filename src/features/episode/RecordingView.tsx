@@ -275,12 +275,12 @@ export function RecordingView({
               {showName}
             </Text>
           </View>
+          {/* 録音中は操作を出さず、閉じると同じく理由を伝える（見本では白の「…」） */}
           <IconButton
             name="more"
             color={c.textPrimary}
             label={t.record.a11yMenuLocked}
-            disabled
-            onPress={() => undefined}
+            onPress={onLockedBack}
           />
         </View>
 
@@ -294,7 +294,7 @@ export function RecordingView({
             <LiveWave peaks={livePeaks} panel={panel} />
             <View style={st.chap}>
               {s === 'recording' ? <Pill label={t.record.recPill} kind="rec" /> : null}
-              <Text style={[typography.meta, st.flex, { color: chap }]} numberOfLines={1}>
+              <Text style={[typography.tag, st.flex, { color: chap }]} numberOfLines={1}>
                 {current && currentIndex !== null
                   ? t.record.chapterTag(currentIndex + 1, current.heading)
                   : t.record.takeLabel(state.takes.length + 1)}
@@ -307,7 +307,7 @@ export function RecordingView({
             <Text style={[typography.nowPlaying, { color: c.textPrimary }]} numberOfLines={1}>
               {title}
             </Text>
-            <Text style={[typography.body, { color: sub }]} numberOfLines={1}>
+            <Text style={[typography.subtitle, { color: sub }]} numberOfLines={1}>
               {`${t.record.takeLabel(state.takes.length + 1)} · ${where}`}
             </Text>
           </View>

@@ -2,9 +2,10 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
-import { formatClock, formatSmp, smp } from '@/domain/time';
+import { formatClock } from '@/domain/time';
 import { useServices } from '@/features/app/ServicesProvider';
 import { draftBar, pickDraft, useDraftBar } from '@/features/home/draftBar';
+import { EpisodeRow, itemLabel } from '@/features/home/EpisodeRow';
 import { settleHandoffs } from '@/features/home/handToHome';
 import { episodeStatusKind, type EpisodeStatusKind } from '@/features/home/statusIcon';
 import { useEpisodeActions } from '@/features/home/useEpisodeActions';
@@ -15,20 +16,8 @@ import type { AssetKind } from '@/infra/db/repositories/assetsRepo';
 import type { HomeEpisodeItem } from '@/services/home/HomeService';
 import { Artwork } from '@/ui/Artwork';
 import { Avatar } from '@/ui/Avatar';
-import {
-  Button,
-  Card,
-  Chip,
-  Icon,
-  IconButton,
-  Notice,
-  Pill,
-  Screen,
-  Text,
-  Toast,
-} from '@/ui/components';
+import { Button, Card, Chip, Icon, Notice, Screen, Text, Toast } from '@/ui/components';
 import type { IconName } from '@/ui/IconSvg';
-import { MoreMenu } from '@/ui/MoreMenu';
 import { useAppTheme } from '@/ui/ThemeContext';
 import {
   artwork,
@@ -43,19 +32,6 @@ import { useToast } from '@/ui/useToast';
 import { Wordmark } from '@/ui/Wordmark';
 
 type Filter = 'all' | 'draft' | 'exported';
-
-function statusText(t: Messages, kind: EpisodeStatusKind): string {
-  switch (kind) {
-    case 'published':
-      return t.home.badgePublished;
-    case 'noAudio':
-      return t.home.badgeNoAudio;
-    case 'new':
-      return t.home.badgeNew;
-    default:
-      return t.status[kind];
-  }
-}
 
 /** 絞り込み（見本の「すべて / 下書き / 書き出し済み」）。 */
 function matches(filter: Filter, kind: EpisodeStatusKind): boolean {
@@ -76,13 +52,12 @@ export default function HomeScreen() {
   const t = useT();
   const router = useRouter();
   const services = useServices();
-  const { show, episodes, recovered } = services;
+  const { show, recovered } = services;
   const { list, playable, loading, reload } = useHome();
   const player = usePlaybackStatus();
   const draft = useDraftBar();
   const [onboardingDone, setOnboardingDone] = useState(services.settings.onboardingDone);
   const { toast, show: showToast, act, dismiss } = useToast();
-  const [creating, setCreating] = useState(false);
   const [recoveredOpen, setRecoveredOpen] = useState(recovered.length > 0);
   const [filter, setFilter] = useState<Filter>('all');
   const notify = useCallback((text: string) => showToast({ text }), [showToast]);
@@ -107,17 +82,6 @@ export default function HomeScreen() {
   useEffect(() => {
     if (!loading) draftBar.set(pickDraft(list));
   }, [list, loading]);
-
-  const create = async () => {
-    if (creating) return;
-    setCreating(true);
-    try {
-      const ep = await episodes.create(show.id);
-      router.push(`/episode/${ep.id}`);
-    } finally {
-      setCreating(false);
-    }
-  };
 
   // 番組を設定していなくても、エピソードが 1 本でもあれば番組カードを出す（FR-SHOW-6、Issue #168 E1）
   const showSetUp = onboardingDone || show.feed_imported_at !== null;
@@ -168,15 +132,6 @@ export default function HomeScreen() {
         <View style={st.top}>
           <Wordmark size={wordmarkSize.home} />
           <View style={st.topRight}>
-            {showOnboarding ? null : (
-              <IconButton
-                name="plus"
-                color={c.textPrimary}
-                label={t.home.newEpisodeCta}
-                busy={creating}
-                onPress={() => void create()}
-              />
-            )}
             <Avatar
               name={show.author || show.name}
               accessibilityLabel={t.a11y.settings}
@@ -297,7 +252,16 @@ export default function HomeScreen() {
                       { backgroundColor: pressed ? c.surfaceHover : c.surfaceRaised },
                     ]}
                   >
-                    <Artwork uri={cover} name={show.name} size={quickTile} frameless />
+                    <Artwork
+                      uri={cover}
+                      name={
+                        item.episodeNumber === null
+                          ? show.name
+                          : t.episode.number(item.episodeNumber)
+                      }
+                      size={quickTile}
+                      frameless
+                    />
                     <Text
                       style={[typography.captionStrong, st.tileText, { color: c.textPrimary }]}
                       numberOfLines={2}
@@ -357,7 +321,8 @@ export default function HomeScreen() {
             >
               <Artwork uri={cover} name={show.name} size={artwork.showCard} shadow="card" />
               <View style={st.showCardText}>
-                <Text style={[typography.chipStrong, { color: c.textPrimary }]} numberOfLines={1}>
+                {/* 見本 `.showcard[aria-pressed=true] b`: 今の番組の名前はアクセント */}
+                <Text style={[typography.chipStrong, { color: c.accentText }]} numberOfLines={1}>
                   {show.name}
                 </Text>
                 {/* 本数は番組カードにだけ出す（DESIGN_SYSTEM.md §8、Issue #168 E6） */}
@@ -375,92 +340,20 @@ export default function HomeScreen() {
               {t.home.sectionRecent}
             </Text>
             <View style={st.list}>
-              {visible.map((item) => {
-                const e = item.local;
-                const active = player.source?.homeKey === item.key;
-                const kind = episodeStatusKind(item);
-                const label = itemLabel(t, item);
-                const duration =
-                  e?.audio_purged_at && !item.feed ? null : formatSmp(smp(item.durationSmp));
-                return (
-                  <View key={item.key} style={st.ep}>
-                    <Pressable
-                      onPress={() => open(item)}
-                      disabled={!e && !playable.has(item.key)}
-                      accessibilityRole="button"
-                      accessibilityLabel={[label, statusText(t, kind), duration]
-                        .filter(Boolean)
-                        .join(', ')}
-                      style={({ pressed }) => [st.epMain, pressed ? st.pressed : null]}
-                    >
-                      <Artwork uri={cover} name={show.name} size={artwork.row} />
-                      <View style={st.epText}>
-                        <Text
-                          style={[
-                            typography.rowTitle,
-                            { color: item.title ? c.textPrimary : c.textSecondary },
-                          ]}
-                          numberOfLines={1}
-                        >
-                          {label}
-                        </Text>
-                        <View style={st.epMeta}>
-                          <Pill
-                            label={statusText(t, kind)}
-                            kind={
-                              kind === 'exported' || kind === 'published' ? 'strong' : 'default'
-                            }
-                          />
-                          {duration ? (
-                            <Text style={[typography.caption, { color: c.textSecondary }]}>
-                              {duration}
-                            </Text>
-                          ) : null}
-                        </View>
-                      </View>
-                    </Pressable>
-                    {playable.has(item.key) ? (
-                      <IconButton
-                        name={
-                          active && player.error
-                            ? 'refresh'
-                            : active && player.playing
-                              ? 'pause'
-                              : 'play'
-                        }
-                        label={
-                          active && player.error
-                            ? t.player.retry
-                            : active && player.playing
-                              ? t.a11y.pause
-                              : t.a11y.play
-                        }
-                        busy={active && player.loading}
-                        onPress={() => void player.toggleHome(item)}
-                      />
-                    ) : null}
-                    {e ? (
-                      <MoreMenu
-                        label={t.home.a11yEpisodeMenu(e.episode_number)}
-                        title={`${t.episode.number(e.episode_number)} ${e.title || t.home.untitled}`}
-                        actions={episodeActions(e)}
-                      />
-                    ) : null}
-                  </View>
-                );
-              })}
+              {visible.map((item) => (
+                <EpisodeRow
+                  key={item.key}
+                  item={item}
+                  onOpen={item.local || playable.has(item.key) ? () => open(item) : undefined}
+                  actions={item.local ? episodeActions(item.local) : null}
+                />
+              ))}
             </View>
           </View>
         ) : null}
       </View>
     </Screen>
   );
-}
-
-/** 一覧とタイルの題（見本「#43 寝る前に読む本」）。題が無ければ「タイトル未設定」。 */
-function itemLabel(t: Messages, item: HomeEpisodeItem): string {
-  const title = item.title || t.home.untitled;
-  return item.episodeNumber === null ? title : `${t.episode.number(item.episodeNumber)} ${title}`;
 }
 
 const st = StyleSheet.create({

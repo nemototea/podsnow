@@ -24,7 +24,10 @@ export function Avatar({
   const body = (
     <View style={[s.circle, { width: d, height: d, backgroundColor: c.avatar }]}>
       <Text
-        style={[size === 'md' ? typography.label : typography.overline, { color: c.textPrimary }]}
+        style={[
+          size === 'md' ? typography.label : typography.avatarSmall,
+          { color: c.textPrimary },
+        ]}
       >
         {initial}
       </Text>

@@ -69,6 +69,8 @@ export const colors = {
     voiceBorder: '#777777',
     successText: '#41B66C',
     overlayScrim: '#00000099',
+    dockFade: '#12121200',
+    dockFadeMid: '#121212EB',
     selectionOverlay: '#FFE34D33',
     recordingOverlay: '#FF4D4D33',
   },

@@ -7,8 +7,8 @@ import { Text } from './Text';
 import { useAppTheme } from './ThemeContext';
 import { icon, radius, shadow as shadows, space } from './tokens';
 
-/** 番組名を載せる最小の辺。これより小さいと読めないので、面だけにする。 */
-const NAME_MIN = 48;
+/** 名前を載せる最小の辺（見本のミニプレーヤー 38 にも「#43」を載せる）。これより小さいと面だけにする。 */
+const NAME_MIN = 32;
 /** これより大きければ番組名を極太（900）で組む。小さいときは 800（見本 `.art.small span`）。 */
 const HEAVY_MIN = 96;
 /** 番組名の字の大きさと内側の余白（辺に対する割合。見本の番組画面のアートワーク 196px で 28px / 14px）。 */

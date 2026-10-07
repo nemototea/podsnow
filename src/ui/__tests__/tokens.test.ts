@@ -182,7 +182,13 @@ describe('トークンの全体', () => {
       .filter(([, v]) => v.length === 9)
       .map(([n]) => n)
       .sort();
-    expect(alpha).toEqual(['overlayScrim', 'recordingOverlay', 'selectionOverlay']);
+    expect(alpha).toEqual([
+      'dockFade',
+      'dockFadeMid',
+      'overlayScrim',
+      'recordingOverlay',
+      'selectionOverlay',
+    ]);
   });
 
   it('値はすべて #RRGGBB か #RRGGBBAA', () => {
@@ -240,9 +246,9 @@ describe('寸法', () => {
 });
 
 describe('書体', () => {
-  it('11px を下回るのは見本の小さな名札と目盛りだけ（overline / eyebrow 10.5、tick 10）', () => {
+  it('11px を下回るのは見本の小さな名札・目盛り・タブだけ（10.5 と 10）', () => {
     for (const [name, role] of Object.entries(typography)) {
-      if (name === 'overline' || name === 'eyebrow' || name === 'tick')
+      if (['overline', 'eyebrow', 'tick', 'tab', 'tabActive', 'avatarSmall'].includes(name))
         expect(role.fontSize).toBeGreaterThanOrEqual(10);
       else expect(role.fontSize).toBeGreaterThanOrEqual(11);
     }

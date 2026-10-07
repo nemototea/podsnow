@@ -20,7 +20,7 @@ import {
 } from '@/ui/components';
 import { Sheet } from '@/ui/Sheet';
 import { useAppTheme } from '@/ui/ThemeContext';
-import { grabber, radius, space, stroke, tabularNums, typography } from '@/ui/tokens';
+import { grabber, icon, radius, space, stroke, tabularNums, typography } from '@/ui/tokens';
 
 import { parseSeconds, validateRange } from './selectionInput';
 import { storageLine } from './storageLine';
@@ -168,12 +168,13 @@ export function StudioTab({
       <View style={[st.grab, { backgroundColor: c.grabber }]} />
       {sel ? (
         <>
+          {/* 見本 `.sheet .info`: 「選択中 <b>04:31.2 – 04:35.4</b> · 4.2 秒」 */}
           <Text style={[typography.caption, tabularNums, { color: c.textSecondary }]}>
-            {t.edit.selectedInfo(
-              formatSmp(sel.start, { tenths: true }),
-              formatSmp(sel.end, { tenths: true }),
-              toSec(sel.end - sel.start),
-            )}
+            {`${t.edit.selectedLabel} `}
+            <Text style={[typography.captionStrong, { color: c.textPrimary }]}>
+              {`${formatSmp(sel.start, { tenths: true })} – ${formatSmp(sel.end, { tenths: true })}`}
+            </Text>
+            {` · ${t.edit.seconds(toSec(sel.end - sel.start))}`}
           </Text>
           {numeric ? (
             <View style={st.fields}>
@@ -245,6 +246,7 @@ export function StudioTab({
               label={t.record.startHere}
               kind="inverse"
               icon="mic"
+              iconSize={icon.inline}
               style={st.flex}
               onPress={() => void recordFromSelection()}
             />
@@ -271,6 +273,19 @@ export function StudioTab({
                 onPress={() => void trimSilence()}
               />
               <Chip raised label={t.edit.insert} icon="plus" onPress={() => setSheet('insert')} />
+              {/* 拡大・縮小（見本の波形のパネルには置かないので、選んでいないときのシートに置く） */}
+              <Chip
+                raised
+                label={t.a11y.zoomOut}
+                icon="minus"
+                onPress={() => setPps((p) => Math.max(4, p / 1.6))}
+              />
+              <Chip
+                raised
+                label={t.a11y.zoomIn}
+                icon="plus"
+                onPress={() => setPps((p) => Math.min(200, p * 1.6))}
+              />
             </View>
           )}
           <View style={st.btns}>
@@ -286,6 +301,7 @@ export function StudioTab({
               label={inMiddle ? t.record.startHere : t.record.start}
               kind="inverse"
               icon="mic"
+              iconSize={icon.inline}
               style={st.flex}
               onPress={onRecord}
             />
@@ -345,18 +361,6 @@ export function StudioTab({
               if (range) ws.setSelection(range);
             }}
           />
-          <View style={st.zoom}>
-            <IconButton
-              name="minus"
-              label={t.a11y.zoomOut}
-              onPress={() => setPps((p) => Math.max(4, p / 1.6))}
-            />
-            <IconButton
-              name="plus"
-              label={t.a11y.zoomIn}
-              onPress={() => setPps((p) => Math.min(200, p * 1.6))}
-            />
-          </View>
         </View>
       )}
 
@@ -373,11 +377,6 @@ export function StudioTab({
           >
             {t.edit.chaptersTitle}
           </Text>
-          <IconButton
-            name="list"
-            label={t.edit.editTopics}
-            onPress={() => setTopics({ open: true, focus: null })}
-          />
         </View>
         {state.outline.length === 0 ? (
           <Button
@@ -566,7 +565,6 @@ const st = StyleSheet.create({
     paddingBottom: space.x14,
     overflow: 'hidden',
   },
-  zoom: { flexDirection: 'row', justifyContent: 'flex-end', paddingHorizontal: space.xs },
   // 見本 `.chapters`: 上 14、行の間 2。行は上下 8、時刻の幅 40、間 12。
   chapters: { marginTop: space.x14, gap: space.hair },
   chaptersHead: { flexDirection: 'row', alignItems: 'center', marginBottom: space.x6 },

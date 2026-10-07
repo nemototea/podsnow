@@ -378,24 +378,29 @@ export default function EpisodeScreen() {
         >
           {title}
         </Text>
-        {/* 取り消しはどのタブからも使える（FR-EDIT-7、Issue #122） */}
-        <IconButton
-          name="undo"
-          label={state.undoLabel ? t.edit.a11yUndo(state.undoLabel) : t.common.undo}
-          disabled={!state.canUndo}
-          onPress={() => void ws.undo().then((op) => op && toast1(t.undo.undid(op.label)))}
-        />
-        <IconButton
-          name="redo"
-          label={state.redoLabel ? t.edit.a11yRedo(state.redoLabel) : t.common.redo}
-          disabled={!state.canRedo}
-          onPress={() => void ws.redo().then((op) => op && toast1(t.undo.redid(op.label)))}
-        />
-        <MoreMenu
-          label={t.episode.a11yMenu}
-          title={episode.title || t.episode.number(episode.episode_number)}
-          actions={menu}
-        />
+        {/* 見本 4・5: 収録タブは取り消し / やり直し、書き出しタブは「…」（FR-EDIT-7、Issue #122） */}
+        {tab === 'studio' ? (
+          <>
+            <IconButton
+              name="undo"
+              label={state.undoLabel ? t.edit.a11yUndo(state.undoLabel) : t.common.undo}
+              disabled={!state.canUndo}
+              onPress={() => void ws.undo().then((op) => op && toast1(t.undo.undid(op.label)))}
+            />
+            <IconButton
+              name="redo"
+              label={state.redoLabel ? t.edit.a11yRedo(state.redoLabel) : t.common.redo}
+              disabled={!state.canRedo}
+              onPress={() => void ws.redo().then((op) => op && toast1(t.undo.redid(op.label)))}
+            />
+          </>
+        ) : (
+          <MoreMenu
+            label={t.episode.a11yMenu}
+            title={episode.title || t.episode.number(episode.episode_number)}
+            actions={menu}
+          />
+        )}
       </View>
       <Segmented
         value={tab}
@@ -442,7 +447,8 @@ export default function EpisodeScreen() {
 
 const st = StyleSheet.create({
   // 見本 `.ephead`: 下 12、行の間 12。
-  head: { gap: space.md, marginBottom: space.md },
-  headRow: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
+  // 見本 `.ephead`: 上 0（Screen の上の余白を戻す）・下 12、行の間 12。上部の行の間も 12
+  head: { gap: space.md, marginTop: -space.sm, marginBottom: space.md },
+  headRow: { flexDirection: 'row', alignItems: 'center', gap: space.md },
   headTitle: { flex: 1, textAlign: 'center' },
 });

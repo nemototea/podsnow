@@ -24,12 +24,9 @@ const NAME = encodeURIComponent(process.env.SHOW_NAME || '夜更けのラジオ'
   await p.goto(`http://localhost:8765/?speed=60&showColor=${SHOW}&showName=${NAME}&showAuthor=nemoto`);
   await p.waitForTimeout(2500);
   await shot('01-home-empty');
-  await text(T('新しく始める', 'Start a new show')).click(); await p.waitForTimeout(1500);
-  await shot('01b-show-new');
-  await label(T('戻る', 'Back')).click(); await p.waitForTimeout(1200);
 
   // 1 本目: 録って、編集して、書き出す
-  await label(T('新しいエピソードを録る', 'Record a new episode')).click(); await p.waitForTimeout(1500);
+  await p.getByRole('tab', { name: T('作成', 'Create') }).click(); await p.waitForTimeout(1500);
   await shot('02-episode-idle');
   await text(T('録音を開始', 'Start recording')).click(); await p.waitForTimeout(3000);
   await shot('03-recording');
@@ -50,7 +47,7 @@ const NAME = encodeURIComponent(process.env.SHOW_NAME || '夜更けのラジオ'
   await p.goBack(); await p.waitForTimeout(800); await p.goBack(); await p.waitForTimeout(1500);
 
   // 2 本目: 録って下書きのまま戻る（下書きバー）
-  await label(T('新しいエピソードを録る', 'Record a new episode')).click(); await p.waitForTimeout(1500);
+  await p.getByRole('tab', { name: T('作成', 'Create') }).click(); await p.waitForTimeout(1500);
   await text(T('録音を開始', 'Start recording')).click(); await p.waitForTimeout(2500);
   await label(T('録音を止める', 'Stop recording')).click(); await p.waitForTimeout(1500);
   await label(T('戻る', 'Back')).click(); await p.waitForTimeout(1800);
@@ -59,11 +56,16 @@ const NAME = encodeURIComponent(process.env.SHOW_NAME || '夜更けのラジオ'
   await p.mouse.wheel(0, -900);
   await label(T('夜更けのラジオ を開く', 'Open 夜更けのラジオ')).click(); await p.waitForTimeout(1500);
   await shot('12-show');
-  await text(T('素材', 'Sounds')).click(); await shot('13-show-assets');
+  await p.getByRole('button', { name: T('素材', 'Sounds'), exact: true }).click(); await shot('13-show-assets');
   await text(T('ひな形', 'Templates')).click(); await shot('14-show-templates');
-  await label(T('戻る', 'Back')).click(); await p.waitForTimeout(1200);
+  await p.getByRole('tab', { name: T('検索', 'Search') }).click(); await p.waitForTimeout(1200);
+  await p.getByLabel(T('エピソードや素材を探す', 'Search episodes and sounds')).fill('#'); await p.waitForTimeout(600);
+  await shot('15-search');
+  await p.getByRole('tab', { name: T('素材', 'Sounds') }).click(); await p.waitForTimeout(1200);
+  await shot('16-library');
+  await p.getByRole('tab', { name: T('ホーム', 'Home') }).click(); await p.waitForTimeout(1200);
   await label(T('設定', 'Settings')).click(); await p.waitForTimeout(1200);
-  await shot('15-settings');
+  await shot('17-settings');
   console.log('ERRORS:\n' + errors.join('\n'));
   await b.close();
 })().catch((e) => { console.error(e); process.exit(1); });

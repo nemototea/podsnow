@@ -166,6 +166,15 @@ Tag #PodsNow to share your thoughts`,
     bgm: { label: 'BGM' },
   },
 
+  tabs: { home: 'Home', search: 'Search', library: 'Sounds', create: 'Create' },
+
+  search: {
+    placeholder: 'Search episodes and sounds',
+    noResults: 'No results',
+    episodes: 'Episodes',
+    sounds: 'Sounds',
+  },
+
   home: {
     showCardCount: (episodes: number) => `${episodes} ${episodes === 1 ? 'episode' : 'episodes'}`,
     showCardUnset: 'Show details not set',
@@ -186,7 +195,6 @@ Tag #PodsNow to share your thoughts`,
     audioPurged: (code: string) => `Deleted the audio of ${code}`,
     badgeNoAudio: 'No audio',
     untitled: 'Untitled',
-    newEpisodeCta: 'Record a new episode',
     recoveredTitle: 'Recovered an unfinished recording',
     recoveredBody: (duration: string) =>
       `This recording stopped before it finished saving (${duration}).`,
@@ -323,13 +331,12 @@ Tag #PodsNow to share your thoughts`,
   },
 
   edit: {
+    selectedLabel: 'Selected',
+    seconds: (s: string) => `${s} s`,
     enterNumbers: 'Enter seconds',
-    selectedInfo: (from: string, to: string, seconds: string) =>
-      `Selected ${from} – ${to} · ${seconds} s`,
     playheadInfo: (pos: string, total: string) => `${pos} / ${total}`,
     chaptersTitle: 'Chapters',
     a11yChapterMenu: (heading: string) => `Open the talking point for ${heading}`,
-    editTopics: 'Edit talking points',
     emptyTitle: 'Nothing recorded yet',
     emptySub:
       'Start with the record button below. Pick a spot in the middle and the new recording goes in there.',
@@ -388,6 +395,8 @@ Tag #PodsNow to share your thoughts`,
   },
 
   details: {
+    a11yEdit: (label: string) => `Edit ${label}`,
+    numberAndSeason: 'Episode / season',
     title: 'Episode details',
     suggestionEyebrow: 'AI draft suggestion',
     adopt: 'Use this',
@@ -440,6 +449,8 @@ Tag #PodsNow to share your thoughts`,
       `M4A · ${khz} kHz · ${kbps} kbps · ${channels}`,
     specWav: (channels: string, khz: string) => `WAV · ${khz} kHz · 16 bit · ${channels}`,
     custom: {
+      m4aShort: 'M4A',
+      wavShort: 'WAV',
       format: 'Format',
       m4a: 'M4A (AAC)',
       wav: 'WAV (uncompressed)',
@@ -569,6 +580,9 @@ Tag #PodsNow to share your thoughts`,
   },
 
   showSettings: {
+    a11yShareShow: 'Share show',
+    today: 'Today',
+    minutes: (n: number) => `${n} min`,
     sections: { episodes: 'Episodes', assets: 'Sounds', templates: 'Templates' },
     a11yShowMenu: 'Show actions',
     newEpisode: 'Record a new episode',

@@ -193,6 +193,10 @@ def build(theme: str) -> dict[str, str]:
         t[role] = _solve(C, h, target, against, lighter=True)
 
     t['overlayScrim'] = '#00000099'
+    # 下部の溶け込み（見本 `.dock`: 地の色の 0% → 92%（30px）→ 100%（60px））。地そのものを
+    # 透かすだけで、上に文字を載せないので、コントラストは測らない（DESIGN_SYSTEM.md §5.4）。
+    t['dockFade'] = t['bg'] + '00'
+    t['dockFadeMid'] = t['bg'] + 'EB'
     # 波形に重ねる帯（選択範囲・録音中）。ここだけは透過で持つ。下の波形を隠すと
     # 「どこを選んでいるか」より先に「何が録れているか」が読めなくなるため
     # （DESIGN_SYSTEM.md §5.4）。意味そのものは不透明な輪郭 `accentBorder` /

@@ -349,6 +349,7 @@ export function Button({
   icon: iconName,
   compact,
   large,
+  iconSize,
 }: {
   label: string;
   onPress: () => void;
@@ -361,6 +362,8 @@ export function Button({
   compact?: boolean;
   /** 画面の主操作（見本 `.ex .btn.pri`、高さ 50・15 の文字・20 のアイコン）。 */
   large?: boolean;
+  /** アイコンの大きさ（見本はボタンごとに違う: 削除 18、ここから録る 15、共有 20）。 */
+  iconSize?: number;
 }) {
   const c = useAppTheme();
   const reduced = useReducedMotion();
@@ -438,7 +441,7 @@ export function Button({
       {busy ? (
         <ActivityIndicator color={l.fg} />
       ) : iconName ? (
-        <Icon name={iconName} color={l.fg} size={large ? icon.button : icon.sm} />
+        <Icon name={iconName} color={l.fg} size={iconSize ?? (large ? icon.button : icon.sm)} />
       ) : null}
       <Text
         style={[large ? typography.labelLarge : typography.label, s.buttonLabel, { color: l.fg }]}
@@ -632,7 +635,6 @@ export function Toast({
   const t = useT();
   const insets = useSafeAreaInsets();
   const reduced = useReducedMotion();
-  const g = useGutter();
   const { barHeight, setToastHeight } = useBottomInset();
   const floating = useFloatingInset();
   const drag = useSharedValue(0);
@@ -682,8 +684,9 @@ export function Toast({
         style={[
           s.toast,
           {
-            left: g,
-            right: g,
+            // 見本 `.toast`: 左右 12（画面の余白より少し外へ出す）
+            left: space.md,
+            right: space.md,
             backgroundColor: c.inverseSurface,
             bottom: floor + BOTTOM_GAP,
           },

@@ -114,6 +114,8 @@ export const tabularNums = { fontVariant: ['tabular-nums' as const] };
 /**
  * 役割ごとの書体。大きさ・行間・太さ・字間をひとまとめにして、役割の選択ひとつで決まるようにする。
  * 値は見本 docs/design-refresh/ds4/mock.html の CSS（DESIGN_SYSTEM.md §4.2 の表）。字間は em を px に直した値。
+ * 見本が行高を書いていない所（CSS の `normal`）は、和文を含む行の実際の高さに合わせて Noto Sans JP の
+ * 行高（1.448 倍）を丸めた値にする。数字と欧文だけの所（時間・目盛り・値）は Figtree の 1.2 倍。
  *
  * - 18px 未満で太さ 300 以下は使わない（細い字は本文サイズだと消える）。
  * - 3 行以上に折り返しうる文字の行間は 1.4 以上。
@@ -140,55 +142,64 @@ export const typography = {
   /** 番組名（見本 `.showhead h3`）。 */
   display: { fontSize: 26, lineHeight: 31, fontWeight: '900', letterSpacing: -0.52 },
   /** Home のセクション見出し（見本 `.h2`）。 */
-  title: { fontSize: 22, lineHeight: 28, fontWeight: '800', letterSpacing: -0.22 },
+  title: { fontSize: 22, lineHeight: 32, fontWeight: '800', letterSpacing: -0.22 },
   /** 収録画面のエピソードの題（見本 `.np .title b`）。 */
-  nowPlaying: { fontSize: 21, lineHeight: 26, fontWeight: '800' },
+  nowPlaying: { fontSize: 21, lineHeight: 30, fontWeight: '800' },
   /** トークテーマの今の項目（見本 `.topic b`）。 */
   topic: { fontSize: 19, lineHeight: 26, fontWeight: '800' },
   /** 書き出しタブの題（見本 `.exhero b`）。 */
   heading: { fontSize: 18, lineHeight: 23, fontWeight: '800' },
   /** エピソード画面の上部の題（見本 `.ephead .row b`）。 */
-  screenTitle: { fontSize: 16, lineHeight: 20, fontWeight: '800' },
+  screenTitle: { fontSize: 16, lineHeight: 23, fontWeight: '800' },
   /** 画面内の小見出し（見本 `.chapters h4`、`.fields h4`）。 */
-  subheading: { fontSize: 15, lineHeight: 19, fontWeight: '800' },
+  subheading: { fontSize: 15, lineHeight: 22, fontWeight: '800' },
   /** 番組画面の一覧の題（見本 `.epi b`）。 */
-  rowTitleStrong: { fontSize: 15, lineHeight: 19, fontWeight: '700' },
+  rowTitleStrong: { fontSize: 15, lineHeight: 22, fontWeight: '700' },
   /** Home の一覧の題（見本 `.ep .t b`）。 */
-  rowTitle: { fontSize: 14.5, lineHeight: 18, fontWeight: '600' },
+  rowTitle: { fontSize: 14.5, lineHeight: 21, fontWeight: '600' },
   /** 行の本文、通知（見本 `.chap`、`.check`、`.toast`）。 */
   body: { fontSize: 13.5, lineHeight: 20, fontWeight: '400' },
   /** 本文の強調。大きさは変えず太さだけ一段上げる（見本 `.toast` の 600）。 */
   bodyStrong: { fontSize: 13.5, lineHeight: 20, fontWeight: '600' },
   /** ボタン（見本 `.btn`）。 */
-  label: { fontSize: 14, lineHeight: 18, fontWeight: '800' },
+  label: { fontSize: 14, lineHeight: 20, fontWeight: '800' },
   /** 書き出しの主操作（見本 `.ex .btn.pri` の 15）。 */
-  labelLarge: { fontSize: 15, lineHeight: 19, fontWeight: '800' },
+  labelLarge: { fontSize: 15, lineHeight: 22, fontWeight: '800' },
   /** チップ、ミニプレーヤーの題、番組カードの名前（見本 `.chip`）。 */
-  chip: { fontSize: 13, lineHeight: 16, fontWeight: '600' },
+  chip: { fontSize: 13, lineHeight: 19, fontWeight: '600' },
   /** ミニプレーヤーの題、番組カードの名前、収録画面の番組名（見本 `.mini .t b`、`.showcard b`、`.np .head b`）。 */
-  chipStrong: { fontSize: 13, lineHeight: 16, fontWeight: '700' },
+  chipStrong: { fontSize: 13, lineHeight: 19, fontWeight: '700' },
+  /** 収録画面の題の下（見本 `.np .title span` の 14）。 */
+  subtitle: { fontSize: 14, lineHeight: 20, fontWeight: '400' },
   /** 番組画面の著者の行（見本 `.showhead .by`）。 */
-  byline: { fontSize: 13, lineHeight: 16, fontWeight: '400' },
+  byline: { fontSize: 13, lineHeight: 19, fontWeight: '400' },
   /** 補助情報、概要（見本 `.ep .t span`、`.epi p`）。 */
   caption: { fontSize: 12.5, lineHeight: 19, fontWeight: '400' },
   /** 続きからのタイル、ジングルの押しボタン（見本 `.quick button`、`.pads button`）。 */
   captionStrong: { fontSize: 12.5, lineHeight: 16, fontWeight: '700' },
   /** 日付・時間・状態の補足（見本 `.mini .t small`、`.epi .d`）。 */
-  small: { fontSize: 12, lineHeight: 16, fontWeight: '400' },
+  small: { fontSize: 12, lineHeight: 17, fontWeight: '400' },
   /** 小さい押しボタン（見本 `.copybtn`）。 */
-  smallStrong: { fontSize: 12, lineHeight: 16, fontWeight: '700' },
+  smallStrong: { fontSize: 12, lineHeight: 17, fontWeight: '700' },
   /** 行の上の小さい名前（見本 `.field small`）。 */
-  fieldLabel: { fontSize: 11.5, lineHeight: 14, fontWeight: '400' },
+  fieldLabel: { fontSize: 11.5, lineHeight: 17, fontWeight: '400' },
   /** カードの上段、波形パネルの名札（見本 `.topic small`、`.wavebox .chap`）。 */
-  meta: { fontSize: 11, lineHeight: 14, fontWeight: '800', letterSpacing: 0.66 },
+  meta: { fontSize: 11, lineHeight: 16, fontWeight: '800', letterSpacing: 0.66 },
+  /** 波形のパネルの名札（見本 `.wavebox .chap` の 11 / 700）。 */
+  tag: { fontSize: 11, lineHeight: 16, fontWeight: '700' },
+  /** 下部タブの名前（見本 `.tabs button` の 10.5 / 500。選んでいるタブは `tabActive`）。 */
+  tab: { fontSize: 10.5, lineHeight: 15, fontWeight: '500' },
+  tabActive: { fontSize: 10.5, lineHeight: 15, fontWeight: '700' },
+  /** 小さい頭文字の丸（見本 `.showhead .by .avatar` の 10 / 800）。 */
+  avatarSmall: { fontSize: 10, lineHeight: 12, fontWeight: '800' },
   /** 収録画面の上部の状態（見本 `.np .head small`。字間 10%）。 */
-  eyebrow: { fontSize: 10.5, lineHeight: 13, fontWeight: '700', letterSpacing: 1.05 },
+  eyebrow: { fontSize: 10.5, lineHeight: 15, fontWeight: '700', letterSpacing: 1.05 },
   /** 状態の札、下部タブ、素材のレーン名（見本 `.pill`、`.tabs button`、`.layer`）。 */
-  overline: { fontSize: 10.5, lineHeight: 13, fontWeight: '700', letterSpacing: 0.21 },
+  overline: { fontSize: 10.5, lineHeight: 15, fontWeight: '700', letterSpacing: 0.21 },
   /** 行の中の値・時刻（見本 `.check .val`、`.chap span`）。 */
   numeric: {
     fontSize: 12,
-    lineHeight: 16,
+    lineHeight: 14,
     fontWeight: '500',
     fontFamily: family.numeric,
     ...tabularNums,
@@ -319,6 +330,19 @@ export const recordView = {
   /** 録音の丸の中の止める印（見本 `.recbtn i` の 26）。待機中の丸い印は 30。 */
   stopMark: 26,
   recordMark: 30,
+} as const;
+
+/** 下部（見本 `.dock` / `.tabs`）。 */
+export const dock = {
+  /** 内容の上に溶け込ませる高さ（見本 `.dock` の上 18、グラデーションは 30px で 92%、60px で 100%）。 */
+  fadeTop: 18,
+  fadeMid: 30,
+  fadeEnd: 60,
+  /** タブの行の上下（見本 `.tabs` の 10 / 22）。 */
+  tabsTop: 10,
+  tabsBottom: 22,
+  /** タブのアイコンと名前の間（見本の 4）。 */
+  tabGap: 4,
 } as const;
 
 /** 頭文字の丸（見本 `.avatar` 32、`.showhead .by .avatar` 22）。 */

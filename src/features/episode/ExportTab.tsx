@@ -8,6 +8,7 @@ import { useServices } from '@/features/app/ServicesProvider';
 import {
   errorCodeText,
   errorText,
+  formatDate,
   formatDateTime,
   storedErrorText,
   useLocale,
@@ -61,10 +62,12 @@ import {
 } from '@/ui/components';
 import { confirmDestructive } from '@/ui/alerts';
 import { DateField } from '@/ui/DateField';
-import { SeekBlock } from '@/ui/SeekBar';
+import { Sheet } from '@/ui/Sheet';
 import { useAppTheme } from '@/ui/ThemeContext';
 
+import { CopyRow } from './CopyRow';
 import { fromDateInput } from './detailsDraft';
+import { useCopy } from './useCopy';
 import { shareExport } from './shareExport';
 import type { DetailsDraftState } from './useDetailsDraft';
 import type { Workspace } from './useWorkspace';
@@ -216,6 +219,15 @@ export function ExportTab({ ws, details, onShowToast, onDone, onGoEdit }: Export
     };
   }, [episode?.id, episodes, show.id]);
   const [undoDescription, setUndoDescription] = useState<(() => void) | null>(null);
+  // 配信サービスに貼る情報の行を押したときの編集シート
+  const [editing, setEditing] = useState<'title' | 'description' | 'number' | 'recorded' | null>(
+    null,
+  );
+  const { copied, copy } = useCopy();
+  const closeEditing = () => {
+    setEditing(null);
+    void flush();
+  };
 
   const soundHydrated = sound !== null;
   useEffect(() => {
@@ -359,12 +371,20 @@ export function ExportTab({ ws, details, onShowToast, onDone, onGoEdit }: Export
 
   const lufsText = `${sound.loudness.targetLufs} LUFS`;
   const duckText = `${sound.ducking.depthDb} dB`;
+  const recordedDate = fromDateInput(draft.recordedAt);
+  const autosave = (
+    <Text style={[typography.caption, { color: c.textTertiary }]}>{t.details.autosaveHelp}</Text>
+  );
 
   return (
     <View style={st.ex}>
-      {/* 見本 `.exhero`: アートワーク（中）と題・番組名・時間。試聴の再生とシークを添える */}
+      {/* 見本 `.exhero`: アートワーク（中）と題・番組名・時間。右に試聴の白い丸 */}
       <View style={st.hero}>
-        <Artwork uri={coverArt.uri(show.cover_path)} name={show.name} size={artwork.exportHero} />
+        <Artwork
+          uri={coverArt.uri(show.cover_path)}
+          name={t.episode.number(episode.episode_number)}
+          size={artwork.exportHero}
+        />
         <View style={st.heroText}>
           <Text style={[typography.heading, { color: c.textPrimary }]} numberOfLines={2}>
             {`${t.episode.number(episode.episode_number)} ${episode.title || t.home.untitled}`}
@@ -380,19 +400,11 @@ export function ExportTab({ ws, details, onShowToast, onDone, onGoEdit }: Export
           onPress={() => void ws.togglePlay()}
         />
       </View>
-      {state.total > 0 ? (
-        <SeekBlock
-          position={state.playhead}
-          duration={state.total}
-          onSeek={(to) => void ws.seek(to)}
-        />
-      ) : null}
 
       {/* 見本 `.checks`: 仕上げの項目。押すと入・切が替わる */}
       <View style={[st.checks, { backgroundColor: c.surface }]}>
         <Check
           label={t.sound.loudness}
-          info={t.glossary.loudness}
           on={sound.loudness.enabled}
           value={sound.loudness.enabled ? lufsText : null}
           onPress={() =>
@@ -407,31 +419,22 @@ export function ExportTab({ ws, details, onShowToast, onDone, onGoEdit }: Export
             {t.sound.measuring(Math.round(measure.progress * 100))}
           </Text>
         ) : null}
+        {/* BGM が無いときは押すと収録タブへ（BGM を入れる） */}
         <Check
           label={t.sound.ducking}
-          info={t.glossary.ducking}
           on={sound.ducking.enabled && hasBgm}
-          value={hasBgm && sound.ducking.enabled ? duckText : null}
-          disabled={!hasBgm}
-          onPress={() =>
-            updateSound({
-              ...sound,
-              ducking: { ...sound.ducking, enabled: !sound.ducking.enabled },
-            })
+          value={hasBgm ? (sound.ducking.enabled ? duckText : null) : t.sound.addBgm}
+          onPress={
+            hasBgm
+              ? () =>
+                  updateSound({
+                    ...sound,
+                    ducking: { ...sound.ducking, enabled: !sound.ducking.enabled },
+                  })
+              : onGoEdit
           }
         />
-        {!hasBgm ? (
-          <Button label={t.sound.addBgm} kind="ghost" icon="music" compact onPress={onGoEdit} />
-        ) : null}
         <Check label={t.sound.embed} on />
-        <Button
-          label={soundAdvanced ? t.sound.hideAdvanced : t.sound.advanced}
-          kind="ghost"
-          icon={soundAdvanced ? 'chevronUp' : 'chevron'}
-          compact
-          accessibilityLabel={t.sound.a11yAdvanced}
-          onPress={() => setSoundAdvanced((v) => !v)}
-        />
         {soundAdvanced ? (
           <>
             {sound.loudness.enabled ? (
@@ -508,89 +511,106 @@ export function ExportTab({ ws, details, onShowToast, onDone, onGoEdit }: Export
         ) : null}
       </View>
 
-      {/* 見本: 形式のチップと見込みのサイズ、アクセントの「書き出して共有」 */}
+      {/* 見本: 形式のチップ（M4A / WAV）と見込みのサイズ、アクセントの「書き出して共有」 */}
       <View style={st.format}>
-        <View style={st.chipsRow}>
-          {PRESET_KEYS.map((k) => (
-            <Chip
-              key={k}
-              label={presetText(k).label}
-              active={preset === k}
-              accessibilityLabel={`${presetText(k).label}, ${presetText(k).spec}`}
-              onPress={() => choosePreset(k)}
-            />
-          ))}
-        </View>
-        <View style={st.kv}>
-          <Text style={[typography.small, st.flex, { color: c.textSecondary }]}>
-            {presetText(preset).spec}
-          </Text>
-          <Text style={[typography.small, tabularNums, { color: c.textSecondary }]}>
+        <View style={st.formatRow}>
+          <Chip
+            label={t.export.custom.m4aShort}
+            active={p.format === 'm4a'}
+            onPress={() => (p.format === 'm4a' ? undefined : choosePreset('podcast'))}
+          />
+          <Chip
+            label={t.export.custom.wavShort}
+            active={p.format === 'wav'}
+            onPress={() => (p.format === 'wav' ? undefined : choosePreset('wav'))}
+          />
+          <Text style={[typography.small, st.size, tabularNums, { color: c.textSecondary }]}>
             {t.export.estimatedSizeShort(formatBytes(estimateExportBytes(p, state.total)))}
           </Text>
         </View>
-        {preset === 'custom' ? (
-          <View style={st.custom}>
-            <Text style={[typography.caption, { color: c.textSecondary }]}>
-              {t.export.custom.format}
-            </Text>
-            <Segmented
-              value={custom.format}
-              onChange={(v) => updateCustom({ format: v })}
-              options={[
-                { value: 'm4a' as const, label: t.export.custom.m4a },
-                { value: 'wav' as const, label: t.export.custom.wav },
-              ]}
-            />
-            {custom.format === 'm4a' ? (
-              <View style={st.infoCaption}>
-                <Text style={[typography.caption, { color: c.textSecondary }]}>
-                  {t.export.custom.bitrate}
-                </Text>
-                <InfoButton info={t.glossary.bitrate} />
-              </View>
-            ) : null}
-            {custom.format === 'm4a' ? (
-              <View style={st.chips}>
-                {CUSTOM_BITRATES.map((b) => (
-                  <Chip
-                    key={b}
-                    label={`${b / 1000} kbps`}
-                    active={custom.bitrate === b}
-                    onPress={() => updateCustom({ bitrate: b })}
-                  />
-                ))}
-              </View>
-            ) : null}
-            <Text style={[typography.caption, { color: c.textSecondary }]}>
-              {t.export.custom.sampleRate}
-            </Text>
-            <Segmented
-              value={String(custom.sampleRate)}
-              onChange={(v) =>
-                updateCustom({
-                  sampleRate: EXPORT_SAMPLE_RATES.find((r) => String(r) === v) ?? 48000,
-                })
-              }
-              options={EXPORT_SAMPLE_RATES.map((r) => ({
-                value: String(r),
-                label: `${r / 1000} kHz`,
-              }))}
-            />
-            <Text style={[typography.caption, { color: c.textSecondary }]}>
-              {t.export.custom.channels}
-            </Text>
-            <Segmented
-              value={custom.channels === 1 ? 'mono' : 'stereo'}
-              onChange={(v) => updateCustom({ channels: v === 'mono' ? 1 : 2 })}
-              options={[
-                { value: 'mono' as const, label: t.export.custom.mono },
-                { value: 'stereo' as const, label: t.export.custom.stereo },
-              ]}
-            />
+        {soundAdvanced ? (
+          <View style={st.chipsRow}>
+            {PRESET_KEYS.map((k) => (
+              <Chip
+                key={k}
+                label={presetText(k).label}
+                active={preset === k}
+                accessibilityLabel={`${presetText(k).label}, ${presetText(k).spec}`}
+                onPress={() => choosePreset(k)}
+              />
+            ))}
           </View>
         ) : null}
-
+        {soundAdvanced ? (
+          <Text style={[typography.small, { color: c.textSecondary }]}>
+            {presetText(preset).spec}
+          </Text>
+        ) : null}
+        {soundAdvanced ? (
+          <>
+            {preset === 'custom' ? (
+              <View style={st.custom}>
+                <Text style={[typography.caption, { color: c.textSecondary }]}>
+                  {t.export.custom.format}
+                </Text>
+                <Segmented
+                  value={custom.format}
+                  onChange={(v) => updateCustom({ format: v })}
+                  options={[
+                    { value: 'm4a' as const, label: t.export.custom.m4a },
+                    { value: 'wav' as const, label: t.export.custom.wav },
+                  ]}
+                />
+                {custom.format === 'm4a' ? (
+                  <View style={st.infoCaption}>
+                    <Text style={[typography.caption, { color: c.textSecondary }]}>
+                      {t.export.custom.bitrate}
+                    </Text>
+                    <InfoButton info={t.glossary.bitrate} />
+                  </View>
+                ) : null}
+                {custom.format === 'm4a' ? (
+                  <View style={st.chips}>
+                    {CUSTOM_BITRATES.map((b) => (
+                      <Chip
+                        key={b}
+                        label={`${b / 1000} kbps`}
+                        active={custom.bitrate === b}
+                        onPress={() => updateCustom({ bitrate: b })}
+                      />
+                    ))}
+                  </View>
+                ) : null}
+                <Text style={[typography.caption, { color: c.textSecondary }]}>
+                  {t.export.custom.sampleRate}
+                </Text>
+                <Segmented
+                  value={String(custom.sampleRate)}
+                  onChange={(v) =>
+                    updateCustom({
+                      sampleRate: EXPORT_SAMPLE_RATES.find((r) => String(r) === v) ?? 48000,
+                    })
+                  }
+                  options={EXPORT_SAMPLE_RATES.map((r) => ({
+                    value: String(r),
+                    label: `${r / 1000} kHz`,
+                  }))}
+                />
+                <Text style={[typography.caption, { color: c.textSecondary }]}>
+                  {t.export.custom.channels}
+                </Text>
+                <Segmented
+                  value={custom.channels === 1 ? 'mono' : 'stereo'}
+                  onChange={(v) => updateCustom({ channels: v === 'mono' ? 1 : 2 })}
+                  options={[
+                    { value: 'mono' as const, label: t.export.custom.mono },
+                    { value: 'stereo' as const, label: t.export.custom.stereo },
+                  ]}
+                />
+              </View>
+            ) : null}
+          </>
+        ) : null}
         {failure ? (
           <Notice
             kind="error"
@@ -633,11 +653,16 @@ export function ExportTab({ ws, details, onShowToast, onDone, onGoEdit }: Export
             {t.export.emptyVoice}
           </Text>
         ) : null}
+        <Button
+          label={soundAdvanced ? t.sound.hideAdvanced : t.sound.advanced}
+          kind="ghost"
+          icon={soundAdvanced ? 'chevronUp' : 'chevron'}
+          compact
+          accessibilityLabel={t.sound.a11yAdvanced}
+          onPress={() => setSoundAdvanced((v) => !v)}
+        />
       </View>
 
-      <Text style={[typography.subheading, { color: c.textPrimary }]} accessibilityRole="header">
-        {t.details.title}
-      </Text>
       {episode.description_suggestion ? (
         <Notice
           title={t.details.suggestionEyebrow}
@@ -670,7 +695,51 @@ export function ExportTab({ ws, details, onShowToast, onDone, onGoEdit }: Export
           }
         />
       ) : null}
-      <View style={st.group}>
+      {/* 見本 `.fields`: 配信サービスに貼る情報。行を押すと直せる */}
+      <View>
+        <Text
+          style={[typography.subheading, st.fieldsHead, { color: c.textPrimary }]}
+          accessibilityRole="header"
+        >
+          {t.pack.fieldsHeading}
+        </Text>
+        <CopyRow
+          label={t.details.titleEyebrow}
+          value={draft.title}
+          copied={copied === 'title'}
+          onCopy={() => void copy('title', draft.title)}
+          onEdit={() => setEditing('title')}
+          editLabel={t.details.a11yEdit(t.details.titleEyebrow)}
+        />
+        <CopyRow
+          label={t.details.descriptionEyebrow}
+          value={draft.description}
+          copied={copied === 'description'}
+          onCopy={() => void copy('description', draft.description)}
+          onEdit={() => setEditing('description')}
+          editLabel={t.details.a11yEdit(t.details.descriptionEyebrow)}
+        />
+        <CopyRow
+          label={t.details.numberAndSeason}
+          value={`${draft.episodeNumber} / ${draft.season}`}
+          copied={copied === 'number'}
+          onCopy={() => void copy('number', `${draft.episodeNumber} / ${draft.season}`)}
+          onEdit={() => setEditing('number')}
+          editLabel={t.details.a11yEdit(t.details.numberAndSeason)}
+        />
+        <CopyRow
+          label={t.details.recordedEyebrow}
+          value={recordedDate ? formatDate(new Date(recordedDate), locale) : ''}
+          copied={copied === 'recorded'}
+          onCopy={() =>
+            void copy('recorded', recordedDate ? formatDate(new Date(recordedDate), locale) : '')
+          }
+          onEdit={() => setEditing('recorded')}
+          editLabel={t.details.a11yEdit(t.details.recordedEyebrow)}
+        />
+      </View>
+
+      <Sheet visible={editing === 'title'} onClose={closeEditing} title={t.details.titleEyebrow}>
         <Field
           label={t.details.titleEyebrow}
           value={draft.title}
@@ -678,27 +747,13 @@ export function ExportTab({ ws, details, onShowToast, onDone, onGoEdit }: Export
           onBlur={() => void flush()}
           placeholder={t.details.titlePlaceholder}
         />
-        <View style={st.pair}>
-          <View style={st.flex}>
-            <Field
-              label={t.details.episodeEyebrow}
-              value={draft.episodeNumber}
-              onChangeText={(v) => edit({ episodeNumber: v })}
-              onBlur={() => void flush()}
-              keyboardType="number-pad"
-              {...(numberTaken ? { error: t.details.numberTaken } : {})}
-            />
-          </View>
-          <View style={st.flex}>
-            <Field
-              label={t.details.seasonEyebrow}
-              value={draft.season}
-              onChangeText={(v) => edit({ season: v })}
-              onBlur={() => void flush()}
-              keyboardType="number-pad"
-            />
-          </View>
-        </View>
+        {autosave}
+      </Sheet>
+      <Sheet
+        visible={editing === 'description'}
+        onClose={closeEditing}
+        title={t.details.descriptionEyebrow}
+      >
         <Field
           label={t.details.descriptionEyebrow}
           value={draft.description}
@@ -766,6 +821,41 @@ export function ExportTab({ ws, details, onShowToast, onDone, onGoEdit }: Export
             }}
           />
         ) : null}
+        {autosave}
+      </Sheet>
+      <Sheet
+        visible={editing === 'number'}
+        onClose={closeEditing}
+        title={t.details.numberAndSeason}
+      >
+        <View style={st.pair}>
+          <View style={st.flex}>
+            <Field
+              label={t.details.episodeEyebrow}
+              value={draft.episodeNumber}
+              onChangeText={(v) => edit({ episodeNumber: v })}
+              onBlur={() => void flush()}
+              keyboardType="number-pad"
+              {...(numberTaken ? { error: t.details.numberTaken } : {})}
+            />
+          </View>
+          <View style={st.flex}>
+            <Field
+              label={t.details.seasonEyebrow}
+              value={draft.season}
+              onChangeText={(v) => edit({ season: v })}
+              onBlur={() => void flush()}
+              keyboardType="number-pad"
+            />
+          </View>
+        </View>
+        {autosave}
+      </Sheet>
+      <Sheet
+        visible={editing === 'recorded'}
+        onClose={closeEditing}
+        title={t.details.recordedEyebrow}
+      >
         <DateField
           label={t.details.recordedEyebrow}
           value={draft.recordedAt}
@@ -776,10 +866,8 @@ export function ExportTab({ ws, details, onShowToast, onDone, onGoEdit }: Export
           help={t.details.dateHelp}
           error={badDate ? t.details.badDate : null}
         />
-        <Text style={[typography.caption, { color: c.textTertiary }]}>
-          {t.details.autosaveHelp}
-        </Text>
-      </View>
+        {autosave}
+      </Sheet>
 
       {history.length ? (
         <Text style={[typography.subheading, { color: c.textPrimary }]} accessibilityRole="header">
@@ -898,6 +986,7 @@ function Check({
       accessibilityRole="switch"
       accessibilityLabel={value ? `${label}, ${value}` : label}
       accessibilityState={{ checked: on, disabled: !!disabled }}
+      hitSlop={{ top: space.x10 / 2, bottom: space.x10 / 2 }}
       style={({ pressed }) => [st.check, pressed ? { opacity: pressedOpacity } : null]}
     >
       {body}
@@ -914,7 +1003,8 @@ const st = StyleSheet.create({
   heroText: { flex: 1, minWidth: 0, gap: space.xs },
   // 見本 `.checks`: 地 `surface`、角丸 8、内側 14、行の間 10。
   checks: { borderRadius: radius.sm, padding: space.x14, gap: space.x10 },
-  check: { flexDirection: 'row', alignItems: 'center', gap: space.x10, minHeight: hit.icon },
+  // 見本 `.check`: 行の高さは文字の分だけ（触れる面は hitSlop で広げる）
+  check: { flexDirection: 'row', alignItems: 'center', gap: space.x10 },
   checkLabel: { flexShrink: 1 },
   checkVal: { marginLeft: 'auto' },
   checkNote: { marginLeft: icon.button + space.x10 },
@@ -926,6 +1016,11 @@ const st = StyleSheet.create({
     justifyContent: 'center',
   },
   format: { gap: space.x10 },
+  // 見本: チップ 2 つと、右端に見込みのサイズ
+  formatRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
+  size: { marginLeft: 'auto' },
+  // 見本 `.fields h4`: 下 4
+  fieldsHead: { marginBottom: space.xs },
   chipsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
   job: { borderRadius: radius.sm, padding: space.x14, gap: space.md },
   group: { gap: space.md },

@@ -1,6 +1,6 @@
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable, ScrollView, Share, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { compositeHex } from '@/domain/color/showColors';
@@ -73,6 +73,17 @@ import {
 } from '@/ui/tokens';
 import { useReducedMotion } from '@/ui/useReducedMotion';
 import { useToast } from '@/ui/useToast';
+
+/** 同じ日か（端末の暦で）。 */
+function sameDay(a: number, b: number): boolean {
+  const x = new Date(a);
+  const y = new Date(b);
+  return (
+    x.getFullYear() === y.getFullYear() &&
+    x.getMonth() === y.getMonth() &&
+    x.getDate() === y.getDate()
+  );
+}
 
 /** 著者の行と操作の白の濃さ（見本 `.showhead .by`、`.actions .ib` の 75%）。 */
 const BY_ALPHA = 0.75;
@@ -150,6 +161,8 @@ export default function ShowScreen() {
     isSection(params.section) ? params.section : 'episodes',
   );
   const [creating, setCreating] = useState(false);
+  // 「今日」の判定に使う。開いたときの日付で決める
+  const [today] = useState(() => Date.now());
   const notify = useCallback((text: string) => showToast({ text }), [showToast]);
   const episodeActions = useEpisodeActions(reloadList, notify);
 
@@ -458,6 +471,12 @@ export default function ShowScreen() {
             label={t.a11y.back}
             onPress={() => router.back()}
           />
+          <IconButton
+            name="search"
+            color={c.textPrimary}
+            label={t.tabs.search}
+            onPress={() => router.push('/search')}
+          />
         </View>
         <View style={st.cover}>
           <Artwork
@@ -495,6 +514,16 @@ export default function ShowScreen() {
             color={actionColor}
             label={t.showSettings.a11yEditShowInfo}
             onPress={openShowEditor}
+          />
+          <IconButton
+            name="share"
+            color={actionColor}
+            label={t.showSettings.a11yShareShow}
+            onPress={() =>
+              void Share.share({
+                message: [showName, services.show.feed_url].filter(Boolean).join('\n'),
+              }).catch(() => undefined)
+            }
           />
           <MoreMenu
             label={t.showSettings.a11yShowMenu}
@@ -564,7 +593,17 @@ export default function ShowScreen() {
                       {done ? null : <Pill label={statusLabel(t, kind)} />}
                       {at === null ? null : (
                         <Text style={[typography.small, { color: c.textSecondary }]}>
-                          {formatShortDate(at, locale)}
+                          {/* 見本 `.epi .d`: 下書きは「今日」、書き出し済みは「9月27日 · 29分」 */}
+                          {[
+                            sameDay(at, today) ? t.showSettings.today : formatShortDate(at, locale),
+                            done
+                              ? t.showSettings.minutes(
+                                  Math.max(1, Math.round(item.durationSmp / 48000 / 60)),
+                                )
+                              : null,
+                          ]
+                            .filter(Boolean)
+                            .join(' · ')}
                         </Text>
                       )}
                     </View>

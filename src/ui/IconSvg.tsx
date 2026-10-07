@@ -14,17 +14,22 @@ const p = (d: string, fill = false, w?: number): Shape =>
 
 /**
  * 名前は形ではなく意味で付け、1 つの意味に 1 つの形を当てる。対応表は DESIGN_SYSTEM.md §6.4。
- * 新しく足すときは表にも足し、iOS の SF Symbols（symbols.ts）も同じ意味の形にする。
+ * 見本 docs/design-refresh/ds4/mock.html にある形（`P`）は、その SVG をそのまま写す（Issue #235）。
+ * どの OS でもこの SVG を描く。SF Symbols（symbols.ts）は iOS のネイティブのメニューの項目だけに使う。
  */
 const SHAPES = {
-  plus: [p('M12 5v14M5 12h14')],
+  // 下部タブ（見本 `.tabs`）。ホームは塗り
+  home: [p('M12 3 3 10.5V21h6.5v-6h5v6H21V10.5Z', true)],
+  search: [{ k: 'circle', cx: 11, cy: 11, r: 6.5 }, p('m16 16 4.5 4.5')],
+  library: [p('M5 4v16M10 4v16M15 4.5l4.5 15.5')],
+  plus: [p('M12 4v16M4 12h16')],
   minus: [p('M5 12h14')],
   arrow: [p('m9 5 7 7-7 7')],
-  back: [p('m15 5-7 7 7 7')],
-  chevron: [p('m7 10 5 5 5-5')],
+  back: [p('M15 5 8 12l7 7', false, 2.2)],
+  chevron: [p('m5 9 7 7 7-7', false, 2.2)],
   chevronUp: [p('m7 14 5-5 5 5')],
   grip: [p('M5 8h14M5 12h14M5 16h14')],
-  play: [p('m8 5 11 7-11 7Z', true)],
+  play: [p('M8 5v14l11-7Z', true)],
   // 秒数入りの戻る・進む（プレーヤー）。画面移動の山形（back / arrow）と形を分ける。
   // 数字は線幅 1.5 で描く（2 では 7 の高さに収まらない）。
   skipBack15: [
@@ -47,11 +52,14 @@ const SHAPES = {
       1.5,
     ),
   ],
-  pause: [p('M9 6v12M15 6v12', false, 3)],
+  pause: [
+    { k: 'rect', x: 6, y: 5, w: 4, h: 14, r: 1, fill: true },
+    { k: 'rect', x: 14, y: 5, w: 4, h: 14, r: 1, fill: true },
+  ],
   stop: [{ k: 'rect', x: 6, y: 6, w: 12, h: 12, r: 2, fill: true }],
   record: [{ k: 'circle', cx: 12, cy: 12, r: 7, fill: true }],
-  flag: [p('M5 21V4m0 0h12l-3 4 3 4H5')],
-  check: [p('m5 12 4 4L19 6')],
+  flag: [p('M6 21V4M6 4h11l-2 4 2 4H6')],
+  check: [p('m5 12 4.5 4.5L19 7', false, 3)],
   copy: [{ k: 'rect', x: 8, y: 8, w: 12, h: 13, r: 2 }, p('M15 8V3H3v12h5')],
   // 線はつまみの手前で切る。背景色で塗りつぶして隠すと、押下面など bg 以外の上で丸が浮く。
   settings: [
@@ -60,23 +68,26 @@ const SHAPES = {
     { k: 'circle', cx: 15, cy: 17, r: 3 },
   ],
   more: [
-    { k: 'circle', cx: 5, cy: 12, r: 1.4, fill: true },
-    { k: 'circle', cx: 12, cy: 12, r: 1.4, fill: true },
-    { k: 'circle', cx: 19, cy: 12, r: 1.4, fill: true },
+    { k: 'circle', cx: 5, cy: 12, r: 1.8, fill: true },
+    { k: 'circle', cx: 12, cy: 12, r: 1.8, fill: true },
+    { k: 'circle', cx: 19, cy: 12, r: 1.8, fill: true },
   ],
   music: [
-    p('M9 18V5l10-2v13M9 8l10-2'),
-    { k: 'ellipse', cx: 6, cy: 18, rx: 3, ry: 2 },
-    { k: 'ellipse', cx: 16, cy: 16, rx: 3, ry: 2 },
+    p('M9 18V6l10-2v12'),
+    { k: 'circle', cx: 7, cy: 18, r: 2.5, fill: true },
+    { k: 'circle', cx: 17, cy: 16, r: 2.5, fill: true },
   ],
   headphones: [
     p('M4 14v-2a8 8 0 0 1 16 0v2'),
     { k: 'rect', x: 3, y: 12, w: 4, h: 8, r: 2 },
     { k: 'rect', x: 17, y: 12, w: 4, h: 8, r: 2 },
   ],
-  mic: [{ k: 'rect', x: 9, y: 3, w: 6, h: 11, r: 3 }, p('M5 11a7 7 0 0 0 14 0M12 18v3')],
-  undo: [p('M4 7h9a6 6 0 0 1 0 12H8M4 7l5-5M4 7l5 5')],
-  redo: [p('M20 7h-9a6 6 0 0 0 0 12h5M20 7l-5-5M20 7l-5 5')],
+  mic: [
+    { k: 'rect', x: 9, y: 3, w: 6, h: 11, r: 3, fill: true },
+    p('M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21'),
+  ],
+  undo: [p('M9 14 4 9l5-5'), p('M4 9h10a6 6 0 0 1 0 12h-3')],
+  redo: [p('m15 14 5-5-5-5'), p('M20 9H10a6 6 0 0 0 0 12h3')],
   // 無音を詰める（左右から中央の線へ寄せる）
   trimSilence: [p('M12 4v16M3 12h6m0 0-3-3m3 3-3 3M21 12h-6m0 0 3-3m-3 3 3 3')],
   scissors: [
@@ -84,7 +95,7 @@ const SHAPES = {
     { k: 'circle', cx: 6, cy: 18, r: 3 },
     p('m8.5 8 11.5 13M8.5 16 20 3'),
   ],
-  share: [p('M12 16V3m0 0L7 8m5-5 5 5M5 14v7h14v-7')],
+  share: [p('M12 3v12M7 8l5-5 5 5M5 14v6h14v-6')],
   // 音声ファイルを書き出す・書き出し済み。OS の共有（share）とは別の形
   export: [p('M14 3H6v18h12V7Zm0 0v4h4'), p('M12 10v7m0 0-3-3m3 3 3-3')],
   download: [p('M12 3v13m0 0-5-5m5 5 5-5M5 14v7h14v-7')],
@@ -104,16 +115,11 @@ const SHAPES = {
   warning: [p('m12 3 10 18H2Z'), p('M12 9v5m0 3v1')],
   // 録音の入力が切り替わった印
   route: [p('M4 8h15m0 0-4-4m4 4-4 4M20 16H5m0 0 4-4m-4 4 4 4')],
-  trash: [p('M4 7h16M9 7V4h6v3M6 7l1 14h10l1-14M10 11v6M14 11v6')],
+  trash: [p('M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13')],
   star: [p('m12 3 2.8 5.8 6.2.9-4.5 4.4 1 6.2-5.5-2.9-5.5 2.9 1-6.2L3 9.7l6.2-.9Z')],
   starFilled: [p('m12 3 2.8 5.8 6.2.9-4.5 4.4 1 6.2-5.5-2.9-5.5 2.9 1-6.2L3 9.7l6.2-.9Z', true)],
   // 話すことの一覧を開く
-  list: [
-    { k: 'circle', cx: 5, cy: 7, r: 1.2, fill: true },
-    { k: 'circle', cx: 5, cy: 12, r: 1.2, fill: true },
-    { k: 'circle', cx: 5, cy: 17, r: 1.2, fill: true },
-    p('M9 7h11M9 12h11M9 17h11'),
-  ],
+  list: [p('M4 6h16M4 12h16M4 18h10')],
   // エピソードの状態（Home）。未録音 → 編集中 → 書き出し済み（export）→ 配信済み、と音声なし
   // 破線は円周（2π×8）を 8 等分する。丸い端の分だけ線を短くしている
   statusNew: [{ k: 'circle', cx: 12, cy: 12, r: 8, dash: '2.28 4' }],
@@ -131,7 +137,7 @@ const SHAPES = {
 
 export type IconName = keyof typeof SHAPES;
 
-/** 線幅 2 の SVG アイコン。Android と Web の既定、iOS では SF Symbols が無いときの代わり。 */
+/** 線幅 2 の SVG アイコン。すべての OS で使う（見本の形をそのまま描くため）。 */
 export const IconSvg = memo(function IconSvg({
   name,
   color,

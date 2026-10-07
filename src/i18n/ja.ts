@@ -181,6 +181,17 @@ Podcast: {{show_name}}
     bgm: { label: 'BGM' },
   },
 
+  /** 下部タブ（見本 `.tabs`）。 */
+  tabs: { home: 'ホーム', search: '検索', library: '素材', create: '作成' },
+
+  /** 検索タブ。 */
+  search: {
+    placeholder: 'エピソードや素材を探す',
+    noResults: '見つかりませんでした',
+    episodes: 'エピソード',
+    sounds: '素材',
+  },
+
   home: {
     /** 番組カードの本数（見本 `.showcard small`）。 */
     showCardCount: (episodes: number) => `${episodes} エピソード`,
@@ -207,7 +218,6 @@ Podcast: {{show_name}}
     audioPurged: (code: string) => `${code} の音声を削除しました`,
     badgeNoAudio: '音声なし',
     untitled: 'タイトル未設定',
-    newEpisodeCta: '新しいエピソードを録る',
     recoveredTitle: '途中の録音を復元しました',
     recoveredBody: (duration: string) => `保存が終わる前に止まった録音です（${duration}）`,
     reviewRecording: '録音を確認する',
@@ -350,14 +360,12 @@ Podcast: {{show_name}}
   },
 
   edit: {
+    selectedLabel: '選択中',
+    seconds: (s: string) => `${s} 秒`,
     enterNumbers: '秒数で指定',
-    /** 選択のシート（見本 `.sheet .info`「選択中 04:31.2 – 04:35.4 · 4.2 秒」）。 */
-    selectedInfo: (from: string, to: string, seconds: string) =>
-      `選択中 ${from} – ${to} · ${seconds} 秒`,
     playheadInfo: (pos: string, total: string) => `${pos} / ${total}`,
     chaptersTitle: 'チャプター',
     a11yChapterMenu: (heading: string) => `${heading} のトークテーマを開く`,
-    editTopics: 'トークテーマを編集',
     emptyTitle: 'まだ録音がありません',
     emptySub: '下の録音ボタンで始めます。途中の位置を選んで録ると、そこに差し込まれます',
     insertBefore: '前に素材',
@@ -417,6 +425,8 @@ Podcast: {{show_name}}
   },
 
   details: {
+    a11yEdit: (label: string) => `${label}を編集`,
+    numberAndSeason: '話数 / シーズン',
     title: 'エピソードの詳細',
     suggestionEyebrow: 'AI の下書き候補',
     adopt: '採用する',
@@ -443,10 +453,10 @@ Podcast: {{show_name}}
 
   sound: {
     embed: 'アートワークとタイトルを埋め込む',
-    loudness: '声の音量をそろえる',
+    loudness: '音量をそろえる',
     recommended: '（推奨）',
     truePeak: 'トゥルーピーク上限',
-    ducking: 'BGM ダッキング',
+    ducking: '話す間は BGM を下げる',
     advanced: '詳細設定',
     a11yAdvanced: '詳細設定',
     depth: '下げ幅',
@@ -471,6 +481,8 @@ Podcast: {{show_name}}
       `M4A · ${khz} kHz · ${kbps} kbps · ${channels}`,
     specWav: (channels: string, khz: string) => `WAV · ${khz} kHz · 16 bit · ${channels}`,
     custom: {
+      m4aShort: 'M4A',
+      wavShort: 'WAV',
       format: '形式',
       m4a: 'M4A（AAC）',
       wav: 'WAV（非圧縮）',
@@ -599,6 +611,10 @@ Podcast: {{show_name}}
   },
 
   showSettings: {
+    a11yShareShow: '番組を共有',
+    /** 番組画面の一覧の日付（見本 `.epi .d`）。 */
+    today: '今日',
+    minutes: (n: number) => `${n}分`,
     /** 番組画面の一覧の切り替え（見本 `.eplist .chip`）。 */
     sections: { episodes: 'エピソード', assets: '素材', templates: 'ひな形' },
     a11yShowMenu: '番組の操作',

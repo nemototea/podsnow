@@ -1,7 +1,5 @@
 import { usePathname, useRouter } from 'expo-router';
-import { useEffect } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { compositeHex } from '@/domain/color/showColors';
 import { formatClock, formatSmp, smp } from '@/domain/time';
@@ -11,7 +9,6 @@ import { episodeStatusKind } from '@/features/home/statusIcon';
 import { useShowColors } from '@/features/show/useShowColors';
 import { errorCodeText, useT } from '@/i18n';
 import { Artwork } from '@/ui/Artwork';
-import { floatingInset } from '@/ui/BottomInset';
 import { IconButton, Text } from '@/ui/components';
 import { progressRatio } from '@/ui/seek';
 import { ShowGradient } from '@/ui/ShowGradient';
@@ -24,9 +21,19 @@ import { usePlayback } from './usePlayback';
 const SUB_ALPHA = 0.72;
 const TRACK_ALPHA = 0.25;
 
+/** ミニプレーヤーを出すか（下部の `Dock` が自分の高さを決めるのにも使う）。 */
+export function useMiniPlayerVisible(): boolean {
+  const player = usePlayback();
+  const pathname = usePathname();
+  const draft = useDraftBar();
+  const source = player.source?.homeKey ? player.source : null;
+  return (!!source && pathname !== '/player') || (!source && pathname === '/' && !!draft);
+}
+
 /**
  * 下書きバー兼ミニプレーヤー（見本 `.mini`、DESIGN_SYSTEM.md §8）。地は番組の色（`miniPlayer`）。
  * 再生中・一時停止中はその回を、何も再生していなければ Home にだけ途中の下書きを出す。
+ * 置き場所（タブの上、下部の溶け込みの中）は `Dock` が決める。
  */
 export function MiniPlayer() {
   const player = usePlayback();
@@ -35,17 +42,11 @@ export function MiniPlayer() {
   const c = useAppTheme();
   const router = useRouter();
   const pathname = usePathname();
-  const insets = useSafeAreaInsets();
   const colors = useShowColors();
   const draft = useDraftBar();
   const source = player.source?.homeKey ? player.source : null;
   const draftItem = !source && pathname === '/' ? draft : null;
   const visible = (!!source && pathname !== '/player') || !!draftItem;
-  // 出ていない間は、画面に空けさせていた分を返す（Issue #164）
-  useEffect(() => {
-    if (!visible) floatingInset.set(0);
-  }, [visible]);
-  useEffect(() => () => floatingInset.set(0), []);
   if (!visible) return null;
 
   const bg = colors.miniPlayer;
@@ -72,11 +73,7 @@ export function MiniPlayer() {
   }
 
   return (
-    <View
-      // 覆っている高さ（safe area より上）を `Screen` へ知らせ、下部の操作を覆わせない（Issue #164）
-      onLayout={(e) => floatingInset.set(e.nativeEvent.layout.height + playerToken.miniBottom)}
-      style={[s.shell, { bottom: insets.bottom + playerToken.miniBottom }]}
-    >
+    <View style={s.shell}>
       <ShowGradient stops={[[bg, 0]]} />
       <Pressable
         onPress={() =>
@@ -88,7 +85,7 @@ export function MiniPlayer() {
       >
         <Artwork
           uri={services.coverArt.uri(services.show.cover_path)}
-          name={services.show.name}
+          name={number === null ? services.show.name : t.episode.number(number)}
           size={artwork.miniPlayer}
         />
         <View style={s.text}>
@@ -131,7 +128,7 @@ export function MiniPlayer() {
         />
       ) : null}
       {/* 進み具合（Issue #188）。時刻は文字でも出しているので、読み上げには出さない */}
-      {source ? (
+      {source || draftItem ? (
         <View
           style={[s.progress, { backgroundColor: compositeHex(c.textPrimary, TRACK_ALPHA, bg) }]}
           accessibilityElementsHidden
@@ -141,7 +138,12 @@ export function MiniPlayer() {
             style={[
               s.progressFill,
               {
-                width: `${progressRatio(player.position, player.duration) * 100}%`,
+                // 下書きは編集の再生位置（見本 `.mini .bar` は下書きにも出す）
+                width: `${
+                  (draftItem
+                    ? progressRatio(draftItem.local?.playhead_smp ?? 0, draftItem.durationSmp)
+                    : progressRatio(player.position, player.duration)) * 100
+                }%`,
                 backgroundColor: c.textPrimary,
               },
             ]}
@@ -155,16 +157,13 @@ export function MiniPlayer() {
 const s = StyleSheet.create({
   // 見本 `.mini`: 左右 8、角丸 8、内側 8、間 10。
   shell: {
-    position: 'absolute',
-    left: space.sm,
-    right: space.sm,
+    marginHorizontal: space.sm,
     borderRadius: radius.sm,
     padding: space.sm,
     flexDirection: 'row',
     alignItems: 'center',
     gap: space.x10,
     overflow: 'hidden',
-    zIndex: 10,
   },
   main: {
     flex: 1,

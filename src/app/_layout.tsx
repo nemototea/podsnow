@@ -4,8 +4,8 @@ import { useEffect, useState } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 
+import { Dock } from '@/features/app/Dock';
 import { ServiceLabelsSync, ServicesProvider, useServices } from '@/features/app/ServicesProvider';
-import { MiniPlayer } from '@/features/player/MiniPlayer';
 import { LocaleProvider, useT } from '@/i18n';
 import { Loading } from '@/ui/components';
 import { DialogHost } from '@/ui/Dialog';
@@ -49,6 +49,15 @@ function Navigation() {
         }}
       >
         <Stack.Screen name="index" options={{ headerShown: false, title: t.app.name }} />
+        {/* 下部タブの画面（見本 `.tabs`）。タブの間は動きを付けずに切り替える */}
+        <Stack.Screen
+          name="search"
+          options={{ headerShown: false, title: t.tabs.search, animation: 'none' }}
+        />
+        <Stack.Screen
+          name="library"
+          options={{ headerShown: false, title: t.tabs.library, animation: 'none' }}
+        />
         {/*
           プレーヤーは下から出るシート。下へ引いて閉じる（Issue #188）。formSheet は iOS では
           UISheetPresentationController、Android では BottomSheet で、どちらも引いて閉じられる
@@ -66,7 +75,7 @@ function Navigation() {
           }}
         />
       </Stack>
-      <MiniPlayer />
+      <Dock />
       <DialogHost />
       <StatusBar style="light" />
     </NavThemeProvider>

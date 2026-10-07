@@ -1,11 +1,12 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { formatAllMetadata } from '@/domain/metadata/template';
 import { formatClock, smp } from '@/domain/time';
 import { useServices } from '@/features/app/ServicesProvider';
 import { formatBytes, loudnessText } from '@/features/episode/ExportTab';
+import { CopyRow } from '@/features/episode/CopyRow';
 import { shareExport } from '@/features/episode/shareExport';
 import { useCopy } from '@/features/episode/useCopy';
 import { useEpisode } from '@/features/episode/useEpisode';
@@ -14,67 +15,11 @@ import { listExports, type ExportRow } from '@/infra/db/repositories/exportsRepo
 import { fileExists } from '@/infra/files/fileSystem';
 import { joinRoot } from '@/infra/files/layout';
 import { exportLoudness } from '@/services/export/ExportService';
-import { hitSlop, radius, space, stroke, tabularNums, typography } from '@/ui/tokens';
+import { radius, space, tabularNums, typography } from '@/ui/tokens';
 import { Button, Loading, Notice, Screen, Text, Toast } from '@/ui/components';
 import { ScreenHeader } from '@/ui/ScreenHeader';
 import { useAppTheme } from '@/ui/ThemeContext';
 import { useToast } from '@/ui/useToast';
-
-/**
- * コピーの行（見本 `.field`）。上に小さい名前、下に値、右に丸い端の「コピー」。コピーできたら
- * アクセントの塗りの「コピー済み」になる（書き込みが成功してから。DESIGN_SYSTEM.md §8）。
- */
-function CopyBlock({
-  label,
-  value,
-  copied,
-  onCopy,
-}: {
-  label: string;
-  value: string;
-  copied: boolean;
-  onCopy: () => void;
-}) {
-  const c = useAppTheme();
-  const t = useT();
-  return (
-    <View style={[st.field, { borderBottomColor: c.border }]}>
-      <View style={st.fieldText}>
-        <Text style={[typography.fieldLabel, { color: c.textSecondary }]}>{label}</Text>
-        <Text
-          style={[typography.rowTitle, { color: value ? c.textPrimary : c.textTertiary }]}
-          numberOfLines={2}
-          selectable
-        >
-          {value || t.common.empty}
-        </Text>
-      </View>
-      <Pressable
-        onPress={onCopy}
-        disabled={!value}
-        accessibilityRole="button"
-        accessibilityLabel={copied ? t.pack.a11yCopied(label) : t.pack.a11yCopy(label)}
-        accessibilityState={{ disabled: !value }}
-        hitSlop={hitSlop(typography.smallStrong.lineHeight + space.x6 * 2)}
-        style={({ pressed }) => [
-          st.copy,
-          copied
-            ? { backgroundColor: c.accentSolid, borderColor: c.accentSolid }
-            : { borderColor: pressed ? c.textPrimary : c.borderStrong },
-        ]}
-      >
-        <Text
-          style={[
-            typography.smallStrong,
-            { color: !value ? c.textDisabled : copied ? c.accentOnSolid : c.textPrimary },
-          ]}
-        >
-          {copied ? t.common.copied : t.common.copy}
-        </Text>
-      </Pressable>
-    </View>
-  );
-}
 
 export default function DistributionPackScreen() {
   const { id, exportId } = useLocalSearchParams<{ id: string; exportId?: string }>();
@@ -228,19 +173,19 @@ export default function DistributionPackScreen() {
         >
           {t.pack.fieldsHeading}
         </Text>
-        <CopyBlock
+        <CopyRow
           label={t.pack.titleEyebrow}
           value={episode.title}
           copied={copied === 'title'}
           onCopy={() => doCopy('title', episode.title)}
         />
-        <CopyBlock
+        <CopyRow
           label={t.pack.descriptionEyebrow}
           value={episode.description}
           copied={copied === 'desc'}
           onCopy={() => doCopy('desc', episode.description)}
         />
-        <CopyBlock
+        <CopyRow
           label={t.pack.allMetadataEyebrow}
           value={allMeta}
           copied={copied === 'meta'}
@@ -263,20 +208,4 @@ const st = StyleSheet.create({
   fileCard: { borderRadius: radius.sm, padding: space.x14, gap: space.md },
   file: { gap: space.xs },
   fieldsHead: { marginTop: space.x20, marginBottom: space.xs },
-  // 見本 `.field`: 上下 10、間 12、下端に線。
-  field: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.md,
-    paddingVertical: space.x10,
-    borderBottomWidth: stroke.hairline,
-  },
-  fieldText: { flex: 1, minWidth: 0, gap: space.hair },
-  // 見本 `.copybtn`: 上下 6・左右 12、丸い端、1 の輪郭。
-  copy: {
-    paddingVertical: space.x6,
-    paddingHorizontal: space.md,
-    borderRadius: radius.pill,
-    borderWidth: stroke.hairline,
-  },
 });
