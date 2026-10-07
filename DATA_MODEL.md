@@ -71,7 +71,7 @@ recovery_journal
 | description | TEXT | 番組概要 |
 | author | TEXT | |
 | cover_path | TEXT | 相対パス |
-| default_season | INTEGER | 新規エピソードの既定シーズン |
+| default_season | INTEGER | **使わない**（Issue #211 で廃止。列は残すが読み書きしない。`next_episode_number` と同じ扱い） |
 | website_url | TEXT NOT NULL DEFAULT '' | `link` |
 | language | TEXT NOT NULL DEFAULT '' | `language`（ISO 639。小文字。空 = 未設定） |
 | explicit | INTEGER NOT NULL DEFAULT 0 | `itunes:explicit`（0 / 1） |
@@ -132,9 +132,9 @@ MVP は起動時に 1 行自動作成。【事実】
 カテゴリー・支援リンク・外部 ID は「番組の子の並び」で、`show_topic_template` と同じく `created_at` / `deleted_at` を持たない。
 置き換えは丸ごと（`replaceCategories` / `replaceFunding`）。
 
-話数の採番用カウンター列は持たない。台帳は `episodes` の行そのもので、新規作成時は
-`episodes`（削除されていない行）と `feed_episodes`（配信済みの回）の最大話数 + 1
-で導出する（REQUIREMENTS.md §2.1.1 / FR-EP-6）。【事実】
+話数の採番用カウンター列も、既定のシーズンも使わない。新規作成時の話数・シーズンの初期値は、
+`feed_episodes`（配信済みの回）のうち配信日が最新の本編から導く（話数 + 1、シーズンは同じ値。0 か空なら空）。
+手元の `episodes` は見ない（REQUIREMENTS.md §2.1.1 / FR-EP-6、Issue #211）。【事実】
 
 理由: カウンターは `episodes` と二重の真実になり、ストレージクリアやクリーンインストールで失われる。
 導出なら状態を持たないので壊れる状態も存在しない。
@@ -198,8 +198,8 @@ MVP は起動時に 1 行自動作成。【事実】
 | title | TEXT | |
 | description | TEXT | 編集済み本文 |
 | description_suggestion | TEXT nullable | 将来 AI の下書き候補（提案 → 採用/破棄）【事実: 接続点】 |
-| episode_number | INTEGER | |
-| season | INTEGER | |
+| episode_number | INTEGER nullable | 話数。任意（NULL = 未設定）。1 以上だけを入れる（CHECK）。初期値は REQUIREMENTS.md §2.1.1。移行 0009 で NULL 可にした |
+| season | INTEGER nullable | シーズン。話数と同じ扱い |
 | recorded_at | INTEGER | |
 | publish_planned_at | INTEGER nullable | |
 | status | TEXT | `draft` / `ready` / `exported`（自動判定。DB にはキャッシュとして保存）。`exported` は書き出しが完了したときに付き、編集しても戻さない。Home で「書き出し済み」と見せるかは、今の編集と同じ書き出し（§4.13 の `source_fingerprint`）があるかで決める（REQUIREMENTS.md FR-EP-3、Issue #168） |
@@ -434,7 +434,7 @@ Home のサービス層だけが両方を 1 一覧へ投影する。`episode_id`
 - 再取り込みは `guid` で突き合わせて上書きし、`id` / `episode_id` / `created_at` は残す。
 - フィードから消えた行は消さない。最新 N 件しか RSS に載せないホスティングがあるため。
 - 音声（`enclosure`）はダウンロードせず、Home からの再生時に URL をストリーミングする。
-- 話数の採番（§4.1）は `episodes` と `feed_episodes` の両方から導出する。配信済みの番号は二度と使わない（REQUIREMENTS.md §2.1.1）。
+- 新しい回の話数・シーズンの初期値（§4.1）は、ここの配信日が最新の本編から導く。公開するときの重複のチェックもここと比べる（REQUIREMENTS.md §2.1.1、#107）。
 - 乗り換え時は、ここにある過去の回を `guid` を変えずに PodsNow の配信基盤の RSS へ載せる（REQUIREMENTS.md FR-PUB-4）。
 
 ### 4.16 `app_settings`
@@ -477,7 +477,7 @@ planSilenceRemoval(ranges, { padMs }): Range[]
 ## 7. 移行戦略
 - `PRAGMA user_version` を 1 から開始。`src/infra/db/migrations/0001_init.sql` … を順に適用。
 - Drizzle 採用時は drizzle-kit の生成 SQL をそのまま使う【仮説】。
-- 破壊的変更は必ず「新列追加 → データ移送 → 旧列放置」の順。ただし 0.1.0（未公開）の間は、二重の真実を残すほうが害が大きい場合に限り旧テーブル・旧列を落とす（0003 の `topics` / `markers`、0004 の `shows.default_export_preset`）。DB ファイル自体のバックアップを移行前に `db/podsnow.db.bak-<version>` として残す。
+- 破壊的変更は必ず「新列追加 → データ移送 → 旧列放置」の順。ただし 0.1.0（未公開）の間は、二重の真実を残すほうが害が大きい場合に限り旧テーブル・旧列を落とす（0003 の `topics` / `markers`、0004 の `shows.default_export_preset`、0009 の `episodes.episode_number` / `season` を NULL 可の列へ置き換え）。DB ファイル自体のバックアップを移行前に `db/podsnow.db.bak-<version>` として残す。
 
 ## 9. ストレージ見積り
 - 48 kHz / 16 bit / mono = 96 KB/s ≈ 5.8 MB/分 ≈ **345 MB/時間**。ステレオは 2 倍。

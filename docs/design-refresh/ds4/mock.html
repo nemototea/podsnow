@@ -532,7 +532,7 @@ figcaption span { color: var(--sub); font-size: 13.5px; line-height: 1.7; }
             <h4>配信サービスに貼る情報</h4>
             <div class="field"><div><small>タイトル</small><b data-b="ep1"></b></div><button class="copybtn">コピー</button></div>
             <div class="field"><div><small>概要</small><b data-b="ep1desc"></b></div><button class="copybtn">コピー</button></div>
-            <div class="field"><div><small>話数 / シーズン</small><b data-b="ep1no"></b></div><button class="copybtn">コピー</button></div>
+            <div class="field"><div><small>その他の詳細</small><b data-b="ep1no"></b></div></div>
             <div class="field"><div><small>収録日</small><b data-b="ep1day"></b></div><button class="copybtn">コピー</button></div>
           </div>
         </div>
@@ -723,7 +723,7 @@ figcaption span { color: var(--sub); font-size: 13.5px; line-height: 1.7; }
       b['ep' + k + 'desc'] = e.d;
       b['ep' + k + 'dur'] = e.dur;
       b['ep' + k + 'date'] = (e.date || '') + (e.date ? ' · ' + e.dur.split(':')[0] + '分' : '');
-      b['ep' + k + 'no'] = e.no + ' / 1';
+      b['ep' + k + 'no'] = 'フル · #' + e.no + ' · シーズン 1';
       b['ep' + k + 'day'] = e.day || '';
     });
     document.querySelectorAll('[data-b]').forEach(function (el) { var v = b[el.getAttribute('data-b')]; if (v != null) el.textContent = v; });
