@@ -38,6 +38,7 @@ describe('exportTags (Issue #56)', () => {
       title: null,
       track: null,
     });
+    expect(exportTags({ ...base, episodeNumber: null }).track).toBeNull();
     expect(exportTags({ ...base, title: '  a \n b  ' }).title).toBe('a b');
   });
 

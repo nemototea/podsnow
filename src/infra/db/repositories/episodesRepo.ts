@@ -21,8 +21,10 @@ export interface EpisodeRow extends SqlRow {
   title: string;
   description: string;
   description_suggestion: string | null;
-  episode_number: number;
-  season: number;
+  /** 話数。任意（NULL = 未設定）。1 以上（REQUIREMENTS.md §2.1.1）。 */
+  episode_number: number | null;
+  /** シーズン。話数と同じ扱い。 */
+  season: number | null;
   recorded_at: number | null;
   publish_planned_at: number | null;
   status: EpisodeStatus;
@@ -53,57 +55,20 @@ export interface EpisodeListItem extends EpisodeRow {
   take_count: number;
 }
 
+/** 手元の回の一覧。作った順の新しい方から（話数に関係なく。Issue #211）。 */
 export async function listEpisodes(db: SqlExecutor, showId: string): Promise<EpisodeListItem[]> {
   return db.all<EpisodeListItem>(
     `SELECT e.*,
        COALESCE((SELECT SUM(v.src_end_smp - v.src_start_smp) FROM voice_segments v WHERE v.episode_id = e.id), 0) AS duration_smp,
        (SELECT COUNT(*) FROM takes t WHERE t.episode_id = e.id AND t.deleted_at IS NULL AND t.status IN ('ready','recovered')) AS take_count
      FROM episodes e WHERE e.show_id = ? AND e.deleted_at IS NULL
-     ORDER BY e.episode_number DESC, e.created_at DESC`,
+     ORDER BY e.created_at DESC, e.rowid DESC`,
     [showId],
   );
 }
 
 export async function getEpisode(db: SqlExecutor, id: string): Promise<EpisodeRow | null> {
   return db.get<EpisodeRow>('SELECT * FROM episodes WHERE id = ?', [id]);
-}
-
-/**
- * 新規エピソードの話数（REQUIREMENTS.md §2.1.1 / FR-EP-6）。
- *
- * 採番用のカウンターは持たず、既存行から導出する。台帳は 2 つ:
- * - `episodes` の削除されていない行。`status` は見ない。試用で作って消した回は番号を消費せず、消した番号が返る。
- * - `feed_episodes`（配信済みの回）。配信した番号は二度と使わない。取り込んだ番組は続きの番号から始まる。
- *
- * `exceptId` は、その回が無かったとしたら何番になるかを求めるときに使う（空の回の判定。FR-EP-10）。
- */
-export async function nextEpisodeNumber(
-  db: SqlExecutor,
-  showId: string,
-  exceptId?: string,
-): Promise<number> {
-  const r = await db.get<{ n: number }>(
-    `SELECT MAX(
-       COALESCE((SELECT MAX(episode_number) FROM episodes WHERE show_id = ? AND deleted_at IS NULL AND id != ?), 0),
-       COALESCE((SELECT MAX(episode_number) FROM feed_episodes WHERE show_id = ?), 0)
-     ) + 1 AS n`,
-    [showId, exceptId ?? '', showId],
-  );
-  return r?.n ?? 1;
-}
-
-/** 同じ Show に同じ話数の（削除されていない）エピソードがあるか。`exceptId` は自分自身の除外用。 */
-export async function episodeNumberTaken(
-  db: SqlExecutor,
-  showId: string,
-  episodeNumber: number,
-  exceptId?: string,
-): Promise<boolean> {
-  const r = await db.get<{ n: number }>(
-    'SELECT COUNT(*) AS n FROM episodes WHERE show_id = ? AND episode_number = ? AND deleted_at IS NULL AND id != ?',
-    [showId, episodeNumber, exceptId ?? ''],
-  );
-  return (r?.n ?? 0) > 0;
 }
 
 /** 同じ Show に同じ RSS guid の（削除されていない）エピソードがあるか。 */
@@ -142,8 +107,8 @@ export async function insertEpisode(
     showId: string;
     title: string;
     description: string;
-    episodeNumber: number;
-    season: number;
+    episodeNumber: number | null;
+    season: number | null;
     /** 音の仕上げ（JSON）。番組の既定から作る。省略すると列の既定（`{}` = アプリの既定値）。 */
     soundSettings?: string;
     now: number;
@@ -176,8 +141,8 @@ export async function updateEpisode(
     title: string;
     description: string;
     descriptionSuggestion: string | null;
-    episodeNumber: number;
-    season: number;
+    episodeNumber: number | null;
+    season: number | null;
     recordedAt: number | null;
     publishPlannedAt: number | null;
     status: EpisodeStatus;

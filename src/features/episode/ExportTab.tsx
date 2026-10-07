@@ -1,11 +1,14 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
+import { parseNumberingInput } from '@/domain/episodes/numbering';
 import { insertTopics, renderTemplate } from '@/domain/metadata/template';
+import { EPISODE_TYPES } from '@/domain/podcast/feed';
 import { headings } from '@/domain/outline';
 import { formatSmp, smp } from '@/domain/time';
 import { useServices } from '@/features/app/ServicesProvider';
 import {
+  episodeName,
   errorCodeText,
   errorText,
   formatDate,
@@ -206,21 +209,9 @@ export function ExportTab({ ws, details, onShowToast, onDone, onGoEdit }: Export
     null,
   );
   const [failure, setFailure] = useState<string | null>(null);
-  const [takenNumbers, setTakenNumbers] = useState<number[]>([]);
-
-  useEffect(() => {
-    let alive = true;
-    void episodes.list(show.id).then((l) => {
-      if (alive)
-        setTakenNumbers(l.filter((e) => e.id !== episode?.id).map((e) => e.episode_number));
-    });
-    return () => {
-      alive = false;
-    };
-  }, [episode?.id, episodes, show.id]);
   const [undoDescription, setUndoDescription] = useState<(() => void) | null>(null);
   // 配信サービスに貼る情報の行を押したときの編集シート
-  const [editing, setEditing] = useState<'title' | 'description' | 'number' | 'recorded' | null>(
+  const [editing, setEditing] = useState<'title' | 'description' | 'more' | 'recorded' | null>(
     null,
   );
   const { copied, copy } = useCopy();
@@ -365,8 +356,21 @@ export function ExportTab({ ws, details, onShowToast, onDone, onGoEdit }: Export
 
   const phaseLabel = job?.phase === 'measuring' ? t.export.phaseMeasuring : t.export.phaseRendering;
   const hasBgm = state.doc.overlays.some((o) => o.kind === 'bgm');
-  const num = Number.parseInt(draft.episodeNumber, 10);
-  const numberTaken = Number.isFinite(num) && takenNumbers.includes(num);
+  // 「その他の詳細」の値（Spotify for Creators と同じ並び: 種類・話数・シーズン。Issue #211）
+  const draftNumber = parseNumberingInput(draft.episodeNumber);
+  const draftSeason = parseNumberingInput(draft.season);
+  const moreDetailsText = [
+    t.details.episodeTypes[draft.episodeType],
+    draftNumber ? t.episode.number(draftNumber) : null,
+    draftSeason ? t.details.seasonValue(draftSeason) : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+  /** 入力をやめたとき、空として保存した 0 は欄も空にする（保存した値と欄の見た目をそろえる）。 */
+  const blurNumbering = (key: 'episodeNumber' | 'season') => {
+    if (parseNumberingInput(draft[key]) === null && draft[key] !== '') edit({ [key]: '' });
+    void flush();
+  };
   const badDate = fromDateInput(draft.recordedAt) === undefined;
 
   const lufsText = `${sound.loudness.targetLufs} LUFS`;
@@ -380,14 +384,10 @@ export function ExportTab({ ws, details, onShowToast, onDone, onGoEdit }: Export
     <View style={st.ex}>
       {/* 見本 `.exhero`: アートワーク（中）と題・番組名・時間。右に試聴の白い丸 */}
       <View style={st.hero}>
-        <Artwork
-          uri={coverArt.uri(show.cover_path)}
-          name={t.episode.number(episode.episode_number)}
-          size={artwork.exportHero}
-        />
+        <Artwork uri={coverArt.uri(show.cover_path)} name={show.name} size={artwork.exportHero} />
         <View style={st.heroText}>
           <Text style={[typography.heading, { color: c.textPrimary }]} numberOfLines={2}>
-            {`${t.episode.number(episode.episode_number)} ${episode.title || t.home.untitled}`}
+            {episodeName(t, episode.title)}
           </Text>
           <Text style={[typography.caption, { color: c.textSecondary }]} numberOfLines={1}>
             {`${show.name} · ${formatSmp(state.total)}`}
@@ -725,12 +725,10 @@ export function ExportTab({ ws, details, onShowToast, onDone, onGoEdit }: Export
           editLabel={t.details.a11yEdit(t.details.descriptionEyebrow)}
         />
         <CopyRow
-          label={t.details.numberAndSeason}
-          value={`${draft.episodeNumber} / ${draft.season}`}
-          copied={copied === 'number'}
-          onCopy={() => void copy('number', `${draft.episodeNumber} / ${draft.season}`)}
-          onEdit={() => setEditing('number')}
-          editLabel={t.details.a11yEdit(t.details.numberAndSeason)}
+          label={t.details.moreDetails}
+          value={moreDetailsText}
+          onEdit={() => setEditing('more')}
+          editLabel={t.details.a11yEdit(t.details.moreDetails)}
         />
         <CopyRow
           label={t.details.recordedEyebrow}
@@ -798,8 +796,8 @@ export function ExportTab({ ws, details, onShowToast, onDone, onGoEdit }: Export
                 edit({
                   description: renderTemplate(tpl.body, {
                     title: cur.title.trim(),
-                    episodeNumber: Number.parseInt(cur.episodeNumber, 10) || 0,
-                    season: Number.parseInt(cur.season, 10) || 0,
+                    episodeNumber: parseNumberingInput(cur.episodeNumber) ?? null,
+                    season: parseNumberingInput(cur.season) ?? null,
                     topics: headings(state.outline),
                     showName: show.name,
                   }),
@@ -828,30 +826,41 @@ export function ExportTab({ ws, details, onShowToast, onDone, onGoEdit }: Export
         ) : null}
         {autosave}
       </Sheet>
-      <Sheet
-        visible={editing === 'number'}
-        onClose={closeEditing}
-        title={t.details.numberAndSeason}
-      >
-        <View style={st.pair}>
-          <View style={st.flex}>
-            <Field
-              label={t.details.episodeEyebrow}
-              value={draft.episodeNumber}
-              onChangeText={(v) => edit({ episodeNumber: v })}
-              onBlur={() => void flush()}
-              keyboardType="number-pad"
-              {...(numberTaken ? { error: t.details.numberTaken } : {})}
+      <Sheet visible={editing === 'more'} onClose={closeEditing} title={t.details.moreDetails}>
+        <View style={st.moreDetails}>
+          <View style={st.custom}>
+            <Text style={[typography.caption, { color: c.textSecondary }]}>
+              {t.details.typeEyebrow}
+            </Text>
+            <Segmented
+              value={draft.episodeType}
+              onChange={(v) => {
+                edit({ episodeType: v });
+                void flush();
+              }}
+              options={EPISODE_TYPES.map((v) => ({ value: v, label: t.details.episodeTypes[v] }))}
             />
           </View>
-          <View style={st.flex}>
-            <Field
-              label={t.details.seasonEyebrow}
-              value={draft.season}
-              onChangeText={(v) => edit({ season: v })}
-              onBlur={() => void flush()}
-              keyboardType="number-pad"
-            />
+          <View style={st.pair}>
+            <View style={st.flex}>
+              <Field
+                label={t.details.episodeEyebrow}
+                value={draft.episodeNumber}
+                onChangeText={(v) => edit({ episodeNumber: v })}
+                onBlur={() => blurNumbering('episodeNumber')}
+                keyboardType="number-pad"
+                help={t.details.numberHelp}
+              />
+            </View>
+            <View style={st.flex}>
+              <Field
+                label={t.details.seasonEyebrow}
+                value={draft.season}
+                onChangeText={(v) => edit({ season: v })}
+                onBlur={() => blurNumbering('season')}
+                keyboardType="number-pad"
+              />
+            </View>
           </View>
         </View>
         {autosave}
@@ -1058,4 +1067,6 @@ const st = StyleSheet.create({
   actionRow: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
   pair: { flexDirection: 'row', gap: space.md },
   custom: { gap: space.sm },
+  // 「その他の詳細」のシート: 種類の切り替えと、話数・シーズンの欄の間をあける
+  moreDetails: { gap: space.xl },
 });

@@ -39,6 +39,13 @@ describe('renderTemplate', () => {
     expect(renderTemplate('一\n\n\n{{topics}}\n\n\n二', empty)).toBe('一\n\n\n\n二');
   });
 
+  it('話数・シーズンが空なら空文字にし、それだけの行は消す（Issue #211）', () => {
+    const none = { ...empty, episodeNumber: null, season: null };
+    expect(renderTemplate('#{{episode_number}} {{title}}\n{{season}}\n本文', none)).toBe(
+      '# T\n本文',
+    );
+  });
+
   it('未知の変数だけの行や、空でない変数の行は消さない', () => {
     expect(renderTemplate('{{nope}}\n{{title}}', empty)).toBe('{{nope}}\nT');
   });
@@ -103,6 +110,20 @@ describe('formatAllMetadata', () => {
     expect(out).not.toContain('Recorded');
     // 見出し 5 行 + 区切りの空行 + 空の概要。
     expect(out.split('\n')).toHaveLength(7);
+  });
+
+  it('omits the episode and season lines when they are empty (Issue #211)', () => {
+    const out = formatAllMetadata({
+      title: 'T',
+      episodeNumber: null,
+      season: null,
+      recordedAt: null,
+      durationLabel: '1:00',
+      fileName: 'f.m4a',
+      description: '',
+      labels,
+    });
+    expect(out.split('\n')).toEqual(['Title: T', 'Duration: 1:00', 'File: f.m4a', '', '']);
   });
 });
 

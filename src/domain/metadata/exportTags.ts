@@ -28,7 +28,8 @@ export const EXPORT_GENRE = 'Podcast';
 
 export interface ExportTagSource {
   title: string;
-  episodeNumber: number;
+  /** 話数。空（null）ならトラック番号を書かない。 */
+  episodeNumber: number | null;
   showName: string;
   author: string;
   /** Unix ms。 */
@@ -51,7 +52,8 @@ export function exportTags(src: ExportTagSource): ExportTags {
     title: clean(src.title),
     artist: clean(src.author) ?? album,
     album,
-    track: src.episodeNumber > 0 ? Math.trunc(src.episodeNumber) : null,
+    track:
+      src.episodeNumber !== null && src.episodeNumber > 0 ? Math.trunc(src.episodeNumber) : null,
     date: when == null ? null : isoWithOffset(when, src.utcOffsetMinutes),
     genre: EXPORT_GENRE,
     encoder: `PodsNow ${src.appVersion}`,

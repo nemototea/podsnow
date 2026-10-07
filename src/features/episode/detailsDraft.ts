@@ -1,11 +1,15 @@
+import { parseNumberingInput } from '@/domain/episodes/numbering';
+import type { EpisodeType } from '@/domain/podcast/feed';
 import type { EpisodeRow } from '@/infra/db/repositories/episodesRepo';
 
 /** 書き出しタブの「エピソードの詳細」の入力中の値（すべて文字列のまま持つ）。 */
 export interface DetailsDraft {
   title: string;
   description: string;
+  /** 話数。空文字 = 話数なし（Issue #211）。 */
   episodeNumber: string;
   season: string;
+  episodeType: EpisodeType;
   /** `YYYY-MM-DD`。未設定は空文字。 */
   recordedAt: string;
 }
@@ -13,14 +17,15 @@ export interface DetailsDraft {
 export interface DetailsPatch {
   title?: string;
   description?: string;
-  episodeNumber?: number;
-  season?: number;
+  episodeNumber?: number | null;
+  season?: number | null;
+  episodeType?: EpisodeType;
   recordedAt?: number | null;
 }
 
 type EpisodeDetails = Pick<
   EpisodeRow,
-  'title' | 'description' | 'episode_number' | 'season' | 'recorded_at'
+  'title' | 'description' | 'episode_number' | 'season' | 'episode_type' | 'recorded_at'
 >;
 
 const pad = (n: number) => String(n).padStart(2, '0');
@@ -50,30 +55,28 @@ export function draftFromEpisode(e: EpisodeDetails): DetailsDraft {
   return {
     title: e.title,
     description: e.description,
-    episodeNumber: String(e.episode_number),
-    season: String(e.season),
+    episodeNumber: e.episode_number === null ? '' : String(e.episode_number),
+    season: e.season === null ? '' : String(e.season),
+    episodeType: e.episode_type,
     recordedAt: toDateInput(e.recorded_at),
   };
 }
 
-function positiveInt(s: string): number | null {
-  const n = Number.parseInt(s, 10);
-  return Number.isFinite(n) && n > 0 ? n : null;
-}
-
 /**
  * 自動保存で DB に書く差分（Issue #167）。変わった項目だけを返し、何も無ければ null。
- * 読めない値（話数・シーズンが 1 未満や数字でない、日付の形が違う）はその項目だけ保存しない。
+ * 話数・シーズンは空か 0 なら空（null）として保存する（Issue #211）。読めない値（話数・シーズンが
+ * 数字でない、日付の形が違う）はその項目だけ保存しない。
  */
 export function detailsPatch(draft: DetailsDraft, saved: EpisodeDetails): DetailsPatch | null {
   const patch: DetailsPatch = {};
   const title = draft.title.trim();
   if (title !== saved.title) patch.title = title;
   if (draft.description !== saved.description) patch.description = draft.description;
-  const num = positiveInt(draft.episodeNumber);
-  if (num !== null && num !== saved.episode_number) patch.episodeNumber = num;
-  const sea = positiveInt(draft.season);
-  if (sea !== null && sea !== saved.season) patch.season = sea;
+  const num = parseNumberingInput(draft.episodeNumber);
+  if (num !== undefined && num !== saved.episode_number) patch.episodeNumber = num;
+  const sea = parseNumberingInput(draft.season);
+  if (sea !== undefined && sea !== saved.season) patch.season = sea;
+  if (draft.episodeType !== saved.episode_type) patch.episodeType = draft.episodeType;
   const rec = fromDateInput(draft.recordedAt);
   if (rec !== undefined && toDateInput(rec) !== toDateInput(saved.recorded_at)) {
     patch.recordedAt = rec;
@@ -89,6 +92,7 @@ export function applyDetailsPatch<T extends EpisodeDetails>(saved: T, patch: Det
     ...(patch.description !== undefined ? { description: patch.description } : {}),
     ...(patch.episodeNumber !== undefined ? { episode_number: patch.episodeNumber } : {}),
     ...(patch.season !== undefined ? { season: patch.season } : {}),
+    ...(patch.episodeType !== undefined ? { episode_type: patch.episodeType } : {}),
     ...(patch.recordedAt !== undefined ? { recorded_at: patch.recordedAt } : {}),
   };
 }

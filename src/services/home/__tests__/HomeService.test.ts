@@ -59,6 +59,30 @@ async function setup() {
 }
 
 describe('HomeService', () => {
+  it('lists newest first regardless of the episode number (Issue #211)', async () => {
+    const { db, home } = await setup();
+    // 配信済みだけの回は配信日（ここでは話数と同じ値）、手元の回は作った日時で並べる
+    await insertFeed(db, 'f1', 1, 'g1');
+    await insertFeed(db, 'f3', 3, 'g3');
+    await db.run(
+      `INSERT INTO episodes (id, show_id, title, episode_number, guid, created_at, updated_at)
+       VALUES (?,?,?,?,?,?,?)`,
+      ['late', 's', 'no number, made last', null, 'late', 10, 10],
+    );
+    await db.run(
+      `INSERT INTO episodes (id, show_id, title, episode_number, guid, created_at, updated_at)
+       VALUES (?,?,?,?,?,?,?)`,
+      ['mid', 's', 'big number, made earlier', 99, 'mid', 2, 2],
+    );
+
+    expect((await home.list('s')).map((i) => i.key)).toEqual([
+      'local:late',
+      'feed:f3',
+      'local:mid',
+      'feed:f1',
+    ]);
+  });
+
   it('combines a local episode and an imported episode with the same exact GUID', async () => {
     const { db, home } = await setup();
     await insertLocal(db, 'e1', 1, 'shared-guid');

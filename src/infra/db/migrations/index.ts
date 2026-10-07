@@ -6,6 +6,7 @@ import { MIGRATION_0005_PODCAST_FEED_METADATA } from './0005_podcast_feed_metada
 import { MIGRATION_0006_EXPORT_SOURCE_FINGERPRINT } from './0006_export_source_fingerprint';
 import { MIGRATION_0007_LOUDNESS_CACHE } from './0007_loudness_cache';
 import { MIGRATION_0008_SHOW_COVER_COLOR } from './0008_show_cover_color';
+import { MIGRATION_0009_OPTIONAL_EPISODE_NUMBERING } from './0009_optional_episode_numbering';
 
 export interface Migration {
   /** PRAGMA user_version に対応する。1 から単調増加。 */
@@ -27,4 +28,9 @@ export const MIGRATIONS: readonly Migration[] = [
   },
   { version: 7, name: '0007_loudness_cache', sql: MIGRATION_0007_LOUDNESS_CACHE },
   { version: 8, name: '0008_show_cover_color', sql: MIGRATION_0008_SHOW_COVER_COLOR },
+  {
+    version: 9,
+    name: '0009_optional_episode_numbering',
+    sql: MIGRATION_0009_OPTIONAL_EPISODE_NUMBERING,
+  },
 ];

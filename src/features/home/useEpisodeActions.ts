@@ -1,7 +1,7 @@
 import { useCallback } from 'react';
 
 import { useServices } from '@/features/app/ServicesProvider';
-import { errorText, useT } from '@/i18n';
+import { episodeRef, errorText, useT } from '@/i18n';
 import type { EpisodeListItem } from '@/infra/db/repositories/episodesRepo';
 import { confirmDestructive } from '@/ui/alerts';
 import type { MenuAction } from '@/ui/menuTypes';
@@ -30,7 +30,7 @@ export function useEpisodeActions(
   );
 
   return (e) => {
-    const code = t.episode.number(e.episode_number);
+    const name = episodeRef(t, e.title);
     return [
       {
         key: 'duplicate',
@@ -38,8 +38,8 @@ export function useEpisodeActions(
         label: t.episode.menu.duplicate,
         onPress: () =>
           void run(async () => {
-            const d = await episodes.duplicate(e.id);
-            return t.episode.duplicated(t.episode.number(d.episode_number));
+            await episodes.duplicate(e.id);
+            return t.episode.duplicated;
           }),
       },
       ...(e.audio_purged_at
@@ -58,7 +58,7 @@ export function useEpisodeActions(
                   onConfirm: () =>
                     void run(async () => {
                       await episodes.purgeAudio(e.id);
-                      return t.home.audioPurged(code);
+                      return t.home.audioPurged(name);
                     }),
                 }),
             },
@@ -77,7 +77,7 @@ export function useEpisodeActions(
             onConfirm: () =>
               void run(async () => {
                 await episodes.remove(e.id);
-                return t.home.removed(code);
+                return t.home.removed(name);
               }),
           }),
       },

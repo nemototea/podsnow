@@ -11,7 +11,7 @@ import { episodeStatusKind, type EpisodeStatusKind } from '@/features/home/statu
 import { useEpisodeActions } from '@/features/home/useEpisodeActions';
 import { useHome } from '@/features/home/useHome';
 import { usePlaybackStatus } from '@/features/player/usePlayback';
-import { useT, type Messages } from '@/i18n';
+import { episodeRef, useT, type Messages } from '@/i18n';
 import type { AssetKind } from '@/infra/db/repositories/assetsRepo';
 import type { HomeEpisodeItem } from '@/services/home/HomeService';
 import { Artwork } from '@/ui/Artwork';
@@ -198,14 +198,14 @@ export default function HomeScreen() {
                 {recoveredEpisodes.length > 1 ? (
                   // 複数の回にまたがるときは回ごとのボタン。開いても通知は閉じない（ほかの回も見られるように）
                   recoveredEpisodes.map((episodeId) => {
-                    const number = list.find((i) => i.local?.id === episodeId)?.episodeNumber;
+                    const item = list.find((i) => i.local?.id === episodeId);
                     return (
                       <Button
                         key={episodeId}
                         label={
-                          number === null || number === undefined
-                            ? t.home.reviewRecording
-                            : t.home.reviewRecordingOf(t.episode.number(number))
+                          item
+                            ? t.home.reviewRecordingOf(episodeRef(t, item.title))
+                            : t.home.reviewRecording
                         }
                         kind="secondary"
                         compact
@@ -252,16 +252,7 @@ export default function HomeScreen() {
                       { backgroundColor: pressed ? c.surfaceHover : c.surfaceRaised },
                     ]}
                   >
-                    <Artwork
-                      uri={cover}
-                      name={
-                        item.episodeNumber === null
-                          ? show.name
-                          : t.episode.number(item.episodeNumber)
-                      }
-                      size={quickTile}
-                      frameless
-                    />
+                    <Artwork uri={cover} name={show.name} size={quickTile} frameless />
                     <Text
                       style={[typography.captionStrong, st.tileText, { color: c.textPrimary }]}
                       numberOfLines={2}

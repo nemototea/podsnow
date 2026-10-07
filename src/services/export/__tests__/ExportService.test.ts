@@ -662,12 +662,12 @@ describe('episodeExportPreset (DATA_MODEL.md §4.5.1 / Issue #136)', () => {
   });
 
   describe('share (Issue #166)', () => {
-    it('names the file from the show name, episode number and title', async () => {
+    it('names the file from the show name and title (no episode number, Issue #211)', async () => {
       const { db, svc } = await setup();
       await db.run("UPDATE shows SET name = 'ねもとのラジオ' WHERE id = 's'");
       await db.run("UPDATE episodes SET title = '初回/ゲスト' WHERE id = 'e'");
       await insertExportRow(db, 'a', 'done', 'episodes/e/exports/a.m4a');
-      expect(await svc.shareFileName('a')).toBe('ねもとのラジオ - 001 - 初回 ゲスト.m4a');
+      expect(await svc.shareFileName('a')).toBe('ねもとのラジオ - 初回 ゲスト.m4a');
       expect(await svc.shareFileName('nope')).toBeNull();
     });
 
@@ -677,11 +677,11 @@ describe('episodeExportPreset (DATA_MODEL.md §4.5.1 / Issue #136)', () => {
       await insertExportRow(db, 'a', 'done', 'episodes/e/exports/a.m4a');
       const shared = await svc.prepareShare('a');
       expect(copies).toEqual([
-        { src: '/root/episodes/e/exports/a.m4a', dir: '/root/tmp/share', name: '001 - T.m4a' },
+        { src: '/root/episodes/e/exports/a.m4a', dir: '/root/tmp/share', name: 'T.m4a' },
       ]);
       expect(shared).toEqual({
-        uri: `file:///root/tmp/share/${encodeURIComponent('001 - T.m4a')}`,
-        fileName: '001 - T.m4a',
+        uri: `file:///root/tmp/share/${encodeURIComponent('T.m4a')}`,
+        fileName: 'T.m4a',
         format: 'm4a',
       });
       // 書き出しの実物と行はそのまま（履歴・試聴が path で指している）。

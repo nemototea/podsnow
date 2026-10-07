@@ -213,9 +213,9 @@ Podcast: {{show_name}}
     miniOpenDraft: (title: string) => `${title} を開く`,
     badgeNew: '未録音',
     badgePublished: '配信済み',
-    /** `code` は `episode.number` で作った話数の表記。 */
-    removed: (code: string) => `${code} を削除しました`,
-    audioPurged: (code: string) => `${code} の音声を削除しました`,
+    /** `name` は `episodeRef` で作った回の呼び方（「『題』」。話数は出さない。Issue #211）。 */
+    removed: (name: string) => `${name}を削除しました`,
+    audioPurged: (name: string) => `${name}の音声を削除しました`,
     badgeNoAudio: '音声なし',
     untitled: 'タイトル未設定',
     recoveredTitle: '途中の録音を復元しました',
@@ -224,9 +224,10 @@ Podcast: {{show_name}}
     /** 複数の録音を復元したとき（Issue #168 E8）。 */
     recoveredTitleMany: (count: number) => `途中の録音を ${count} 件復元しました`,
     recoveredBodyMany: '保存が終わる前に止まった録音です',
-    /** `code` は `episode.number` で作った話数の表記。 */
-    reviewRecordingOf: (code: string) => `${code} の録音を確認する`,
-    a11yEpisodeMenu: (n: number) => `エピソード ${n} の操作`,
+    /** `name` は `episodeRef` で作った回の呼び方。 */
+    reviewRecordingOf: (name: string) => `${name}の録音を確認する`,
+    /** 回の「…」の読み上げ。話数ではなく題で言う（Issue #211）。 */
+    a11yEpisodeMenu: (title: string) => `「${title}」の操作`,
     a11yOpenShow: (name: string) => `${name} を開く`,
     importShow: '配信中の番組を取り込む',
     reimportShow: '番組の情報を読み込み直す',
@@ -262,7 +263,8 @@ Podcast: {{show_name}}
     a11yArtwork: (name: string) => `${name} のアートワーク`,
     episodesCount: (n: number) => `配信済みの回 ${n} 本`,
     nextNumber: (code: string) => `次の新しいエピソードは ${code} から`,
-    noEpisodeNumbers: 'RSS に話数がありません。新しいエピソードの話数は、作ったあとで直せます',
+    noEpisodeNumbers:
+      'RSS の最新のフルの回に話数がないので、新しいエピソードの話数は空のまま始まります。使うときは各回の「その他の詳細」で入れられます',
     overwriteNote:
       '番組名・概要・著者などを、この内容で上書きします。RSS に無い項目は今の値を残します',
     confirm: '取り込む',
@@ -408,7 +410,7 @@ Podcast: {{show_name}}
       studio: '収録',
       export: '書き出し',
     },
-    duplicated: (code: string) => `${code} として複製しました`,
+    duplicated: '新しい回として複製しました',
     menu: {
       duplicate: '複製して新しい回にする',
       purgeAudio: '音声を削除',
@@ -418,15 +420,19 @@ Podcast: {{show_name}}
     },
     /**
      * 話数の表記（Issue #170）。画面に出す話数はすべてこれで作る。
-     * 読み上げは「エピソード 3」の文（`home.a11yEpisodeMenu` など）にする。
+     * 一覧・見出し・トーストには話数を出さず題で呼ぶ（Issue #211）。話数を出すのは
+     * 「その他の詳細」と取り込みのプレビューだけ。
      */
     number: (n: number) => `#${n}`,
+    /** 文の中で回を指すとき（「『題』を削除しました」）。`episodeRef` が使う。 */
+    quoted: (title: string) => `「${title}」`,
     a11yMenu: 'エピソードの操作',
   },
 
   details: {
     a11yEdit: (label: string) => `${label}を編集`,
-    numberAndSeason: '話数 / シーズン',
+    /** Spotify for Creators と同じまとめ方。種類・話数・シーズンを直す（Issue #211）。 */
+    moreDetails: 'その他の詳細',
     title: 'エピソードの詳細',
     suggestionEyebrow: 'AI の下書き候補',
     adopt: '採用する',
@@ -439,12 +445,17 @@ Podcast: {{show_name}}
     reapplyTemplate: 'テンプレートを再適用',
     episodeEyebrow: '話数',
     seasonEyebrow: 'シーズン',
+    /** 「その他の詳細」の値に出すシーズン。 */
+    seasonValue: (n: number) => `シーズン ${n}`,
+    typeEyebrow: 'エピソードの種類',
+    /** `itunes:episodeType`。名前は Spotify for Creators に合わせる（Issue #211）。 */
+    episodeTypes: { full: 'フル', trailer: 'トレーラー', bonus: 'ボーナス' },
+    numberHelp: '空にすると話数なしになります',
     recordedEyebrow: '収録日',
     badDate: '収録日は YYYY-MM-DD で入力してください',
     noTopics: 'トークテーマがありません',
     noTemplate: '概要欄テンプレートがありません',
     templateApplied: 'テンプレートを適用しました',
-    numberTaken: 'ほかの回と同じ話数です',
     undoTemplate: 'テンプレートの適用を取り消す',
     dateHelp: '例：2026-09-23',
     /** 保存ボタンをなくした代わりに、自動で保存されることを伝える（Issue #167）。 */
@@ -631,7 +642,6 @@ Podcast: {{show_name}}
     name: '番組名',
     description: '概要',
     author: '著者',
-    defaultSeason: '既定のシーズン',
     artworkA11y: '番組のアートワーク',
     chooseArtwork: '画像を選ぶ',
     changeArtwork: '画像を変更',

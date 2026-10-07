@@ -79,7 +79,7 @@ export default function ImportScreen() {
       const preview = refresh
         ? await podcastImport.previewRefresh(showId)
         : await podcastImport.preview(showId, source);
-      const nextNumber = await podcastImport.nextEpisodeNumberAfter(showId, preview);
+      const { episodeNumber: nextNumber } = await podcastImport.numberingAfter(showId, preview);
       setStep({ kind: 'preview', preview, nextNumber, saving: false, refresh });
     } catch (e) {
       setError(errorText(t, e));
