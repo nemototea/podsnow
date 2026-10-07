@@ -92,9 +92,11 @@ export default function DistributionPackScreen() {
       <ScreenHeader
         title={t.pack.title}
         subtitle={
-          episode.title
-            ? `${t.episode.number(episode.episode_number)} · ${episode.title}`
-            : t.episode.number(episode.episode_number)
+          episode.episode_number === null
+            ? episode.title || t.home.untitled
+            : episode.title
+              ? `${t.episode.number(episode.episode_number)} · ${episode.title}`
+              : t.episode.number(episode.episode_number)
         }
       />
 

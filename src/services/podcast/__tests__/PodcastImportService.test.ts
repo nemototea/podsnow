@@ -6,8 +6,8 @@ import { AppError, type AppErrorCode } from '@/domain/errors';
 import type { DirectoryResult } from '@/domain/podcast/directory';
 import { createNodeSqliteExecutor } from '@/infra/db/__tests__/nodeSqliteExecutor';
 import { migrate } from '@/infra/db/migrate';
-import { nextEpisodeNumber } from '@/infra/db/repositories/episodesRepo';
-import { listFeedEpisodes } from '@/infra/db/repositories/feedEpisodesRepo';
+import { initialNumbering } from '@/domain/episodes/numbering';
+import { listFeedEpisodes, listPublishedNumbering } from '@/infra/db/repositories/feedEpisodesRepo';
 import {
   ensureDefaultShow,
   getExternalId,
@@ -42,8 +42,11 @@ const feedXml = (items: string, extra = '') => `<?xml version="1.0"?>
   </channel>
 </rss>`;
 
+/** 第 n 回。配信日は 2026-01-01 から n 日目（新しい回ほど話数が大きい）。 */
+const pubDate = (n: number) => new Date(Date.UTC(2026, 0, 1) + n * 86_400_000).toUTCString();
 const item = (n: number) =>
   `<item><title>第${n}回</title><guid>ep-${n}</guid><itunes:episode>${n}</itunes:episode>` +
+  `<pubDate>${pubDate(n)}</pubDate>` +
   `<enclosure url="https://cdn.example.com/${n}.mp3" length="100" type="audio/mpeg"/></item>`;
 
 interface Route {
@@ -238,17 +241,30 @@ describe('PodcastImportService.preview', () => {
   });
 });
 
-describe('PodcastImportService.nextEpisodeNumberAfter', () => {
-  it('previews the next number from the feed, or null when the feed has no numbers', async () => {
+describe('PodcastImportService.numberingAfter', () => {
+  it('previews the next number from the latest full episode, or null when it has none', async () => {
     const routes: Record<string, Route> = { [FEED_URL]: { text: feedXml(item(119) + item(120)) } };
     const { svc, show } = await setup(routes);
+    const after = async () =>
+      svc.numberingAfter(show.id, await svc.preview(show.id, { feedUrl: FEED_URL }));
+    expect(await after()).toEqual({ episodeNumber: 121, season: null });
+    // 話数の無い RSS（Issue #211 N-2）
+    routes[FEED_URL] = {
+      text: feedXml(`<item><guid>a</guid><pubDate>${pubDate(1)}</pubDate></item>`),
+    };
+    expect(await after()).toEqual({ episodeNumber: null, season: null });
+  });
+
+  it('uses the preview values over saved ones, and keeps saved episodes missing from the feed', async () => {
+    const routes: Record<string, Route> = { [FEED_URL]: { text: feedXml(item(119) + item(120)) } };
+    const { svc, show } = await setup(routes);
+    await svc.commit(show.id, await svc.preview(show.id, { feedUrl: FEED_URL }));
+
+    // 最新の回の話数が RSS で直された（120 → 125）。RSS が最新の 1 回しか載せない
+    routes[FEED_URL] = { text: feedXml(item(120).replace(/>120</g, '>125<')) };
     expect(
-      await svc.nextEpisodeNumberAfter(show.id, await svc.preview(show.id, { feedUrl: FEED_URL })),
-    ).toBe(121);
-    routes[FEED_URL] = { text: feedXml('<item><guid>a</guid></item>') };
-    expect(
-      await svc.nextEpisodeNumberAfter(show.id, await svc.preview(show.id, { feedUrl: FEED_URL })),
-    ).toBeNull();
+      await svc.numberingAfter(show.id, await svc.preview(show.id, { feedUrl: FEED_URL })),
+    ).toEqual({ episodeNumber: 126, season: null });
   });
 });
 
@@ -290,8 +306,8 @@ describe('PodcastImportService.commit', () => {
       'ep-119',
       'ep-120',
     ]);
-    // 話数は配信済みの続きから
-    expect(await nextEpisodeNumber(db, show.id)).toBe(121);
+    // 新しい回の話数は配信済みの最新の本編の続きから
+    expect(initialNumbering(await listPublishedNumbering(db, show.id)).episodeNumber).toBe(121);
   });
 
   it('keeps existing values the feed does not have, and still imports when artwork fails', async () => {
@@ -401,7 +417,7 @@ describe('PodcastImportService: same / different show (docs/podcast-import-cases
       'ep-119',
       'ep-120',
     ]);
-    expect(await nextEpisodeNumber(db, show.id)).toBe(121);
+    expect(initialNumbering(await listPublishedNumbering(db, show.id)).episodeNumber).toBe(121);
   });
 
   it('refresh reads the previous feed again, and refuses when it became another show', async () => {

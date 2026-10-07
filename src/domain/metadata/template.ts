@@ -1,11 +1,12 @@
 /**
  * 概要欄ベーステンプレートの展開（DATA_MODEL.md §4.3、FR-META-2/3）。
  * 変数は {{title}} {{episode_number}} {{season}} {{topics}} {{show_name}} のみ。未知の変数はそのまま残す。
+ * 話数・シーズンが空（null）なら空文字に置き換える（Issue #211）。
  */
 export interface TemplateVars {
   title: string;
-  episodeNumber: number;
-  season: number;
+  episodeNumber: number | null;
+  season: number | null;
   topics: readonly string[];
   showName: string;
 }
@@ -17,8 +18,8 @@ export function renderTemplate(body: string, vars: TemplateVars): string {
     .join('\n');
   const map: Record<string, string> = {
     title: vars.title,
-    episode_number: String(vars.episodeNumber),
-    season: String(vars.season),
+    episode_number: vars.episodeNumber === null ? '' : String(vars.episodeNumber),
+    season: vars.season === null ? '' : String(vars.season),
     topics,
     show_name: vars.showName,
   };
@@ -118,11 +119,12 @@ export interface MetadataLabels {
 /**
  * Distribution Pack 用の「全メタデータ」テキスト。
  * domain は文言を持たないので、見出しは `labels` で受け取る（ARCHITECTURE.md §2）。
+ * 話数・シーズンが空なら、その行を出さない（Issue #211）。
  */
 export function formatAllMetadata(m: {
   title: string;
-  episodeNumber: number;
-  season: number;
+  episodeNumber: number | null;
+  season: number | null;
   recordedAt: Date | null;
   durationLabel: string;
   fileName: string;
@@ -133,8 +135,8 @@ export function formatAllMetadata(m: {
   const lab = m.labels;
   return [
     `${lab.title}: ${m.title}`,
-    `${lab.episode}: #${m.episodeNumber}`,
-    `${lab.season}: ${m.season}`,
+    m.episodeNumber === null ? null : `${lab.episode}: #${m.episodeNumber}`,
+    m.season === null ? null : `${lab.season}: ${m.season}`,
     date ? `${lab.recordedAt}: ${date}` : null,
     `${lab.duration}: ${m.durationLabel}`,
     `${lab.file}: ${m.fileName}`,

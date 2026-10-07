@@ -7,6 +7,7 @@ export {
   type Locale,
 } from '@/domain/locale';
 
+export { episodeHeading, episodeMenuLabel, episodeRef } from './episodeText';
 export { errorCodeText, errorText, storedErrorText } from './errorText';
 export {
   formatDate,

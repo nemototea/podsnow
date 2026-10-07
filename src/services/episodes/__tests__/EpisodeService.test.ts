@@ -1,7 +1,9 @@
 import { createNodeSqliteExecutor } from '@/infra/db/__tests__/nodeSqliteExecutor';
 import { migrate } from '@/infra/db/migrate';
 import { loadDoc, saveDoc } from '@/infra/db/repositories/editableDocRepo';
+import type { PodcastFeedItem } from '@/domain/podcast/feed';
 import { getEpisode } from '@/infra/db/repositories/episodesRepo';
+import { upsertFeedEpisodes } from '@/infra/db/repositories/feedEpisodesRepo';
 import {
   listOutline,
   saveOutline,
@@ -43,6 +45,44 @@ async function setup() {
   return { db, show, svc, deleted };
 }
 
+type Db = Awaited<ReturnType<typeof setup>>['db'];
+
+/** 配信済みの回を入れる（取り込みと同じ経路）。`day` は配信日（日）。 */
+async function publish(
+  db: Db,
+  showId: string,
+  items: {
+    guid: string;
+    day: number;
+    n?: number | null;
+    season?: number | null;
+    type?: PodcastFeedItem['episodeType'];
+  }[],
+) {
+  await upsertFeedEpisodes(
+    db,
+    showId,
+    items.map((i) => ({
+      guid: i.guid,
+      title: i.guid,
+      description: '',
+      publishedAt: i.day * 86_400_000,
+      enclosureUrl: null,
+      enclosureLength: null,
+      enclosureType: null,
+      durationSmp: null,
+      episodeNumber: i.n ?? null,
+      season: i.season ?? null,
+      episodeType: i.type ?? 'full',
+      explicit: null,
+      websiteUrl: '',
+      imageUrl: null,
+    })),
+    () => `feed-${Math.random()}`,
+    1000,
+  );
+}
+
 /** 声が 1 本ある Take を作る（音声削除のテスト用）。 */
 async function addTake(db: Awaited<ReturnType<typeof setup>>['db'], episodeId: string, id: string) {
   await db.run(
@@ -70,7 +110,8 @@ describe('EpisodeService', () => {
   it('creates an episode with numbering, layout overlays and rendered template', async () => {
     const { db, show, svc } = await setup();
     const ep = await svc.create(show.id);
-    expect(ep.episode_number).toBe(1);
+    // 配信済みの回が無いので話数・シーズンは空（REQUIREMENTS.md §2.1.1）
+    expect([ep.episode_number, ep.season]).toEqual([null, null]);
     // 既定タイトルは空。話数は UI が `#N` として別に出す（FR-EP-6 / Issue #88）。
     expect(ep.title).toBe('');
     expect(ep.description).toContain(`Podcast: ${TEST_LABELS.showName}`);
@@ -80,8 +121,8 @@ describe('EpisodeService', () => {
       ['bgm', 'timeline_start', true],
     ]);
     const ep2 = await svc.create(show.id);
-    expect(ep2.episode_number).toBe(2);
-    expect((await svc.list(show.id)).map((e) => e.episode_number)).toEqual([2, 1]);
+    // 一覧は作った順の新しい方から（話数に関係なく。Issue #211）
+    expect((await svc.list(show.id)).map((e) => e.id)).toEqual([ep2.id, ep.id]);
   });
 
   it('BGM を下げる量は番組の既定を写し、写した後は番組を変えても変わらない（Issue #174）', async () => {
@@ -109,7 +150,7 @@ describe('EpisodeService', () => {
       ['t', ep.id, 0, 'テーマ', '台本', null, null],
     );
     const dup = await svc.duplicate(ep.id);
-    expect(dup.episode_number).toBe(2);
+    expect(dup.episode_number).toBeNull();
     // 見出しと台本は引き継ぎ、チャプター（録音位置）は引き継がない。
     expect(
       await db.all(
@@ -133,39 +174,65 @@ describe('EpisodeService', () => {
     expect(dup.export_preset).toBe('wav');
   });
 
-  // 以下、REQUIREMENTS.md §2.1.1 の受け入れ基準（FR-EP-6）。
+  // 以下、REQUIREMENTS.md §2.1.1 の受け入れ基準（FR-EP-6、Issue #211）。
 
-  it('returns the number when a throwaway episode is deleted', async () => {
-    const { show, svc } = await setup();
+  it('starts after the latest published full episode, with the same season', async () => {
+    const { db, show, svc } = await setup();
+    await publish(db, show.id, [
+      { guid: 'g119', day: 1, n: 119, season: 2 },
+      { guid: 'g120', day: 2, n: 120, season: 2 },
+    ]);
     const ep = await svc.create(show.id);
-    expect(ep.episode_number).toBe(1);
-    await svc.remove(ep.id);
-    expect((await svc.create(show.id)).episode_number).toBe(1);
+    expect([ep.episode_number, ep.season]).toEqual([121, 2]);
+    // 手元の回は見ないので、読み込み直す前に作った次の回も同じ番号（重なってよい）
+    expect((await svc.create(show.id)).episode_number).toBe(121);
   });
 
-  it('returns the number even when the deleted episode was exported', async () => {
+  it('skips trailers and bonus episodes, and leaves numbers empty when the base has none', async () => {
     const { db, show, svc } = await setup();
+    await publish(db, show.id, [
+      { guid: 'g12', day: 1, n: 12, season: 1 },
+      { guid: 'bonus', day: 2, type: 'bonus' },
+    ]);
+    expect((await svc.create(show.id)).episode_number).toBe(13);
+    // 最新の本編に話数が無ければ空（古い回にだけ番号がある番組）
+    await publish(db, show.id, [{ guid: 'g13', day: 3, n: 0, season: 0 }]);
+    const ep = await svc.create(show.id);
+    expect([ep.episode_number, ep.season]).toEqual([null, null]);
+  });
+
+  it('does not depend on deleted or exported local episodes', async () => {
+    const { db, show, svc } = await setup();
+    await publish(db, show.id, [{ guid: 'g5', day: 1, n: 5 }]);
     const ep = await svc.create(show.id);
     await db.run("UPDATE episodes SET status = 'exported' WHERE id = ?", [ep.id]);
+    await svc.update(ep.id, { episodeNumber: 40 });
+    expect((await svc.create(show.id)).episode_number).toBe(6);
     await svc.remove(ep.id);
-    // 書き出しは公開ではないので、採番は status を見ない（予約しない）。
-    expect((await svc.create(show.id)).episode_number).toBe(1);
+    expect((await svc.create(show.id)).episode_number).toBe(6);
   });
 
-  it('does not reuse the highest number while the episode is still there', async () => {
-    const { show, svc } = await setup();
-    await svc.create(show.id);
-    const second = await svc.create(show.id);
-    const third = await svc.create(show.id);
-    expect([second.episode_number, third.episode_number]).toEqual([2, 3]);
-    // 間の回を消しても穴は埋めない（一覧の最大の次）。
-    await svc.remove(second.id);
-    expect((await svc.create(show.id)).episode_number).toBe(4);
+  it('duplicate decides the number and season the same way as a new episode', async () => {
+    const { db, show, svc } = await setup();
+    await publish(db, show.id, [{ guid: 'g8', day: 1, n: 8, season: 3 }]);
+    const ep = await svc.create(show.id);
+    await svc.update(ep.id, { episodeNumber: 30, season: 9 });
+    const dup = await svc.duplicate(ep.id);
+    expect([dup.episode_number, dup.season]).toEqual([9, 3]);
+  });
+
+  it('can clear the episode number and season', async () => {
+    const { db, show, svc } = await setup();
+    await publish(db, show.id, [{ guid: 'g1', day: 1, n: 1, season: 1 }]);
+    const ep = await svc.create(show.id);
+    await svc.update(ep.id, { episodeNumber: null, season: null });
+    expect(await svc.get(ep.id)).toMatchObject({ episode_number: null, season: null });
   });
 
   it('purgeAudio deletes the recordings but keeps the row, number and status', async () => {
     const { db, show, svc, deleted } = await setup();
     const ep = await svc.create(show.id);
+    await svc.update(ep.id, { episodeNumber: 5 });
     await addTake(db, ep.id, 'take1');
     await db.run("UPDATE episodes SET status = 'exported' WHERE id = ?", [ep.id]);
     await db.run(
@@ -176,7 +243,7 @@ describe('EpisodeService', () => {
     await svc.purgeAudio(ep.id);
 
     const after = await svc.get(ep.id);
-    expect(after?.episode_number).toBe(1);
+    expect(after?.episode_number).toBe(5);
     expect(after?.status).toBe('exported');
     expect(after?.audio_purged_at).toBe(5000);
     // 実体を消したので DB 側の参照も残さない。
@@ -190,8 +257,6 @@ describe('EpisodeService', () => {
       `/data/episodes/${ep.id}/takes/take1/seg-0001.peaks`,
     ]);
 
-    // 行が残るので話数は消費したまま。
-    expect((await svc.create(show.id)).episode_number).toBe(2);
     // 声が無いのが正常な状態なので draft へ戻さない。
     await svc.refreshStatus(ep.id);
     expect((await svc.get(ep.id))?.status).toBe('exported');
@@ -313,14 +378,39 @@ describe('EpisodeService', () => {
       return ctx;
     }
 
-    it('discards a freshly created episode and gives its number back (§2.1.1)', async () => {
+    it('discards a freshly created episode', async () => {
       const { db, show, svc, deleted } = await setupWithTopics();
       const ep = await svc.create(show.id);
       expect(await svc.discardIfEmpty(ep.id)).toBe(true);
       expect((await getEpisode(db, ep.id))?.deleted_at).not.toBeNull();
       expect(await svc.list(show.id)).toEqual([]);
       expect(deleted).toEqual([]);
-      expect((await svc.create(show.id)).episode_number).toBe(ep.episode_number);
+    });
+
+    // Issue #211: 話数・シーズンは「いま新しく作ったときの値」と比べる
+    it('discards an episode whose number and season are the suggested ones', async () => {
+      const { db, show, svc } = await setup();
+      await publish(db, show.id, [{ guid: 'g12', day: 1, n: 12, season: 2 }]);
+      const ep = await svc.create(show.id);
+      expect([ep.episode_number, ep.season]).toEqual([13, 2]);
+      expect(await svc.discardIfEmpty(ep.id)).toBe(true);
+    });
+
+    it('keeps an episode when the published episodes changed after it was made', async () => {
+      const { db, show, svc } = await setup();
+      await publish(db, show.id, [{ guid: 'g12', day: 1, n: 12 }]);
+      const ep = await svc.create(show.id);
+      await publish(db, show.id, [{ guid: 'g13', day: 2, n: 13 }]);
+      // いまなら #14 になるので「作ったとき」と区別できない。消しすぎない側に倒す
+      expect(await svc.discardIfEmpty(ep.id)).toBe(false);
+    });
+
+    it('keeps an episode whose suggested number was cleared', async () => {
+      const { db, show, svc } = await setup();
+      await publish(db, show.id, [{ guid: 'g12', day: 1, n: 12 }]);
+      const ep = await svc.create(show.id);
+      await svc.update(ep.id, { episodeNumber: null });
+      expect(await svc.discardIfEmpty(ep.id)).toBe(false);
     });
 
     it('does nothing for an episode that is already gone', async () => {
@@ -425,12 +515,12 @@ describe('EpisodeService', () => {
       expect(await svc.discardIfEmpty(ep.id)).toBe(false);
     });
 
-    it('keeps an older empty episode while a later one exists (its number is not the next one)', async () => {
+    it('discards an older empty episode even while a later one exists (local episodes do not count)', async () => {
       const { show, svc } = await setup();
       const first = await svc.create(show.id);
       const second = await svc.create(show.id);
       await svc.update(second.id, { title: 'Recorded later' });
-      expect(await svc.discardIfEmpty(first.id)).toBe(false);
+      expect(await svc.discardIfEmpty(first.id)).toBe(true);
     });
   });
 
@@ -440,7 +530,6 @@ describe('EpisodeService', () => {
       const a = await svc.create(show.id);
       const b = await svc.create(show.id);
       await db.run('UPDATE episodes SET last_opened_at = created_at + 1');
-      // #2 を先に捨てれば、#1 も「いま作ったときと同じ番号」になる
       expect(await svc.discardEmptyOpened(show.id)).toBe(2);
       expect((await getEpisode(db, a.id))?.deleted_at).not.toBeNull();
       expect((await getEpisode(db, b.id))?.deleted_at).not.toBeNull();

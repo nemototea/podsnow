@@ -49,6 +49,7 @@ export function useDetailsDraft(ws: Workspace, onError: (e: unknown) => void) {
         description: episode.description,
         episode_number: episode.episode_number,
         season: episode.season,
+        episode_type: episode.episode_type,
         recorded_at: episode.recorded_at,
       };
       setDraft(next);

@@ -227,6 +227,8 @@ Podcast: {{show_name}}
     /** `code` は `episode.number` で作った話数の表記。 */
     reviewRecordingOf: (code: string) => `${code} の録音を確認する`,
     a11yEpisodeMenu: (n: number) => `エピソード ${n} の操作`,
+    /** 話数が空の回（Issue #211）。`episodeMenuLabel` が選ぶ。 */
+    a11yEpisodeMenuTitled: (title: string) => `「${title}」の操作`,
     a11yOpenShow: (name: string) => `${name} を開く`,
     importShow: '配信中の番組を取り込む',
     reimportShow: '番組の情報を読み込み直す',
@@ -262,7 +264,8 @@ Podcast: {{show_name}}
     a11yArtwork: (name: string) => `${name} のアートワーク`,
     episodesCount: (n: number) => `配信済みの回 ${n} 本`,
     nextNumber: (code: string) => `次の新しいエピソードは ${code} から`,
-    noEpisodeNumbers: 'RSS に話数がありません。新しいエピソードの話数は、作ったあとで直せます',
+    noEpisodeNumbers:
+      'RSS の最新のフルの回に話数がないので、新しいエピソードの話数は空のまま始まります。使うときは各回の「その他の詳細」で入れられます',
     overwriteNote:
       '番組名・概要・著者などを、この内容で上書きします。RSS に無い項目は今の値を残します',
     confirm: '取り込む',
@@ -421,12 +424,15 @@ Podcast: {{show_name}}
      * 読み上げは「エピソード 3」の文（`home.a11yEpisodeMenu` など）にする。
      */
     number: (n: number) => `#${n}`,
+    /** 話数が空の回を文の中で指すとき（「『題』を削除しました」。Issue #211）。`episodeRef` が使う。 */
+    quoted: (title: string) => `「${title}」`,
     a11yMenu: 'エピソードの操作',
   },
 
   details: {
     a11yEdit: (label: string) => `${label}を編集`,
-    numberAndSeason: '話数 / シーズン',
+    /** Spotify for Creators と同じまとめ方。種類・話数・シーズンを直す（Issue #211）。 */
+    moreDetails: 'その他の詳細',
     title: 'エピソードの詳細',
     suggestionEyebrow: 'AI の下書き候補',
     adopt: '採用する',
@@ -439,12 +445,17 @@ Podcast: {{show_name}}
     reapplyTemplate: 'テンプレートを再適用',
     episodeEyebrow: '話数',
     seasonEyebrow: 'シーズン',
+    /** 「その他の詳細」の値に出すシーズン。 */
+    seasonValue: (n: number) => `シーズン ${n}`,
+    typeEyebrow: 'エピソードの種類',
+    /** `itunes:episodeType`。名前は Spotify for Creators に合わせる（Issue #211）。 */
+    episodeTypes: { full: 'フル', trailer: 'トレーラー', bonus: 'ボーナス' },
+    numberHelp: '空にすると話数なしになります',
     recordedEyebrow: '収録日',
     badDate: '収録日は YYYY-MM-DD で入力してください',
     noTopics: 'トークテーマがありません',
     noTemplate: '概要欄テンプレートがありません',
     templateApplied: 'テンプレートを適用しました',
-    numberTaken: 'ほかの回と同じ話数です',
     undoTemplate: 'テンプレートの適用を取り消す',
     dateHelp: '例：2026-09-23',
     /** 保存ボタンをなくした代わりに、自動で保存されることを伝える（Issue #167）。 */
@@ -631,7 +642,6 @@ Podcast: {{show_name}}
     name: '番組名',
     description: '概要',
     author: '著者',
-    defaultSeason: '既定のシーズン',
     artworkA11y: '番組のアートワーク',
     chooseArtwork: '画像を選ぶ',
     changeArtwork: '画像を変更',

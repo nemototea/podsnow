@@ -13,6 +13,7 @@ export interface ShowRow extends SqlRow {
   description: string;
   author: string;
   cover_path: string | null;
+  /** 使わない（Issue #211 で廃止。列だけ残す。DATA_MODEL.md §4.1）。 */
   default_season: number;
   next_episode_number: number;
   // 以下は Podcast RSS の規格に対応する列（DATA_MODEL.md §4.1、0005）
@@ -103,7 +104,6 @@ export async function updateShow(
     description: string;
     author: string;
     coverPath: string | null;
-    defaultSeason: number;
     websiteUrl: string;
     language: string;
     explicit: boolean;
@@ -126,7 +126,6 @@ export async function updateShow(
     description: 'description',
     author: 'author',
     coverPath: 'cover_path',
-    defaultSeason: 'default_season',
     websiteUrl: 'website_url',
     language: 'language',
     explicit: 'explicit',

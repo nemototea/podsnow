@@ -364,7 +364,7 @@ export class ExportService {
     const row = await this.deps.db.get<{
       format: ExportFormat;
       title: string;
-      episode_number: number;
+      episode_number: number | null;
       show_name: string | null;
     }>(
       `SELECT x.format, e.title, e.episode_number, s.name AS show_name
@@ -494,7 +494,7 @@ export class ExportService {
     try {
       const row = await this.deps.db.get<{
         title: string;
-        episode_number: number;
+        episode_number: number | null;
         published_at: number | null;
         publish_planned_at: number | null;
         show_name: string | null;

@@ -15,7 +15,7 @@ import { useDetailsDraft } from '@/features/episode/useDetailsDraft';
 import { useRecordingContext } from '@/features/episode/useRecordingContext';
 import { handToHome } from '@/features/home/handToHome';
 import { useWorkspace } from '@/features/episode/useWorkspace';
-import { errorCodeText, errorText, useT } from '@/i18n';
+import { episodeHeading, episodeRef, errorCodeText, errorText, useT } from '@/i18n';
 import type { AssetRow } from '@/infra/db/repositories/assetsRepo';
 import { space, typography } from '@/ui/tokens';
 import { ask, confirmDestructive, notify } from '@/ui/alerts';
@@ -267,7 +267,7 @@ export default function EpisodeScreen() {
    * （Issue #168 E5。エピソードの削除は取り消せないので、取り消しは出さない。FR-EP-4）。
    */
   const leaveAfter = (kind: 'remove' | 'purge') => {
-    const code = t.episode.number(episode.episode_number);
+    const code = episodeRef(t, episode.episode_number, episode.title);
     handToHome(async () => {
       try {
         if (kind === 'remove') {
@@ -283,7 +283,7 @@ export default function EpisodeScreen() {
     router.back();
   };
 
-  const title = `${t.episode.number(episode.episode_number)} ${episode.title || t.home.untitled}`;
+  const title = episodeHeading(t, episode.episode_number, episode.title);
   const overlay = <Toast toast={toast} onAction={act} onDismiss={dismiss} />;
   const lockedBack = () => showToast({ text: t.record.cannotLeave });
   const menu: MenuAction[] = [
@@ -294,7 +294,7 @@ export default function EpisodeScreen() {
       onPress: () =>
         void services.episodes.duplicate(episodeId).then((d) =>
           showToast({
-            text: t.episode.duplicated(t.episode.number(d.episode_number)),
+            text: t.episode.duplicated(episodeRef(t, d.episode_number, d.title)),
             action: t.common.open,
             onAction: () => router.push(`/episode/${d.id}` as never),
           }),
@@ -338,7 +338,11 @@ export default function EpisodeScreen() {
   const nav = (
     <ScreenHeader
       hidden
-      title={t.episode.number(episode.episode_number)}
+      title={
+        episode.episode_number === null
+          ? episode.title || t.home.untitled
+          : t.episode.number(episode.episode_number)
+      }
       lockBack={live}
       onLockedBack={lockedBack}
     />
@@ -397,7 +401,12 @@ export default function EpisodeScreen() {
         ) : (
           <MoreMenu
             label={t.episode.a11yMenu}
-            title={episode.title || t.episode.number(episode.episode_number)}
+            title={
+              episode.title ||
+              (episode.episode_number === null
+                ? t.home.untitled
+                : t.episode.number(episode.episode_number))
+            }
             actions={menu}
           />
         )}

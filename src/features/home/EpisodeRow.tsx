@@ -2,7 +2,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 
 import { formatSmp, smp } from '@/domain/time';
 import { useServices } from '@/features/app/ServicesProvider';
-import { useT, type Messages } from '@/i18n';
+import { episodeHeading, episodeMenuLabel, useT, type Messages } from '@/i18n';
 import type { HomeEpisodeItem } from '@/services/home/HomeService';
 import { Artwork } from '@/ui/Artwork';
 import { Pill, Text } from '@/ui/components';
@@ -29,8 +29,7 @@ export function statusText(t: Messages, kind: EpisodeStatusKind): string {
 
 /** 一覧とタイルの題（見本「#43 寝る前に読む本」）。題が無ければ「タイトル未設定」。 */
 export function itemLabel(t: Messages, item: HomeEpisodeItem): string {
-  const title = item.title || t.home.untitled;
-  return item.episodeNumber === null ? title : `${t.episode.number(item.episodeNumber)} ${title}`;
+  return episodeHeading(t, item.episodeNumber, item.title);
 }
 
 /**
@@ -90,8 +89,8 @@ export function EpisodeRow({
       </Pressable>
       {e && actions ? (
         <MoreMenu
-          label={t.home.a11yEpisodeMenu(e.episode_number)}
-          title={`${t.episode.number(e.episode_number)} ${e.title || t.home.untitled}`}
+          label={episodeMenuLabel(t, e.episode_number, e.title)}
+          title={episodeHeading(t, e.episode_number, e.title)}
           actions={actions}
         />
       ) : null}

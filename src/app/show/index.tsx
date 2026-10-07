@@ -23,7 +23,14 @@ import { kindLabel } from '@/features/show/assetKinds';
 import { useAssetPreview } from '@/features/show/useAssetPreview';
 import { useAsyncData } from '@/features/show/useAsyncData';
 import { useShowColors } from '@/features/show/useShowColors';
-import { errorText, formatShortDate, useLocale, useT, type Messages } from '@/i18n';
+import {
+  episodeMenuLabel,
+  errorText,
+  formatShortDate,
+  useLocale,
+  useT,
+  type Messages,
+} from '@/i18n';
 import type { AssetKind, AssetRow } from '@/infra/db/repositories/assetsRepo';
 import {
   getDefaultTemplate,
@@ -214,7 +221,6 @@ export default function ShowScreen() {
     name: string;
     description: string;
     author: string;
-    season: string;
   } | null>(null);
   const [topicDraft, setTopicDraft] = useState<string | null>(null);
   const [templateDraft, setTemplateDraft] = useState<string | null>(null);
@@ -230,7 +236,6 @@ export default function ShowScreen() {
       name: data.show?.name ?? '',
       description: data.show?.description ?? '',
       author: data.show?.author ?? '',
-      season: String(data.show?.default_season ?? 1),
     });
     setEditing('show');
   };
@@ -265,19 +270,16 @@ export default function ShowScreen() {
       name: draft.name.trim() || t.seed.showName,
       description: draft.description,
       author: draft.author,
-      defaultSeason: Math.max(1, parseInt(draft.season, 10) || 1),
     };
     const prev = {
       name: before.name,
       description: before.description,
       author: before.author,
-      defaultSeason: before.default_season,
     };
     if (
       next.name === prev.name &&
       next.description === prev.description &&
-      next.author === prev.author &&
-      next.defaultSeason === prev.defaultSeason
+      next.author === prev.author
     ) {
       return;
     }
@@ -642,7 +644,7 @@ export default function ShowScreen() {
                     ) : null}
                     {e ? (
                       <MoreMenu
-                        label={t.home.a11yEpisodeMenu(e.episode_number)}
+                        label={episodeMenuLabel(t, e.episode_number, e.title)}
                         title={label}
                         actions={episodeActions(e)}
                       />
@@ -798,14 +800,6 @@ export default function ShowScreen() {
               label={t.showSettings.author}
               value={showDraft.author}
               onChangeText={(author) => setShowDraft({ ...showDraft, author })}
-            />
-            <Field
-              label={t.showSettings.defaultSeason}
-              value={showDraft.season}
-              onChangeText={(season) =>
-                setShowDraft({ ...showDraft, season: season.replace(/[^0-9]/g, '') })
-              }
-              keyboardType="number-pad"
             />
             <View style={st.sheetActions}>
               <Button

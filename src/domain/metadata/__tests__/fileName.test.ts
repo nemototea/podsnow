@@ -27,6 +27,21 @@ describe('exportFileName', () => {
     );
   });
 
+  it('omits the number when the episode has none, without leaving a separator (Issue #211)', () => {
+    expect(exportFileName({ showName: 'S', episodeNumber: null, title: 'T', ext: 'm4a' })).toBe(
+      'S - T.m4a',
+    );
+    expect(exportFileName({ showName: '', episodeNumber: null, title: 'T', ext: 'm4a' })).toBe(
+      'T.m4a',
+    );
+    expect(exportFileName({ showName: 'S', episodeNumber: null, title: '', ext: 'wav' })).toBe(
+      'S.wav',
+    );
+    expect(exportFileName({ showName: '', episodeNumber: null, title: '', ext: 'm4a' })).toBe(
+      'episode.m4a',
+    );
+  });
+
   it('replaces characters that are unsafe in file names or file URIs', () => {
     expect(
       exportFileName({

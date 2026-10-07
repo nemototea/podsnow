@@ -1,3 +1,4 @@
+import { initialNumbering, type Numbering } from '@/domain/episodes/numbering';
 import { AppError } from '@/domain/errors';
 import type { EditableDoc } from '@/domain/editing/doc';
 import { renderTemplate } from '@/domain/metadata/template';
@@ -13,7 +14,6 @@ import {
   insertEpisode,
   listEpisodes,
   markAudioPurged,
-  nextEpisodeNumber,
   softDeleteEpisode,
   updateEpisode,
   type EpisodeListItem,
@@ -30,6 +30,7 @@ import {
   getShow,
   type ShowRow,
 } from '@/infra/db/repositories/showsRepo';
+import { listPublishedNumbering } from '@/infra/db/repositories/feedEpisodesRepo';
 import { listTakes } from '@/infra/db/repositories/takesRepo';
 import { joinRoot } from '@/infra/files/layout';
 
@@ -60,27 +61,27 @@ export class EpisodeService {
     return getEpisode(this.deps.db, id);
   }
 
-  /** 新規エピソード。話数を採番し、Opening / Ending / BGM を配置し、概要欄テンプレートを適用する。 */
+  /** 新規エピソード。話数・シーズンの初期値を決め、Opening / Ending / BGM を配置し、概要欄テンプレートを適用する。 */
   async create(showId: string): Promise<EpisodeRow> {
     const { db, newId, now } = this.deps;
     const show = await getShow(db, showId);
     if (!show) throw new Error('show not found');
     const id = newId();
     const t = now();
-    // 話数はカウンターではなく既存行から導出する（FR-EP-6 / REQUIREMENTS.md §2.1.1）。
-    const episodeNumber = await nextEpisodeNumber(db, showId);
+    // 話数・シーズンは配信済みの最新の本編から導く。無ければ空（FR-EP-6 / REQUIREMENTS.md §2.1.1）。
+    const numbering = await this.initialNumbering(showId);
     // 既定タイトルは空。話数は UI が `#N` として別に出すので、タイトルに焼き込まない
     // （焼き込むと、あとから話数を直したときにタイトルだけ古い番号のまま残る）。
     const title = '';
-    const description = await this.defaultDescription(show, episodeNumber);
+    const description = await this.defaultDescription(show, numbering);
     await db.transaction(async () => {
       await insertEpisode(db, {
         id,
         showId,
         title,
         description,
-        episodeNumber,
-        season: show.default_season,
+        episodeNumber: numbering.episodeNumber,
+        season: numbering.season,
         // BGM を下げる量は番組の既定を写す。写した後はエピソードの値（Issue #174）
         soundSettings: await this.defaultSoundSettings(showId),
         now: t,
@@ -98,14 +99,19 @@ export class EpisodeService {
     return (await getEpisode(db, id))!;
   }
 
+  /** 新しい回の話数・シーズンの初期値（REQUIREMENTS.md §2.1.1）。手元の回は見ない。 */
+  private async initialNumbering(showId: string): Promise<Numbering> {
+    return initialNumbering(await listPublishedNumbering(this.deps.db, showId));
+  }
+
   /** 新しい回の概要欄（番組の概要欄テンプレートを展開したもの。テンプレートが無ければ空）。 */
-  private async defaultDescription(show: ShowRow, episodeNumber: number): Promise<string> {
+  private async defaultDescription(show: ShowRow, numbering: Numbering): Promise<string> {
     const template = await getDefaultTemplate(this.deps.db, show.id);
     return template
       ? renderTemplate(template.body, {
           title: '',
-          episodeNumber,
-          season: show.default_season,
+          episodeNumber: numbering.episodeNumber,
+          season: numbering.season,
           topics: [],
           showName: show.name,
         })
@@ -193,7 +199,7 @@ export class EpisodeService {
   /**
    * エピソードを削除（FR-EP-4）。録音・ピーク・書き出しのファイルもすぐに消す（Issue #152、
    * ユーザー判断 2026-09-29）。アプリの内部にしかないファイルは、ユーザーが取り出せないので残さない。
-   * 取り消しはできない（削除の前に確認する。FR-UI-2）。話数は次の新規作成で再利用される。
+   * 取り消しはできない（削除の前に確認する。FR-UI-2）。
    *
    * 行は `deleted_at` を立てて残す（将来の同期で削除を伝えるため。DATA_MODEL.md §1）。
    * ファイルが消せなければ `file_delete_failed` を投げ、DB は変えない。
@@ -206,7 +212,7 @@ export class EpisodeService {
 
   /**
    * 音声を削除（FR-EP-4）。録音ファイルと takes を消し、行・話数・メタデータ・書き出し履歴は残す。
-   * 容量を空ける目的の削除はこちら。話数は消費したままになる。
+   * 容量を空ける目的の削除はこちら。
    * ファイルが消せなければ `file_delete_failed` を投げ、DB は変えない。
    */
   async purgeAudio(id: string): Promise<void> {
@@ -217,7 +223,7 @@ export class EpisodeService {
 
   /**
    * 開いて何も入れずに離れた回を捨てる（REQUIREMENTS.md FR-EP-10、Issue #168）。
-   * 捨て方は「エピソードを削除」と同じ（`deleted_at`）。話数は次の新規作成に戻る（§2.1.1）。
+   * 捨て方は「エピソードを削除」と同じ（`deleted_at`）。
    *
    * @returns 捨てたら true。何か入っている・もう無い回は何もしない
    */
@@ -240,7 +246,7 @@ export class EpisodeService {
         WHERE e.show_id = ? AND e.deleted_at IS NULL AND e.last_opened_at > e.created_at
           AND NOT EXISTS (SELECT 1 FROM takes t WHERE t.episode_id = e.id)
           AND NOT EXISTS (SELECT 1 FROM exports x WHERE x.episode_id = e.id)
-        ORDER BY e.episode_number DESC, e.created_at DESC`,
+        ORDER BY e.created_at DESC, e.rowid DESC`,
       [showId],
     );
     let n = 0;
@@ -277,7 +283,6 @@ export class EpisodeService {
     const metadataUntouched =
       ep.title === '' &&
       ep.description_suggestion === null &&
-      ep.season === show.default_season &&
       ep.recorded_at === ep.created_at &&
       ep.publish_planned_at === null &&
       ep.published_at === null &&
@@ -285,9 +290,13 @@ export class EpisodeService {
       ep.explicit === null &&
       ep.website_url === '';
     if (!metadataUntouched) return false;
-    // 話数と概要は、今の採番の式とテンプレートで作り直した値と比べる（#211 で式が変わっても追従する）
-    if (ep.episode_number !== (await nextEpisodeNumber(db, ep.show_id, id))) return false;
-    if (ep.description !== (await this.defaultDescription(show, ep.episode_number))) return false;
+    // 話数・シーズン・概要は、いま新しく作ったときの値と比べる（REQUIREMENTS.md §2.1.1）。
+    // 作ったあとで配信済みの回が変わると一致しなくなるが、そのときは残す側に倒れる。
+    const numbering = await this.initialNumbering(ep.show_id);
+    if (ep.episode_number !== numbering.episodeNumber || ep.season !== numbering.season) {
+      return false;
+    }
+    if (ep.description !== (await this.defaultDescription(show, numbering))) return false;
     // 声・素材・音の仕上げは、書き出しの判定と同じ指紋で比べる（行の id は見ない）
     const doc = await loadDoc(db, id);
     const blank = renderFingerprint({
@@ -402,8 +411,9 @@ export class EpisodeService {
   }
 
   /**
-   * 複製して新しい回にする: メタデータ・音の仕上げ・書き出しプリセットの選択・オーバーレイ・
+   * 複製して新しい回にする: 概要・音の仕上げ・書き出しプリセットの選択・オーバーレイ・
    * トークテーマを引き継ぎ、録音は引き継がない（書き出しプリセットは DATA_MODEL.md §4.5.1）。
+   * 話数・シーズンは引き継がず、新しい回と同じ規則で決める（REQUIREMENTS.md §2.1.1）。
    */
   async duplicate(id: string): Promise<EpisodeRow> {
     const src = await getEpisode(this.deps.db, id);
@@ -416,7 +426,6 @@ export class EpisodeService {
         created.id,
         {
           description: src.description,
-          season: src.season,
           soundSettings: src.sound_settings,
           exportPreset: src.export_preset,
         },

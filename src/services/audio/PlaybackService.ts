@@ -28,7 +28,7 @@ export interface ExportPlaybackItem {
   episodeId: string;
   exportId: string;
   title: string;
-  episodeNumber: number;
+  episodeNumber: number | null;
   duration: Smp;
 }
 
@@ -447,7 +447,7 @@ export class PlaybackService {
       path: string;
       duration_smp: number;
       title: string;
-      episode_number: number;
+      episode_number: number | null;
     }>(
       `SELECT x.id AS export_id, x.path, x.duration_smp, e.title, e.episode_number
          FROM exports x JOIN episodes e ON e.id = x.episode_id

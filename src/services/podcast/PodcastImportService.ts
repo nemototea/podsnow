@@ -1,3 +1,4 @@
+import { initialNumbering, type Numbering } from '@/domain/episodes/numbering';
 import {
   fillFromDirectory,
   parseAppleSearchResponse,
@@ -8,8 +9,11 @@ import { judgeShowIdentity, type ShowIdentity } from '@/domain/podcast/identity'
 import { parsePodcastFeed } from '@/domain/podcast/parseFeed';
 import { AppError } from '@/domain/errors';
 import type { SqlExecutor } from '@/infra/db/executor';
-import { nextEpisodeNumber } from '@/infra/db/repositories/episodesRepo';
-import { listFeedEpisodes, upsertFeedEpisodes } from '@/infra/db/repositories/feedEpisodesRepo';
+import {
+  listFeedEpisodes,
+  listPublishedNumbering,
+  upsertFeedEpisodes,
+} from '@/infra/db/repositories/feedEpisodesRepo';
 import {
   getExternalId,
   getShow,
@@ -178,15 +182,15 @@ export class PodcastImportService {
   }
 
   /**
-   * 取り込んだあとの新しいエピソードの話数（プレビューに出す。REQUIREMENTS.md §2.1.1）。
-   * RSS に話数が 1 つも無ければ null（取り込みは話数に影響しない）。
+   * 取り込んだあとの新しいエピソードの話数・シーズンの初期値（プレビューに出す。REQUIREMENTS.md §2.1.1）。
+   * 取り込むと `guid` が同じ回はプレビューの値で上書きされ、RSS から消えた回は残るので、その状態で求める。
    */
-  async nextEpisodeNumberAfter(showId: string, preview: ImportPreview): Promise<number | null> {
-    let max = 0;
-    for (const i of preview.feed.items) max = Math.max(max, i.episodeNumber ?? 0);
-    if (max === 0) return null;
-    const current = await nextEpisodeNumber(this.deps.db, showId);
-    return Math.max(current, max + 1);
+  async numberingAfter(showId: string, preview: ImportPreview): Promise<Numbering> {
+    const byGuid = new Map(
+      (await listPublishedNumbering(this.deps.db, showId)).map((p) => [p.guid, p] as const),
+    );
+    for (const item of preview.feed.items) byGuid.set(item.guid, item);
+    return initialNumbering([...byGuid.values()]);
   }
 
   /**

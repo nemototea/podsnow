@@ -9,6 +9,7 @@ import { hitSlop, pressedOpacity, radius, space, stroke, typography } from '@/ui
  * コピーの行（見本 `.field` / `.copybtn`）。上に小さい名前、下に値（1 行で省略）、右に丸い端の「コピー」。
  * コピーできたらアクセントの塗りの「コピー済み」になる（書き込みが成功してから。DESIGN_SYSTEM.md §8）。
  * `onEdit` があれば、行を押すとその項目を直せる（書き出しタブ）。
+ * `onCopy` が無ければ「コピー」を置かない（「その他の詳細」のように、項目ごとに入れる値。Issue #211）。
  */
 export function CopyRow({
   label,
@@ -20,8 +21,8 @@ export function CopyRow({
 }: {
   label: string;
   value: string;
-  copied: boolean;
-  onCopy: () => void;
+  copied?: boolean;
+  onCopy?: () => void;
   onEdit?: () => void;
   /** 行を押したときの読み上げ（「タイトルを編集」）。 */
   editLabel?: string;
@@ -55,29 +56,31 @@ export function CopyRow({
           {body}
         </View>
       )}
-      <Pressable
-        onPress={onCopy}
-        disabled={!value}
-        accessibilityRole="button"
-        accessibilityLabel={copied ? t.pack.a11yCopied(label) : t.pack.a11yCopy(label)}
-        accessibilityState={{ disabled: !value }}
-        hitSlop={hitSlop(typography.smallStrong.lineHeight + space.x6 * 2)}
-        style={({ pressed }) => [
-          s.copy,
-          copied
-            ? { backgroundColor: c.accentSolid, borderColor: c.accentSolid }
-            : { borderColor: pressed ? c.textPrimary : c.borderStrong },
-        ]}
-      >
-        <Text
-          style={[
-            typography.smallStrong,
-            { color: !value ? c.textDisabled : copied ? c.accentOnSolid : c.textPrimary },
+      {onCopy ? (
+        <Pressable
+          onPress={onCopy}
+          disabled={!value}
+          accessibilityRole="button"
+          accessibilityLabel={copied ? t.pack.a11yCopied(label) : t.pack.a11yCopy(label)}
+          accessibilityState={{ disabled: !value }}
+          hitSlop={hitSlop(typography.smallStrong.lineHeight + space.x6 * 2)}
+          style={({ pressed }) => [
+            s.copy,
+            copied
+              ? { backgroundColor: c.accentSolid, borderColor: c.accentSolid }
+              : { borderColor: pressed ? c.textPrimary : c.borderStrong },
           ]}
         >
-          {copied ? t.common.copied : t.common.copy}
-        </Text>
-      </Pressable>
+          <Text
+            style={[
+              typography.smallStrong,
+              { color: !value ? c.textDisabled : copied ? c.accentOnSolid : c.textPrimary },
+            ]}
+          >
+            {copied ? t.common.copied : t.common.copy}
+          </Text>
+        </Pressable>
+      ) : null}
     </View>
   );
 }

@@ -1,7 +1,7 @@
 import { useCallback } from 'react';
 
 import { useServices } from '@/features/app/ServicesProvider';
-import { errorText, useT } from '@/i18n';
+import { episodeRef, errorText, useT } from '@/i18n';
 import type { EpisodeListItem } from '@/infra/db/repositories/episodesRepo';
 import { confirmDestructive } from '@/ui/alerts';
 import type { MenuAction } from '@/ui/menuTypes';
@@ -30,7 +30,7 @@ export function useEpisodeActions(
   );
 
   return (e) => {
-    const code = t.episode.number(e.episode_number);
+    const code = episodeRef(t, e.episode_number, e.title);
     return [
       {
         key: 'duplicate',
@@ -39,7 +39,7 @@ export function useEpisodeActions(
         onPress: () =>
           void run(async () => {
             const d = await episodes.duplicate(e.id);
-            return t.episode.duplicated(t.episode.number(d.episode_number));
+            return t.episode.duplicated(episodeRef(t, d.episode_number, d.title));
           }),
       },
       ...(e.audio_purged_at

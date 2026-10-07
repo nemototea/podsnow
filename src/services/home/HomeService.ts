@@ -19,6 +19,15 @@ export interface HomeEpisodeItem {
   hasCurrentExport?: boolean;
 }
 
+/**
+ * 一覧の並びに使う時刻。手元の回は作った日時、配信済みだけの回は配信日時（無ければ取り込んだ日時）。
+ * 配信済みだけの回を取り込んだ日時で並べると、取り込んだ回がすべて同じ時刻に固まるため。
+ */
+function sortTime(item: HomeEpisodeItem): number {
+  if (item.local) return item.local.created_at;
+  return item.feed?.published_at ?? item.feed?.created_at ?? 0;
+}
+
 /** 制作データと配信済みカタログを、保存形式は分けたまま Home の 1 一覧へ統合する。 */
 export class HomeService {
   constructor(private readonly db: SqlExecutor) {}
@@ -64,14 +73,8 @@ export class HomeService {
         hasCurrentExport: false,
       });
     }
-    return items.sort((a, b) => {
-      const number = (b.episodeNumber ?? -1) - (a.episodeNumber ?? -1);
-      if (number !== 0) return number;
-      return (
-        (b.publishedAt ?? b.local?.created_at ?? b.feed?.created_at ?? 0) -
-        (a.publishedAt ?? a.local?.created_at ?? a.feed?.created_at ?? 0)
-      );
-    });
+    // 話数に関係なく新しい順（Issue #211）。手元の回は作った日、配信済みだけの回は配信日で並べる。
+    return items.sort((a, b) => sortTime(b) - sortTime(a));
   }
 
   /** 今の編集と同じ音の書き出し（完了済み）がある回。書き出しの無い回は指紋を作らない。 */

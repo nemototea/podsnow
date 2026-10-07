@@ -1,3 +1,4 @@
+import type { PublishedNumbering } from '@/domain/episodes/numbering';
 import type { EpisodeType, PodcastFeedItem } from '@/domain/podcast/feed';
 
 import type { SqlExecutor, SqlRow } from '../executor';
@@ -87,6 +88,22 @@ export async function upsertFeedEpisodes(
 }
 
 /** 新しい配信から順に。配信日時の無い行は最後。 */
+/**
+ * 新しい回の話数・シーズンの初期値を決めるための、配信済みの回の項目（REQUIREMENTS.md §2.1.1）。
+ * 基準の回の選び方は `initialNumbering`（domain）。
+ */
+export async function listPublishedNumbering(
+  db: SqlExecutor,
+  showId: string,
+): Promise<(PublishedNumbering & { guid: string })[]> {
+  return db.all<PublishedNumbering & { guid: string } & SqlRow>(
+    `SELECT guid, published_at AS publishedAt, episode_type AS episodeType,
+            episode_number AS episodeNumber, season
+       FROM feed_episodes WHERE show_id = ?`,
+    [showId],
+  );
+}
+
 export async function listFeedEpisodes(db: SqlExecutor, showId: string): Promise<FeedEpisodeRow[]> {
   return db.all<FeedEpisodeRow>(
     'SELECT * FROM feed_episodes WHERE show_id = ? ORDER BY published_at DESC NULLS LAST, created_at DESC',

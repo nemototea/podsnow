@@ -5,10 +5,12 @@
  * 外へ渡すときだけ、番組名・話数・タイトルから作ったこの名前を付ける。
  *
  * 例: `ねもとのラジオ - 012 - 初回ゲスト回.m4a`。番組名もタイトルも空なら `episode-012.m4a`。
+ * 話数が空の回は番号を省く（`ねもとのラジオ - 初回ゲスト回.m4a`、`episode.m4a`。Issue #211）。
  */
 export interface ExportFileNameInput {
   showName: string;
-  episodeNumber: number;
+  /** 話数。空（null）なら番号を省く。 */
+  episodeNumber: number | null;
   title: string;
   /** 拡張子（`m4a` / `wav`）。先頭の `.` は付けない。 */
   ext: string;
@@ -30,12 +32,17 @@ const SEPARATOR = ' - ';
 const UNSAFE_CHARS = /[\u0000-\u001f\u007f/\\:*?"<>|#%]/g;
 
 export function exportFileName(input: ExportFileNameInput): string {
-  const number = String(Math.max(0, Math.trunc(input.episodeNumber))).padStart(3, '0');
+  const number =
+    input.episodeNumber === null
+      ? ''
+      : String(Math.max(0, Math.trunc(input.episodeNumber))).padStart(3, '0');
   const show = sanitizePart(input.showName);
   const title = sanitizePart(input.title);
   const ext = sanitizePart(input.ext).replace(/\s/g, '') || 'm4a';
   const stem =
-    show || title ? [show, number, title].filter(Boolean).join(SEPARATOR) : `episode-${number}`;
+    show || title
+      ? [show, number, title].filter(Boolean).join(SEPARATOR)
+      : ['episode', number].filter(Boolean).join('-');
   return `${truncateStem(stem)}.${ext}`;
 }
 

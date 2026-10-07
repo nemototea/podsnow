@@ -316,10 +316,63 @@ describe('migrate', () => {
       now,
     ]);
 
-    expect((await migrate(db)).applied).toEqual(['0008_show_cover_color']);
+    expect((await migrate(db, MIGRATIONS.slice(0, 8))).applied).toEqual(['0008_show_cover_color']);
     expect(await db.get('SELECT cover_color FROM shows WHERE id = ?', ['s1'])).toEqual({
       cover_color: null,
     });
+  });
+
+  it('0009 makes episodes.episode_number / season optional and keeps existing values', async () => {
+    const db = createNodeSqliteExecutor();
+    await migrate(db, MIGRATIONS.slice(0, 8));
+    const now = Date.now();
+    await db.run('INSERT INTO shows (id, created_at, updated_at) VALUES (?,?,?)', ['s1', now, now]);
+    for (const [id, n, season] of [
+      ['e1', 3, 2],
+      ['e2', 0, 0],
+    ] as const) {
+      await db.run(
+        'INSERT INTO episodes (id, show_id, title, episode_number, season, created_at, updated_at) VALUES (?,?,?,?,?,?,?)',
+        [id, 's1', id, n, season, now, now],
+      );
+    }
+    await db.run(
+      'INSERT INTO takes (id, episode_id, status, started_at, created_at, updated_at) VALUES (?,?,?,?,?,?)',
+      ['t1', 'e1', 'ready', now, now, now],
+    );
+
+    expect((await migrate(db)).applied).toEqual(['0009_optional_episode_numbering']);
+
+    // 既存の値は残り、0 は「未設定」になる。子の行（takes）は消えない
+    expect(
+      await db.all('SELECT id, title, episode_number, season FROM episodes ORDER BY id'),
+    ).toEqual([
+      { id: 'e1', title: 'e1', episode_number: 3, season: 2 },
+      { id: 'e2', title: 'e2', episode_number: null, season: null },
+    ]);
+    expect(await db.get('SELECT episode_id FROM takes WHERE id = ?', ['t1'])).toEqual({
+      episode_id: 'e1',
+    });
+    const cols = (await db.all<{ name: string }>('PRAGMA table_info(episodes)')).map((c) => c.name);
+    expect(cols.filter((c) => /episode_number|season/.test(c))).toEqual([
+      'episode_number',
+      'season',
+    ]);
+
+    // 空は入れられ、0 と負の値は入らない
+    await db.run('INSERT INTO episodes (id, show_id, created_at, updated_at) VALUES (?,?,?,?)', [
+      'e3',
+      's1',
+      now,
+      now,
+    ]);
+    expect(
+      await db.get('SELECT episode_number, season FROM episodes WHERE id = ?', ['e3']),
+    ).toEqual({ episode_number: null, season: null });
+    await expect(
+      db.run('UPDATE episodes SET episode_number = 0 WHERE id = ?', ['e3']),
+    ).rejects.toThrow();
+    await expect(db.run('UPDATE episodes SET season = -1 WHERE id = ?', ['e3'])).rejects.toThrow();
   });
 
   it('rolls back a failing migration without advancing user_version', async () => {
