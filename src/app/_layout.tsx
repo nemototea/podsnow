@@ -1,11 +1,11 @@
-import { DarkTheme, DefaultTheme, Stack, ThemeProvider as NavThemeProvider } from 'expo-router';
+import { DarkTheme, Stack, ThemeProvider as NavThemeProvider } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 
+import { Dock } from '@/features/app/Dock';
 import { ServiceLabelsSync, ServicesProvider, useServices } from '@/features/app/ServicesProvider';
-import { MiniPlayer } from '@/features/player/MiniPlayer';
 import { LocaleProvider, useT } from '@/i18n';
 import { Loading } from '@/ui/components';
 import { DialogHost } from '@/ui/Dialog';
@@ -17,7 +17,7 @@ function Navigation() {
   const c = useAppTheme();
   const t = useT();
   const fontFamily = useFontFamily();
-  const nav = c.isDark ? DarkTheme : DefaultTheme;
+  const nav = DarkTheme;
   return (
     <NavThemeProvider
       value={{
@@ -37,11 +37,11 @@ function Navigation() {
           headerShown: true,
           headerStyle: { backgroundColor: c.bg },
           headerShadowVisible: false,
-          headerTintColor: c.accentText,
+          headerTintColor: c.textPrimary,
           headerTitleStyle: {
             color: c.textPrimary,
-            fontSize: typography.bodyStrong.fontSize,
-            fontWeight: typography.bodyStrong.fontWeight,
+            fontSize: typography.screenTitle.fontSize,
+            fontWeight: typography.screenTitle.fontWeight,
             ...(fontFamily ? { fontFamily } : {}),
           },
           headerBackButtonDisplayMode: 'minimal',
@@ -49,6 +49,15 @@ function Navigation() {
         }}
       >
         <Stack.Screen name="index" options={{ headerShown: false, title: t.app.name }} />
+        {/* 下部タブの画面（見本 `.tabs`）。タブの間は動きを付けずに切り替える */}
+        <Stack.Screen
+          name="search"
+          options={{ headerShown: false, title: t.tabs.search, animation: 'none' }}
+        />
+        <Stack.Screen
+          name="library"
+          options={{ headerShown: false, title: t.tabs.library, animation: 'none' }}
+        />
         {/*
           プレーヤーは下から出るシート。下へ引いて閉じる（Issue #188）。formSheet は iOS では
           UISheetPresentationController、Android では BottomSheet で、どちらも引いて閉じられる
@@ -66,21 +75,19 @@ function Navigation() {
           }}
         />
       </Stack>
-      <MiniPlayer />
+      <Dock />
       <DialogHost />
-      <StatusBar style={c.isDark ? 'light' : 'dark'} />
+      <StatusBar style="light" />
     </NavThemeProvider>
   );
 }
 
 function Themed() {
   const services = useServices();
-  const [theme, setTheme] = useState(services.settings.theme);
   const [language, setLanguage] = useState(services.settings.language);
   useEffect(
     () =>
       services.onSettingsChange((s) => {
-        setTheme(s.theme);
         setLanguage(s.language);
       }).remove,
     [services],
@@ -89,7 +96,7 @@ function Themed() {
     <LocaleProvider pref={language}>
       {/* 設定で選んだ言語を、DB に書き込む既定文言にも反映する（FR-I18N-6）。 */}
       <ServiceLabelsSync />
-      <ThemeProvider pref={theme}>
+      <ThemeProvider>
         <Navigation />
       </ThemeProvider>
     </LocaleProvider>
@@ -111,7 +118,7 @@ export default function RootLayout() {
           <LocaleProvider>
             <ServicesProvider
               fallback={
-                <ThemeProvider pref="system">
+                <ThemeProvider>
                   <Booting />
                 </ThemeProvider>
               }

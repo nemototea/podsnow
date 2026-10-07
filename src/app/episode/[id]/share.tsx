@@ -6,6 +6,7 @@ import { formatAllMetadata } from '@/domain/metadata/template';
 import { formatClock, smp } from '@/domain/time';
 import { useServices } from '@/features/app/ServicesProvider';
 import { formatBytes, loudnessText } from '@/features/episode/ExportTab';
+import { CopyRow } from '@/features/episode/CopyRow';
 import { shareExport } from '@/features/episode/shareExport';
 import { useCopy } from '@/features/episode/useCopy';
 import { useEpisode } from '@/features/episode/useEpisode';
@@ -14,45 +15,11 @@ import { listExports, type ExportRow } from '@/infra/db/repositories/exportsRepo
 import { fileExists } from '@/infra/files/fileSystem';
 import { joinRoot } from '@/infra/files/layout';
 import { exportLoudness } from '@/services/export/ExportService';
-import { space, tabularNums, typography } from '@/ui/tokens';
-import { Button, Card, Loading, Notice, Screen, Text, Toast } from '@/ui/components';
+import { radius, space, tabularNums, typography } from '@/ui/tokens';
+import { Button, Loading, Notice, Screen, Text, Toast } from '@/ui/components';
 import { ScreenHeader } from '@/ui/ScreenHeader';
 import { useAppTheme } from '@/ui/ThemeContext';
 import { useToast } from '@/ui/useToast';
-
-function CopyBlock({
-  label,
-  value,
-  copied,
-  onCopy,
-}: {
-  label: string;
-  value: string;
-  copied: boolean;
-  onCopy: () => void;
-}) {
-  const c = useAppTheme();
-  const t = useT();
-  return (
-    <View style={[st.copyBlock, { borderBottomColor: c.border }]}>
-      <View style={st.copyHead}>
-        <Text style={[typography.label, { color: c.textSecondary, flex: 1 }]}>{label}</Text>
-        <Button
-          label={copied ? t.common.copied : t.common.copy}
-          icon={copied ? 'check' : 'copy'}
-          kind="secondary"
-          compact
-          disabled={!value}
-          accessibilityLabel={copied ? t.pack.a11yCopied(label) : t.pack.a11yCopy(label)}
-          onPress={onCopy}
-        />
-      </View>
-      <Text style={[typography.body, { color: value ? c.textPrimary : c.textTertiary }]} selectable>
-        {value || t.common.empty}
-      </Text>
-    </View>
-  );
-}
 
 export default function DistributionPackScreen() {
   const { id, exportId } = useLocalSearchParams<{ id: string; exportId?: string }>();
@@ -159,7 +126,7 @@ export default function DistributionPackScreen() {
             />
           )}
 
-          <Card>
+          <View style={[st.fileCard, { backgroundColor: c.surface }]}>
             <View style={st.file}>
               <Text style={[typography.bodyStrong, { color: c.textPrimary }]}>{fileName}</Text>
               <Text style={[typography.numeric, tabularNums, { color: c.textSecondary }]}>
@@ -176,12 +143,13 @@ export default function DistributionPackScreen() {
               </Text>
             ) : null}
             <Button
+              large
               label={t.pack.shareFile}
               icon="share"
               disabled={!exists}
               onPress={() => void share()}
             />
-          </Card>
+          </View>
         </>
       ) : (
         <Notice
@@ -198,26 +166,32 @@ export default function DistributionPackScreen() {
         />
       )}
 
-      <Card>
-        <CopyBlock
+      <View>
+        <Text
+          style={[typography.subheading, st.fieldsHead, { color: c.textPrimary }]}
+          accessibilityRole="header"
+        >
+          {t.pack.fieldsHeading}
+        </Text>
+        <CopyRow
           label={t.pack.titleEyebrow}
           value={episode.title}
           copied={copied === 'title'}
           onCopy={() => doCopy('title', episode.title)}
         />
-        <CopyBlock
+        <CopyRow
           label={t.pack.descriptionEyebrow}
           value={episode.description}
           copied={copied === 'desc'}
           onCopy={() => doCopy('desc', episode.description)}
         />
-        <CopyBlock
+        <CopyRow
           label={t.pack.allMetadataEyebrow}
           value={allMeta}
           copied={copied === 'meta'}
           onCopy={() => doCopy('meta', allMeta)}
         />
-      </Card>
+      </View>
 
       <Button
         label={t.pack.backHome}
@@ -229,12 +203,9 @@ export default function DistributionPackScreen() {
 }
 
 const st = StyleSheet.create({
-  top: { height: space.lg },
-  file: { gap: space.xs, marginBottom: space.lg },
-  copyBlock: {
-    gap: space.sm,
-    paddingVertical: space.md,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  copyHead: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
+  top: { height: space.sm },
+  // 見本 `.checks` と同じ面（`surface`、角丸 8、内側 14）
+  fileCard: { borderRadius: radius.sm, padding: space.x14, gap: space.md },
+  file: { gap: space.xs },
+  fieldsHead: { marginTop: space.x20, marginBottom: space.xs },
 });

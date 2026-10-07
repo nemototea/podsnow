@@ -35,6 +35,7 @@ Claude Code と Codex の両方がこのファイルを読む（`CLAUDE.md` は�
   - `domain/` / `services/` / `infra/` は文言を持たない。エラーは `src/domain/errors.ts` の `AppErrorCode` で返し、表示は UI 層の `errorText()` に任せる。
   - DB に書き込む既定文言は `ServiceLabels`（`src/services/app/labels.ts`）経由で UI 層から渡す。
 - 時間はサンプル数（`Smp`、48 kHz）で持ち、UI 表示時だけ ms に変換する。
+- **見た目は見本 `docs/design-refresh/ds4/mock.html`（Issue #235）を完全に再現する**。`DESIGN_SYSTEM.md` は見本から書き写した記録で、食い違ったら見本に合わせて文書を直す。見本と規則がぶつかったら、勝手に寄せずにユーザーに確かめてから見本を直す（DESIGN_SYSTEM.md 冒頭）。
 - **画面と `src/ui/` に生の値を書かない**（色の hex、`fontSize`、余白、角丸）。`src/ui/tokens/` の役割トークンを使う（DESIGN_SYSTEM.md §1）。ESLint で落ちる。
   - 色を変えるときは `src/ui/tokens/colors.ts` ではなく `scripts/design/ramps.py` を直して `python3 scripts/design/generate.py`。生成時と `npm test` の両方でコントラストを測る。
   - 透過を重ねて色を作らない（`` `${c.voice}55` ``）。背面が分からないと測れない。不透明なトークンを足す。

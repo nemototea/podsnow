@@ -10,3 +10,5 @@ package-lock.json
 scripts/web-preview
 # scripts/brand/generate.py の生成物。整形すると再生成のたびに差分が出る
 src/ui/brand/wordmark.ts
+# Design system 4 の見本。公開した Artifact と同じ内容に保つため整形しない
+docs/design-refresh/ds4/mock.html

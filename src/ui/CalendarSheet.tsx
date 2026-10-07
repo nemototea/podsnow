@@ -8,7 +8,7 @@ import { Button, IconButton } from './components';
 import { Sheet } from './Sheet';
 import { Text } from './Text';
 import { useAppTheme } from './ThemeContext';
-import { hit, radius, space, stroke, tabularNums, typography } from './tokens';
+import { hit, radius, space, tabularNums, typography } from './tokens';
 
 export interface CalendarSheetProps {
   visible: boolean;
@@ -84,7 +84,6 @@ export function CalendarSheet({ visible, title, value, onSelect, onClose }: Cale
                         : pressed
                           ? c.surfaceHover
                           : 'transparent',
-                      borderColor: isToday && !on ? c.accentBorder : 'transparent',
                     },
                   ]}
                 >
@@ -128,7 +127,6 @@ const st = StyleSheet.create({
     width: hit.min,
     height: hit.min,
     borderRadius: radius.pill,
-    borderWidth: stroke.selected,
     alignItems: 'center',
     justifyContent: 'center',
   },

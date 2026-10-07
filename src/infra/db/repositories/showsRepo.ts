@@ -32,6 +32,8 @@ export interface ShowRow extends SqlRow {
   podcast_guid: string | null;
   cover_source_url: string | null;
   feed_imported_at: number | null;
+  /** アートワークの代表色 `#RRGGBB`（0008）。NULL = アートワークが無い、またはまだ計算していない */
+  cover_color: string | null;
 }
 
 export interface ShowLayoutRow extends SqlRow {
@@ -115,6 +117,7 @@ export async function updateShow(
     podcastGuid: string | null;
     coverSourceUrl: string | null;
     feedImportedAt: number | null;
+    coverColor: string | null;
   }>,
   now: number,
 ): Promise<void> {
@@ -137,6 +140,7 @@ export async function updateShow(
     podcastGuid: 'podcast_guid',
     coverSourceUrl: 'cover_source_url',
     feedImportedAt: 'feed_imported_at',
+    coverColor: 'cover_color',
   };
   const sets: string[] = [];
   const vals: (string | number | null)[] = [];

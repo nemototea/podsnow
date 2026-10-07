@@ -19,7 +19,10 @@ export function ScreenHeader({
   right,
   lockBack,
   onLockedBack,
+  hidden,
 }: {
+  /** ナビゲーションバーを出さず、画面が自分で上部を描く（エピソード画面）。戻る操作の抑止は効く。 */
+  hidden?: boolean;
   title: string;
   subtitle?: string;
   right?: ReactNode;
@@ -33,6 +36,7 @@ export function ScreenHeader({
       options={{
         title,
         gestureEnabled: !lockBack,
+        ...(hidden ? { headerShown: false } : {}),
         ...(subtitle
           ? {
               headerTitle: () => (

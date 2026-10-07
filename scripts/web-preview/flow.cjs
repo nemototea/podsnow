@@ -1,73 +1,71 @@
+// 画面検証用の撮影（docs/design-refresh/README.md §6）。Design system 4（#235）の見本と並べて見る順に撮る。
+//   OUT=<撮影先> NODE_PATH=$(npm root -g) node scripts/web-preview/flow.cjs
+// 番組の代表色は ?showColor= で与える（shims/expo-sqlite.js。画像は読めないので名前の表紙になる）。
 const { chromium } = require('playwright');
 const OUT = process.env.OUT || '.';
 const W = +(process.env.W || 390), H = +(process.env.H || 844);
 const LOCALE = process.env.LOC || 'ja-JP';
-const SCHEME = process.env.SCHEME || 'dark';
-const TAG = process.env.TAG || `${LOCALE.slice(0,2)}-${SCHEME}-${W}`;
-const ONLY = process.env.ONLY;
+const TAG = process.env.TAG || `${LOCALE.slice(0, 2)}-${W}`;
+const SHOW = process.env.SHOW || '%23C4492F';
+const NAME = encodeURIComponent(process.env.SHOW_NAME || '夜更けのラジオ');
 (async () => {
-  const b = await chromium.launch();
-  const ctx = await b.newContext({ viewport: { width: W, height: H }, deviceScaleFactor: 2, locale: LOCALE, colorScheme: SCHEME });
+  const b = await chromium.launch({ executablePath: process.env.CHROMIUM || undefined });
+  const ctx = await b.newContext({ viewport: { width: W, height: H }, deviceScaleFactor: 2, locale: LOCALE, colorScheme: 'dark' });
   const p = await ctx.newPage();
   const errors = [];
   p.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
   p.on('console', (m) => { if (m.type() === 'error') errors.push('console: ' + m.text()); });
-  p.on('dialog', (d) => { console.log('dialog: ' + d.message().replace(/\n/g, ' / ')); void d.dismiss(); });
-  const shot = async (name) => { await p.waitForTimeout(400); await p.screenshot({ path: `${OUT}/${TAG}-${name}.png` }); console.log('shot', name); };
-  const tap = async (text, opts = {}) => { const l = p.getByText(text, { exact: opts.exact ?? true }).first(); await l.click(); await p.waitForTimeout(opts.wait ?? 500); };
-  const tapLabel = async (label) => { await p.getByLabel(label, { exact: true }).first().click(); await p.waitForTimeout(500); };
+  p.on('dialog', (d) => { console.log('dialog: ' + d.message().replace(/\n/g, ' / ')); void d.accept(); });
+  const shot = async (name) => { await p.waitForTimeout(600); await p.screenshot({ path: `${OUT}/${TAG}-${name}.png` }); console.log('shot', name); };
+  const label = (l) => p.getByLabel(l, { exact: true }).first();
+  const text = (s) => p.getByText(s, { exact: true }).first();
   const ja = LOCALE.startsWith('ja');
   const T = (j, e) => (ja ? j : e);
-  await p.goto(`http://localhost:8765/?speed=${process.env.SPEED || 60}${process.env.Q || ''}`);
+  await p.goto(`http://localhost:8765/?speed=60&showColor=${SHOW}&showName=${NAME}&showAuthor=nemoto`);
   await p.waitForTimeout(2500);
-  if (SCHEME === 'light') {
-    await tapLabel(T('設定', 'Settings'));
-    await tap(T('ライト', 'Light'), { wait: 800 });
-    await p.locator('[aria-label$="back"]').first().click(); await p.waitForTimeout(500);
-    await p.waitForTimeout(800);
-  }
   await shot('01-home-empty');
-  if (ONLY === 'home') { console.log(errors.join('\n')); await b.close(); return; }
-  await tap(T('新しいエピソードを録る', 'Record a new episode'), { wait: 1500 });
-  await shot('02-record-idle');
-  await tapLabel(T('録音を開始', 'Start recording'));
-  await p.waitForTimeout(2600);
+
+  // 1 本目: 録って、編集して、書き出す
+  await p.getByRole('tab', { name: T('作成', 'Create') }).click(); await p.waitForTimeout(1500);
+  await shot('02-episode-idle');
+  await text(T('録音を開始', 'Start recording')).click(); await p.waitForTimeout(3000);
   await shot('03-recording');
-  await tapLabel(T('一時停止', 'Pause'));
-  await shot('04-paused');
-  await tapLabel(T('再開', 'Resume'));
-  await p.waitForTimeout(1500);
-  await tapLabel(T('収録を終える', 'Finish take'));
-  await p.waitForTimeout(1500);
-  await shot('05-stopped');
-  await p.getByRole('tab', { name: T('編集', 'Edit') }).click();
-  await p.waitForTimeout(1200);
-  await shot('06-edit');
-  const lane = await p.getByText(T('素材なし', 'No sounds'), { exact: true }).first().boundingBox();
-  await p.mouse.click(lane.x + 100, lane.y - 60); await p.waitForTimeout(900);
-  await shot('07-edit-selection');
-  await tap(T('選択をカット', 'Cut selection'), { wait: 900 });
-  await shot('08-cut-toast');
-  await tap(T('取り消す', 'Undo'), { wait: 1200 });
-  await shot('08b-undone');
-  await p.getByRole('tab', { name: T('書き出し', 'Export') }).click();
-  await p.waitForTimeout(1200);
-  await shot('09-export');
-  await p.mouse.wheel(0, 3000); await p.waitForTimeout(500);
-  await shot('10-export-bottom');
-  await tap(T('音声を書き出す', 'Export audio'), { wait: 1200 });
-  await shot('11-export-progress');
-  await p.waitForTimeout(3500);
-  await shot('12-handoff');
-  await p.getByText(T('コピー', 'Copy'), { exact: true }).nth(1).click(); await p.waitForTimeout(300);
-  await shot('13-handoff-copied');
-  await tap(T('エピソード一覧へ', 'Back to episodes'), { wait: 1500 });
-  await shot('14-home-data');
-  await tapLabel(T('設定', 'Settings'));
-  await shot('15-settings');
-  await p.goBack(); await p.waitForTimeout(800);
-  await tap(T('新しく始める', 'Start a new show'), { wait: 1200 });
-  await shot('16-show');
+  await label(T('一時停止', 'Pause')).click(); await shot('04-paused');
+  await label(T('再開', 'Resume')).click(); await p.waitForTimeout(2000);
+  await label(T('録音を止める', 'Stop recording')).click(); await p.waitForTimeout(2000);
+  await shot('05-edit');
+  const box = await p.locator('[data-testid="timeline"]').first().boundingBox().catch(() => null);
+  if (box) { await p.mouse.click(box.x + 80, box.y + 60); await p.waitForTimeout(900); }
+  await shot('06-edit-selection');
+  await text(T('削除', 'Delete')).click(); await p.waitForTimeout(900);
+  await shot('07-deleted-toast');
+  await text(T('取り消す', 'Undo')).click(); await p.waitForTimeout(900);
+  await text(T('書き出し', 'Export')).click(); await p.waitForTimeout(1500);
+  await shot('08-export');
+  await text(T('書き出して共有', 'Export and share')).click(); await p.waitForTimeout(4500);
+  await shot('09-share');
+  await p.goBack(); await p.waitForTimeout(800); await p.goBack(); await p.waitForTimeout(1500);
+
+  // 2 本目: 録って下書きのまま戻る（下書きバー）
+  await p.getByRole('tab', { name: T('作成', 'Create') }).click(); await p.waitForTimeout(1500);
+  await text(T('録音を開始', 'Start recording')).click(); await p.waitForTimeout(2500);
+  await label(T('録音を止める', 'Stop recording')).click(); await p.waitForTimeout(1500);
+  await label(T('戻る', 'Back')).click(); await p.waitForTimeout(1800);
+  await shot('10-home');
+  await p.mouse.wheel(0, 900); await shot('11-home-bottom');
+  await p.mouse.wheel(0, -900);
+  await label(T('夜更けのラジオ を開く', 'Open 夜更けのラジオ')).click(); await p.waitForTimeout(1500);
+  await shot('12-show');
+  await p.getByRole('button', { name: T('素材', 'Sounds'), exact: true }).click(); await shot('13-show-assets');
+  await text(T('ひな形', 'Templates')).click(); await shot('14-show-templates');
+  await p.getByRole('tab', { name: T('検索', 'Search') }).click(); await p.waitForTimeout(1200);
+  await p.getByLabel(T('エピソードや素材を探す', 'Search episodes and sounds')).fill('#'); await p.waitForTimeout(600);
+  await shot('15-search');
+  await p.getByRole('tab', { name: T('素材', 'Sounds') }).click(); await p.waitForTimeout(1200);
+  await shot('16-library');
+  await p.getByRole('tab', { name: T('ホーム', 'Home') }).click(); await p.waitForTimeout(1200);
+  await label(T('設定', 'Settings')).click(); await p.waitForTimeout(1200);
+  await shot('17-settings');
   console.log('ERRORS:\n' + errors.join('\n'));
   await b.close();
 })().catch((e) => { console.error(e); process.exit(1); });

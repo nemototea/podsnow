@@ -2,7 +2,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 
 import { Text } from './Text';
 import { useAppTheme } from './ThemeContext';
-import { hit, radius, space, stroke, typography } from './tokens';
+import { chip, hitSlop, radius, space, typography } from './tokens';
 
 export interface SegmentedProps<T extends string> {
   value: T;
@@ -12,6 +12,10 @@ export interface SegmentedProps<T extends string> {
   disabled?: (v: T) => boolean;
 }
 
+/**
+ * 切り替え（見本 `.seg`、エピソードの「収録 / 書き出し」）。チップを左から並べ、選んでいるものだけ
+ * アクセントの塗りに黒の文字。iOS も同じ形にする（#235 で UISegmentedControl をやめた。DESIGN_SYSTEM.md §6.1）。
+ */
 export function Segmented<T extends string>({
   value,
   options,
@@ -20,10 +24,7 @@ export function Segmented<T extends string>({
 }: SegmentedProps<T>) {
   const c = useAppTheme();
   return (
-    <View
-      style={[st.segmented, { backgroundColor: c.surface, borderColor: c.controlBorder }]}
-      accessibilityRole="tablist"
-    >
+    <View style={st.row} accessibilityRole="tablist">
       {options.map((o) => {
         const active = o.value === value;
         const off = !active && !!disabled?.(o.value);
@@ -33,18 +34,22 @@ export function Segmented<T extends string>({
             onPress={() => onChange(o.value)}
             accessibilityRole="tab"
             accessibilityState={{ selected: active, disabled: off }}
+            hitSlop={hitSlop(typography.chip.lineHeight + 2 * chip.paddingY)}
             style={({ pressed }) => [
-              st.segment,
+              st.chip,
               {
-                backgroundColor: active ? c.textPrimary : pressed ? c.surfaceHover : 'transparent',
+                backgroundColor: active
+                  ? c.accentSolid
+                  : pressed
+                    ? c.surfaceHover
+                    : c.surfaceRaised,
               },
             ]}
           >
             <Text
               style={[
-                typography.label,
-                st.center,
-                { color: active ? c.bg : off ? c.textDisabled : c.textPrimary },
+                typography.chip,
+                { color: active ? c.accentOnSolid : off ? c.textDisabled : c.textPrimary },
               ]}
             >
               {o.label}
@@ -57,20 +62,12 @@ export function Segmented<T extends string>({
 }
 
 const st = StyleSheet.create({
-  center: { alignItems: 'center', justifyContent: 'center', textAlign: 'center' },
-  // 丸い端の枠に、選択中だけ本文色（墨 / 紙）で塗った丸いつまみ（#190）。
-  segmented: {
-    flexDirection: 'row',
+  row: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
+  chip: {
+    paddingVertical: chip.paddingY,
+    paddingHorizontal: chip.paddingX,
     borderRadius: radius.pill,
-    borderWidth: stroke.selected,
-    padding: space.xs,
-    gap: space.xs,
-  },
-  segment: {
-    flex: 1,
-    minHeight: hit.min,
+    alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: radius.pill,
-    paddingHorizontal: space.sm,
   },
 });

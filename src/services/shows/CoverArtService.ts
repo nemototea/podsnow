@@ -81,7 +81,8 @@ export class CoverArtService {
       await updateShow(
         this.deps.db,
         showId,
-        { coverPath: rel, coverSourceUrl: null },
+        // 代表色は画像が変わったら計算し直す（ShowColorService。DATA_MODEL.md §4.1）
+        { coverPath: rel, coverSourceUrl: null, coverColor: null },
         this.deps.now(),
       );
     } catch (cause) {
@@ -118,7 +119,7 @@ export class CoverArtService {
     await updateShow(
       this.deps.db,
       showId,
-      { coverPath: null, coverSourceUrl: null },
+      { coverPath: null, coverSourceUrl: null, coverColor: null },
       this.deps.now(),
     );
     if (current.cover_path) {

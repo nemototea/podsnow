@@ -78,12 +78,12 @@
 
 | 対象 | TTF の実サイズ合計（非圧縮） | 判断 |
 |---|---:|---|
-| Manrope 400 / 500 / 600 / 700 | 389,980 bytes（約0.39 MB） | 英語 UI、日英共通の数字に使用。残す |
+| Figtree 400 / 500 / 600 / 700 / 800 / 900 | 240,616 bytes（約0.24 MB） | 英語 UI、日英共通の数字、見出しの極太に使用（#235 で Manrope と Dela Gothic One から替えた） |
 | Noto Sans JP 400 / 500 / 600 / 700 | 23,052,480 bytes（約23.05 MB） | 日本語 UI に使用。残すが軽量化の検討対象 |
 
 【事実】`app.json`、`Text.tsx` / `fonts.ts`、`tokens/scale.ts`、`scripts/fonts/generate.py` と実ファイルを照合。
 400 は本文、500 は補助情報、600 はラベル・見出し、700 はタイトルに使う。孤立したフォントファイルは無い。
-IBM Plex Mono は #110 で削除済み。ロゴの Manrope 800 は輪郭データとして使い、800 の TTF は同梱していない。
+IBM Plex Mono は #110 で削除済み。Manrope と Dela Gothic One は #235 で削除した。ロゴは Figtree 900 の輪郭データで描く。
 OFL ファイルは配布に伴うライセンス文なので残す。上記は APK / IPA の圧縮後サイズではない。
 
 【仮説】Noto Sans JP の軽量化には効果が見込めるが、OS 書体への変更は日英・OS 間の表示差を増やす。
@@ -96,7 +96,7 @@ OFL ファイルは配布に伴うライセンス文なので残す。上記は 
 | 対象 | 現状【事実】 | 次に判断すること【仮説】 |
 |---|---|---|
 | Gesture Handler / Reanimated | 波形ハンドルでは使用済み。並べ替えは Issue #119 / #121 で既存ライブラリのドラッグ（`src/ui/ReorderList.tsx`）に統一した（トークテーマ・この回の録音・素材）。見た目の上下ボタンは廃止し、読み上げ向けに行の `accessibilityActions`（上へ移動 / 下へ移動）を残した | iOS のスクロール・ページシートの下スワイプとの競合は未検証（`docs/device-checklist.md` UX-8〜UX-11） |
-| Reanimated | `LevelMeter.tsx` は React の View を描画し、`useWorkspace.ts` はレベルイベントごとに state を更新している | 実機で録音中の描画負荷を測り、必要ならレベル購読の分離や shared value 化を検討。遅いと確認したわけではない |
+| Reanimated | `LevelBars.tsx`（作業 7 で `LevelMeter.tsx` から替えた）は React の View を描画し、`useWorkspace.ts` はレベルイベントごとに state を更新している | 実機で録音中の描画負荷を測り、必要ならレベル購読の分離や shared value 化を検討。遅いと確認したわけではない |
 | DateTimePicker | iOS はコンパクト表示、Android は `DateTimePickerAndroid.open` のダイアログ（Issue #167） | — |
 | Noto Sans JP | 全4ウェイトが使用中だが同梱容量の大半を占める | 未使用削除ではなく、文字範囲・字形・実ウェイトを含む軽量化設計として扱う |
 

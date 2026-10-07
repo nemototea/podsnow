@@ -21,7 +21,6 @@ import { useT } from '@/i18n';
 import type { RecordingEvent } from '@/infra/db/repositories/recordingEventsRepo';
 import { Icon, Text } from '@/ui/components';
 import {
-  concentric,
   glyphSlop,
   hit,
   icon,
@@ -29,6 +28,7 @@ import {
   space,
   stroke,
   tabularNums,
+  timeline,
   typography,
 } from '@/ui/tokens';
 import { useAppTheme } from '@/ui/ThemeContext';
@@ -38,6 +38,8 @@ import { sampleVoiceColumns, type TakePeaks } from './peaks';
 
 const SAMPLE_RATE = 48000;
 const COL_W = 3;
+/** 塊の間（見本 `.lane` の gap 3）。 */
+const CHUNK_GAP = 3;
 
 export interface WaveformProps {
   voice: readonly VoiceSegment[];
@@ -82,9 +84,18 @@ export interface WaveformProps {
 const HANDLE_W = hit.min;
 const HANDLE_IN = space.md;
 const EMPTY_BLOCKS: readonly Range[] = [];
-const FULL_HEIGHT = 96;
+const FULL_HEIGHT = timeline.lane;
 const COMPACT_HEIGHT = 44;
-const OVERLAY_H = 22;
+/** 目盛りの行（見本 `.ruler` の文字 12 と下の 8）。 */
+const RULER = timeline.ruler;
+/** 素材のレーン（見本 `.layer` の高さ 24、間 6、上 10）。上が差し込み素材、下が BGM・オープニング・エンディング。 */
+const LAYER_H = timeline.layer;
+const LAYER_GAP = space.x6;
+const LAYERS_TOP = space.x10;
+const LAYERS_H = LAYER_H * 2 + LAYER_GAP;
+/** 目盛りの刻み（秒）と、隣の目盛りとの最小の間（px）。 */
+const TICK_STEPS = [1, 2, 5, 10, 15, 30, 60, 120, 300, 600, 1800] as const;
+const TICK_MIN_GAP = 72;
 /** 差し込み録音中の仮の区間。ピークが無いので棒は描かれず、録音の帯だけが見える。 */
 const LIVE_SEGMENT_ID = '__live__';
 
@@ -95,9 +106,10 @@ const LIVE_SEGMENT_ID = '__live__';
 export const Waveform = memo(function Waveform(p: WaveformProps) {
   const c = useAppTheme();
   const t = useT();
-  const mark = c.isDark ? c.accentSolid : c.accentBorder;
+  const mark = c.accentSolid;
   const height = p.compact ? COMPACT_HEIGHT : FULL_HEIGHT;
-  const laneTop = 16 + height + 4 + OVERLAY_H * 2 + 4;
+  const layersTop = RULER + height + LAYERS_TOP;
+  const laneTop = layersTop + LAYERS_H + space.x6;
   const [viewW, setViewW] = useState(0);
   const [scrollX, setScrollX] = useState(0);
   const scrollRef = useRef<ScrollView>(null);
@@ -145,6 +157,9 @@ export const Waveform = memo(function Waveform(p: WaveformProps) {
   }, [from, to, viewW, p.pps, voice, p.peaksByTake]);
 
   const xOf = (s: number) => (s / SAMPLE_RATE) * p.pps;
+  // 目盛りの間隔。拡大率に合わせて、隣と重ならない最小の刻みを選ぶ（見本 `.ruler` は画面幅に 4 つ）
+  const tickSec = TICK_STEPS.find((sec) => sec * p.pps >= TICK_MIN_GAP) ?? TICK_STEPS.at(-1)!;
+  const selX = p.selection ? ([xOf(p.selection.start), xOf(p.selection.end)] as const) : null;
 
   // 録音中は録っている先端を画面の右寄りに保つ。止めたら位置はそのまま（手で動かせる）
   const recHeadX = p.recording ? xOf(recFrom + p.recFrames) : null;
@@ -263,53 +278,64 @@ export const Waveform = memo(function Waveform(p: WaveformProps) {
         onScroll={onScroll}
         scrollEventThrottle={32}
         showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{ width: contentW }}
+        contentContainerStyle={[styles.content, { width: contentW }]}
       >
         <Pressable
-          style={{ width: contentW, height: height + OVERLAY_H * 2 + 52 }}
+          style={{ width: contentW, height: laneTop + space.xl }}
           onPress={(e) => seekAt(e.nativeEvent.locationX)}
         >
           {/* 目盛り */}
-          {Array.from({ length: Math.ceil(totalSec / 15) + 2 }).map((_, i) => (
+          {Array.from({ length: Math.ceil(totalSec / tickSec) + 2 }).map((_, i) => (
             <Text
               key={i}
-              style={[styles.tick, tabularNums, { left: i * 15 * p.pps, color: c.textTertiary }]}
+              style={[
+                styles.tick,
+                tabularNums,
+                { left: i * tickSec * p.pps, color: c.textTertiary },
+              ]}
             >
-              {formatSmp(smp(i * 15 * SAMPLE_RATE))}
+              {formatSmp(smp(i * tickSec * SAMPLE_RATE))}
             </Text>
           ))}
           {/* 声 */}
-          <View style={[styles.voiceTrack, { top: 16, height }]}>
-            {placed.map((seg, i) => (
-              <View
-                key={seg.segment.id}
-                pointerEvents="none"
-                style={[
-                  styles.voiceSeg,
-                  {
-                    left: xOf(seg.start),
-                    width: Math.max(2, xOf(seg.end) - xOf(seg.start)),
-                    borderColor: i % 2 ? c.voiceFillAlt : c.voiceFill,
-                  },
-                ]}
-              />
-            ))}
+          <View style={[styles.voiceTrack, { top: RULER, height }]}>
+            {/* 塊（見本 `.chunk`）。無音で区切った塊ごとに角丸 4 の面を置き、間を 3 あける */}
+            {(p.blocks?.length
+              ? p.blocks
+              : placed.map((x) => ({ start: x.start, end: x.end }))
+            ).map((b) => {
+              const left = xOf(shiftAt(b.start)) + CHUNK_GAP / 2;
+              const width = Math.max(2, xOf(shiftAt(b.end)) - xOf(shiftAt(b.start)) - CHUNK_GAP);
+              const on = !!p.selection && b.start >= p.selection.start && b.end <= p.selection.end;
+              return (
+                <View
+                  key={`${b.start}-${b.end}`}
+                  pointerEvents="none"
+                  style={[
+                    styles.chunk,
+                    { left, width, backgroundColor: on ? c.accentSubtle : c.voiceFill },
+                  ]}
+                />
+              );
+            })}
             {columns
               ? Array.from({ length: columns.n }).map((_, i) => {
                   const lo = columns.data[i * 2]! / 127;
                   const hi = columns.data[i * 2 + 1]! / 127;
                   const h = Math.max(1, (hi - lo) * (height / 2));
                   const top = height / 2 - hi * (height / 2);
+                  const x = columns.x + i * COL_W;
                   return (
                     <View
                       key={i}
                       style={{
                         position: 'absolute',
-                        left: columns.x + i * COL_W,
+                        left: x,
                         top,
                         width: COL_W - 1,
                         height: h,
-                        backgroundColor: c.voiceSolid,
+                        // 選択中の塊の棒はアクセント（見本 `.chunk.sel i`）
+                        backgroundColor: selX && x >= selX[0] && x < selX[1] ? mark : c.waveBar,
                         borderRadius: 1,
                       }}
                     />
@@ -349,24 +375,8 @@ export const Waveform = memo(function Waveform(p: WaveformProps) {
                   );
                 })
               : null}
-            {/* 塊の切れ目。選べる単位が目で分かるようにする */}
-            {p.blocks?.map((b) => (
-              <View
-                key={`${b.start}-${b.end}`}
-                style={[
-                  styles.blockEdge,
-                  { left: xOf(shiftAt(b.start)), borderColor: c.borderStrong },
-                ]}
-              />
-            ))}
             {p.selection ? (
-              <Animated.View
-                style={[
-                  styles.selection,
-                  selectionStyle,
-                  { backgroundColor: c.selectionOverlay, borderColor: mark },
-                ]}
-              />
+              <Animated.View style={[styles.selection, selectionStyle, { borderColor: mark }]} />
             ) : null}
           </View>
           {/* 選択のハンドル。掴んで伸ばす（FR-EDIT-2） */}
@@ -384,7 +394,7 @@ export const Waveform = memo(function Waveform(p: WaveformProps) {
               </GestureDetector>
             </>
           ) : null}
-          <View style={[styles.overlayTrack, { top: 16 + height + 4 }]}>
+          <View style={[styles.overlayTrack, { top: layersTop }]}>
             {p.overlays.map((o) => {
               if (o.status !== 'placed') return null;
               const music =
@@ -403,17 +413,16 @@ export const Waveform = memo(function Waveform(p: WaveformProps) {
                     styles.overlayClip,
                     {
                       left: xOf(shiftAt(o.range.start)),
+                      top: music ? LAYER_H + LAYER_GAP : 0,
                       width: Math.max(6, xOf(shiftAt(o.range.end)) - xOf(shiftAt(o.range.start))),
                       backgroundColor: music ? c.musicFill : c.insertFill,
-                      borderColor: selected ? mark : music ? c.musicBorder : c.insertBorder,
-                      borderWidth: selected ? stroke.selected : stroke.hairline,
+                      // 見本 `.layer` は枠を持たない。選んでいるときだけアクセントの輪郭
+                      borderColor: mark,
+                      borderWidth: selected ? stroke.selected : 0,
                     },
                   ]}
                 >
-                  <Text
-                    numberOfLines={1}
-                    style={[styles.overlayLabel, { color: music ? c.musicText : c.insertText }]}
-                  >
+                  <Text numberOfLines={1} style={[styles.overlayLabel, { color: c.textPrimary }]}>
                     {name}
                   </Text>
                 </Pressable>
@@ -462,41 +471,28 @@ export const Waveform = memo(function Waveform(p: WaveformProps) {
               styles.playhead,
               {
                 left: xOf(p.recording ? recFrom + p.recFrames : p.playhead),
-                backgroundColor: p.recording ? c.recSolid : mark,
+                backgroundColor: p.recording ? c.recSolid : c.textPrimary,
               },
             ]}
-          />
+          >
+            {/* 見本 `.playhead::before`: 上端の白い丸 */}
+            <View
+              style={[
+                styles.playheadKnob,
+                { backgroundColor: p.recording ? c.recSolid : c.textPrimary },
+              ]}
+            />
+          </View>
         </Pressable>
       </ScrollView>
-      {p.compact ? null : (
-        <>
-          <Text
-            pointerEvents="none"
-            // 目盛りの行には置かない。スクロールで時刻と重なる（Issue #195）
-            style={[styles.lane, styles.laneLeft, { top: 16 + space.xs, color: c.textSecondary }]}
-          >
-            {t.edit.laneVoice}
-          </Text>
-          <Text
-            pointerEvents="none"
-            style={[
-              styles.lane,
-              styles.laneLeft,
-              { top: 16 + height + 4 + space.xs, color: c.textSecondary },
-            ]}
-          >
-            {t.edit.laneAssets}
-          </Text>
-        </>
-      )}
     </View>
   );
 });
 
 const styles = StyleSheet.create({
   root: { width: '100%' },
-  lane: { position: 'absolute', ...typography.overline },
-  laneLeft: { left: space.sm },
+  // 見本 `.ruler` / `.lane` / `.layers` の左右 12
+  content: { paddingHorizontal: space.md, boxSizing: 'content-box' },
   tick: { position: 'absolute', top: 0, ...typography.tick },
   voiceTrack: {
     position: 'absolute',
@@ -505,34 +501,33 @@ const styles = StyleSheet.create({
     borderRadius: radius.sm,
     overflow: 'hidden',
   },
-  voiceSeg: { position: 'absolute', top: 0, bottom: 0, borderLeftWidth: 1 },
+  chunk: { position: 'absolute', top: 0, bottom: 0, borderRadius: radius.xs },
   recLive: { position: 'absolute', top: 0, bottom: 0, borderLeftWidth: 1 },
-  selection: { position: 'absolute', top: 0, bottom: 0, borderLeftWidth: 2, borderRightWidth: 2 },
-  blockEdge: { position: 'absolute', top: 0, bottom: 0, width: 1, borderLeftWidth: 1 },
+  // 見本 `.chunk.sel`: アクセントの 2 の輪郭（地は塊の側で `accentSubtle`）
+  selection: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    borderWidth: stroke.selected,
+    borderRadius: radius.xs,
+  },
   handle: {
     position: 'absolute',
-    top: 16,
+    top: RULER + (FULL_HEIGHT - hit.min) / 2,
     width: HANDLE_W,
     height: hit.min,
     justifyContent: 'center',
   },
-  // つまみ（幅 space.xs）の中心を選択の境界に合わせる
-  handleStart: { alignItems: 'flex-end', paddingRight: HANDLE_IN - space.xs / 2 },
-  handleEnd: { alignItems: 'flex-start', paddingLeft: HANDLE_IN - space.xs / 2 },
-  grip: { width: space.xs, height: space.xxl, borderRadius: radius.pill },
-  overlayTrack: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    height: OVERLAY_H * 2,
-    borderRadius: radius.sm,
-  },
+  // つまみ（見本 `.chunk.sel::before` の 6 × 28）の中心を選択の境界に合わせる
+  handleStart: { alignItems: 'flex-end', paddingRight: HANDLE_IN - timeline.handleW / 2 },
+  handleEnd: { alignItems: 'flex-start', paddingLeft: HANDLE_IN - timeline.handleW / 2 },
+  grip: { width: timeline.handleW, height: timeline.handleH, borderRadius: radius.pill },
+  overlayTrack: { position: 'absolute', left: 0, right: 0, height: LAYERS_H },
+  // 見本 `.layer`: 高さ 24、角丸 4、左右 8、白の 10.5 / 700。
   overlayClip: {
     position: 'absolute',
-    top: space.hair,
-    height: OVERLAY_H * 2 - space.xs,
-    // 外側 radius.sm の内側に space.hair で入るので、同心になる角丸はこれ。
-    borderRadius: concentric(radius.sm, space.hair),
+    height: LAYER_H,
+    borderRadius: radius.xs,
     justifyContent: 'center',
     paddingHorizontal: space.sm,
   },
@@ -546,5 +541,20 @@ const styles = StyleSheet.create({
   },
   chapterTick: { width: stroke.selected, height: space.md },
   event: { position: 'absolute', alignItems: 'center' },
-  playhead: { position: 'absolute', top: space.md, bottom: 0, width: space.hair, borderRadius: 1 },
+  // 見本 `.playhead`: 白の 2、目盛りの下から素材のレーンの下まで、上端に 10 の丸。
+  playhead: {
+    position: 'absolute',
+    top: RULER + space.sm,
+    height: FULL_HEIGHT + LAYERS_TOP + LAYERS_H - space.sm,
+    width: space.hair,
+    borderRadius: 1,
+  },
+  playheadKnob: {
+    position: 'absolute',
+    top: -space.xs,
+    left: -space.xs,
+    width: space.x10,
+    height: space.x10,
+    borderRadius: radius.pill,
+  },
 });

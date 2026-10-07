@@ -1,4 +1,4 @@
-import Svg, { G, Path, Rect } from 'react-native-svg';
+import Svg, { Path } from 'react-native-svg';
 
 import { useT } from '@/i18n';
 
@@ -6,45 +6,24 @@ import { wordmark } from './brand/wordmark';
 import { useAppTheme } from './ThemeContext';
 
 /**
- * ロゴ `PodsNow.`（DESIGN_SYSTEM.md §3、#190）。版ズレ → 字 → 点の順に重ねる。
- * ライトの黄の点は紙の上で 3:1 を持てないので、墨の輪郭と組にする（§3.2）。
+ * ロゴ `PodsNow.`（DESIGN_SYSTEM.md §3、Issue #235 案 A）。白の字に、点だけアクセントの色。
+ * `size` は見本 `.wm` の字の大きさ。箱の高さは字の大きさと同じ（line-height 1）。
  */
-export function Wordmark({ width }: { width: number }) {
+export function Wordmark({ size }: { size: number }) {
   const c = useAppTheme();
   const t = useT();
-  const { dot, misreg } = wordmark;
-  const inset = c.isDark ? 0 : dot.edge;
+  const scale = size / wordmark.height;
   return (
     <Svg
-      width={width}
-      height={(width * wordmark.height) / wordmark.width}
+      width={wordmark.width * scale}
+      height={size}
       viewBox={`0 0 ${wordmark.width} ${wordmark.height}`}
       accessible
       accessibilityRole="image"
       accessibilityLabel={t.app.name}
     >
-      <G transform={`translate(${misreg.dx} ${misreg.dy})`}>
-        <Path d={wordmark.d} fill={c.brandShadow} />
-      </G>
-      <Path d={wordmark.d} fill={c.brandInk} />
-      {c.isDark ? null : (
-        <Rect
-          x={dot.x}
-          y={dot.y}
-          width={dot.size}
-          height={dot.size}
-          rx={dot.r}
-          fill={c.controlBorder}
-        />
-      )}
-      <Rect
-        x={dot.x + inset}
-        y={dot.y + inset}
-        width={dot.size - inset * 2}
-        height={dot.size - inset * 2}
-        rx={Math.max(0, dot.r - inset / 2)}
-        fill={c.brandAccent}
-      />
+      <Path d={wordmark.ink} fill={c.textPrimary} />
+      <Path d={wordmark.dot} fill={c.accentSolid} />
     </Svg>
   );
 }

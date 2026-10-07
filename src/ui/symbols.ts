@@ -3,11 +3,15 @@ import type { SFSymbol } from 'expo-symbols';
 import type { IconName } from './IconSvg';
 
 /**
- * iOS は SF Symbols で描く（DESIGN_SYSTEM.md §6.2）。文字の太さと大きさに合わせて OS が線を調整する。
+ * iOS のネイティブのメニューの項目に付ける SF Symbols（DESIGN_SYSTEM.md §6.2）。画面のアイコンは
+ * どの OS でも見本の SVG（`IconSvg.tsx`）で描く（Issue #235）。
  * 名前は `sf-symbols-typescript` の型で検査される。意味との対応は DESIGN_SYSTEM.md §6.4。
  * 1 つの記号を 2 つの意味に使わない（テストで検査する）。
  */
 export const SYMBOLS: Record<IconName, SFSymbol> = {
+  home: 'house.fill',
+  search: 'magnifyingglass',
+  library: 'books.vertical',
   plus: 'plus',
   minus: 'minus',
   arrow: 'chevron.right',
@@ -39,6 +43,7 @@ export const SYMBOLS: Record<IconName, SFSymbol> = {
   artwork: 'photo',
   close: 'xmark',
   refresh: 'arrow.clockwise',
+  nextTopic: 'forward.end.fill',
   warning: 'exclamationmark.triangle',
   route: 'arrow.left.arrow.right',
   trash: 'trash',

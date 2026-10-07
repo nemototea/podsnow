@@ -26,7 +26,8 @@ const TONES = [
   'mistake',
 ] as const satisfies readonly ToneName[];
 
-const THEMES = ['dark', 'light'] as const;
+// テーマはダーク 1 つ（Issue #235、FR-SET-1）。
+const THEMES = ['dark'] as const;
 
 /** 本文が載りうる面。文字はこのどれに載っても読めなければならない。 */
 const TEXT_SURFACES = ['bg', 'surface', 'surfaceRaised', 'surfaceHover'] as const;
@@ -35,7 +36,6 @@ const TEXT_SURFACES = ['bg', 'surface', 'surfaceRaised', 'surfaceHover'] as cons
 const BODY_TEXT = [
   'textPrimary',
   'textSecondary',
-  'textTertiary',
   'accentText',
   'dangerText',
   'recText',
@@ -89,19 +89,21 @@ describe.each(THEMES)('%s テーマの色', (theme) => {
       expect(contrast(c[`${role}OnSolid`], c[`${role}Solid`])).toBeGreaterThanOrEqual(4.5);
       expect(contrast(c[`${role}OnSolid`], c[`${role}SolidPressed`])).toBeGreaterThanOrEqual(4.5);
     }
-    expect(contrast(c.recOnSolid, c.recSolid)).toBeGreaterThanOrEqual(4.5);
+    // 録音中の札「REC」は見本どおり白の文字（ユーザー判断 2026-10-06、#235）。4.5:1 には届かないが 3:1 は保つ
+    expect(contrast(c.recOnSolid, c.recSolid)).toBeGreaterThanOrEqual(3);
     expect(contrast(c.insertOnSolid, c.insertSolid)).toBeGreaterThanOrEqual(4.5);
     expect(contrast(c.musicOnSolid, c.musicSolid)).toBeGreaterThanOrEqual(4.5);
   });
 
-  it('ロゴの文字は表示先の地で読め、黄の点は輪郭か地から 3:1 以上で見分けられる', () => {
+  it('目盛りの文字（textTertiary）は、載る面（bg / surface）の上で 4.5:1 以上ある', () => {
     for (const surface of ['bg', 'surface'] as const) {
-      expect(contrast(c.brandInk, c[surface])).toBeGreaterThanOrEqual(4.5);
+      expect(contrast(c.textTertiary, c[surface])).toBeGreaterThanOrEqual(4.5);
     }
-    // ライトの黄は紙の上で 3:1 を持てないので、墨の輪郭と組にして描く（DESIGN_SYSTEM.md §3.2）
-    const byOutline = contrast(c.brandAccent, c.controlBorder) >= 3;
-    const byGround = contrast(c.brandAccent, c.bg) >= 3;
-    expect(byOutline || byGround).toBe(true);
+  });
+
+  it('ロゴの文字と点は黒の地から見える', () => {
+    expect(contrast(c.textPrimary, c.bg)).toBeGreaterThanOrEqual(4.5);
+    expect(contrast(c.accentSolid, c.bg)).toBeGreaterThanOrEqual(3);
   });
 
   it('主操作の塗りは、背景か輪郭のどちらかで形が 3:1 以上に分かる', () => {
@@ -145,9 +147,34 @@ describe.each(THEMES)('%s テーマの色', (theme) => {
   });
 });
 
-describe('両テーマで同じ役割が揃っている', () => {
-  it('トークンの名前が一致する', () => {
-    expect(Object.keys(colors.dark).sort()).toEqual(Object.keys(colors.light).sort());
+describe('トークンの全体', () => {
+  it('テーマはダーク 1 つだけ', () => {
+    expect(Object.keys(colors)).toEqual(['dark']);
+  });
+
+  it('見本（docs/design-refresh/ds4/mock.html）の色はそのままの値', () => {
+    expect(colors.dark).toMatchObject({
+      bg: '#121212',
+      surface: '#1A1A1A',
+      surfaceRaised: '#242424',
+      surfaceHover: '#2E2E2E',
+      border: '#2F2F2F',
+      textPrimary: '#FFFFFF',
+      textSecondary: '#B3B3B3',
+      textTertiary: '#828282',
+      borderStrong: '#7A7A7A',
+      accentSolid: '#FFE34D',
+      accentOnSolid: '#000000',
+      accentSubtle: '#3D3A22',
+      recSolid: '#FF4D4D',
+      recOnSolid: '#FFFFFF',
+      mistakeSolid: '#FFB340',
+      waveBar: '#8C8C8C',
+      musicFill: '#3E3757',
+      insertFill: '#254146',
+      inverseSurface: '#FFFFFF',
+      inverseText: '#000000',
+    });
   });
 
   it('透過を持つトークンは、下を隠してはいけない重ねだけ', () => {
@@ -155,7 +182,13 @@ describe('両テーマで同じ役割が揃っている', () => {
       .filter(([, v]) => v.length === 9)
       .map(([n]) => n)
       .sort();
-    expect(alpha).toEqual(['overlayScrim', 'recordingOverlay', 'selectionOverlay']);
+    expect(alpha).toEqual([
+      'dockFade',
+      'dockFadeMid',
+      'overlayScrim',
+      'recordingOverlay',
+      'selectionOverlay',
+    ]);
   });
 
   it('値はすべて #RRGGBB か #RRGGBBAA', () => {
@@ -185,9 +218,11 @@ describe('両テーマで同じ役割が揃っている', () => {
 });
 
 describe('寸法', () => {
-  it('余白は 4 の倍数（hair だけ例外）', () => {
+  it('余白は 4 の倍数か、見本だけの値（hair と、値を名前にした x6 / x10 / x14 / x20 / x22）', () => {
     for (const [name, v] of Object.entries(space)) {
-      if (name !== 'hair') expect(v % 4).toBe(0);
+      if (name === 'hair') continue;
+      if (/^x\d+$/.test(name)) expect(name).toBe(`x${v}`);
+      else expect(v % 4).toBe(0);
     }
   });
 
@@ -211,8 +246,12 @@ describe('寸法', () => {
 });
 
 describe('書体', () => {
-  it('11px を下回るサイズは無い', () => {
-    for (const role of Object.values(typography)) expect(role.fontSize).toBeGreaterThanOrEqual(11);
+  it('11px を下回るのは見本の小さな名札・目盛り・タブだけ（10.5 と 10）', () => {
+    for (const [name, role] of Object.entries(typography)) {
+      if (['overline', 'eyebrow', 'tick', 'tab', 'tabActive', 'avatarSmall'].includes(name))
+        expect(role.fontSize).toBeGreaterThanOrEqual(10);
+      else expect(role.fontSize).toBeGreaterThanOrEqual(11);
+    }
   });
 
   it('18px 未満は太さ 400 以上（細い字は本文サイズで消える）', () => {
@@ -227,33 +266,27 @@ describe('書体', () => {
     }
   });
 
-  it('数値の役割に等幅数字を組み込み、同梱済みの Manrope 500 / 700 を使う', () => {
+  it('数値の役割に等幅数字を組み込み、同梱済みの Figtree を使う', () => {
     for (const role of Object.values(typography)) {
       if ('fontFamily' in role && role.fontFamily === family.numeric) {
-        expect(['500', '700']).toContain(role.fontWeight);
+        expect(['400', '500', '700', '800']).toContain(role.fontWeight);
         expect(role.fontVariant).toContain('tabular-nums');
       }
     }
   });
 
-  it('Dela Gothic One の役割は同梱した 400 だけを使う（1 ウェイトの書体）', () => {
-    const roles = Object.values(typography).filter(
-      (role) => 'fontFamily' in role && role.fontFamily === family.display,
-    );
-    expect(roles.length).toBeGreaterThan(0);
-    for (const role of roles) expect(role.fontWeight).toBe('400');
-  });
-
-  it('UI の役割は同梱した 400 / 500 / 600 / 700 のどれか', () => {
+  it('役割の太さは同梱した Figtree の 400〜900 のどれか（和文は 700 まで。DESIGN_SYSTEM.md §4.1）', () => {
     for (const role of Object.values(typography)) {
-      expect(['400', '500', '600', '700']).toContain(role.fontWeight);
+      expect(['400', '500', '600', '700', '800', '900']).toContain(role.fontWeight);
     }
   });
 
-  it('主要な操作の高さは 48 以上、通常のボタンは 52 以上', () => {
+  it('触れる面は 48 以上。見た目が小さい操作（ボタン 44、アイコン 32）は hitSlop で 48 に届く', () => {
     expect(hit.min).toBeGreaterThanOrEqual(48);
-    expect(hit.button).toBeGreaterThanOrEqual(52);
-    expect(hit.record).toBeGreaterThan(hit.button);
+    for (const size of [hit.button, hit.icon, hit.iconLarge, hit.rowAction, hit.roundAction]) {
+      expect(size + 2 * hitSlop(size)).toBeGreaterThanOrEqual(hit.min);
+    }
+    expect(hit.record).toBeGreaterThan(hit.roundAction);
   });
 
   it('入力欄は hit.min 以上で、枠が太くなっても字の位置が動かない', () => {
@@ -274,31 +307,4 @@ describe('書体', () => {
     expect(steps).toEqual([...steps].sort((a, b) => b - a));
     expect(new Set(steps).size).toBe(steps.length);
   });
-});
-
-describe('ボタンの輪郭と硬い影', () => {
-  it.each(['dark', 'light'] as const)(
-    '%s: 副操作の輪郭と影は、ボタンが載る面から見分けられる',
-    (theme) => {
-      const c = colors[theme];
-      for (const surface of TEXT_SURFACES) {
-        expect(contrast(c.controlBorder, c[surface])).toBeGreaterThanOrEqual(3);
-        expect(contrast(c.controlShadow, c[surface])).toBeGreaterThanOrEqual(3);
-        expect(contrast(c.controlShadowSoft, c[surface])).toBeGreaterThanOrEqual(3);
-      }
-    },
-  );
-
-  it.each(['dark', 'light'] as const)(
-    '%s: 主操作の枠は面から見分けられ、塗りは押下中も背景から区別できる',
-    (theme) => {
-      const c = colors[theme];
-      for (const surface of TEXT_SURFACES) {
-        expect(contrast(c.controlEdge, c[surface])).toBeGreaterThanOrEqual(3);
-      }
-      for (const fill of ['accentSolid', 'accentSolidPressed'] as const) {
-        expect(contrast(c[fill], c.bg)).toBeGreaterThanOrEqual(3);
-      }
-    },
-  );
 });

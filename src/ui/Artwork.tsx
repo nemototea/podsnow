@@ -3,80 +3,49 @@ import { StyleSheet, View } from 'react-native';
 import { Image } from 'expo-image';
 
 import { Icon } from './Icon';
-import { Halftone } from './media/Halftone';
 import { Text } from './Text';
 import { useAppTheme } from './ThemeContext';
-import { colors, icon, radius, space, stroke, typography } from './tokens';
+import { icon, radius, shadow as shadows, space } from './tokens';
 
-/** 番組名を載せる最小の辺。これより小さいと読めないので、点だけにする。 */
-const NAME_MIN = 96;
-/** これより大きければ番組名を `display` で組む。 */
-const DISPLAY_MIN = 160;
-/** 網点を描く最小の辺（DESIGN_SYSTEM.md §2.5、60px 以下には描かない）。 */
-const HALFTONE_MIN = 61;
+/** 名前を載せる最小の辺（見本のミニプレーヤー 38 にも「#43」を載せる）。これより小さいと面だけにする。 */
+const NAME_MIN = 32;
+/** これより大きければ番組名を極太（900）で組む。小さいときは 800（見本 `.art.small span`）。 */
+const HEAVY_MIN = 96;
+/** 番組名の字の大きさと内側の余白（辺に対する割合。見本の番組画面のアートワーク 196px で 28px / 14px）。 */
+const NAME_RATIO = 0.143;
+const PAD_RATIO = 0.0714;
+/** 字の大きさの下限（見本 `.art.small span` の 9px）。 */
+const NAME_FONT_MIN = 9;
 
 /**
- * 画像が無いときの番組の表紙（DESIGN_SYSTEM.md §2.6、Issue #193）。地はカセットの殻と同じ網点で、
- * 番組名は紙のラベルに墨で書く（網点を文字の下に置かない）。小さいときは点だけ。
- * 画面の中の再生の目印だけに使い、書き出すファイルには埋め込まない。
+ * 画像が無いときの番組の表紙（DESIGN_SYSTEM.md §2.6、Issue #193 / #235）。
+ * `surfaceRaised` の正方形の左下に、番組名を白の極太で置く（見本のアートワークの文字の置き方）。
+ * 画面の中の目印だけに使い、書き出すファイルには埋め込まない。
  */
 function NameCover({ name, size }: { name: string; size: number }) {
   const c = useAppTheme();
-  // カセットのラベルと同じく、紙と墨はテーマによらない
-  const paper = colors.light.bg;
-  const ink = colors.light.textPrimary;
-  const large = size >= DISPLAY_MIN;
-  const dot = large ? space.md : size >= NAME_MIN ? space.sm : space.xs + space.hair;
+  if (size < NAME_MIN) return null;
+  const fontSize = Math.max(NAME_FONT_MIN, Math.round(size * NAME_RATIO));
   return (
-    <View
-      style={[
-        s.cover,
-        { padding: large ? space.md : space.sm },
-        { backgroundColor: c.isDark ? c.surfaceRaised : c.accentSolid },
-      ]}
-    >
-      {size >= HALFTONE_MIN ? (
-        <Halftone color={c.isDark ? c.halftone : c.accentSolidPressed} />
-      ) : null}
-      {size >= NAME_MIN ? (
-        <View
-          style={[s.label, { backgroundColor: paper, borderColor: ink, borderRadius: radius.sm }]}
-        >
-          <Text
-            numberOfLines={3}
-            style={[
-              large ? typography.display : typography.sign,
-              s.name,
-              { color: ink, padding: large ? space.md : space.sm },
-            ]}
-          >
-            {name}
-          </Text>
-          <View style={s.stripes}>
-            <View style={[s.stripe, { backgroundColor: c.brandShadow }]} />
-            <View style={[s.stripe, { backgroundColor: c.brandAccent }]} />
-          </View>
-        </View>
-      ) : (
-        <View
-          style={[
-            s.dot,
-            {
-              width: dot,
-              height: dot,
-              borderRadius: dot / 4,
-              backgroundColor: c.brandAccent,
-              borderColor: ink,
-            },
-          ]}
-        />
-      )}
+    <View style={[s.cover, { padding: Math.max(space.x6, Math.round(size * PAD_RATIO)) }]}>
+      <Text
+        numberOfLines={3}
+        style={{
+          color: c.textPrimary,
+          fontSize,
+          lineHeight: Math.round(fontSize * 1.08),
+          fontWeight: size >= HEAVY_MIN ? '900' : '800',
+          letterSpacing: -fontSize * 0.02,
+        }}
+      >
+        {name}
+      </Text>
     </View>
   );
 }
 
 /**
- * 番組・回のアートワーク（Issue #101）。正方形。
+ * 番組・回のアートワーク（Issue #101 / #235）。正方形、角丸 4（見本 `.art`）。線は持たない。
  * 画像が無い・読めないときは、`name` があれば番組名の表紙、無ければ番組のアイコンを置いた面にする
  * （レイアウトを崩さない）。
  */
@@ -87,6 +56,7 @@ export function Artwork({
   name,
   transition = 0,
   frameless,
+  shadow,
 }: {
   /** `https://` または `file://` */
   uri: string | null;
@@ -97,22 +67,21 @@ export function Artwork({
   name?: string | undefined;
   /** 画像の入れ替え時間。動きを減らすときは 0。 */
   transition?: number;
-  /** 枠と角丸を持たない（レコードジャケットの中に置くとき。#190、#203）。 */
+  /** 角丸を持たない（見本 `.quick .art`。タイルの角丸の中に置くとき）。 */
   frameless?: boolean;
+  /** 落ち影（見本 `.showcard .art` / `.showhead .art`）。大きい表示だけに付ける。 */
+  shadow?: 'card' | 'large';
 }) {
   const c = useAppTheme();
   const [failed, setFailed] = useState<string | null>(null);
-  const corner = frameless ? 0 : size >= 96 ? radius.lg : radius.sm;
+  const corner = frameless ? 0 : radius.xs;
+  const outer = [
+    { width: size, height: size, borderRadius: corner },
+    shadow ? { boxShadow: shadow === 'large' ? shadows.artworkLarge : shadows.artworkCard } : null,
+  ];
   const box = [
     s.box,
-    {
-      width: size,
-      height: size,
-      borderRadius: corner,
-      borderWidth: frameless ? 0 : stroke.hairline,
-      backgroundColor: c.surfaceRaised,
-      borderColor: c.border,
-    },
+    { width: size, height: size, borderRadius: corner, backgroundColor: c.surfaceRaised },
   ];
   const a11y = label
     ? { accessible: true, accessibilityRole: 'image' as const, accessibilityLabel: label }
@@ -120,22 +89,17 @@ export function Artwork({
         accessibilityElementsHidden: true,
         importantForAccessibility: 'no-hide-descendants' as const,
       };
-  if ((!uri || failed === uri) && name?.trim()) {
-    return (
-      <View style={box} {...a11y}>
-        <NameCover name={name.trim()} size={size} />
+  let content;
+  if ((!uri || failed === uri) && name?.trim() && size >= NAME_MIN) {
+    content = <NameCover name={name.trim()} size={size} />;
+  } else if (!uri || failed === uri) {
+    content = (
+      <View style={[s.fill, s.center]}>
+        <Icon name="artwork" color={c.textTertiary} size={size >= HEAVY_MIN ? icon.lg : icon.sm} />
       </View>
     );
-  }
-  if (!uri || failed === uri) {
-    return (
-      <View style={[box, s.center]} {...a11y}>
-        <Icon name="artwork" color={c.textTertiary} size={size >= 96 ? icon.lg : icon.sm} />
-      </View>
-    );
-  }
-  return (
-    <View style={box} {...a11y}>
+  } else {
+    content = (
       <Image
         source={uri}
         style={{ width: size, height: size }}
@@ -143,18 +107,18 @@ export function Artwork({
         transition={transition}
         onError={() => setFailed(uri)}
       />
+    );
+  }
+  return (
+    <View style={outer} {...a11y}>
+      <View style={box}>{content}</View>
     </View>
   );
 }
 
 const s = StyleSheet.create({
   box: { overflow: 'hidden' },
+  fill: { flex: 1 },
   center: { alignItems: 'center', justifyContent: 'center' },
-  cover: { flex: 1, justifyContent: 'center' },
-  label: { borderWidth: stroke.selected, overflow: 'hidden' },
-  name: { textAlign: 'center' },
-  stripes: { flexDirection: 'row', height: space.sm },
-  stripe: { flex: 1 },
-  // 文字の無い小さい表紙でも、点はロゴと同じ右下に置く
-  dot: { position: 'absolute', right: space.sm, bottom: space.sm, borderWidth: stroke.hairline },
+  cover: { flex: 1, justifyContent: 'flex-end' },
 });

@@ -6,7 +6,6 @@ import type { SqlExecutor } from '../executor';
 export interface AppSettings {
   /** 表示言語。`'system'` は端末のロケールに従う（FR-I18N-3）。 */
   language: LanguagePreference;
-  theme: 'dark' | 'light' | 'system';
   /** 録音の形式（48 kHz・ステレオ）は固定で、ここには持たない（`RECORDING_FORMAT`。Issue #174）。 */
   recording: {
     preferredInputUid: string | null;
@@ -27,7 +26,6 @@ export interface AppSettings {
 
 export const DEFAULT_SETTINGS: AppSettings = {
   language: 'system',
-  theme: 'system',
   recording: {
     preferredInputUid: null,
     autoResumeAfterInterruption: false,

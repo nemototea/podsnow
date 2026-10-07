@@ -24,9 +24,8 @@ function useFamilyStyle(style: TextProps['style']) {
   const loaded = useContext(FontsCtx);
   const requested = StyleSheet.flatten(style)?.fontFamily;
   return useMemo(() => {
-    if (requested && requested !== family.numeric && requested !== family.display) return null;
-    const role: FamilyRole =
-      requested === family.numeric ? 'numeric' : requested === family.display ? 'display' : 'ui';
+    if (requested && requested !== family.numeric) return null;
+    const role: FamilyRole = requested === family.numeric ? 'numeric' : 'ui';
     const resolved = resolveFamily(role, locale, loaded);
     return { fontFamily: resolved };
   }, [loaded, locale, requested]);

@@ -45,7 +45,7 @@ import { KeyboardScroll } from './KeyboardScroll';
 import { Text, TextInput } from './Text';
 import { useAppTheme } from './ThemeContext';
 import {
-  buttonDepth,
+  chip as chipSize,
   compactWidth,
   concentric,
   field,
@@ -56,8 +56,11 @@ import {
   hitSlop,
   icon,
   motion,
+  pill as pillSize,
   pressScale,
+  pressedOpacity,
   radius,
+  shadow,
   space,
   stroke,
   tabularNums,
@@ -86,6 +89,10 @@ interface ScreenProps {
   bottomBar?: ReactNode;
   /** 画面上端の安全域を自分で取る（ネイティブのヘッダーを出さない Home だけ）。 */
   edgeTop?: boolean;
+  /**
+   * 下部バーを余白も地の色も付けずに置く（見本 `.sheet` のように、バー自身が地の色と下の安全域を持つとき）。
+   */
+  bottomBarBare?: boolean;
 }
 
 export function Screen(props: ScreenProps) {
@@ -104,6 +111,7 @@ function ScreenBody({
   overlay,
   bottomBar,
   edgeTop,
+  bottomBarBare,
 }: ScreenProps) {
   const c = useAppTheme();
   const insets = useSafeAreaInsets();
@@ -130,15 +138,18 @@ function ScreenBody({
         )}
         {bottomBar ? (
           <View
-            style={[
-              s.bottomBar,
-              {
-                paddingBottom: insets.bottom + space.sm + floating,
-                paddingHorizontal: g,
-                backgroundColor: c.bg,
-                borderTopColor: c.border,
-              },
-            ]}
+            style={
+              bottomBarBare
+                ? { paddingBottom: floating }
+                : [
+                    s.bottomBar,
+                    {
+                      paddingBottom: insets.bottom + space.sm + floating,
+                      paddingHorizontal: g,
+                      backgroundColor: c.bg,
+                    },
+                  ]
+            }
             onLayout={(e) => setBarHeight(e.nativeEvent.layout.height)}
           >
             {bottomBar}
@@ -157,6 +168,10 @@ function ResetBar({ onReset }: { onReset: () => void }) {
   return null;
 }
 
+/**
+ * アイコンだけの操作（見本 `.ib`）。見た目は 32 の丸（`large` は収録画面の操作バーの 44）で、
+ * 触れる面は hitSlop で 48 まで広げる。色は弱い文字の色で、押すと白くなる。
+ */
 export function IconButton({
   name,
   label,
@@ -167,6 +182,7 @@ export function IconButton({
   selected,
   corner,
   busy,
+  large,
 }: {
   name: IconName;
   label: string;
@@ -179,9 +195,11 @@ export function IconButton({
   corner?: number;
   /** 処理中。アイコンの代わりに回転表示を出す（押せるまま。押すと取り消しなどに使う）。 */
   busy?: boolean;
+  /** 収録画面の操作バー（見本 `.transport .ib`、44）。 */
+  large?: boolean;
 }) {
   const c = useAppTheme();
-  const fg = disabled ? c.textDisabled : (color ?? c.textPrimary);
+  const size = large ? hit.iconLarge : hit.icon;
   return (
     <Pressable
       onPress={onPress}
@@ -193,18 +211,30 @@ export function IconButton({
         ...(selected ? { selected } : {}),
         ...(busy ? { busy } : {}),
       }}
-      style={({ pressed }) => [
-        showLabel ? s.iconButtonLabeled : s.iconButton,
+      hitSlop={hitSlop(size)}
+      style={[
+        showLabel ? s.iconButtonLabeled : { width: size, height: size },
+        s.iconButtonBase,
         corner === undefined ? null : { borderRadius: corner },
-        { backgroundColor: pressed ? c.surfaceHover : 'transparent' },
       ]}
     >
-      {busy ? <ActivityIndicator color={fg} /> : <Icon name={name} color={fg} />}
-      {showLabel ? (
-        <Text style={[typography.caption, { color: disabled ? c.textDisabled : c.textSecondary }]}>
-          {label}
-        </Text>
-      ) : null}
+      {({ pressed }) => {
+        const fg = disabled
+          ? c.textDisabled
+          : pressed
+            ? c.textPrimary
+            : (color ?? (selected ? c.textPrimary : c.textSecondary));
+        return (
+          <>
+            {busy ? (
+              <ActivityIndicator color={fg} />
+            ) : (
+              <Icon name={name} color={fg} size={icon.action} />
+            )}
+            {showLabel ? <Text style={[typography.overline, { color: fg }]}>{label}</Text> : null}
+          </>
+        );
+      }}
     </Pressable>
   );
 }
@@ -239,7 +269,7 @@ export function SectionHeader({ title, right }: { title: string; right?: ReactNo
   return (
     <View style={s.sectionHeader}>
       <Text
-        style={[typography.heading, s.flex, { color: c.textPrimary }]}
+        style={[typography.title, s.flex, { color: c.textPrimary }]}
         accessibilityRole="header"
         textBreakStrategy="balanced"
       >
@@ -276,7 +306,7 @@ export function Card({
         style={[
           s.card,
           rows ? s.rowCard : null,
-          { backgroundColor: pressed ? c.surfaceHover : base, borderColor: c.controlBorder },
+          { backgroundColor: pressed ? c.surfaceHover : base },
           style,
         ]}
       >
@@ -298,8 +328,16 @@ export function Card({
   );
 }
 
-export type ButtonKind = 'primary' | 'secondary' | 'danger' | 'ghost';
+export type ButtonKind = 'primary' | 'secondary' | 'danger' | 'ghost' | 'inverse';
 
+/**
+ * ボタン（見本 `.btn`）。高さ 44 の丸い端、14 / 800。線と影は持たず、押すと少し縮む。
+ * - primary: アクセントの塗りに黒の文字（見本 `.btn.pri`）
+ * - secondary: 1px の輪郭だけ（見本 `.btn.sec`）。押している間は輪郭が白くなる
+ * - inverse: 白の塗りに黒の文字（見本 `.btn.wht`「ここから録る」）
+ * - danger: 破壊的操作の塗りに黒の文字
+ * - ghost: 地も輪郭も無い
+ */
 export function Button({
   label,
   onPress,
@@ -310,6 +348,8 @@ export function Button({
   accessibilityLabel,
   icon: iconName,
   compact,
+  large,
+  iconSize,
 }: {
   label: string;
   onPress: () => void;
@@ -320,44 +360,28 @@ export function Button({
   accessibilityLabel?: string;
   icon?: IconName;
   compact?: boolean;
+  /** 画面の主操作（見本 `.ex .btn.pri`、高さ 50・15 の文字・20 のアイコン）。 */
+  large?: boolean;
+  /** アイコンの大きさ（見本はボタンごとに違う: 削除 18、ここから録る 15、共有 20）。 */
+  iconSize?: number;
 }) {
   const c = useAppTheme();
   const reduced = useReducedMotion();
   const off = disabled || busy;
   const [pressed, setPressed] = useState(false);
-  // 形のあるボタンは硬い影と押し込み。ghost だけは縮小で返す。主操作は大きい影（§6、#190）。
-  // 副操作の影は弱いインク。何本も並んでも主操作より目立たせない（#173）。
-  const tactile = kind !== 'ghost';
-  const large = kind === 'primary';
-  const offset = large ? buttonDepth.offsetLarge : buttonDepth.offset;
-  const travel = large ? buttonDepth.travelLarge : buttonDepth.travel;
-  const depressed = pressed && !off && tactile && !reduced;
   const pressStyle = useAnimatedStyle(() => ({
     transform: [
       {
         scale:
-          reduced || off || tactile
-            ? 1
-            : withTiming(pressed ? pressScale : 1, { duration: motion.instant }),
-      },
-      {
-        translateX:
-          reduced || off ? 0 : withTiming(depressed ? travel : 0, { duration: motion.instant }),
-      },
-      {
-        translateY:
-          reduced || off ? 0 : withTiming(depressed ? travel : 0, { duration: motion.instant }),
+          reduced || off ? 1 : withTiming(pressed ? pressScale : 1, { duration: motion.instant }),
       },
     ],
   }));
-  // Android 7/8 では boxShadow が未対応。形は不透明な輪郭で伝える。
-  const hardShadow =
-    tactile && !off && (Platform.OS !== 'android' || Number(Platform.Version) >= 28);
   const look = (pressed: boolean): { bg: string; border: string; fg: string } => {
     if (off) {
       return {
-        bg: kind === 'ghost' ? 'transparent' : c.surfaceRaised,
-        border: kind === 'ghost' ? 'transparent' : c.border,
+        bg: kind === 'ghost' || kind === 'secondary' ? 'transparent' : c.surfaceRaised,
+        border: kind === 'secondary' ? c.border : 'transparent',
         fg: c.textDisabled,
       };
     }
@@ -365,19 +389,21 @@ export function Button({
       case 'primary':
         return {
           bg: pressed ? c.accentSolidPressed : c.accentSolid,
-          border: c.controlEdge,
+          border: 'transparent',
           fg: c.accentOnSolid,
         };
       case 'danger':
         return {
           bg: pressed ? c.dangerSolidPressed : c.dangerSolid,
-          border: c.controlEdge,
+          border: 'transparent',
           fg: c.dangerOnSolid,
         };
+      case 'inverse':
+        return { bg: c.inverseSurface, border: 'transparent', fg: c.inverseText };
       case 'secondary':
         return {
-          bg: pressed ? c.surfaceHover : c.isDark ? c.surfaceRaised : c.surface,
-          border: c.controlBorder,
+          bg: 'transparent',
+          border: pressed ? c.textPrimary : c.borderStrong,
           fg: c.textPrimary,
         };
       case 'ghost':
@@ -402,26 +428,12 @@ export function Button({
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel ?? label}
       accessibilityState={{ disabled: !!off, busy: !!busy }}
+      hitSlop={{ top: hitSlop(hit.button), bottom: hitSlop(hit.button) }}
       style={[
         s.button,
         compact ? s.buttonCompact : null,
-        // 字形の脇には余白が入っているので、アイコン側の余白を 2 だけ詰めて光学的に釣り合わせる。
-        busy || iconName ? { paddingLeft: (compact ? space.md : gutter) - OPTICAL_NUDGE } : null,
-        {
-          backgroundColor: l.bg,
-          borderColor: l.border,
-          borderWidth: tactile ? stroke.selected : stroke.hairline,
-          boxShadow: hardShadow
-            ? [
-                {
-                  offsetX: depressed ? buttonDepth.pressedOffset : offset,
-                  offsetY: depressed ? buttonDepth.pressedOffset : offset,
-                  blurRadius: 0,
-                  color: kind === 'secondary' ? c.controlShadowSoft : c.controlShadow,
-                },
-              ]
-            : [],
-        },
+        large ? s.buttonLarge : null,
+        { backgroundColor: l.bg, borderColor: l.border },
         pressStyle,
         style,
       ]}
@@ -429,9 +441,13 @@ export function Button({
       {busy ? (
         <ActivityIndicator color={l.fg} />
       ) : iconName ? (
-        <Icon name={iconName} color={l.fg} size={icon.sm} />
+        <Icon name={iconName} color={l.fg} size={iconSize ?? (large ? icon.button : icon.sm)} />
       ) : null}
-      <Text style={[typography.label, s.buttonLabel, { color: l.fg }]}>{label}</Text>
+      <Text
+        style={[large ? typography.labelLarge : typography.label, s.buttonLabel, { color: l.fg }]}
+      >
+        {label}
+      </Text>
     </AnimatedPressable>
   );
 }
@@ -487,7 +503,7 @@ export function Row({
         <View style={s.rowLabel}>
           <Text
             style={[
-              typography.body,
+              typography.rowTitle,
               s.rowLabelText,
               { color: danger ? c.dangerText : labelMuted ? c.textSecondary : c.textPrimary },
             ]}
@@ -503,7 +519,7 @@ export function Row({
   );
   const divider = {
     borderBottomColor: c.border,
-    borderBottomWidth: last ? 0 : StyleSheet.hairlineWidth,
+    borderBottomWidth: last ? 0 : stroke.hairline,
   };
   const a11y = accessibilityLabel ?? (sub ? `${label}, ${sub}` : label);
   const a11yActions = accessibilityActions?.length
@@ -619,7 +635,6 @@ export function Toast({
   const t = useT();
   const insets = useSafeAreaInsets();
   const reduced = useReducedMotion();
-  const g = useGutter();
   const { barHeight, setToastHeight } = useBottomInset();
   const floating = useFloatingInset();
   const drag = useSharedValue(0);
@@ -669,38 +684,40 @@ export function Toast({
         style={[
           s.toast,
           {
-            left: g,
-            right: g,
-            backgroundColor: c.surfaceRaised,
-            borderColor: c.borderStrong,
+            // 見本 `.toast`: 左右 12（画面の余白より少し外へ出す）
+            left: space.md,
+            right: space.md,
+            backgroundColor: c.inverseSurface,
             bottom: floor + BOTTOM_GAP,
           },
           moveStyle,
         ]}
         accessibilityLiveRegion="polite"
         accessibilityRole="alert"
+        // 閉じるボタンは置かない（見本どおり。確認点 7-A、ユーザー判断 2026-10-06）。下へ払うか時間で消える。
+        // 時間で消えない通知も読み上げから閉じられるように、閉じる操作を読み上げの操作に置く。
+        {...(onDismiss
+          ? {
+              accessibilityActions: [{ name: 'dismiss', label: t.a11y.dismiss }],
+              onAccessibilityAction: (e: AccessibilityActionEvent) => {
+                if (e.nativeEvent.actionName === 'dismiss') onDismiss();
+              },
+            }
+          : {})}
       >
-        <Text style={[typography.body, s.flex, { color: c.textPrimary }]}>{toast.text}</Text>
+        <Text style={[typography.bodyStrong, s.flex, { color: c.inverseText }]}>{toast.text}</Text>
         {toast.action && onAction ? (
           <Pressable
             onPress={onAction}
             accessibilityRole="button"
             accessibilityLabel={toast.action}
-            style={({ pressed }) => [
-              s.toastAction,
-              { backgroundColor: pressed ? c.surfaceHover : 'transparent' },
-            ]}
+            hitSlop={hitSlop(typography.bodyStrong.lineHeight)}
+            style={({ pressed }) => [s.toastAction, { opacity: pressed ? PRESSED_OPACITY : 1 }]}
           >
-            <Text style={[typography.label, { color: c.accentText }]}>{toast.action}</Text>
+            <Text style={[typography.label, s.toastActionText, { color: c.inverseText }]}>
+              {toast.action}
+            </Text>
           </Pressable>
-        ) : null}
-        {onDismiss ? (
-          <IconButton
-            name="close"
-            label={t.a11y.dismiss}
-            onPress={onDismiss}
-            corner={concentric(radius.md, space.xs)}
-          />
         ) : null}
       </Reanimated.View>
     </GestureDetector>
@@ -724,6 +741,10 @@ export function Loading({ label }: { label?: string }) {
   );
 }
 
+/**
+ * チップ（見本 `.chip`）。上下 7・左右 14 の丸い端、地は `surfaceRaised`、13 / 600 の白い文字。
+ * 選んでいるものはアクセントの塗りに黒の文字。触れる面は hitSlop で 48 まで広げる。
+ */
 export function Chip({
   label,
   active,
@@ -732,21 +753,34 @@ export function Chip({
   icon: iconName,
   accessibilityLabel,
   disabled,
+  raised,
 }: {
   label: string;
   active?: boolean;
+  /** `surfaceRaised` の面（シート）の上に置くとき。地を一段明るくする。 */
+  raised?: boolean;
   onPress?: () => void;
+  /** 分類の色を付けるとき（素材の種類など）。選んでいる間の地と文字に使う。 */
   tone?: { text: string; border: string; subtle: string };
   icon?: IconName;
   accessibilityLabel?: string;
   disabled?: boolean;
 }) {
   const c = useAppTheme();
-  const t = tone ?? { text: c.textPrimary, border: c.accentBorder, subtle: c.accentSubtle };
-  const fg = disabled ? c.textDisabled : active ? t.text : c.textSecondary;
-  const border = active ? stroke.selected : stroke.hairline;
-  // 選択で輪郭が太くなった分だけ内側の余白を減らし、幅と文字の位置を動かさない。
-  const pad = space.md - (border - stroke.hairline);
+  const bg = active
+    ? tone
+      ? tone.subtle
+      : c.accentSolid
+    : raised
+      ? c.surfaceHover
+      : c.surfaceRaised;
+  const fg = disabled
+    ? c.textDisabled
+    : active
+      ? tone
+        ? tone.text
+        : c.accentOnSolid
+      : c.textPrimary;
   return (
     <Pressable
       onPress={onPress}
@@ -754,21 +788,39 @@ export function Chip({
       accessibilityRole="button"
       accessibilityState={{ selected: !!active, disabled: !!disabled }}
       {...(accessibilityLabel ? { accessibilityLabel } : {})}
-      hitSlop={{ top: hitSlop(CHIP_H), bottom: hitSlop(CHIP_H) }}
+      hitSlop={hitSlop(typography.chip.lineHeight + 2 * chipSize.paddingY)}
       style={({ pressed }) => [
         s.chip,
-        {
-          paddingLeft: iconName ? pad - OPTICAL_NUDGE : pad,
-          paddingRight: pad,
-          borderColor: disabled ? c.border : active ? c.controlBorder : c.borderStrong,
-          borderWidth: border,
-          backgroundColor: active ? t.subtle : pressed ? c.surfaceHover : 'transparent',
-        },
+        { backgroundColor: !active && pressed ? (raised ? c.border : c.surfaceHover) : bg },
       ]}
     >
       {iconName ? <Icon name={iconName} color={fg} size={icon.sm} /> : null}
-      <Text style={[typography.label, { color: fg }]}>{label}</Text>
+      <Text style={[typography.chip, { color: fg }]}>{label}</Text>
     </Pressable>
+  );
+}
+
+/**
+ * 状態の札（見本 `.pill`）。角丸 4、10.5 / 700。既定は `surfaceHover` の地に弱い文字、
+ * `strong` は書き出し済みなど（見本 `.pill.ok`）、`rec` は録音中（見本 `.pill.rec`、白の「REC」）。
+ */
+export function Pill({
+  label,
+  kind = 'default',
+  icon: iconName,
+}: {
+  label: string;
+  kind?: 'default' | 'strong' | 'rec';
+  icon?: IconName;
+}) {
+  const c = useAppTheme();
+  const bg = kind === 'rec' ? c.recSolid : kind === 'strong' ? c.pillStrong : c.surfaceHover;
+  const fg = kind === 'rec' ? c.recOnSolid : kind === 'strong' ? c.textPrimary : c.textSecondary;
+  return (
+    <View style={[s.pill, { backgroundColor: bg }]}>
+      {iconName ? <Icon name={iconName} color={fg} size={typography.overline.lineHeight} /> : null}
+      <Text style={[typography.overline, { color: fg }]}>{label}</Text>
+    </View>
   );
 }
 
@@ -862,10 +914,7 @@ export function Notice({
     kind === 'warning' || kind === 'error' ? 'warning' : kind === 'success' ? 'check' : 'flag';
   return (
     <View
-      style={[
-        s.notice,
-        { backgroundColor: tn ? tn.subtle : c.surface, borderColor: c.controlBorder },
-      ]}
+      style={[s.notice, { backgroundColor: c.surfaceRaised }]}
       accessibilityRole={kind === 'error' ? 'alert' : undefined}
     >
       <Icon name={iconName} color={tn ? tn.text : c.textSecondary} size={icon.sm} />
@@ -920,8 +969,8 @@ export function Field({
           multiline && Platform.OS === 'ios' ? s.multilineLeading : null,
           {
             color: c.textPrimary,
-            backgroundColor: c.bg,
-            borderColor: error ? c.dangerBorder : focused ? c.focusRing : c.borderStrong,
+            backgroundColor: c.surfaceRaised,
+            borderColor: error ? c.dangerBorder : focused ? c.focusRing : c.surfaceRaised,
             borderWidth,
           },
           fieldPadding(borderWidth),
@@ -942,9 +991,8 @@ export function Field({
   );
 }
 
-const CHIP_H = 40;
-/** アイコンの付いた側の余白を詰める量（光学的な位置合わせ）。 */
-const OPTICAL_NUDGE = space.hair;
+/** 文字だけの操作を押している間の薄さ。 */
+const PRESSED_OPACITY = pressedOpacity;
 const AnimatedPressable = Reanimated.createAnimatedComponent(Pressable);
 const DISMISS_DRAG = 24;
 const DRAG_START = 4;
@@ -955,57 +1003,51 @@ const s = StyleSheet.create({
   root: { flex: 1 },
   flex: { flex: 1 },
   center: { alignItems: 'center', justifyContent: 'center', textAlign: 'center' },
-  bottomBar: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: space.md },
-  iconButton: {
+  bottomBar: { paddingTop: space.md },
+  iconButtonBase: { borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center' },
+  iconButtonLabeled: {
     minWidth: hit.min,
     minHeight: hit.min,
-    borderRadius: radius.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  iconButtonLabeled: {
-    minWidth: hit.min + space.xl,
-    minHeight: hit.min,
-    borderRadius: radius.md,
-    alignItems: 'center',
-    justifyContent: 'center',
     paddingHorizontal: space.xs,
-    gap: space.hair,
+    gap: space.xs,
   },
+  // 見本 `.h2` の上は Home のまとまりの間 22、下は 12。
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: space.xxl,
-    marginBottom: space.sm,
+    marginTop: space.x22,
+    marginBottom: space.md,
     gap: space.sm,
   },
-  // カードは 2px の線だけで影を付けない。押せる物だけが影を持つ（DESIGN_SYSTEM.md §6、#190）。
+  // カードは線も影も持たない。面の明るさだけで分ける（見本 `.checks`、DESIGN_SYSTEM.md §6）。
   card: {
-    borderRadius: radius.lg,
-    borderWidth: stroke.selected,
-    padding: gutter,
+    borderRadius: radius.sm,
+    padding: space.x14,
     marginBottom: space.md,
   },
   rowCard: { padding: 0, overflow: 'hidden' },
-  rowCardContent: { paddingHorizontal: gutter },
+  rowCardContent: { paddingHorizontal: space.x14 },
+  // 見本 `.btn`: 高さ 44、丸い端、アイコンとの間 8。secondary の 1px の輪郭だけが線（§6）。
   button: {
     minHeight: hit.button,
     paddingVertical: space.sm,
-    paddingHorizontal: gutter,
+    paddingHorizontal: space.x20,
     borderRadius: radius.pill,
-    borderWidth: 1,
+    borderWidth: stroke.hairline,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: space.sm,
   },
-  buttonCompact: { minHeight: hit.min, paddingHorizontal: space.md },
+  buttonCompact: { paddingHorizontal: space.md },
+  buttonLarge: { minHeight: hit.buttonLarge },
   buttonLabel: { textAlign: 'center', flexShrink: 1 },
+  // 見本 `.field`: 上下 10、下に 1px の区切り。触れる面は 48 以上。
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    minHeight: hit.min + space.sm,
-    paddingVertical: space.md,
+    minHeight: hit.min,
+    paddingVertical: space.x10,
     gap: space.md,
   },
   rowOuter: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
@@ -1015,42 +1057,48 @@ const s = StyleSheet.create({
   rowLabelText: { flexShrink: 1 },
   infoButton: { alignSelf: 'center' },
   rowBelow: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm, marginTop: space.sm },
+  // 見本 `.toast`: 白の地、角丸 8、内側 上下 12・左右 14。
   toast: {
     position: 'absolute',
-    borderRadius: radius.md,
-    borderWidth: 1,
-    paddingLeft: space.lg,
-    paddingRight: space.xs,
-    paddingVertical: space.xs,
-    minHeight: hit.min + space.sm,
+    borderRadius: radius.sm,
+    paddingLeft: space.x14,
+    paddingRight: space.x14,
+    paddingVertical: space.md,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: space.xs,
+    gap: space.md,
+    boxShadow: shadow.toast,
   },
-  toastAction: {
-    minHeight: hit.min,
-    paddingHorizontal: space.md,
-    // 外側 radius.md の内側に space.xs で入る
-    borderRadius: concentric(radius.md, space.xs),
-    justifyContent: 'center',
-  },
+  toastAction: { justifyContent: 'center' },
+  toastActionText: { textDecorationLine: 'underline' },
   chip: {
-    minHeight: CHIP_H,
+    paddingVertical: chipSize.paddingY,
+    paddingHorizontal: chipSize.paddingX,
     borderRadius: radius.pill,
     flexDirection: 'row',
-    gap: space.xs,
+    gap: space.x6,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  pill: {
+    paddingVertical: pillSize.paddingY,
+    paddingHorizontal: pillSize.paddingX,
+    borderRadius: radius.xs,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.xs,
+    alignSelf: 'flex-start',
   },
   track: { height: space.sm, borderRadius: radius.pill, overflow: 'hidden' },
   trackFill: { height: space.sm, borderRadius: radius.pill },
   indeterminate: { position: 'absolute', left: 0, width: '40%' },
+  // 見本の確認用ページの通知（`.notice`）: `surfaceRaised` の地、角丸 8、内側 上下 10・左右 12。
   notice: {
     flexDirection: 'row',
-    gap: space.md,
-    borderWidth: stroke.selected,
-    borderRadius: radius.lg,
-    padding: space.lg,
+    gap: space.x10,
+    borderRadius: radius.sm,
+    paddingVertical: space.x10,
+    paddingHorizontal: space.md,
     marginBottom: space.md,
     alignItems: 'flex-start',
   },

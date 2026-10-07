@@ -35,7 +35,7 @@ export function ChoiceMenu<T extends string | number>({
       {...(info ? { info } : {})}
       last={!!last}
       right={
-        <Host matchContents colorScheme={c.isDark ? 'dark' : 'light'}>
+        <Host matchContents colorScheme="dark">
           <Picker
             label={label}
             selection={String(value)}

@@ -44,3 +44,14 @@ export function formatDateTime(ms: number, locale: Locale, now: number = Date.no
     ...TIME,
   }).format(d);
 }
+
+/** 月と日（例: `9月27日` / `Sep 27`）。`now` と違う年なら年を付ける。番組画面の一覧。 */
+export function formatShortDate(ms: number, locale: Locale, now: number = Date.now()): string {
+  const d = new Date(ms);
+  const sameYear = d.getFullYear() === new Date(now).getFullYear();
+  return new Intl.DateTimeFormat(INTL_TAG[locale], {
+    ...(sameYear ? {} : { year: 'numeric' }),
+    month: 'short',
+    day: 'numeric',
+  }).format(d);
+}

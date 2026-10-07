@@ -6,7 +6,7 @@ import { Button, useGutter } from './components';
 import { dialogs, type DialogEntry } from './dialogStore';
 import { Text } from './Text';
 import { useAppTheme } from './ThemeContext';
-import { dialogWidth, radius, space, stroke, typography } from './tokens';
+import { dialogWidth, radius, shadow, space, typography } from './tokens';
 import { useReducedMotion } from './useReducedMotion';
 
 /** 文字をこれより大きくする設定では、ボタンを横に並べず縦に積む。 */
@@ -63,7 +63,6 @@ export function DialogHost() {
                 st.card,
                 {
                   backgroundColor: c.surfaceRaised,
-                  borderColor: c.border,
                   width: Math.min(width - g * 2, dialogWidth),
                 },
               ]}
@@ -107,10 +106,11 @@ const st = StyleSheet.create({
   root: { flex: 1 },
   flex: { flex: 1 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  // シートの上に出ても面が溶けないよう、輪郭を 1 周引く。
+  // 見本にダイアログは無い。見本の部品に合わせて線を引かず、角丸はシートと同じ 14。
+  // シート（同じ `surfaceRaised`）の上に出ても面が溶けないよう、通知と同じ落ち影で浮かせる（DESIGN_SYSTEM.md §6.3）。
   card: {
-    borderRadius: radius.xl,
-    borderWidth: stroke.hairline,
+    borderRadius: radius.x14,
+    boxShadow: shadow.toast,
     padding: space.xl,
     gap: space.sm,
   },

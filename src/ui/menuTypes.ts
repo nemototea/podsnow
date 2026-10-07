@@ -46,6 +46,8 @@ export interface MoreMenuProps {
   title?: string;
   actions: readonly MenuAction[];
   disabled?: boolean;
+  /** 「…」の色。既定は弱い文字の色（見本 `.ib`）。番組の色の上では白。 */
+  color?: string;
 }
 
 export interface HeaderMenuProps extends MoreMenuProps {

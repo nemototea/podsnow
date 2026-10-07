@@ -8,6 +8,7 @@ import { useServices } from '@/features/app/ServicesProvider';
 import {
   errorCodeText,
   errorText,
+  formatDate,
   formatDateTime,
   storedErrorText,
   useLocale,
@@ -31,30 +32,42 @@ import {
   type ExportPreset,
   type ExportPresetKey,
 } from '@/services/export/ExportService';
-import { hit, radius, space, stroke, tabularNums, typography } from '@/ui/tokens';
+import {
+  artwork,
+  hit,
+  icon,
+  pressedOpacity,
+  radius,
+  space,
+  stroke,
+  tabularNums,
+  typography,
+} from '@/ui/tokens';
+import { Artwork } from '@/ui/Artwork';
+import { CircleButton } from '@/ui/CircleButton';
 import {
   Button,
-  Card,
   Chip,
   Field,
+  Icon,
   IconButton,
   InfoButton,
   Loading,
   Notice,
   ProgressBar,
   Row,
-  SectionHeader,
   Segmented,
   Text,
-  Toggle,
   type TermInfo,
 } from '@/ui/components';
 import { confirmDestructive } from '@/ui/alerts';
 import { DateField } from '@/ui/DateField';
-import { EpisodePlayer } from '@/ui/EpisodePlayer';
+import { Sheet } from '@/ui/Sheet';
 import { useAppTheme } from '@/ui/ThemeContext';
 
+import { CopyRow } from './CopyRow';
 import { fromDateInput } from './detailsDraft';
+import { useCopy } from './useCopy';
 import { shareExport } from './shareExport';
 import type { DetailsDraftState } from './useDetailsDraft';
 import type { Workspace } from './useWorkspace';
@@ -206,6 +219,15 @@ export function ExportTab({ ws, details, onShowToast, onDone, onGoEdit }: Export
     };
   }, [episode?.id, episodes, show.id]);
   const [undoDescription, setUndoDescription] = useState<(() => void) | null>(null);
+  // 配信サービスに貼る情報の行を押したときの編集シート
+  const [editing, setEditing] = useState<'title' | 'description' | 'number' | 'recorded' | null>(
+    null,
+  );
+  const { copied, copy } = useCopy();
+  const closeEditing = () => {
+    setEditing(null);
+    void flush();
+  };
 
   const soundHydrated = sound !== null;
   useEffect(() => {
@@ -347,72 +369,77 @@ export function ExportTab({ ws, details, onShowToast, onDone, onGoEdit }: Export
   const numberTaken = Number.isFinite(num) && takenNumbers.includes(num);
   const badDate = fromDateInput(draft.recordedAt) === undefined;
 
-  return (
-    <View>
-      <Card>
-        <EpisodePlayer
-          medium="tape"
-          artworkUri={coverArt.uri(show.cover_path)}
-          title={episode.title}
-          episodeNumber={episode.episode_number}
-          position={state.playhead}
-          duration={state.total}
-          playing={state.playing}
-          onToggle={() => void ws.togglePlay()}
-          onSeek={(to) => void ws.seek(to)}
-        />
-      </Card>
+  const lufsText = `${sound.loudness.targetLufs} LUFS`;
+  const duckText = `${sound.ducking.depthDb} dB`;
+  const recordedDate = fromDateInput(draft.recordedAt);
+  const autosave = (
+    <Text style={[typography.caption, { color: c.textTertiary }]}>{t.details.autosaveHelp}</Text>
+  );
 
-      <SectionHeader title={t.sound.title} />
-      <Card style={st.listCard}>
-        <Row
+  return (
+    <View style={st.ex}>
+      {/* 見本 `.exhero`: アートワーク（中）と題・番組名・時間。右に試聴の白い丸 */}
+      <View style={st.hero}>
+        <Artwork
+          uri={coverArt.uri(show.cover_path)}
+          name={t.episode.number(episode.episode_number)}
+          size={artwork.exportHero}
+        />
+        <View style={st.heroText}>
+          <Text style={[typography.heading, { color: c.textPrimary }]} numberOfLines={2}>
+            {`${t.episode.number(episode.episode_number)} ${episode.title || t.home.untitled}`}
+          </Text>
+          <Text style={[typography.caption, { color: c.textSecondary }]} numberOfLines={1}>
+            {`${show.name} · ${formatSmp(state.total)}`}
+          </Text>
+        </View>
+        <CircleButton
+          name={state.playing ? 'pause' : 'play'}
+          label={state.playing ? t.a11y.pause : t.a11y.play}
+          disabled={state.total <= 0}
+          onPress={() => void ws.togglePlay()}
+        />
+      </View>
+
+      {/* 見本 `.checks`: 仕上げの項目。押すと入・切が替わる */}
+      <View style={[st.checks, { backgroundColor: c.surface }]}>
+        <Check
           label={t.sound.loudness}
-          info={t.glossary.loudness}
-          {...(sound.loudness.enabled
-            ? {
-                sub: measure.measuring
-                  ? `${t.sound.loudnessTarget(sound.loudness.targetLufs, sound.loudness.truePeakDbtp)}\n${t.sound.measuring(Math.round(measure.progress * 100))}`
-                  : t.sound.loudnessTarget(sound.loudness.targetLufs, sound.loudness.truePeakDbtp),
-              }
+          on={sound.loudness.enabled}
+          // 試聴の音量を測っている間は、値の所に進み具合を出す（行を増やさず、見本の行の間を保つ）
+          value={
+            !sound.loudness.enabled
+              ? null
+              : measure.measuring
+                ? t.sound.measuringShort(Math.round(measure.progress * 100))
+                : lufsText
+          }
+          {...(sound.loudness.enabled && measure.measuring
+            ? { a11yValue: t.sound.measuring(Math.round(measure.progress * 100)) }
             : {})}
-          right={
-            <Toggle
-              accessibilityLabel={t.sound.loudness}
-              value={sound.loudness.enabled}
-              onChange={(v) =>
-                updateSound({ ...sound, loudness: { ...sound.loudness, enabled: v } })
-              }
-            />
+          onPress={() =>
+            updateSound({
+              ...sound,
+              loudness: { ...sound.loudness, enabled: !sound.loudness.enabled },
+            })
           }
         />
-        <Row
+        {/* BGM が無いときは押すと収録タブへ（BGM を入れる） */}
+        <Check
           label={t.sound.ducking}
-          info={t.glossary.ducking}
-          {...(hasBgm && sound.ducking.enabled ? { sub: `${sound.ducking.depthDb} dB` } : {})}
-          last={!soundAdvanced}
-          right={
-            <Toggle
-              accessibilityLabel={t.sound.ducking}
-              value={sound.ducking.enabled && hasBgm}
-              disabled={!hasBgm}
-              onChange={(v) => {
-                if (!hasBgm) return;
-                updateSound({ ...sound, ducking: { ...sound.ducking, enabled: v } });
-              }}
-            />
+          on={sound.ducking.enabled && hasBgm}
+          value={hasBgm ? (sound.ducking.enabled ? duckText : null) : t.sound.addBgm}
+          onPress={
+            hasBgm
+              ? () =>
+                  updateSound({
+                    ...sound,
+                    ducking: { ...sound.ducking, enabled: !sound.ducking.enabled },
+                  })
+              : onGoEdit
           }
         />
-        {!hasBgm ? (
-          <Button label={t.sound.addBgm} kind="ghost" icon="music" compact onPress={onGoEdit} />
-        ) : null}
-        <Button
-          label={soundAdvanced ? t.sound.hideAdvanced : t.sound.advanced}
-          kind="ghost"
-          icon={soundAdvanced ? 'chevronUp' : 'chevron'}
-          compact
-          accessibilityLabel={t.sound.a11yAdvanced}
-          onPress={() => setSoundAdvanced((v) => !v)}
-        />
+        <Check label={t.sound.embed} on />
         {soundAdvanced ? (
           <>
             {sound.loudness.enabled ? (
@@ -487,9 +514,160 @@ export function ExportTab({ ws, details, onShowToast, onDone, onGoEdit }: Export
             />
           </>
         ) : null}
-      </Card>
+      </View>
 
-      <SectionHeader title={t.details.title} />
+      {/* 見本: 形式のチップ（M4A / WAV）と見込みのサイズ、アクセントの「書き出して共有」 */}
+      <View style={st.format}>
+        <View style={st.formatRow}>
+          <Chip
+            label={t.export.custom.m4aShort}
+            active={p.format === 'm4a'}
+            onPress={() => (p.format === 'm4a' ? undefined : choosePreset('podcast'))}
+          />
+          <Chip
+            label={t.export.custom.wavShort}
+            active={p.format === 'wav'}
+            onPress={() => (p.format === 'wav' ? undefined : choosePreset('wav'))}
+          />
+          <Text style={[typography.small, st.size, tabularNums, { color: c.textSecondary }]}>
+            {t.export.estimatedSizeShort(formatBytes(estimateExportBytes(p, state.total)))}
+          </Text>
+        </View>
+        {soundAdvanced ? (
+          <View style={st.chipsRow}>
+            {PRESET_KEYS.map((k) => (
+              <Chip
+                key={k}
+                label={presetText(k).label}
+                active={preset === k}
+                accessibilityLabel={`${presetText(k).label}, ${presetText(k).spec}`}
+                onPress={() => choosePreset(k)}
+              />
+            ))}
+          </View>
+        ) : null}
+        {soundAdvanced ? (
+          <Text style={[typography.small, { color: c.textSecondary }]}>
+            {presetText(preset).spec}
+          </Text>
+        ) : null}
+        {soundAdvanced ? (
+          <>
+            {preset === 'custom' ? (
+              <View style={st.custom}>
+                <Text style={[typography.caption, { color: c.textSecondary }]}>
+                  {t.export.custom.format}
+                </Text>
+                <Segmented
+                  value={custom.format}
+                  onChange={(v) => updateCustom({ format: v })}
+                  options={[
+                    { value: 'm4a' as const, label: t.export.custom.m4a },
+                    { value: 'wav' as const, label: t.export.custom.wav },
+                  ]}
+                />
+                {custom.format === 'm4a' ? (
+                  <View style={st.infoCaption}>
+                    <Text style={[typography.caption, { color: c.textSecondary }]}>
+                      {t.export.custom.bitrate}
+                    </Text>
+                    <InfoButton info={t.glossary.bitrate} />
+                  </View>
+                ) : null}
+                {custom.format === 'm4a' ? (
+                  <View style={st.chips}>
+                    {CUSTOM_BITRATES.map((b) => (
+                      <Chip
+                        key={b}
+                        label={`${b / 1000} kbps`}
+                        active={custom.bitrate === b}
+                        onPress={() => updateCustom({ bitrate: b })}
+                      />
+                    ))}
+                  </View>
+                ) : null}
+                <Text style={[typography.caption, { color: c.textSecondary }]}>
+                  {t.export.custom.sampleRate}
+                </Text>
+                <Segmented
+                  value={String(custom.sampleRate)}
+                  onChange={(v) =>
+                    updateCustom({
+                      sampleRate: EXPORT_SAMPLE_RATES.find((r) => String(r) === v) ?? 48000,
+                    })
+                  }
+                  options={EXPORT_SAMPLE_RATES.map((r) => ({
+                    value: String(r),
+                    label: `${r / 1000} kHz`,
+                  }))}
+                />
+                <Text style={[typography.caption, { color: c.textSecondary }]}>
+                  {t.export.custom.channels}
+                </Text>
+                <Segmented
+                  value={custom.channels === 1 ? 'mono' : 'stereo'}
+                  onChange={(v) => updateCustom({ channels: v === 'mono' ? 1 : 2 })}
+                  options={[
+                    { value: 'mono' as const, label: t.export.custom.mono },
+                    { value: 'stereo' as const, label: t.export.custom.stereo },
+                  ]}
+                />
+              </View>
+            ) : null}
+          </>
+        ) : null}
+        {failure ? (
+          <Notice
+            kind="error"
+            title={t.export.failedTitle}
+            body={`${t.export.failedBody}\n${failure}`}
+          />
+        ) : null}
+
+        {job ? (
+          <View style={[st.job, { backgroundColor: c.surface }]}>
+            <View style={st.kv}>
+              <Text
+                style={[typography.bodyStrong, { color: c.textPrimary }]}
+                accessibilityLiveRegion="polite"
+              >
+                {phaseLabel}
+              </Text>
+              <Text style={[typography.numeric, tabularNums, { color: c.textSecondary }]}>
+                {Math.round(job.progress * 100)}%
+              </Text>
+            </View>
+            <ProgressBar value={job.progress} label={phaseLabel} />
+            <Button
+              label={t.export.cancel}
+              kind="secondary"
+              onPress={() => exporter.cancel(job.exportId)}
+            />
+          </View>
+        ) : (
+          <Button
+            large
+            label={failure ? t.common.retry : t.export.run}
+            icon="share"
+            onPress={() => void start()}
+            disabled={state.total <= 0}
+          />
+        )}
+        {state.total <= 0 ? (
+          <Text style={[typography.caption, { color: c.textSecondary }]}>
+            {t.export.emptyVoice}
+          </Text>
+        ) : null}
+        <Button
+          label={soundAdvanced ? t.sound.hideAdvanced : t.sound.advanced}
+          kind="ghost"
+          icon={soundAdvanced ? 'chevronUp' : 'chevron'}
+          compact
+          accessibilityLabel={t.sound.a11yAdvanced}
+          onPress={() => setSoundAdvanced((v) => !v)}
+        />
+      </View>
+
       {episode.description_suggestion ? (
         <Notice
           title={t.details.suggestionEyebrow}
@@ -522,7 +700,51 @@ export function ExportTab({ ws, details, onShowToast, onDone, onGoEdit }: Export
           }
         />
       ) : null}
-      <Card>
+      {/* 見本 `.fields`: 配信サービスに貼る情報。行を押すと直せる */}
+      <View>
+        <Text
+          style={[typography.subheading, st.fieldsHead, { color: c.textPrimary }]}
+          accessibilityRole="header"
+        >
+          {t.pack.fieldsHeading}
+        </Text>
+        <CopyRow
+          label={t.details.titleEyebrow}
+          value={draft.title}
+          copied={copied === 'title'}
+          onCopy={() => void copy('title', draft.title)}
+          onEdit={() => setEditing('title')}
+          editLabel={t.details.a11yEdit(t.details.titleEyebrow)}
+        />
+        <CopyRow
+          label={t.details.descriptionEyebrow}
+          value={draft.description}
+          copied={copied === 'description'}
+          onCopy={() => void copy('description', draft.description)}
+          onEdit={() => setEditing('description')}
+          editLabel={t.details.a11yEdit(t.details.descriptionEyebrow)}
+        />
+        <CopyRow
+          label={t.details.numberAndSeason}
+          value={`${draft.episodeNumber} / ${draft.season}`}
+          copied={copied === 'number'}
+          onCopy={() => void copy('number', `${draft.episodeNumber} / ${draft.season}`)}
+          onEdit={() => setEditing('number')}
+          editLabel={t.details.a11yEdit(t.details.numberAndSeason)}
+        />
+        <CopyRow
+          label={t.details.recordedEyebrow}
+          value={recordedDate ? formatDate(new Date(recordedDate), locale) : ''}
+          copied={copied === 'recorded'}
+          onCopy={() =>
+            void copy('recorded', recordedDate ? formatDate(new Date(recordedDate), locale) : '')
+          }
+          onEdit={() => setEditing('recorded')}
+          editLabel={t.details.a11yEdit(t.details.recordedEyebrow)}
+        />
+      </View>
+
+      <Sheet visible={editing === 'title'} onClose={closeEditing} title={t.details.titleEyebrow}>
         <Field
           label={t.details.titleEyebrow}
           value={draft.title}
@@ -530,27 +752,13 @@ export function ExportTab({ ws, details, onShowToast, onDone, onGoEdit }: Export
           onBlur={() => void flush()}
           placeholder={t.details.titlePlaceholder}
         />
-        <View style={st.pair}>
-          <View style={st.flex}>
-            <Field
-              label={t.details.episodeEyebrow}
-              value={draft.episodeNumber}
-              onChangeText={(v) => edit({ episodeNumber: v })}
-              onBlur={() => void flush()}
-              keyboardType="number-pad"
-              {...(numberTaken ? { error: t.details.numberTaken } : {})}
-            />
-          </View>
-          <View style={st.flex}>
-            <Field
-              label={t.details.seasonEyebrow}
-              value={draft.season}
-              onChangeText={(v) => edit({ season: v })}
-              onBlur={() => void flush()}
-              keyboardType="number-pad"
-            />
-          </View>
-        </View>
+        {autosave}
+      </Sheet>
+      <Sheet
+        visible={editing === 'description'}
+        onClose={closeEditing}
+        title={t.details.descriptionEyebrow}
+      >
         <Field
           label={t.details.descriptionEyebrow}
           value={draft.description}
@@ -618,6 +826,41 @@ export function ExportTab({ ws, details, onShowToast, onDone, onGoEdit }: Export
             }}
           />
         ) : null}
+        {autosave}
+      </Sheet>
+      <Sheet
+        visible={editing === 'number'}
+        onClose={closeEditing}
+        title={t.details.numberAndSeason}
+      >
+        <View style={st.pair}>
+          <View style={st.flex}>
+            <Field
+              label={t.details.episodeEyebrow}
+              value={draft.episodeNumber}
+              onChangeText={(v) => edit({ episodeNumber: v })}
+              onBlur={() => void flush()}
+              keyboardType="number-pad"
+              {...(numberTaken ? { error: t.details.numberTaken } : {})}
+            />
+          </View>
+          <View style={st.flex}>
+            <Field
+              label={t.details.seasonEyebrow}
+              value={draft.season}
+              onChangeText={(v) => edit({ season: v })}
+              onBlur={() => void flush()}
+              keyboardType="number-pad"
+            />
+          </View>
+        </View>
+        {autosave}
+      </Sheet>
+      <Sheet
+        visible={editing === 'recorded'}
+        onClose={closeEditing}
+        title={t.details.recordedEyebrow}
+      >
         <DateField
           label={t.details.recordedEyebrow}
           value={draft.recordedAt}
@@ -628,173 +871,14 @@ export function ExportTab({ ws, details, onShowToast, onDone, onGoEdit }: Export
           help={t.details.dateHelp}
           error={badDate ? t.details.badDate : null}
         />
-        <Text style={[typography.caption, { color: c.textTertiary }]}>
-          {t.details.autosaveHelp}
-        </Text>
-      </Card>
+        {autosave}
+      </Sheet>
 
-      <SectionHeader title={t.export.title} />
-      <Card style={st.listCard}>
-        {PRESET_KEYS.map((k, i) => {
-          const on = preset === k;
-          const text = presetText(k);
-          return (
-            <Pressable
-              key={k}
-              onPress={() => choosePreset(k)}
-              accessibilityRole="radio"
-              accessibilityState={{ checked: on }}
-              accessibilityLabel={`${text.label}, ${text.spec}`}
-              style={({ pressed }) => [
-                st.preset,
-                {
-                  backgroundColor: pressed ? c.surfaceHover : 'transparent',
-                  borderBottomColor: c.border,
-                  borderBottomWidth: i === PRESET_KEYS.length - 1 ? 0 : StyleSheet.hairlineWidth,
-                },
-              ]}
-            >
-              <View
-                style={[
-                  st.radio,
-                  {
-                    borderColor: on ? (c.isDark ? c.accentSolid : c.accentBorder) : c.borderStrong,
-                  },
-                ]}
-              >
-                {on ? (
-                  <View
-                    style={[
-                      st.radioDot,
-                      { backgroundColor: c.isDark ? c.accentSolid : c.accentBorder },
-                    ]}
-                  />
-                ) : null}
-              </View>
-              <View style={st.flex}>
-                <Text style={[typography.bodyStrong, { color: c.textPrimary }]}>
-                  {k === 'podcast' ? `${text.label}${t.sound.recommended}` : text.label}
-                </Text>
-                <Text style={[typography.caption, { color: c.textSecondary }]}>{text.spec}</Text>
-              </View>
-            </Pressable>
-          );
-        })}
-        {preset === 'custom' ? (
-          <View style={st.custom}>
-            <Text style={[typography.caption, { color: c.textSecondary }]}>
-              {t.export.custom.format}
-            </Text>
-            <Segmented
-              value={custom.format}
-              onChange={(v) => updateCustom({ format: v })}
-              options={[
-                { value: 'm4a' as const, label: t.export.custom.m4a },
-                { value: 'wav' as const, label: t.export.custom.wav },
-              ]}
-            />
-            {custom.format === 'm4a' ? (
-              <View style={st.infoCaption}>
-                <Text style={[typography.caption, { color: c.textSecondary }]}>
-                  {t.export.custom.bitrate}
-                </Text>
-                <InfoButton info={t.glossary.bitrate} />
-              </View>
-            ) : null}
-            {custom.format === 'm4a' ? (
-              <View style={st.chips}>
-                {CUSTOM_BITRATES.map((b) => (
-                  <Chip
-                    key={b}
-                    label={`${b / 1000} kbps`}
-                    active={custom.bitrate === b}
-                    onPress={() => updateCustom({ bitrate: b })}
-                  />
-                ))}
-              </View>
-            ) : null}
-            <Text style={[typography.caption, { color: c.textSecondary }]}>
-              {t.export.custom.sampleRate}
-            </Text>
-            <Segmented
-              value={String(custom.sampleRate)}
-              onChange={(v) =>
-                updateCustom({
-                  sampleRate: EXPORT_SAMPLE_RATES.find((r) => String(r) === v) ?? 48000,
-                })
-              }
-              options={EXPORT_SAMPLE_RATES.map((r) => ({
-                value: String(r),
-                label: `${r / 1000} kHz`,
-              }))}
-            />
-            <Text style={[typography.caption, { color: c.textSecondary }]}>
-              {t.export.custom.channels}
-            </Text>
-            <Segmented
-              value={custom.channels === 1 ? 'mono' : 'stereo'}
-              onChange={(v) => updateCustom({ channels: v === 'mono' ? 1 : 2 })}
-              options={[
-                { value: 'mono' as const, label: t.export.custom.mono },
-                { value: 'stereo' as const, label: t.export.custom.stereo },
-              ]}
-            />
-          </View>
-        ) : null}
-        <View style={[st.kv, st.sizeRow]}>
-          <Text style={[typography.body, { color: c.textSecondary }]}>
-            {t.export.estimatedSize}
-          </Text>
-          <Text style={[typography.numeric, tabularNums, { color: c.textPrimary }]}>
-            {formatBytes(estimateExportBytes(p, state.total))}
-          </Text>
-        </View>
-      </Card>
-
-      {failure ? (
-        <Notice
-          kind="error"
-          title={t.export.failedTitle}
-          body={`${t.export.failedBody}\n${failure}`}
-        />
-      ) : null}
-
-      {job ? (
-        <Card>
-          <View style={st.kv}>
-            <Text
-              style={[typography.bodyStrong, { color: c.textPrimary }]}
-              accessibilityLiveRegion="polite"
-            >
-              {phaseLabel}
-            </Text>
-            <Text style={[typography.numeric, tabularNums, { color: c.textSecondary }]}>
-              {Math.round(job.progress * 100)}%
-            </Text>
-          </View>
-          <ProgressBar value={job.progress} label={phaseLabel} />
-          <Button
-            label={t.export.cancel}
-            kind="secondary"
-            onPress={() => exporter.cancel(job.exportId)}
-            style={st.cancel}
-          />
-        </Card>
-      ) : (
-        <Button
-          label={failure ? t.common.retry : t.export.run}
-          icon="export"
-          onPress={() => void start()}
-          disabled={state.total <= 0}
-        />
-      )}
-      {state.total <= 0 ? (
-        <Text style={[typography.caption, { color: c.textSecondary, marginTop: space.sm }]}>
-          {t.export.emptyVoice}
+      {history.length ? (
+        <Text style={[typography.subheading, { color: c.textPrimary }]} accessibilityRole="header">
+          {t.export.historyEyebrow}
         </Text>
       ) : null}
-
-      {history.length ? <SectionHeader title={t.export.historyEyebrow} /> : null}
       {history.map((h, i) => (
         <Row
           key={h.id}
@@ -848,15 +932,116 @@ export function ExportTab({ ws, details, onShowToast, onDone, onGoEdit }: Export
   );
 }
 
+/** 仕上げの項目の行（見本 `.check`）。入っていればアクセントの丸に ✓、値は右端。 */
+function Check({
+  label,
+  info,
+  on,
+  value,
+  a11yValue,
+  disabled,
+  onPress,
+}: {
+  label: string;
+  info?: TermInfo;
+  on: boolean;
+  value?: string | null;
+  /** 読み上げで値の代わりに読む文（短い表示の値を補う）。 */
+  a11yValue?: string;
+  disabled?: boolean;
+  /** 無ければ切り替えられない（常に入っている項目）。 */
+  onPress?: () => void;
+}) {
+  const c = useAppTheme();
+  const body = (
+    <>
+      <View
+        style={[
+          st.dot,
+          on
+            ? { backgroundColor: c.accentSolid }
+            : { borderColor: c.borderStrong, borderWidth: stroke.selected },
+        ]}
+      >
+        {on ? <Icon name="check" color={c.accentOnSolid} size={icon.dot} /> : null}
+      </View>
+      <Text
+        style={[
+          typography.body,
+          st.checkLabel,
+          { color: disabled ? c.textDisabled : c.textPrimary },
+        ]}
+      >
+        {label}
+      </Text>
+      {info ? <InfoButton info={info} /> : null}
+      {value ? (
+        <Text
+          style={[typography.numeric, st.checkVal, { color: c.textSecondary }]}
+          accessibilityLiveRegion="polite"
+        >
+          {value}
+        </Text>
+      ) : null}
+    </>
+  );
+  if (!onPress) {
+    return (
+      <View style={st.check} accessible accessibilityLabel={label}>
+        {body}
+      </View>
+    );
+  }
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={disabled}
+      accessibilityRole="switch"
+      accessibilityLabel={a11yValue || value ? `${label}, ${a11yValue ?? value}` : label}
+      accessibilityState={{ checked: on, disabled: !!disabled }}
+      hitSlop={{ top: space.x10 / 2, bottom: space.x10 / 2 }}
+      style={({ pressed }) => [st.check, pressed ? { opacity: pressedOpacity } : null]}
+    >
+      {body}
+    </Pressable>
+  );
+}
+
 const st = StyleSheet.create({
   flex: { flex: 1 },
+  // 見本 `.ex`: まとまりの間 20。
+  ex: { gap: space.x20 },
+  // 見本 `.exhero`: 間 14。
+  hero: { flexDirection: 'row', alignItems: 'center', gap: space.x14 },
+  heroText: { flex: 1, minWidth: 0, gap: space.xs },
+  // 見本 `.checks`: 地 `surface`、角丸 8、内側 14、行の間 10。
+  checks: { borderRadius: radius.sm, padding: space.x14, gap: space.x10 },
+  // 見本 `.check`: 行の高さは文字の分だけ（触れる面は hitSlop で広げる）
+  check: { flexDirection: 'row', alignItems: 'center', gap: space.x10 },
+  checkLabel: { flexShrink: 1 },
+  checkVal: { marginLeft: 'auto' },
+  dot: {
+    width: icon.button,
+    height: icon.button,
+    borderRadius: radius.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  format: { gap: space.x10 },
+  // 見本: チップ 2 つと、右端に見込みのサイズ
+  formatRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
+  size: { marginLeft: 'auto' },
+  // 見本 `.fields h4`: 下 4
+  fieldsHead: { marginBottom: space.xs },
+  chipsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
+  job: { borderRadius: radius.sm, padding: space.x14, gap: space.md },
+  group: { gap: space.md },
   kv: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: space.md,
+    gap: space.sm,
   },
-  listCard: { paddingVertical: space.sm },
   rowActions: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm, marginVertical: space.sm },
   stepLabel: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: space.xs },
@@ -867,28 +1052,10 @@ const st = StyleSheet.create({
     alignItems: 'center',
     gap: space.xs,
     minHeight: hit.min,
-    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomWidth: stroke.hairline,
   },
   stepVal: { minWidth: 84, textAlign: 'center' },
-  actionRow: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm, marginBottom: space.md },
+  actionRow: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
   pair: { flexDirection: 'row', gap: space.md },
-  preset: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.md,
-    minHeight: hit.min + space.md,
-    paddingVertical: space.md,
-  },
-  radio: {
-    width: space.xl,
-    height: space.xl,
-    borderRadius: radius.pill,
-    borderWidth: stroke.selected,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  radioDot: { width: space.md, height: space.md, borderRadius: radius.pill },
-  sizeRow: { marginTop: space.md, marginBottom: 0 },
-  custom: { gap: space.sm, paddingTop: space.md },
-  cancel: { marginTop: space.lg },
+  custom: { gap: space.sm },
 });

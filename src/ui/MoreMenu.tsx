@@ -7,11 +7,17 @@ import { Sheet } from './Sheet';
 export type { MoreMenuProps };
 
 /** 「…」ボタンとその操作（Android と Web はシート。iOS は `MoreMenu.ios.tsx`）。 */
-export function MoreMenu({ label, title, actions, disabled }: MoreMenuProps) {
+export function MoreMenu({ label, title, actions, disabled, color }: MoreMenuProps) {
   const [open, setOpen] = useState(false);
   return (
     <>
-      <IconButton name="more" label={label} onPress={() => setOpen(true)} disabled={!!disabled} />
+      <IconButton
+        name="more"
+        label={label}
+        onPress={() => setOpen(true)}
+        disabled={!!disabled}
+        {...(color ? { color } : {})}
+      />
       <Sheet visible={open} onClose={() => setOpen(false)} {...(title ? { title } : {})}>
         {actions.map((a, i) => (
           <Row

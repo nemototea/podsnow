@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-アプリに同梱する書体を生成する（DESIGN_SYSTEM.md §4、Issue #94 / #190）。
+アプリに同梱する書体を生成する（DESIGN_SYSTEM.md §4、Issue #94 / #190 / #235）。
 
     python3 -m pip install fonttools
-    python3 scripts/fonts/generate.py [--source-dir DIR]
+    python3 scripts/fonts/generate.py [--source-dir DIR] [--only Figtree]
 
 Google Fonts が配布する可変フォント（OFL）から、UI で使うウェイトだけを静的な TTF に
 切り出して `assets/fonts/` に書く。React Native は可変フォントの軸を指定できないので、
@@ -11,12 +11,12 @@ Google Fonts が配布する可変フォント（OFL）から、UI で使うウ�
 
 原本は `--source-dir` に置くか、無ければ google/fonts から取得してハッシュを照合する。
 原本はリポジトリに入れない（`scripts/fonts/.cache/`、Git 管理外）。
+`--only` で接頭辞（Figtree / NotoSansJP）を指定すると、その書体だけを書き出す。
 """
 
 import argparse
 import hashlib
 import os
-import shutil
 import sys
 import urllib.request
 
@@ -29,11 +29,12 @@ BASE = 'https://raw.githubusercontent.com/google/fonts/main/ofl'
 # (原本のファイル名, 取得元, sha256, 出力の接頭辞, 切り出すウェイト)。None は静的フォントをそのまま使う。
 SOURCES = [
     (
-        'Manrope.ttf',
-        f'{BASE}/manrope/Manrope%5Bwght%5D.ttf',
-        '3ae11c49db0455a3cc33e37d380f20fdb8c7f8b41dc07625c177e3d87a9d6ae6',
-        'Manrope',
-        (400, 500, 600, 700),
+        # 欧文 UI・数字・見出し（DESIGN_SYSTEM.md §4、Issue #235）。ロゴの輪郭も同じ書体の 900。
+        'Figtree.ttf',
+        f'{BASE}/figtree/Figtree%5Bwght%5D.ttf',
+        '26ad3db9b31ff7dde67a91ff515d022d2f495cd506590699cf264f0bfe6fb714',
+        'Figtree',
+        (400, 500, 600, 700, 800, 900),
     ),
     (
         'NotoSansJP.ttf',
@@ -42,17 +43,9 @@ SOURCES = [
         'NotoSansJP',
         (400, 500, 600, 700),
     ),
-    (
-        # 番組名とロゴ（DESIGN_SYSTEM.md §4、Issue #190）。1 ウェイトだけの静的フォントなのでそのまま使う。
-        'DelaGothicOne-Regular.ttf',
-        f'{BASE}/delagothicone/DelaGothicOne-Regular.ttf',
-        '4ff87a0965f1b0505e5a2c58424bc6ad3cff27e56a82f21c2fc9d6b0e3857ee2',
-        'DelaGothicOne',
-        None,
-    ),
 ]
 
-STYLE = {400: 'Regular', 500: 'Medium', 600: 'SemiBold', 700: 'Bold'}
+STYLE = {400: 'Regular', 500: 'Medium', 600: 'SemiBold', 700: 'Bold', 800: 'ExtraBold', 900: 'Black'}
 
 
 def sha256(path: str) -> str:
@@ -89,16 +82,14 @@ def main() -> int:
 
     ap = argparse.ArgumentParser()
     ap.add_argument('--source-dir')
+    ap.add_argument('--only', action='append', help='書き出す書体の接頭辞（繰り返し指定できる）')
     args = ap.parse_args()
 
     os.makedirs(OUT, exist_ok=True)
     for name, url, digest, prefix, weights in SOURCES:
-        src = source(name, url, digest, args.source_dir)
-        if weights is None:
-            dst = os.path.join(OUT, f'{prefix}-Regular.ttf')
-            shutil.copyfile(src, dst)
-            print('書き出し', os.path.relpath(dst, ROOT))
+        if args.only and prefix not in args.only:
             continue
+        src = source(name, url, digest, args.source_dir)
         for w in weights:
             font = instantiateVariableFont(TTFont(src), {'wght': w}, updateFontNames=True)
             if font['OS/2'].usWeightClass != w:
