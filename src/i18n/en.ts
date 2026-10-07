@@ -421,6 +421,7 @@ Tag #PodsNow to share your thoughts`,
   },
 
   sound: {
+    measuringShort: (pct: number) => `Measuring ${pct}%`,
     embed: 'Embed artwork and title',
     loudness: 'Balance voice volume',
     recommended: ' (recommended)',

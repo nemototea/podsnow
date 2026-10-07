@@ -452,6 +452,7 @@ Podcast: {{show_name}}
   },
 
   sound: {
+    measuringShort: (pct: number) => `測定中 ${pct}%`,
     embed: 'アートワークとタイトルを埋め込む',
     loudness: '音量をそろえる',
     recommended: '（推奨）',

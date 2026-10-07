@@ -406,7 +406,17 @@ export function ExportTab({ ws, details, onShowToast, onDone, onGoEdit }: Export
         <Check
           label={t.sound.loudness}
           on={sound.loudness.enabled}
-          value={sound.loudness.enabled ? lufsText : null}
+          // 試聴の音量を測っている間は、値の所に進み具合を出す（行を増やさず、見本の行の間を保つ）
+          value={
+            !sound.loudness.enabled
+              ? null
+              : measure.measuring
+                ? t.sound.measuringShort(Math.round(measure.progress * 100))
+                : lufsText
+          }
+          {...(sound.loudness.enabled && measure.measuring
+            ? { a11yValue: t.sound.measuring(Math.round(measure.progress * 100)) }
+            : {})}
           onPress={() =>
             updateSound({
               ...sound,
@@ -414,11 +424,6 @@ export function ExportTab({ ws, details, onShowToast, onDone, onGoEdit }: Export
             })
           }
         />
-        {sound.loudness.enabled && measure.measuring ? (
-          <Text style={[typography.small, st.checkNote, { color: c.textSecondary }]}>
-            {t.sound.measuring(Math.round(measure.progress * 100))}
-          </Text>
-        ) : null}
         {/* BGM が無いときは押すと収録タブへ（BGM を入れる） */}
         <Check
           label={t.sound.ducking}
@@ -933,6 +938,7 @@ function Check({
   info,
   on,
   value,
+  a11yValue,
   disabled,
   onPress,
 }: {
@@ -940,6 +946,8 @@ function Check({
   info?: TermInfo;
   on: boolean;
   value?: string | null;
+  /** 読み上げで値の代わりに読む文（短い表示の値を補う）。 */
+  a11yValue?: string;
   disabled?: boolean;
   /** 無ければ切り替えられない（常に入っている項目）。 */
   onPress?: () => void;
@@ -968,7 +976,12 @@ function Check({
       </Text>
       {info ? <InfoButton info={info} /> : null}
       {value ? (
-        <Text style={[typography.numeric, st.checkVal, { color: c.textSecondary }]}>{value}</Text>
+        <Text
+          style={[typography.numeric, st.checkVal, { color: c.textSecondary }]}
+          accessibilityLiveRegion="polite"
+        >
+          {value}
+        </Text>
       ) : null}
     </>
   );
@@ -984,7 +997,7 @@ function Check({
       onPress={onPress}
       disabled={disabled}
       accessibilityRole="switch"
-      accessibilityLabel={value ? `${label}, ${value}` : label}
+      accessibilityLabel={a11yValue || value ? `${label}, ${a11yValue ?? value}` : label}
       accessibilityState={{ checked: on, disabled: !!disabled }}
       hitSlop={{ top: space.x10 / 2, bottom: space.x10 / 2 }}
       style={({ pressed }) => [st.check, pressed ? { opacity: pressedOpacity } : null]}
@@ -1007,7 +1020,6 @@ const st = StyleSheet.create({
   check: { flexDirection: 'row', alignItems: 'center', gap: space.x10 },
   checkLabel: { flexShrink: 1 },
   checkVal: { marginLeft: 'auto' },
-  checkNote: { marginLeft: icon.button + space.x10 },
   dot: {
     width: icon.button,
     height: icon.button,
