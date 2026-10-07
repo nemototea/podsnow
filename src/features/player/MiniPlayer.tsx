@@ -7,7 +7,7 @@ import { useServices } from '@/features/app/ServicesProvider';
 import { useDraftBar } from '@/features/home/draftBar';
 import { episodeStatusKind } from '@/features/home/statusIcon';
 import { useShowColors } from '@/features/show/useShowColors';
-import { errorCodeText, useT } from '@/i18n';
+import { episodeName, errorCodeText, useT } from '@/i18n';
 import { Artwork } from '@/ui/Artwork';
 import { IconButton, Text } from '@/ui/components';
 import { progressRatio } from '@/ui/seek';
@@ -52,10 +52,8 @@ export function MiniPlayer() {
   const bg = colors.miniPlayer;
   const sub = compositeHex(c.textPrimary, SUB_ALPHA, bg);
   const episodeId = source ? source.episodeId : draftItem?.local?.id;
-  const rawTitle = (source ? source.title : draftItem?.title) || t.home.untitled;
-  const number = source ? (source.episodeNumber ?? null) : (draftItem?.episodeNumber ?? null);
-  // 見本 `.mini .t b`「#43 寝る前に読む本」
-  const title = number === null ? rawTitle : `${t.episode.number(number)} ${rawTitle}`;
+  // 見本 `.mini .t b`。話数は出さず題だけ（Issue #211）
+  const title = episodeName(t, (source ? source.title : draftItem?.title) ?? '');
 
   let status: string;
   if (draftItem) {
@@ -85,7 +83,7 @@ export function MiniPlayer() {
       >
         <Artwork
           uri={services.coverArt.uri(services.show.cover_path)}
-          name={number === null ? services.show.name : t.episode.number(number)}
+          name={services.show.name}
           size={artwork.miniPlayer}
         />
         <View style={s.text}>

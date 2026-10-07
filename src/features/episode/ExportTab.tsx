@@ -8,7 +8,7 @@ import { headings } from '@/domain/outline';
 import { formatSmp, smp } from '@/domain/time';
 import { useServices } from '@/features/app/ServicesProvider';
 import {
-  episodeHeading,
+  episodeName,
   errorCodeText,
   errorText,
   formatDate,
@@ -384,16 +384,10 @@ export function ExportTab({ ws, details, onShowToast, onDone, onGoEdit }: Export
     <View style={st.ex}>
       {/* 見本 `.exhero`: アートワーク（中）と題・番組名・時間。右に試聴の白い丸 */}
       <View style={st.hero}>
-        <Artwork
-          uri={coverArt.uri(show.cover_path)}
-          name={
-            episode.episode_number === null ? show.name : t.episode.number(episode.episode_number)
-          }
-          size={artwork.exportHero}
-        />
+        <Artwork uri={coverArt.uri(show.cover_path)} name={show.name} size={artwork.exportHero} />
         <View style={st.heroText}>
           <Text style={[typography.heading, { color: c.textPrimary }]} numberOfLines={2}>
-            {episodeHeading(t, episode.episode_number, episode.title)}
+            {episodeName(t, episode.title)}
           </Text>
           <Text style={[typography.caption, { color: c.textSecondary }]} numberOfLines={1}>
             {`${show.name} · ${formatSmp(state.total)}`}

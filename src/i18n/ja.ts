@@ -213,9 +213,9 @@ Podcast: {{show_name}}
     miniOpenDraft: (title: string) => `${title} を開く`,
     badgeNew: '未録音',
     badgePublished: '配信済み',
-    /** `code` は `episode.number` で作った話数の表記。 */
-    removed: (code: string) => `${code} を削除しました`,
-    audioPurged: (code: string) => `${code} の音声を削除しました`,
+    /** `name` は `episodeRef` で作った回の呼び方（「『題』」。話数は出さない。Issue #211）。 */
+    removed: (name: string) => `${name}を削除しました`,
+    audioPurged: (name: string) => `${name}の音声を削除しました`,
     badgeNoAudio: '音声なし',
     untitled: 'タイトル未設定',
     recoveredTitle: '途中の録音を復元しました',
@@ -224,11 +224,10 @@ Podcast: {{show_name}}
     /** 複数の録音を復元したとき（Issue #168 E8）。 */
     recoveredTitleMany: (count: number) => `途中の録音を ${count} 件復元しました`,
     recoveredBodyMany: '保存が終わる前に止まった録音です',
-    /** `code` は `episode.number` で作った話数の表記。 */
-    reviewRecordingOf: (code: string) => `${code} の録音を確認する`,
-    a11yEpisodeMenu: (n: number) => `エピソード ${n} の操作`,
-    /** 話数が空の回（Issue #211）。`episodeMenuLabel` が選ぶ。 */
-    a11yEpisodeMenuTitled: (title: string) => `「${title}」の操作`,
+    /** `name` は `episodeRef` で作った回の呼び方。 */
+    reviewRecordingOf: (name: string) => `${name}の録音を確認する`,
+    /** 回の「…」の読み上げ。話数ではなく題で言う（Issue #211）。 */
+    a11yEpisodeMenu: (title: string) => `「${title}」の操作`,
     a11yOpenShow: (name: string) => `${name} を開く`,
     importShow: '配信中の番組を取り込む',
     reimportShow: '番組の情報を読み込み直す',
@@ -411,7 +410,7 @@ Podcast: {{show_name}}
       studio: '収録',
       export: '書き出し',
     },
-    duplicated: (code: string) => `${code} として複製しました`,
+    duplicated: '新しい回として複製しました',
     menu: {
       duplicate: '複製して新しい回にする',
       purgeAudio: '音声を削除',
@@ -421,10 +420,11 @@ Podcast: {{show_name}}
     },
     /**
      * 話数の表記（Issue #170）。画面に出す話数はすべてこれで作る。
-     * 読み上げは「エピソード 3」の文（`home.a11yEpisodeMenu` など）にする。
+     * 一覧・見出し・トーストには話数を出さず題で呼ぶ（Issue #211）。話数を出すのは
+     * 「その他の詳細」と取り込みのプレビューだけ。
      */
     number: (n: number) => `#${n}`,
-    /** 話数が空の回を文の中で指すとき（「『題』を削除しました」。Issue #211）。`episodeRef` が使う。 */
+    /** 文の中で回を指すとき（「『題』を削除しました」）。`episodeRef` が使う。 */
     quoted: (title: string) => `「${title}」`,
     a11yMenu: 'エピソードの操作',
   },

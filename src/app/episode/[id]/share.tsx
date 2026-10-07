@@ -10,7 +10,7 @@ import { CopyRow } from '@/features/episode/CopyRow';
 import { shareExport } from '@/features/episode/shareExport';
 import { useCopy } from '@/features/episode/useCopy';
 import { useEpisode } from '@/features/episode/useEpisode';
-import { errorText, formatDateTime, useLocale, useT } from '@/i18n';
+import { episodeName, errorText, formatDateTime, useLocale, useT } from '@/i18n';
 import { listExports, type ExportRow } from '@/infra/db/repositories/exportsRepo';
 import { fileExists } from '@/infra/files/fileSystem';
 import { joinRoot } from '@/infra/files/layout';
@@ -89,16 +89,7 @@ export default function DistributionPackScreen() {
 
   return (
     <Screen overlay={<Toast toast={toast} onAction={act} onDismiss={dismiss} />}>
-      <ScreenHeader
-        title={t.pack.title}
-        subtitle={
-          episode.episode_number === null
-            ? episode.title || t.home.untitled
-            : episode.title
-              ? `${t.episode.number(episode.episode_number)} · ${episode.title}`
-              : t.episode.number(episode.episode_number)
-        }
-      />
+      <ScreenHeader title={t.pack.title} subtitle={episodeName(t, episode.title)} />
 
       <View style={st.top} />
 

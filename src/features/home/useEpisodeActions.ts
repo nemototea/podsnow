@@ -30,7 +30,7 @@ export function useEpisodeActions(
   );
 
   return (e) => {
-    const code = episodeRef(t, e.episode_number, e.title);
+    const name = episodeRef(t, e.title);
     return [
       {
         key: 'duplicate',
@@ -38,8 +38,8 @@ export function useEpisodeActions(
         label: t.episode.menu.duplicate,
         onPress: () =>
           void run(async () => {
-            const d = await episodes.duplicate(e.id);
-            return t.episode.duplicated(episodeRef(t, d.episode_number, d.title));
+            await episodes.duplicate(e.id);
+            return t.episode.duplicated;
           }),
       },
       ...(e.audio_purged_at
@@ -58,7 +58,7 @@ export function useEpisodeActions(
                   onConfirm: () =>
                     void run(async () => {
                       await episodes.purgeAudio(e.id);
-                      return t.home.audioPurged(code);
+                      return t.home.audioPurged(name);
                     }),
                 }),
             },
@@ -77,7 +77,7 @@ export function useEpisodeActions(
             onConfirm: () =>
               void run(async () => {
                 await episodes.remove(e.id);
-                return t.home.removed(code);
+                return t.home.removed(name);
               }),
           }),
       },

@@ -357,17 +357,16 @@ export class ExportService {
   }
 
   /**
-   * 共有・保存するときのファイル名（Issue #166）。番組名・話数・タイトルから作る。
+   * 共有・保存するときのファイル名（Issue #166）。番組名・タイトルから作る（話数は入れない。Issue #211）。
    * 画面の表示と `prepareShare` の実物で同じ名前になるよう、どちらもここを通す。
    */
   async shareFileName(exportId: string): Promise<string | null> {
     const row = await this.deps.db.get<{
       format: ExportFormat;
       title: string;
-      episode_number: number | null;
       show_name: string | null;
     }>(
-      `SELECT x.format, e.title, e.episode_number, s.name AS show_name
+      `SELECT x.format, e.title, s.name AS show_name
          FROM exports x
          JOIN episodes e ON e.id = x.episode_id
          LEFT JOIN shows s ON s.id = e.show_id
@@ -377,7 +376,6 @@ export class ExportService {
     if (!row) return null;
     return exportFileName({
       showName: row.show_name ?? '',
-      episodeNumber: row.episode_number,
       title: row.title,
       ext: row.format,
     });

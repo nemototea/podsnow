@@ -23,14 +23,7 @@ import { kindLabel } from '@/features/show/assetKinds';
 import { useAssetPreview } from '@/features/show/useAssetPreview';
 import { useAsyncData } from '@/features/show/useAsyncData';
 import { useShowColors } from '@/features/show/useShowColors';
-import {
-  episodeMenuLabel,
-  errorText,
-  formatShortDate,
-  useLocale,
-  useT,
-  type Messages,
-} from '@/i18n';
+import { episodeName, errorText, formatShortDate, useLocale, useT, type Messages } from '@/i18n';
 import type { AssetKind, AssetRow } from '@/infra/db/repositories/assetsRepo';
 import {
   getDefaultTemplate,
@@ -570,11 +563,7 @@ export default function ShowScreen() {
               const desc = item.feed?.description
                 ? htmlToPlainText(item.feed.description)
                 : (e?.description.trim() ?? '');
-              const title = item.title || t.home.untitled;
-              const label =
-                item.episodeNumber === null
-                  ? title
-                  : `${t.episode.number(item.episodeNumber)} ${title}`;
+              const label = episodeName(t, item.title);
               const active = player.source?.homeKey === item.key;
               const canPlay = playable.has(item.key);
               return (
@@ -644,7 +633,7 @@ export default function ShowScreen() {
                     ) : null}
                     {e ? (
                       <MoreMenu
-                        label={episodeMenuLabel(t, e.episode_number, e.title)}
+                        label={t.home.a11yEpisodeMenu(episodeName(t, e.title))}
                         title={label}
                         actions={episodeActions(e)}
                       />

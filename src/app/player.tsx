@@ -6,7 +6,7 @@ import { useServices } from '@/features/app/ServicesProvider';
 import { playerDetails } from '@/features/player/playerDetails';
 import { usePlayback } from '@/features/player/usePlayback';
 import { usePlayerItem } from '@/features/player/usePlayerItem';
-import { errorCodeText, formatDate, useLocale, useT, type Messages } from '@/i18n';
+import { episodeName, errorCodeText, formatDate, useLocale, useT, type Messages } from '@/i18n';
 import type { PlaybackSource } from '@/services/audio/PlaybackService';
 import { compositeHex } from '@/domain/color/showColors';
 import { useShowColors } from '@/features/show/useShowColors';
@@ -61,8 +61,6 @@ export default function PlayerScreen() {
   const details = playerDetails(source, item);
   const room = width - gutter * 2;
   const title = source.title ?? '';
-  const number = source.episodeNumber ?? null;
-  const code = number === null ? null : t.episode.number(number);
   const date = details.date
     ? (details.date.kind === 'published' ? t.player.publishedOn : t.player.recordedOn)(
         formatDate(new Date(details.date.at), locale),
@@ -99,7 +97,7 @@ export default function PlayerScreen() {
             accessibilityRole="header"
             numberOfLines={2}
           >
-            {code === null ? title || t.home.untitled : `${code} ${title || t.home.untitled}`}
+            {episodeName(t, title)}
           </Text>
           <Text style={[typography.body, { color: sub }]} numberOfLines={1}>
             {services.show.name}

@@ -718,8 +718,9 @@ figcaption span { color: var(--sub); font-size: 13.5px; line-height: 1.7; }
     setVars(derive(s.dominant));
     var b = { name: s.name, count: s.count, chap: s.chap, topic: s.topic, next: s.next };
     s.eps.forEach(function (e, k) {
-      b['ep' + k] = '#' + e.no + ' ' + e.t;
-      b['ep' + k + 'short'] = '#' + e.no + ' ' + e.t;
+      // 一覧・見出し・ミニプレーヤーには話数を出さず題だけ（Issue #211）
+      b['ep' + k] = e.t;
+      b['ep' + k + 'short'] = e.t;
       b['ep' + k + 'desc'] = e.d;
       b['ep' + k + 'dur'] = e.dur;
       b['ep' + k + 'date'] = (e.date || '') + (e.date ? ' · ' + e.dur.split(':')[0] + '分' : '');
@@ -729,8 +730,8 @@ figcaption span { color: var(--sub); font-size: 13.5px; line-height: 1.7; }
     document.querySelectorAll('[data-b]').forEach(function (el) { var v = b[el.getAttribute('data-b')]; if (v != null) el.textContent = v; });
     document.querySelectorAll('[data-art]').forEach(function (el) {
       artClass(el, s);
-      if (el.getAttribute('data-art') === 'cover') el.innerHTML = '<span>' + s.cover + '</span>';
-      else el.innerHTML = '<span>#' + s.eps[+el.getAttribute('data-ep')].no + '</span>';
+      // 画像が無いときのエピソードのアートワークも番組の表紙（話数は描かない。Issue #211）
+      el.innerHTML = '<span>' + s.cover + '</span>';
     });
     document.querySelectorAll('[data-show]').forEach(function (el) { el.setAttribute('aria-pressed', +el.getAttribute('data-show') === i ? 'true' : 'false'); });
     try { localStorage.setItem('pn-show', String(i)); } catch (e) {}

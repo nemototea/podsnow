@@ -2,15 +2,12 @@
  * 共有・保存するときの音声ファイル名（Issue #166）。
  *
  * 書き出したファイルはアプリ内で `<exportId>.<ext>` の名前で持つ（DATA_MODEL.md §2）。
- * 外へ渡すときだけ、番組名・話数・タイトルから作ったこの名前を付ける。
+ * 外へ渡すときだけ、番組名・タイトルから作ったこの名前を付ける。話数は入れない（Issue #211）。
  *
- * 例: `ねもとのラジオ - 012 - 初回ゲスト回.m4a`。番組名もタイトルも空なら `episode-012.m4a`。
- * 話数が空の回は番号を省く（`ねもとのラジオ - 初回ゲスト回.m4a`、`episode.m4a`。Issue #211）。
+ * 例: `ねもとのラジオ - 初回ゲスト回.m4a`。番組名もタイトルも空なら `episode.m4a`。
  */
 export interface ExportFileNameInput {
   showName: string;
-  /** 話数。空（null）なら番号を省く。 */
-  episodeNumber: number | null;
   title: string;
   /** 拡張子（`m4a` / `wav`）。先頭の `.` は付けない。 */
   ext: string;
@@ -32,17 +29,10 @@ const SEPARATOR = ' - ';
 const UNSAFE_CHARS = /[\u0000-\u001f\u007f/\\:*?"<>|#%]/g;
 
 export function exportFileName(input: ExportFileNameInput): string {
-  const number =
-    input.episodeNumber === null
-      ? ''
-      : String(Math.max(0, Math.trunc(input.episodeNumber))).padStart(3, '0');
   const show = sanitizePart(input.showName);
   const title = sanitizePart(input.title);
   const ext = sanitizePart(input.ext).replace(/\s/g, '') || 'm4a';
-  const stem =
-    show || title
-      ? [show, number, title].filter(Boolean).join(SEPARATOR)
-      : ['episode', number].filter(Boolean).join('-');
+  const stem = [show, title].filter(Boolean).join(SEPARATOR) || 'episode';
   return `${truncateStem(stem)}.${ext}`;
 }
 

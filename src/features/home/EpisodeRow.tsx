@@ -2,7 +2,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 
 import { formatSmp, smp } from '@/domain/time';
 import { useServices } from '@/features/app/ServicesProvider';
-import { episodeHeading, episodeMenuLabel, useT, type Messages } from '@/i18n';
+import { episodeName, useT, type Messages } from '@/i18n';
 import type { HomeEpisodeItem } from '@/services/home/HomeService';
 import { Artwork } from '@/ui/Artwork';
 import { Pill, Text } from '@/ui/components';
@@ -29,7 +29,7 @@ export function statusText(t: Messages, kind: EpisodeStatusKind): string {
 
 /** 一覧とタイルの題（見本「#43 寝る前に読む本」）。題が無ければ「タイトル未設定」。 */
 export function itemLabel(t: Messages, item: HomeEpisodeItem): string {
-  return episodeHeading(t, item.episodeNumber, item.title);
+  return episodeName(t, item.title);
 }
 
 /**
@@ -64,11 +64,7 @@ export function EpisodeRow({
         style={({ pressed }) => [s.main, pressed ? { opacity: pressedOpacity } : null]}
       >
         {/* 見本 `.ep .art`: 画像が無いときは話数（「#43」）の表紙 */}
-        <Artwork
-          uri={coverArt.uri(show.cover_path)}
-          name={item.episodeNumber === null ? show.name : t.episode.number(item.episodeNumber)}
-          size={artwork.row}
-        />
+        <Artwork uri={coverArt.uri(show.cover_path)} name={show.name} size={artwork.row} />
         <View style={s.text}>
           <Text
             style={[typography.rowTitle, { color: item.title ? c.textPrimary : c.textSecondary }]}
@@ -89,8 +85,8 @@ export function EpisodeRow({
       </Pressable>
       {e && actions ? (
         <MoreMenu
-          label={episodeMenuLabel(t, e.episode_number, e.title)}
-          title={episodeHeading(t, e.episode_number, e.title)}
+          label={t.home.a11yEpisodeMenu(episodeName(t, e.title))}
+          title={episodeName(t, e.title)}
           actions={actions}
         />
       ) : null}
