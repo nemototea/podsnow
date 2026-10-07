@@ -1,6 +1,6 @@
 import { StyleSheet, View } from 'react-native';
 
-import { barState, LEVEL_BARS, litBars } from './levelBars';
+import { barState, LEVEL_BARS, litBars } from './levelMeter';
 import { compositeHex } from '@/domain/color/showColors';
 import { useAppTheme } from './ThemeContext';
 import { radius, space } from './tokens';

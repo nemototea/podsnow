@@ -1,4 +1,4 @@
-import { barState, LEVEL_BARS, LEVEL_HOT_FROM, litBars } from '../levelBars';
+import { barState, LEVEL_BARS, LEVEL_HOT_FROM, litBars } from '../levelMeter';
 
 describe('横に並ぶ棒のレベル（見本 .meter）', () => {
   it('-40〜0 dBFS を 24 本に等分する', () => {
