@@ -24,7 +24,7 @@
   --np-a: #6e2f2a;
   --np-b: #3a1d1f;
   --np-c: #1a1212;
-  --topic: #b5483b;
+  --cue: #b5483b;
   --mini: #5a2a3c;
   --hero-a: #3b2350;
   --font: "Figtree", "Noto Sans JP", system-ui, sans-serif;
@@ -184,9 +184,9 @@ figcaption span { color: var(--sub); font-size: 13.5px; line-height: 1.7; }
 .np .head small { font-size: 10.5px; letter-spacing: .1em; color: rgba(255,255,255,.75); font-weight: 700; }
 .np .head b { font-size: 13px; font-weight: 700; }
 .np .ib { color: #fff; }
-.wavebox { position: relative; border-radius: 8px; background: rgba(0,0,0,.28); height: 200px; overflow: hidden; }
+.wavebox { position: relative; border-radius: 8px; background: rgba(0,0,0,.28); height: 136px; overflow: hidden; }
 .wavebox canvas { width: 100%; height: 100%; display: block; }
-.wavebox .chap { position: absolute; left: 12px; top: 10px; font-size: 11px; font-weight: 700; color: rgba(255,255,255,.85); display: flex; gap: 6px; align-items: center; white-space: nowrap; }
+.wavebox .tag { position: absolute; left: 12px; top: 10px; display: flex; }
 .np .title { display: flex; align-items: center; gap: 10px; }
 .np .title div { flex: 1; min-width: 0; }
 .np .title b { display: block; font-size: 21px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -198,15 +198,15 @@ figcaption span { color: var(--sub); font-size: 13.5px; line-height: 1.7; }
 .meter i { border-radius: 2px; background: rgba(255,255,255,.18); }
 .meter i.on { background: #fff; }
 .meter i.on.hot { background: #ffb340; }
-.topic { background: var(--topic); border-radius: 10px; padding: 14px 14px 12px; display: grid; gap: 8px; }
-.topic small { font-size: 11px; font-weight: 800; letter-spacing: .06em; color: rgba(255,255,255,.85); display: flex; justify-content: space-between; }
-.topic b { font-size: 19px; font-weight: 800; line-height: 1.35; }
-.topic .next { font-size: 12.5px; color: rgba(255,255,255,.8); display: flex; align-items: center; gap: 6px; }
+.cue { background: var(--cue); border-radius: 10px; padding: 14px 14px 0; display: flex; flex-direction: column; gap: 8px; flex: 1; min-height: 96px; }
+.cue small { flex: none; font-size: 11px; font-weight: 800; letter-spacing: .06em; color: rgba(255,255,255,.85); }
+.cue p { flex: 1; min-height: 0; margin: 0; padding-bottom: 14px; overflow-y: auto; white-space: pre-wrap; font-size: 16px; font-weight: 700; line-height: 1.5; scrollbar-width: none; }
 .pads { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; }
 .pads button { flex: none; padding: 8px 12px; border-radius: var(--r-pill); background: rgba(255,255,255,.12); font-size: 12.5px; font-weight: 700; display: flex; gap: 6px; align-items: center; }
 .pads button:hover { background: rgba(255,255,255,.2); }
 .pads button.hit { background: #fff; color: #000; }
-.transport { display: flex; align-items: center; justify-content: space-between; margin-top: auto; }
+.transport { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; margin-top: auto; }
+.transport .ib { justify-self: center; }
 .recbtn { width: 72px; height: 72px; border-radius: 50%; background: #fff; display: grid; place-items: center; transition: transform .12s; }
 .recbtn:active { transform: scale(.95); }
 .recbtn i { width: 26px; height: 26px; border-radius: 6px; background: var(--rec); display: block; transition: border-radius .2s, width .2s, height .2s; }
@@ -234,11 +234,11 @@ figcaption span { color: var(--sub); font-size: 13.5px; line-height: 1.7; }
 .layer { height: 24px; border-radius: 4px; font-size: 10.5px; font-weight: 700; display: flex; align-items: center; padding: 0 8px; background: #4a4a4a; color: #fff; }
 .layer.insert { background: #254146; }
 .layer.music { background: #3e3757; }
-.chapters { margin: 14px 16px 0; display: grid; gap: 2px; }
-.chapters h4 { margin: 0 0 6px; font-size: 15px; font-weight: 800; }
-.chap { display: flex; align-items: center; gap: 12px; padding: 8px 0; font-size: 13.5px; }
-.chap span { color: var(--sub); font-variant-numeric: tabular-nums; font-size: 12px; width: 40px; flex: none; }
-.chap b { font-weight: 600; flex: 1; }
+.notesbox { margin: 14px 16px 0; display: grid; gap: 6px; }
+.notesbox .row { display: flex; align-items: center; justify-content: space-between; }
+.notesbox h4 { margin: 0; font-size: 15px; font-weight: 800; }
+.notesbox .card { padding: 12px 14px; border-radius: 8px; background: var(--s1); }
+.notesbox p { margin: 0; font-size: 13.5px; line-height: 1.55; white-space: pre-wrap; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
 .sheet { flex: none; background: var(--s2); border-radius: 14px 14px 0 0; padding: 12px 16px 24px; display: grid; gap: 12px; position: relative; z-index: 2; }
 .sheet .grab { width: 36px; height: 4px; border-radius: 2px; background: #555; margin: 0 auto; }
 .sheet .info { font-size: 12.5px; color: var(--sub); font-variant-numeric: tabular-nums; }
@@ -335,7 +335,7 @@ figcaption span { color: var(--sub); font-size: 13.5px; line-height: 1.7; }
             <button><div class="art small" data-art="ep" data-ep="1"></div><span data-b="ep1short"></span></button>
             <button><div class="art small mat" data-ic="note"></div>BGM・ジングル</button>
             <button><div class="art small" data-art="ep" data-ep="2"></div><span data-b="ep2short"></span></button>
-            <button><div class="art small mat" data-ic="list"></div>トークテーマのひな形</button>
+            <button><div class="art small mat" data-ic="pen"></div>カンペのひな形</button>
           </div>
           <div style="display:grid;gap:12px">
             <h2 class="h2">あなたの番組</h2>
@@ -434,7 +434,7 @@ figcaption span { color: var(--sub); font-size: 13.5px; line-height: 1.7; }
         </div>
         <div class="wavebox">
           <canvas id="live"></canvas>
-          <div class="chap"><span class="pill rec">REC</span>チャプター 2 · <span data-b="chap"></span></div>
+          <div class="tag"><span class="pill rec">REC</span></div>
         </div>
         <div class="title">
           <div><b data-b="ep0"></b><span>テイク 4 · 末尾に追加</span></div>
@@ -444,10 +444,9 @@ figcaption span { color: var(--sub); font-size: 13.5px; line-height: 1.7; }
           <div class="clock"><b id="clock">12:48</b><span><span data-ic="mic-sm"></span>内蔵マイク · -18 dB</span></div>
           <div class="meter" id="meter"></div>
         </div>
-        <div class="topic">
-          <small><span>トークテーマ</span><span>2 / 5</span></small>
-          <b data-b="topic"></b>
-          <div class="next"><span data-ic="next-sm"></span><span>次へ送るとチャプターになります: <span data-b="next"></span></span></div>
+        <div class="cue">
+          <small>カンペ</small>
+          <p data-b="notes" tabindex="0"></p>
         </div>
         <div class="pads" id="pads">
           <button><span data-ic="note"></span>ジングル A</button>
@@ -456,15 +455,13 @@ figcaption span { color: var(--sub); font-size: 13.5px; line-height: 1.7; }
           <button><span data-ic="note"></span>笑い</button>
         </div>
         <div class="transport">
-          <button class="ib" data-ic="undo" aria-label="取り消す"></button>
           <button class="ib" data-ic="pause" id="pauseBtn" aria-label="一時停止"></button>
           <button class="recbtn" id="recBtn" aria-label="録音を止める"><i></i></button>
-          <button class="ib" data-ic="next" aria-label="次のトークテーマへ"></button>
-          <button class="ib" data-ic="list" aria-label="トークテーマ一覧"></button>
+          <span></span>
         </div>
       </div>
     </div>
-    <figcaption><b>3. 収録</b><span>背景とトークテーマのカードが番組の色になります。歌詞カードと同じで、カードはグラデーションより少し明るい同じ色相です。録音ボタンは白、録音中の印は赤で、どちらも番組によって変わりません。</span></figcaption>
+    <figcaption><b>3. 収録</b><span>背景とカンペのカードが番組の色になります。歌詞カードと同じで、カードはグラデーションより少し明るい同じ色相です。カンペは録音中は読むだけで、長いときは指でスクロールします。録音ボタンは白、録音中の印は赤で、どちらも番組によって変わりません。</span></figcaption>
   </figure>
 
   <!-- 4. Edit -->
@@ -485,11 +482,9 @@ figcaption span { color: var(--sub); font-size: 13.5px; line-height: 1.7; }
             <div class="layer music" style="width:62%;margin-left:30%">BGM · -18 dB</div>
           </div>
         </div>
-        <div class="chapters">
-          <h4>チャプター</h4>
-          <div class="chap"><span>00:00</span><b>オープニング</b><button class="ib" data-ic="more"></button></div>
-          <div class="chap"><span>01:12</span><b data-b="chap"></b><button class="ib" data-ic="more"></button></div>
-          <div class="chap"><span>06:40</span><b data-b="next"></b><button class="ib" data-ic="more"></button></div>
+        <div class="notesbox">
+          <div class="row"><h4>カンペ</h4><button class="ib" data-ic="pen" aria-label="カンペを書く"></button></div>
+          <div class="card"><p data-b="notes"></p></div>
         </div>
       </div>
       <div class="toast" id="toast" hidden><span id="toastText">4.2 秒を削除しました</span><button id="undoBtn">取り消す</button></div>
@@ -502,7 +497,7 @@ figcaption span { color: var(--sub); font-size: 13.5px; line-height: 1.7; }
         </div>
       </div>
     </div>
-    <figcaption><b>4. 編集（収録タブの中）</b><span>作業の画面は番組の色を使わず、無彩色とアクセントだけにしています。細かい波形を見る場所に色が混ざると、選択中の塊が見分けにくくなるためです。塊を押すと選択が移り、削除すると取り消しの通知が出ます。</span></figcaption>
+    <figcaption><b>4. 編集（収録タブの中）</b><span>作業の画面は番組の色を使わず、無彩色とアクセントだけにしています。細かい波形を見る場所に色が混ざると、選択中の塊が見分けにくくなるためです。塊を押すと選択が移り、削除すると取り消しの通知が出ます。カンペは鉛筆のボタンで開いて書きます。新しいエピソードには番組の「カンペのひな形」が最初から入ります。</span></figcaption>
   </figure>
 
   <!-- 5. Export -->
@@ -605,14 +600,12 @@ figcaption span { color: var(--sub); font-size: 13.5px; line-height: 1.7; }
     share: '<path d="M12 3v12M7 8l5-5 5 5M5 14v6h14v-6" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>',
     undo: '<path d="M9 14 4 9l5-5" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 9h10a6 6 0 0 1 0 12h-3" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>',
     redo: '<path d="m15 14 5-5-5-5" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M20 9H10a6 6 0 0 0 0 12h3" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>',
-    next: '<path d="M6 5v14l10-7z" fill="currentColor"/><rect x="17" y="5" width="2.5" height="14" rx="1" fill="currentColor"/>',
-    list: '<path d="M4 6h16M4 12h16M4 18h10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
     flag: '<path d="M6 21V4M6 4h11l-2 4 2 4H6" stroke="currentColor" stroke-width="2" fill="none" stroke-linejoin="round" stroke-linecap="round"/>',
     note: '<path d="M9 18V6l10-2v12" stroke="currentColor" stroke-width="2" fill="none"/><circle cx="7" cy="18" r="2.5" fill="currentColor"/><circle cx="17" cy="16" r="2.5" fill="currentColor"/>',
     trash: '<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" stroke="currentColor" stroke-width="2" fill="none" stroke-linejoin="round"/>',
     check: '<path d="m5 12 4.5 4.5L19 7" stroke="currentColor" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>'
   };
-  var SIZES = { 'mic-lg': ['mic', 26], 'mic-sm': ['mic', 15], 'next-sm': ['next', 13], note: ['note', 15], check: ['check', 12], trash: ['trash', 18], share: ['share', 20] };
+  var SIZES = { 'mic-lg': ['mic', 26], 'mic-sm': ['mic', 15], note: ['note', 15], check: ['check', 12], trash: ['trash', 18], share: ['share', 20] };
   document.querySelectorAll('[data-ic]').forEach(function (el) {
     var k = el.getAttribute('data-ic'), size = 22, name = k;
     if (SIZES[k]) { name = SIZES[k][0]; size = SIZES[k][1]; }
@@ -626,28 +619,28 @@ figcaption span { color: var(--sub); font-size: 13.5px; line-height: 1.7; }
   var SHOWS = [
     { key: 'yoru', name: '夜更けのラジオ', cover: '夜更けの<br>ラジオ', count: '43 エピソード', dominant: '#c4492f',
       eps: [
-        { no: 43, t: '寝る前に読む本', d: '眠れない夜に開く本の話。トークテーマ 2/5 まで収録済み。', dur: '18:04' },
+        { no: 43, t: '寝る前に読む本', d: '眠れない夜に開く本の話。途中まで収録済み。', dur: '18:04' },
         { no: 42, t: '雨の日の話', d: '梅雨が明けたのに雨ばかり。雨の日にしかしないことを 3 つ話しました。', dur: '29:51', date: '9月27日', day: '2026年9月27日' },
         { no: 41, t: '古い手帳を見つけた', d: '引っ越しの片付けで出てきた 2014 年の手帳。当時の予定を読み上げます。', dur: '24:17', date: '9月20日' }],
-      chap: '本の選び方', topic: '最近、寝る前に読んで眠れなくなった本', next: '紙と電子のどちら派か' },
+      notes: 'オープニング: 今夜は寝る前に読む本の話\n・最近、寝る前に読んで眠れなくなった本\n　→ 最後の 50 ページで朝になった\n・紙と電子のどちら派か\n・おたより 2 通（「積読が減りません」）\nエンディング: 次回は「雨の日の話」の続き' },
     { key: 'coffee', name: '朝のコーヒー会議', cover: '朝の<br>コーヒー<br>会議', count: '128 エピソード', dominant: '#1d8c84',
       eps: [
         { no: 129, t: '浅煎りに戻れない', d: '深煎り派だった 2 人が浅煎りに転んだ経緯。いま収録中。', dur: '09:12' },
         { no: 128, t: 'ハンドドリップの道具', d: 'ケトル、ドリッパー、スケール。最初に買うならどれか。', dur: '21:40', date: '10月1日', day: '2026年10月1日' },
         { no: 127, t: '近所の喫茶店ベスト 3', d: 'リスナーのおすすめを全部回ってきました。', dur: '26:05', date: '9月24日' }],
-      chap: 'きっかけの一杯', topic: '浅煎りを初めておいしいと思った日', next: '家で淹れるときの失敗' },
+      notes: 'オープニング: 深煎り派だった 2 人の近況\n・浅煎りを初めておいしいと思った日\n・家で淹れるときの失敗\n　→ 湯の温度、挽き目\n・おすすめの豆を 1 つずつ\nエンディング: おたより募集' },
     { key: 'cinema', name: '週末シネマ部', cover: '週末<br>シネマ部', count: '67 エピソード', dominant: '#b8123c',
       eps: [
         { no: 68, t: '字幕と吹替', d: '同じ映画を字幕と吹替で 2 回観て比べた話。', dur: '14:30' },
         { no: 67, t: '秋に観たい 5 本', d: '涼しくなってきたので、夜長に向く映画を 5 本選びました。', dur: '33:12', date: '9月30日', day: '2026年9月30日' },
         { no: 66, t: '映画館の座席はどこがいい', d: '前方派と後方派で 30 分揉めました。', dur: '28:48', date: '9月23日' }],
-      chap: '吹替で観た理由', topic: '吹替のほうが良かった映画', next: '字幕の文字数の制約' },
+      notes: 'オープニング: 同じ映画を 2 回観た話\n・吹替のほうが良かった映画\n・字幕の文字数の制約\n　→ 1 秒に 4 文字\n・次に吹替で観たい 1 本\nエンディング: 来週は秋の映画' },
     { key: 'ima', name: 'いまここ雑談', cover: 'いまここ<br>雑談', count: '12 エピソード', dominant: '#1f5fd6',
       eps: [
         { no: 13, t: '散歩のルール', d: '毎朝の散歩で決めているルールを紹介。', dur: '06:51' },
         { no: 12, t: '最近買ってよかったもの', d: '今月の買い物から 3 つ。', dur: '19:22', date: '10月3日', day: '2026年10月3日' },
         { no: 11, t: '夏休みの宿題', d: '大人になってからの夏休みの宿題を考えた回。', dur: '22:10', date: '9月26日' }],
-      chap: '歩く時間', topic: '雨の日でも散歩に行くか', next: 'イヤホンをするかしないか' }
+      notes: 'オープニング: 毎朝の散歩のルール\n・雨の日でも散歩に行くか\n・イヤホンをするかしないか\n・歩く時間と道の決め方\nエンディング: 皆さんのルールも募集' }
   ];
 
   /* ---------- color math ---------- */
@@ -693,7 +686,7 @@ figcaption span { color: var(--sub); font-size: 13.5px; line-height: 1.7; }
       npA: tone(h, s * .85, .32, 4.5, .72),
       npB: tone(h, s * .6, .16, 7),
       npC: tone(h, s * .35, .08, 10),
-      topic: tone(h, s, .44, 4.5, .8),
+      cue: tone(h, s, .44, 4.5, .8),
       mini: tone(h, s * .75, .27, 4.5, .72),
       hero: tone(h, s * .6, .26, 4.5)
     };
@@ -706,7 +699,7 @@ figcaption span { color: var(--sub); font-size: 13.5px; line-height: 1.7; }
     root.style.setProperty('--np-a', toHex(d.npA));
     root.style.setProperty('--np-b', toHex(d.npB));
     root.style.setProperty('--np-c', toHex(d.npC));
-    root.style.setProperty('--topic', toHex(d.topic));
+    root.style.setProperty('--cue', toHex(d.cue));
     root.style.setProperty('--mini', toHex(d.mini));
     root.style.setProperty('--hero-a', toHex(d.hero));
   }
@@ -716,7 +709,7 @@ figcaption span { color: var(--sub); font-size: 13.5px; line-height: 1.7; }
   function applyShow(i) {
     cur = i; var s = SHOWS[i];
     setVars(derive(s.dominant));
-    var b = { name: s.name, count: s.count, chap: s.chap, topic: s.topic, next: s.next };
+    var b = { name: s.name, count: s.count, notes: s.notes };
     s.eps.forEach(function (e, k) {
       // 一覧・見出し・ミニプレーヤーには話数を出さず題だけ（Issue #211）
       b['ep' + k] = e.t;
@@ -763,7 +756,7 @@ figcaption span { color: var(--sub); font-size: 13.5px; line-height: 1.7; }
       var card = document.createElement('div');
       card.className = 'dcard';
       card.innerHTML = '<div class="top"><div class="art art-' + s.key + '"><span></span></div><div><b>' + s.name + '</b><small><em style="background:' + s.dominant + '"></em>代表色 ' + s.dominant.toUpperCase() + '</small></div></div>' +
-        '<div class="strip">' + cell('番組の上部', d.header) + cell('収録画面', d.npA) + cell('トークテーマ', d.topic) + '</div>';
+        '<div class="strip">' + cell('番組の上部', d.header) + cell('収録画面', d.npA) + cell('カンペ', d.cue) + '</div>';
       grid.appendChild(card);
     });
   }
