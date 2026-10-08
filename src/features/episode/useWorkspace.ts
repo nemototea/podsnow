@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import type { EditableDoc } from '@/domain/editing/doc';
-import { currentIndex, nextIndex, type OutlineItem } from '@/domain/outline';
 import { smp, ZERO_SMP, type Smp } from '@/domain/time';
 import { detectBlocks } from '@/domain/timeline/blocks';
 import { placeOverlays, suggestReanchor, type PlacedOverlay } from '@/domain/timeline/overlays';
@@ -59,14 +58,15 @@ export interface WorkspaceState {
   undoLabel: string | null;
   redoLabel: string | null;
   undoTopId: string | null;
-  outline: OutlineItem[];
+  /** カンペ（FR-OUT-1）。空ならカンペなし。 */
+  notes: string;
   events: RecordingEvent[];
   ready: boolean;
 }
 
 /**
  * エピソード画面（収録 / 書き出しの 2 タブ）が共有する状態と操作。
- * EditingService / RecordingSession / PlaybackService / OutlineService を結線する。
+ * EditingService / RecordingSession / PlaybackService / NotesService を結線する。
  * 画面はこのフックだけを使う（ARCHITECTURE.md §2 / §12）。
  */
 export function useWorkspace(episodeId: string) {
@@ -97,7 +97,7 @@ export function useWorkspace(episodeId: string) {
     undoLabel: null,
     redoLabel: null,
     undoTopId: null,
-    outline: [],
+    notes: '',
     events: [],
     ready: false,
   });
@@ -154,13 +154,13 @@ export function useWorkspace(episodeId: string) {
     [db, engine, root, episodeId, patch],
   );
 
-  const loadOutline = useCallback(async () => {
-    const [outline, events] = await Promise.all([
-      services.outline.list(episodeId),
+  const loadNotesAndEvents = useCallback(async () => {
+    const [notes, events] = await Promise.all([
+      services.notes.get(episodeId),
       listRecordingEvents(db, episodeId),
     ]);
-    patch({ outline, events });
-  }, [db, episodeId, patch, services.outline]);
+    patch({ notes, events });
+  }, [db, episodeId, patch, services.notes]);
 
   const reloadAll = useCallback(
     async (opts: { open?: boolean; refocus?: boolean } = {}) => {
@@ -184,7 +184,7 @@ export function useWorkspace(episodeId: string) {
         ready: true,
         playhead: smp(episode?.playhead_smp ?? 0),
       });
-      await Promise.all([loadPeaks(takes), loadOutline()]);
+      await Promise.all([loadPeaks(takes), loadNotesAndEvents()]);
       await playback.reload(episodeId).catch(() => {});
       // 開いたとき・戻ってきたときは、再生エンジンの位置をこの回の保存位置に合わせる
       // （エンジンは 1 つなので、直前に開いていた別の回の位置が残っている）
@@ -192,7 +192,7 @@ export function useWorkspace(episodeId: string) {
         await playback.seek(smp(episode.playhead_smp ?? 0)).catch(() => {});
       }
     },
-    [db, episodeId, loadPeaks, loadOutline, playback, services, syncFromEditing],
+    [db, episodeId, loadPeaks, loadNotesAndEvents, playback, services, syncFromEditing],
   );
 
   useEffect(() => {
@@ -408,39 +408,7 @@ export function useWorkspace(episodeId: string) {
     [state.doc.voice, state.peaksByTake, state.total, settings.silence],
   );
 
-  // ---- チャプター（トークテーマ由来）と録音中の出来事 ----
-
-  /** 声トラック上のチャプター。カットされた項目は落ちる（FR-OUT-4）。 */
-  const chaptersOnTimeline = useMemo(
-    () =>
-      state.outline
-        .map((item) =>
-          item.recordedTakeId !== null && item.recordedSrcSmp !== null
-            ? {
-                item,
-                at: resolveTimeline(state.doc.voice, item.recordedTakeId, item.recordedSrcSmp),
-              }
-            : { item, at: null },
-        )
-        .filter((x): x is { item: OutlineItem; at: Smp } => x.at !== null)
-        .sort((a, b) => a.at - b.at),
-    [state.doc.voice, state.outline],
-  );
-
-  /**
-   * チャプター 1 つ分の範囲（次のチャプターの手前まで。最後なら末尾まで）。
-   * 長押しで丸ごと選ぶのに使う（docs/ux-restructure.md §6.3）。
-   */
-  const chapterRange = useCallback(
-    (itemId: string): Range | null => {
-      const i = chaptersOnTimeline.findIndex((ch) => ch.item.id === itemId);
-      if (i < 0) return null;
-      const start = chaptersOnTimeline[i]!.at;
-      const end = chaptersOnTimeline[i + 1]?.at ?? state.total;
-      return end > start ? { start, end } : null;
-    },
-    [chaptersOnTimeline, state.total],
-  );
+  // ---- 録音中の出来事 ----
 
   /** 割り込みなど、アプリが自動で記録した位置。ユーザーは打てない。 */
   const eventsOnTimeline = useMemo(
@@ -614,41 +582,20 @@ export function useWorkspace(episodeId: string) {
     [state.doc.voice, updateOverlay, t],
   );
 
-  // ---- トークテーマと台本 ----
+  // ---- カンペ（FR-OUT-1..2）。編集画面で書き、録音中は読むだけ ----
 
-  const saveOutline = useCallback(
-    async (items: readonly OutlineItem[]) => {
-      await services.outline.save(episodeId, items);
-      await loadOutline();
+  const saveNotes = useCallback(
+    async (notes: string) => {
+      await services.notes.save(episodeId, notes);
+      patch({ notes });
     },
-    [episodeId, loadOutline, services.outline],
+    [episodeId, patch, services.notes],
   );
-
-  const addOutlineFromText = useCallback(
-    async (text: string) => {
-      await services.outline.addFromText(episodeId, text);
-      await loadOutline();
-    },
-    [episodeId, loadOutline, services.outline],
-  );
-
-  /** 次の項目へ進む。録音中ならその位置がチャプターになる（FR-OUT-4）。 */
-  const advanceOutline = useCallback(async () => {
-    const item = await services.outline.advance(episodeId, recording.currentSourcePosition());
-    await loadOutline();
-    if (item) haptics.play('selection');
-    return item;
-  }, [episodeId, haptics, loadOutline, recording, services.outline]);
-
-  const outlineCurrent = useMemo(() => currentIndex(state.outline), [state.outline]);
-  const outlineNext = useMemo(() => nextIndex(state.outline), [state.outline]);
 
   return {
     state,
     undoTopRef,
     blocks,
-    chaptersOnTimeline,
-    chapterRange,
     eventsOnTimeline,
     apply,
     undo,
@@ -676,11 +623,7 @@ export function useWorkspace(episodeId: string) {
     removeOverlay,
     moveOverlayTo,
     selectOverlay: (id: string | null) => patch({ selectedOverlay: id, selection: null }),
-    saveOutline,
-    addOutlineFromText,
-    advanceOutline,
-    outlineCurrent,
-    outlineNext,
+    saveNotes,
     reloadAll,
     refocus,
   };

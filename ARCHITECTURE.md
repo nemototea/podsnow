@@ -35,7 +35,7 @@
 ├─────────────────────────────────────────────────────────┤
 │ src/domain/  ─ 純粋 TypeScript。副作用なし                 │
 │   timeline (EDL 計算・時間変換) / edit-ops (操作と逆操作)   │
-│   undo / metadata-template / silence-plan / outline      │
+│   undo / metadata-template / silence-plan / list         │
 ├─────────────────────────────────────────────────────────┤
 │ src/services/  ─ ユースケース。domain と infra をつなぐ      │
 │   RecordingSession / EpisodeService / ExportService      │

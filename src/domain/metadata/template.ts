@@ -1,26 +1,21 @@
 /**
  * 概要欄ベーステンプレートの展開（DATA_MODEL.md §4.3、FR-META-2/3）。
- * 変数は {{title}} {{episode_number}} {{season}} {{topics}} {{show_name}} のみ。未知の変数はそのまま残す。
+ * 変数は {{title}} {{episode_number}} {{season}} {{show_name}} のみ。未知の変数はそのまま残す。
+ * （{{topics}} は Issue #180 で廃止。既存のひな形からは移行 0010 で取り除いた。）
  * 話数・シーズンが空（null）なら空文字に置き換える（Issue #211）。
  */
 export interface TemplateVars {
   title: string;
   episodeNumber: number | null;
   season: number | null;
-  topics: readonly string[];
   showName: string;
 }
 
 export function renderTemplate(body: string, vars: TemplateVars): string {
-  const topics = vars.topics
-    .filter((t) => t.trim())
-    .map((t) => `・${t.trim()}`)
-    .join('\n');
   const map: Record<string, string> = {
     title: vars.title,
     episode_number: vars.episodeNumber === null ? '' : String(vars.episodeNumber),
     season: vars.season === null ? '' : String(vars.season),
-    topics,
     show_name: vars.showName,
   };
   const pattern = /\{\{\s*(\w+)\s*\}\}/g;
@@ -51,7 +46,7 @@ export function renderTemplate(body: string, vars: TemplateVars): string {
 }
 
 /** テンプレートに書ける変数（`{{ }}` の中身）。並びは差し込みボタンの並び。 */
-export const TEMPLATE_VARS = ['title', 'episode_number', 'season', 'topics', 'show_name'] as const;
+export const TEMPLATE_VARS = ['title', 'episode_number', 'season', 'show_name'] as const;
 export type TemplateVar = (typeof TEMPLATE_VARS)[number];
 
 const VAR_PATTERN = /\{\{\s*(\w+)\s*\}\}/g;
@@ -90,20 +85,6 @@ export function previewTemplate(
   names: Readonly<Record<TemplateVar, string>>,
 ): string {
   return body.replace(VAR_PATTERN, (m, k: string) => (isTemplateVar(k) ? names[k] : m));
-}
-
-/** 概要のうち、トークテーマ由来の箇条書き部分を差し替える（既存の「・」行ブロックを置換、無ければ末尾に追加）。 */
-export function insertTopics(description: string, topics: readonly string[]): string {
-  const block = topics
-    .filter((t) => t.trim())
-    .map((t) => `・${t.trim()}`)
-    .join('\n');
-  const lines = description.split('\n');
-  const first = lines.findIndex((l) => l.startsWith('・'));
-  if (first === -1) return description.trim() ? `${description.trimEnd()}\n\n${block}` : block;
-  let last = first;
-  while (last + 1 < lines.length && lines[last + 1]!.startsWith('・')) last++;
-  return [...lines.slice(0, first), block, ...lines.slice(last + 1)].join('\n');
 }
 
 /** 「全メタデータ」テキストの見出し。表示言語は UI 層が決める（Issue #80）。 */

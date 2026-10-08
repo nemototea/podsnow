@@ -45,7 +45,6 @@ shows 1──* episodes 1──* takes 1──* take_segments
   │            ├──* voice_segments (EDL: take_id + src range)
   │            ├──* overlay_clips ──▶ assets
   │            ├──* recording_events
-  │            ├──* outline_items
   │            ├──* edit_ops
   │            ├──* exports
   │            └──* transcripts (将来) ──▶ takes
@@ -53,7 +52,6 @@ shows 1──* episodes 1──* takes 1──* take_segments
   ├──* show_categories / show_funding / show_external_ids (RSS の番組情報)
   ├──* feed_episodes (配信済みの回: 取り込み + PodsNow から配信) ··▶ episodes
   ├──1 description_templates
-  ├──* show_topic_template (トークテーマのひな形)
   └──1 show_layout (既定構成)
 app_settings (key-value)
 recovery_journal
@@ -83,6 +81,7 @@ recovery_journal
 | feed_url | TEXT nullable | RSS の URL（`atom:link rel="self"`、無ければ取得に使った URL）。自分で始めた番組は NULL |
 | podcast_guid | TEXT nullable | `podcast:guid`（UUIDv5） |
 | cover_source_url | TEXT nullable | `itunes:image@href`。取得元の記録で、表示と書き出しは `cover_path` を使う |
+| notes_template | TEXT NOT NULL DEFAULT '' | カンペのひな形（§4.11）。新しいエピソードを作ると `episodes.notes` へ写す。移行 0010 で追加 |
 | cover_color | TEXT nullable | アートワークの代表色（`#RRGGBB`）。番組の色の元（DESIGN_SYSTEM.md §2.6）。`cover_path` を変えたら NULL に戻して計算し直す。NULL = アートワークが無い、またはまだ計算していない |
 | feed_imported_at | INTEGER nullable | 最後に RSS から取り込んだ時刻 |
 | created_at / updated_at / deleted_at | INTEGER | Unix ms |
@@ -129,7 +128,7 @@ MVP は起動時に 1 行自動作成。【事実】
 
 外部の ID を `shows.id` に使わない。検索元を増やしても PodsNow の ID は変わらない（Issue #101 §9）。
 
-カテゴリー・支援リンク・外部 ID は「番組の子の並び」で、`show_topic_template` と同じく `created_at` / `deleted_at` を持たない。
+カテゴリー・支援リンク・外部 ID は「番組の子の並び」で、`created_at` / `deleted_at` を持たない。
 置き換えは丸ごと（`replaceCategories` / `replaceFunding`）。
 
 話数の採番用カウンター列も、既定のシーズンも使わない。新規作成時の話数・シーズンの初期値は、
@@ -152,24 +151,18 @@ MVP は起動時に 1 行自動作成。【事実】
 
 新規エピソード作成時、この行から `overlay_clips` を生成する。MVP は 1 種類のみ【事実】。将来 `episode_templates` テーブルに一般化。
 
-### 4.2.1 `show_topic_template`（トークテーマのひな形）
-| 列 | 型 | 説明 |
-|---|---|---|
-| id | TEXT PK | |
-| show_id | TEXT FK | |
-| position | INTEGER | 並び順 |
-| heading | TEXT | 見出し |
-| body | TEXT NOT NULL DEFAULT '' | 台本の下書き（空でよい） |
+### 4.2.1 カンペのひな形（`shows.notes_template`）
 
-新規エピソード作成時、この並びから `outline_items` を生成する（FR-SHOW-4）。
-生成後はエピソードのデータなので、ひな形を変えても既存エピソードは書き換えない（`ServiceLabels` と同じ考え方）。
+番組に 1 つの文章として持つ（FR-SHOW-4、Issue #180）。新規エピソード作成時に `episodes.notes` へ写す。
+写した後はエピソードのデータなので、ひな形を変えても既存エピソードは書き換えない（`ServiceLabels` と同じ考え方）。
+旧 `show_topic_template`（見出しの列）は移行 0010 で落とした（§7）。
 
 ### 4.3 `description_templates`
 | 列 | 型 | 説明 |
 |---|---|---|
 | id | TEXT PK | |
 | show_id | TEXT FK | |
-| body | TEXT | ベーステンプレート本文。プレースホルダ `{{title}}` `{{episode_number}}` `{{season}}` `{{topics}}` `{{show_name}}` を許可【事実: 決まり文句の適用が主目的。展開は最小限】 |
+| body | TEXT | ベーステンプレート本文。プレースホルダ `{{title}}` `{{episode_number}}` `{{season}}` `{{show_name}}` を許可（`{{topics}}` は Issue #180 で廃止。移行 0010 で既存のひな形から取り除いた）【事実: 決まり文句の適用が主目的。展開は最小限】 |
 | is_default | INTEGER | |
 
 ### 4.4 `assets`（Show Assets）
@@ -198,6 +191,7 @@ MVP は起動時に 1 行自動作成。【事実】
 | title | TEXT | |
 | description | TEXT | 編集済み本文 |
 | description_suggestion | TEXT nullable | 将来 AI の下書き候補（提案 → 採用/破棄）【事実: 接続点】 |
+| notes | TEXT NOT NULL DEFAULT '' | カンペ（§4.11）。移行 0010 で追加 |
 | episode_number | INTEGER nullable | 話数。任意（NULL = 未設定）。1 以上だけを入れる（CHECK）。初期値は REQUIREMENTS.md §2.1.1。移行 0009 で NULL 可にした |
 | season | INTEGER nullable | シーズン。話数と同じ扱い |
 | recorded_at | INTEGER | |
@@ -315,32 +309,25 @@ Take の「時間軸」は Segment を `seq` 順に連結したもの。割り�
 
 **ユーザーが打つマーカーは持たない【事実】。** 旧 `markers` の `edit_point` / `mistake` は廃止し、
 収録タブの塊の選択と削除（FR-EDIT-2）、位置を選んだ録音（FR-REC-1）で置き換える（「言い直す」も #122 で廃止）。
-旧 `topic` は `outline_items.recorded_take_id / recorded_src_smp`（§4.11）に吸収した。
+旧 `topic`（トークテーマを送った位置）は 0003 で `outline_items` に移し、`outline_items` ごと 0010 で落とした（§4.11）。
 
 理由: マーカーは押した時点では何も解決せず、あとで「戻る → 次へ → 範囲選択 → 削除」の作業が残る。
 ユーザーが本当に指したいのは「捨てる範囲」であり、「あとで見る場所」ではない（`docs/ux-restructure.md` §1.3）。
 
-### 4.11 `outline_items`（トークテーマと台本）
-| 列 | 型 | 説明 |
-|---|---|---|
-| id | TEXT PK | |
-| episode_id | TEXT FK | |
-| position | INTEGER | 並び順 |
-| heading | TEXT | 見出し（トークテーマ）。必須 |
-| body | TEXT NOT NULL DEFAULT '' | 台本本文。**空なら見出しだけの項目**。台本かどうかを表す列は持たない |
-| recorded_take_id | TEXT FK nullable | 録音中にこの項目へ進んだ位置 = チャプターの始まり |
-| recorded_src_smp | INTEGER nullable | 同上（Take 内の時刻。カットに追従する） |
-| done_at | INTEGER nullable | 話し終えた時刻 |
+### 4.11 カンペ（`episodes.notes`）【事実: Issue #180、ユーザー判断 2026-10-08】
 
-**「収録スタイル」を表す列は `episodes` にも置かない【事実】。**
-台本を書けば `body` が埋まり、書かなければ見出しだけになり、何も書かなければ項目が 0 件になる。
-モードを持たせると、ユーザーに「選ぶ前に選択肢の意味を理解させる」ことになる（REQUIREMENTS.md §2.2.1）。
+エピソードごとに 1 枚の自由なテキスト。行で項目に分けず、見出し・並び順・録音位置を持たない。
+編集画面で開いて書き、録音中は読むだけ（書き足せない）。空文字 = カンペなし（状態を表す列は持たない）。
 
-概要欄の `{{topics}}` には `heading` を箇条書きとして差し込む。将来の文字起こし（§4.14）は
-チャプター単位のテキストとしてここにぶら下がり、要約・概要の下書きの入力になる。【事実】
+- 新しいエピソードには番組の `shows.notes_template`（§4.2.1）を写す。
+- 複製（FR-EP-4）は `notes` を引き継ぐ。
+- 開いて何も入れずに離れた回の判定（FR-EP-10）では、`notes` が番組のひな形と同じなら「何も入れていない」と見なす。
+- 編集履歴（§4.12）の対象外。テキストの入力欄の取り消しは OS に任せる。
 
-旧 `topics` からの移行: `text → heading`、`checked_at → done_at`、
-`checked_take_id / checked_src_smp → recorded_take_id / recorded_src_smp`、`body` は空文字で追加。
+**チャプターは持たない。** 旧 `outline_items`（トークテーマと台本）は、録音中に「次へ」を押した位置を
+`recorded_take_id / recorded_src_smp` に残し、それをアプリの中だけのチャプターにしていた。
+カンペには送る操作が無いので、0010 で `outline_items` ごと落とした（データは移さない。§7）。
+聴く人に見えるチャプターは Issue #249 で新しい機能として考える。
 
 ### 4.12 `edit_ops`（編集履歴 / Undo）
 | 列 | 型 | 説明 |
@@ -361,7 +348,7 @@ Take の「時間軸」は Segment を `seq` 順に連結したもの。割り�
 - **履歴の寿命**: エピソード画面を開いたときと抜けたときに空にする（FR-EDIT-7）。再起動をまたいで持たない。doc（声の並びと素材）は常に保存済み（FR-SAFE-8）。
 - **対象**: `voice_segments`、`overlay_clips`。
 - **録音の追加**: 停止時に、録音を始めたときの doc を `before`、テイクを足した doc を `after` として積む（Take の確定と同じトランザクション）。録音中に重ねた素材も `after` に含まれ、取り消せばテイクと一緒に外れる。Take の行と録音ファイルは消さない（FR-SAFE-7）。
-- **対象外**: `outline_items`（削除の確認で守る、FR-UI-2）、`episodes.sound_settings`、`episodes.export_preset`、`recording_events`（アプリが記録した事実）、Take の行そのもの（削除は論理削除 + ゴミ箱）。
+- **対象外**: `episodes.notes`（§4.11）、`episodes.sound_settings`、`episodes.export_preset`、`recording_events`（アプリが記録した事実）、Take の行そのもの（削除は論理削除 + ゴミ箱）。
 - 復旧（`RecoveryService`）が足すテイクは履歴に積まない。復旧は起動時に走り、次に画面を開いた時点で履歴は空から始まる。
 
 ### 4.13 `exports`
@@ -477,7 +464,7 @@ planSilenceRemoval(ranges, { padMs }): Range[]
 ## 7. 移行戦略
 - `PRAGMA user_version` を 1 から開始。`src/infra/db/migrations/0001_init.sql` … を順に適用。
 - Drizzle 採用時は drizzle-kit の生成 SQL をそのまま使う【仮説】。
-- 破壊的変更は必ず「新列追加 → データ移送 → 旧列放置」の順。ただし 0.1.0（未公開）の間は、二重の真実を残すほうが害が大きい場合に限り旧テーブル・旧列を落とす（0003 の `topics` / `markers`、0004 の `shows.default_export_preset`、0009 の `episodes.episode_number` / `season` を NULL 可の列へ置き換え）。DB ファイル自体のバックアップを移行前に `db/podsnow.db.bak-<version>` として残す。
+- 破壊的変更は必ず「新列追加 → データ移送 → 旧列放置」の順。ただし 0.1.0（未公開）の間は、二重の真実を残すほうが害が大きい場合に限り旧テーブル・旧列を落とす（0003 の `topics` / `markers`、0004 の `shows.default_export_preset`、0009 の `episodes.episode_number` / `season` を NULL 可の列へ置き換え、0010 の `outline_items` / `show_topic_template` をカンペの列へ置き換え。0010 はデータを移さずに捨てる。ユーザー判断 2026-10-08、Issue #180）。DB ファイル自体のバックアップを、未適用の移行があるときに移行前に `podsnow.db.bak-<移行前の user_version>`（DB と同じ場所。expo-sqlite の `backupDatabaseAsync`）として残す。新しい DB（user_version 0）は写さない。バックアップに失敗したら移行しない（`src/infra/db/open.ts`、`migrate()` の `beforeMigrate`。Issue #180 で実装。それまでは文書にあるだけだった）。
 
 ## 9. ストレージ見積り
 - 48 kHz / 16 bit / mono = 96 KB/s ≈ 5.8 MB/分 ≈ **345 MB/時間**。ステレオは 2 倍。

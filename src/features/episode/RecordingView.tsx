@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
-  AccessibilityInfo,
   ActivityIndicator,
   Pressable,
   ScrollView,
@@ -17,6 +16,7 @@ import type { AssetRow } from '@/infra/db/repositories/assetsRepo';
 import type { SessionState } from '@/services/recording/RecordingSession';
 import { Icon, IconButton, Pill, Row, Text, useCompact } from '@/ui/components';
 import { LevelBars } from '@/ui/LevelBars';
+import { NotesCard } from '@/ui/NotesCard';
 import { Sheet } from '@/ui/Sheet';
 import { ShowGradient } from '@/ui/ShowGradient';
 import { useAppTheme } from '@/ui/ThemeContext';
@@ -31,18 +31,15 @@ import {
   space,
   typography,
 } from '@/ui/tokens';
-import { TopicCard } from '@/ui/TopicCard';
 
 import { liveColumns, type LivePeak } from './livePeaks';
 import { storageLine } from './storageLine';
-import { TopicsSheet } from './TopicsSheet';
 import type { RecordingContext } from './useRecordingContext';
 import type { Workspace } from './useWorkspace';
 
-/** 番組の色の上の白の濃さ（見本 `.np .head small` 75%、`.np .title span` / `.clock span` 72%、`.wavebox .chap` 85%）。 */
+/** 番組の色の上の白の濃さ（見本 `.np .head small` 75%、`.np .title span` / `.clock span` 72%）。 */
 const HEAD_ALPHA = 0.75;
 const SUB_ALPHA = 0.72;
-const CHAP_ALPHA = 0.85;
 /** 波形のパネルの地（見本 `.wavebox` の黒 28%）と、ジングルの押しボタンの地（`.pads button` の白 12%）。 */
 const PANEL_ALPHA = 0.28;
 const PAD_ALPHA = 0.12;
@@ -204,24 +201,26 @@ export function RecordingView({
   const active = s === 'recording' || s === 'paused';
   const interrupted = s === 'interrupted';
   const busy = s === 'preparing' || s === 'stopping';
-  const [topics, setTopics] = useState<{ open: boolean; focus: string | null }>({
-    open: false,
-    focus: null,
-  });
   const [assetsOpen, setAssetsOpen] = useState(false);
+  // カンペのカードの高さ = 見えている高さから、カードより上の中身とジングルの列を引いた残り（見本 `.cue` の flex: 1）。
+  // 中身の ScrollView の中では flex で伸ばせない（高さが決まらず、カードが本文の長さまで伸びて画面ごと流れる）ので測る。
+  // 足りなければ最低の高さにし、そのときだけ画面全体がスクロールする。
+  const [viewH, setViewH] = useState(0);
+  const [cardTop, setCardTop] = useState(0);
+  const [padsH, setPadsH] = useState(0);
+  const notesH = viewH
+    ? Math.max(
+        recordView.notesMin,
+        viewH - cardTop - (state.assets.length && padsH ? padsH + space.lg : 0),
+      )
+    : recordView.notesMin;
 
   const top = colors.nowPlaying;
   const head = compositeHex(c.textPrimary, HEAD_ALPHA, top);
   const sub = compositeHex(c.textPrimary, SUB_ALPHA, top);
   const panel = compositeHex(c.inverseText, PANEL_ALPHA, top);
-  const chap = compositeHex(c.textPrimary, CHAP_ALPHA, panel);
   const padBg = compositeHex(c.textPrimary, PAD_ALPHA, colors.nowPlayingMid);
 
-  const outline = state.outline;
-  const currentIndex = ws.outlineCurrent;
-  const current = currentIndex === null ? null : (outline[currentIndex] ?? null);
-  const nextIndex = ws.outlineNext;
-  const next = nextIndex === null ? null : (outline[nextIndex] ?? null);
   const favorites = state.assets.filter(
     (a) => a.is_favorite && (a.kind === 'jingle' || a.kind === 'sfx'),
   );
@@ -235,12 +234,6 @@ export function RecordingView({
   const clock = formatClock(smp(state.recFrames));
   const where =
     state.recAt === null ? t.record.appendAtEnd : t.record.insertAtPosition(formatSmp(state.recAt));
-
-  const advance = () =>
-    void ws.advanceOutline().then(
-      // 画面の通知は出さない（カードが替わるので見て分かる）。読み上げにだけ伝える
-      (it) => it && AccessibilityInfo.announceForAccessibility(t.record.a11yAdvanced(it.heading)),
-    );
 
   return (
     <View style={st.root}>
@@ -287,19 +280,17 @@ export function RecordingView({
         <ScrollView
           style={st.flex}
           contentContainerStyle={st.body}
+          onLayout={(e) => setViewH(e.nativeEvent.layout.height)}
           showsVerticalScrollIndicator={false}
         >
           {/* 見本 `.wavebox` */}
           <View style={[st.wave, { backgroundColor: panel }]}>
             <LiveWave peaks={livePeaks} panel={panel} />
-            <View style={st.chap}>
-              {s === 'recording' ? <Pill label={t.record.recPill} kind="rec" /> : null}
-              <Text style={[typography.tag, st.flex, { color: chap }]} numberOfLines={1}>
-                {current && currentIndex !== null
-                  ? t.record.chapterTag(currentIndex + 1, current.heading)
-                  : t.record.takeLabel(state.takes.length + 1)}
-              </Text>
-            </View>
+            {s === 'recording' ? (
+              <View style={st.tag}>
+                <Pill label={t.record.recPill} kind="rec" />
+              </View>
+            ) : null}
           </View>
 
           {/* 見本 `.np .title` */}
@@ -353,36 +344,12 @@ export function RecordingView({
             </Text>
           </View>
 
-          {/* 見本 `.topic`（DESIGN_SYSTEM.md §2.7） */}
-          {outline.length ? (
-            <TopicCard
-              color={colors.topicCard}
-              heading={t.record.talkingPoints}
-              counter={
-                currentIndex === null
-                  ? t.record.progress(0, outline.length)
-                  : `${currentIndex + 1} / ${outline.length}`
-              }
-              title={(current ?? next ?? outline[0]!).heading}
-              next={
-                current
-                  ? next
-                    ? t.record.nextMakesChapter(next.heading)
-                    : undefined
-                  : t.record.notStarted
-              }
-              onPress={() => setTopics({ open: true, focus: current?.id ?? null })}
-              accessibilityLabel={`${t.record.talkingNow}, ${(current ?? next ?? outline[0]!).heading}`}
-            />
-          ) : (
-            <TopicCard
-              color={colors.topicCard}
-              heading={t.record.talkingPoints}
-              title={t.record.addTopics}
-              onPress={() => setTopics({ open: true, focus: null })}
-              accessibilityLabel={t.record.addTopics}
-            />
-          )}
+          {/* 見本 `.cue`（DESIGN_SYSTEM.md §2.7）。読むだけ。空なら出さない */}
+          {state.notes.trim() ? (
+            <View style={{ height: notesH }} onLayout={(e) => setCardTop(e.nativeEvent.layout.y)}>
+              <NotesCard color={colors.notesCard} heading={t.notes.title} body={state.notes} />
+            </View>
+          ) : null}
 
           {/* 見本 `.pads` */}
           {state.assets.length ? (
@@ -390,6 +357,7 @@ export function RecordingView({
               horizontal
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={st.pads}
+              onLayout={(e) => setPadsH(e.nativeEvent.layout.height)}
             >
               {favorites.map((a) => (
                 <Pad
@@ -412,34 +380,28 @@ export function RecordingView({
           ) : null}
         </ScrollView>
 
-        {/* 見本 `.transport`: 取り消す・一時停止・録音の丸・次へ・一覧 */}
+        {/* 見本 `.transport`: 左に一時停止、中央に録音の丸、右は空ける（3 列を等しく分け、丸を中央に固定） */}
         <View style={st.transport}>
-          <IconButton
-            large
-            name="undo"
-            color={c.textPrimary}
-            label={t.common.undo}
-            disabled
-            onPress={() => undefined}
-          />
-          {interrupted ? (
-            <IconButton
-              large
-              name="play"
-              color={c.textPrimary}
-              label={t.record.resume}
-              onPress={onToggleRec}
-            />
-          ) : (
-            <IconButton
-              large
-              name={s === 'paused' ? 'play' : 'pause'}
-              color={c.textPrimary}
-              label={s === 'paused' ? t.record.resume : t.record.pause}
-              disabled={!active}
-              onPress={() => void (s === 'paused' ? ws.resumeRecording() : ws.pauseRecording())}
-            />
-          )}
+          <View style={st.side}>
+            {interrupted ? (
+              <IconButton
+                large
+                name="play"
+                color={c.textPrimary}
+                label={t.record.resume}
+                onPress={onToggleRec}
+              />
+            ) : (
+              <IconButton
+                large
+                name={s === 'paused' ? 'play' : 'pause'}
+                color={c.textPrimary}
+                label={s === 'paused' ? t.record.resume : t.record.pause}
+                disabled={!active}
+                onPress={() => void (s === 'paused' ? ws.resumeRecording() : ws.pauseRecording())}
+              />
+            )}
+          </View>
           <Pressable
             onPress={interrupted ? onFinishInterrupted : onToggleRec}
             disabled={busy}
@@ -458,30 +420,10 @@ export function RecordingView({
               <View style={[st.recStop, { backgroundColor: c.recSolid }]} />
             )}
           </Pressable>
-          <IconButton
-            large
-            name="nextTopic"
-            color={c.textPrimary}
-            label={next ? t.record.nextTopic(next.heading) : t.record.nextTopicShort}
-            disabled={!next}
-            onPress={advance}
-          />
-          <IconButton
-            large
-            name="list"
-            color={c.textPrimary}
-            label={t.record.topicsTitle}
-            onPress={() => setTopics({ open: true, focus: current?.id ?? null })}
-          />
+          <View style={st.side} />
         </View>
       </View>
 
-      <TopicsSheet
-        ws={ws}
-        open={topics.open}
-        focus={topics.focus}
-        onClose={() => setTopics({ open: false, focus: null })}
-      />
       <Sheet
         visible={assetsOpen}
         onClose={() => setAssetsOpen(false)}
@@ -516,15 +458,8 @@ const st = StyleSheet.create({
   headText: { flex: 1, alignItems: 'center', gap: space.hair },
   body: { gap: space.lg },
   wave: { height: recordView.wave, borderRadius: radius.sm, overflow: 'hidden' },
-  chap: {
-    position: 'absolute',
-    left: space.md,
-    right: space.md,
-    top: space.x10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.x6,
-  },
+  // 見本 `.wavebox .tag`: 左上 12・10 に録音中の札。
+  tag: { position: 'absolute', left: space.md, top: space.x10, flexDirection: 'row' },
   levels: { gap: space.sm },
   clock: {
     flexDirection: 'row',
@@ -544,7 +479,8 @@ const st = StyleSheet.create({
     borderRadius: radius.pill,
     minHeight: hit.icon,
   },
-  transport: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  transport: { flexDirection: 'row', alignItems: 'center' },
+  side: { flex: 1, alignItems: 'center' },
   // 見本 `.recbtn`: 白い丸 72 の中に、角丸 6 の赤い四角 26。
   rec: {
     width: hit.record,

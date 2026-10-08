@@ -23,7 +23,7 @@ const MOCK: Record<string, [string, ShowColors]> = {
       nowPlaying: '#7C3627',
       nowPlayingMid: '#381F1A',
       nowPlayingEnd: '#191210',
-      topicCard: '#A93F28',
+      notesCard: '#A93F28',
       miniPlayer: '#653025',
     },
   ],
@@ -35,7 +35,7 @@ const MOCK: Record<string, [string, ShowColors]> = {
       nowPlaying: '#1B5F5A',
       nowPlayingMid: '#193937',
       nowPlayingEnd: '#101918',
-      topicCard: '#176E68',
+      notesCard: '#176E68',
       miniPlayer: '#205F5B',
     },
   ],
@@ -47,7 +47,7 @@ const MOCK: Record<string, [string, ShowColors]> = {
       nowPlaying: '#842039',
       nowPlayingMid: '#3A1720',
       nowPlayingEnd: '#1A0F12',
-      topicCard: '#B81E45',
+      notesCard: '#B81E45',
       miniPlayer: '#6A2032',
     },
   ],
@@ -59,7 +59,7 @@ const MOCK: Record<string, [string, ShowColors]> = {
       nowPlaying: '#204384',
       nowPlayingMid: '#17243A',
       nowPlayingEnd: '#0F131A',
-      topicCard: '#1F58C1',
+      notesCard: '#1F58C1',
       miniPlayer: '#203A6A',
     },
   ],
@@ -71,7 +71,7 @@ const MOCK: Record<string, [string, ShowColors]> = {
       nowPlaying: '#525252',
       nowPlayingMid: '#292929',
       nowPlayingEnd: '#141414',
-      topicCard: '#636363',
+      notesCard: '#636363',
       miniPlayer: '#454545',
     },
   ],
@@ -83,7 +83,7 @@ const MOCK: Record<string, [string, ShowColors]> = {
       nowPlaying: '#5A5A16',
       nowPlayingMid: '#3A3A17',
       nowPlayingEnd: '#1A1A0F',
-      topicCard: '#656510',
+      notesCard: '#656510',
       miniPlayer: '#5A5A1B',
     },
   ],
@@ -117,13 +117,13 @@ describe('番組の色（見本の derive() と同じ計算。DESIGN_SYSTEM.md �
     '%s: 見本の半透明の白（72〜85%）を重ねた補助文字も 4.5:1 以上ある（確認点 6-D）',
     (dominant) => {
       const c = deriveShowColors(dominant);
-      // 見本 .np .title span（72%）、.np .head small（75%）、.topic .next（80%）、.topic small（85%）、
+      // 見本 .np .title span（72%）、.np .head small（75%）、補助文字の条件 80%（`SHOW_TONES`）、.cue small（85%）、
       // .showhead .by（75%）、.mini .t small（72%）
       const cases: [keyof ShowColors, number][] = [
         ['nowPlaying', 0.72],
         ['nowPlaying', 0.75],
-        ['topicCard', 0.8],
-        ['topicCard', 0.85],
+        ['notesCard', 0.8],
+        ['notesCard', 0.85],
         ['header', 0.75],
         ['miniPlayer', 0.72],
       ];

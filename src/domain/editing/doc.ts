@@ -5,7 +5,7 @@ import type { OverlayClip, VoiceSegment } from '../timeline/types';
  * Take 自体は含まない（録音は Undo 対象外）。
  *
  * マーカーは持たない（FR-REC-4 廃止）。ユーザーが打つ編集点は無くなり、
- * 録音中の出来事は `recording_events`、チャプターは `outline_items` が持つ。
+ * 録音中の出来事は `recording_events`、カンペは `episodes.notes` が持つ。
  * どちらも「起きた事実」なので Undo の対象ではない。
  */
 export interface EditableDoc {

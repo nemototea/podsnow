@@ -38,8 +38,6 @@ describe('migrate', () => {
       'voice_segments',
       'overlay_clips',
       'recording_events',
-      'outline_items',
-      'show_topic_template',
       'edit_ops',
       'exports',
       'transcripts',
@@ -55,6 +53,9 @@ describe('migrate', () => {
     // 0003 で置き換えたテーブルは残っていない（二重の真実を作らない）。
     expect(names).not.toContain('markers');
     expect(names).not.toContain('topics');
+    // 0010 でカンペの列に置き換えたテーブルも残っていない（Issue #180）。
+    expect(names).not.toContain('outline_items');
+    expect(names).not.toContain('show_topic_template');
   });
 
   it('0002 adds audio_purged_at to an existing v1 database without touching rows', async () => {
@@ -119,7 +120,10 @@ describe('migrate', () => {
       );
     }
 
-    expect((await migrate(db)).applied).toEqual(MIGRATIONS.slice(2).map((m) => m.name));
+    // outline_items は 0010 で落とすので、その手前（0009）まで当てて確かめる
+    expect((await migrate(db, MIGRATIONS.slice(0, 9))).applied).toEqual(
+      MIGRATIONS.slice(2, 9).map((m) => m.name),
+    );
 
     // トークテーマは見出しとして残り、チェック位置はチャプターになる
     expect(
@@ -341,7 +345,9 @@ describe('migrate', () => {
       ['t1', 'e1', 'ready', now, now, now],
     );
 
-    expect((await migrate(db)).applied).toEqual(['0009_optional_episode_numbering']);
+    expect((await migrate(db, MIGRATIONS.slice(0, 9))).applied).toEqual([
+      '0009_optional_episode_numbering',
+    ]);
 
     // 既存の値は残り、0 は「未設定」になる。子の行（takes）は消えない
     expect(
@@ -373,6 +379,90 @@ describe('migrate', () => {
       db.run('UPDATE episodes SET episode_number = 0 WHERE id = ?', ['e3']),
     ).rejects.toThrow();
     await expect(db.run('UPDATE episodes SET season = -1 WHERE id = ?', ['e3'])).rejects.toThrow();
+  });
+
+  it('0010 replaces talking points with notes, drops their rows and removes {{topics}} (Issue #180)', async () => {
+    const db = createNodeSqliteExecutor();
+    await migrate(db, MIGRATIONS.slice(0, 9));
+    const now = Date.now();
+    await db.run('INSERT INTO shows (id, created_at, updated_at) VALUES (?,?,?)', ['s1', now, now]);
+    await db.run(
+      'INSERT INTO episodes (id, show_id, title, created_at, updated_at) VALUES (?,?,?,?,?)',
+      ['e1', 's1', 'ep', now, now],
+    );
+    await db.run(
+      'INSERT INTO takes (id, episode_id, status, started_at, created_at, updated_at) VALUES (?,?,?,?,?,?)',
+      ['t1', 'e1', 'ready', now, now, now],
+    );
+    await db.run(
+      'INSERT INTO outline_items (id, episode_id, position, heading, body, recorded_take_id, recorded_src_smp) VALUES (?,?,?,?,?,?,?)',
+      ['o1', 'e1', 0, '近況', '台本', 't1', 4800],
+    );
+    await db.run(
+      'INSERT INTO show_topic_template (id, show_id, position, heading) VALUES (?,?,?,?)',
+      ['tp1', 's1', 0, 'オープニング'],
+    );
+    const templates: [string, string][] = [
+      ['d1', '{{topics}}\n\n――――――\nPodcast: {{show_name}}'],
+      ['d2', 'はじめに\n{{topics}}\nおわり'],
+      ['d3', '{{title}} の回'],
+    ];
+    for (const [id, body] of templates) {
+      await db.run(
+        'INSERT INTO description_templates (id, show_id, body, created_at, updated_at) VALUES (?,?,?,?,?)',
+        [id, 's1', body, now, now],
+      );
+    }
+
+    expect((await migrate(db)).applied).toEqual(['0010_notes']);
+
+    // カンペは空から始まる（トークテーマは移さない）。録音（takes）は残る
+    expect(await db.get('SELECT notes FROM episodes WHERE id = ?', ['e1'])).toEqual({ notes: '' });
+    expect(await db.get('SELECT notes_template FROM shows WHERE id = ?', ['s1'])).toEqual({
+      notes_template: '',
+    });
+    expect(await db.get('SELECT id FROM takes WHERE id = ?', ['t1'])).toEqual({ id: 't1' });
+    const tables = (
+      await db.all<{ name: string }>("SELECT name FROM sqlite_master WHERE type='table'")
+    ).map((r) => r.name);
+    expect(tables).not.toContain('outline_items');
+    expect(tables).not.toContain('show_topic_template');
+    // 概要欄のひな形から {{topics}} が消え、ほかの変数と本文はそのまま
+    expect(await db.all('SELECT id, body FROM description_templates ORDER BY id')).toEqual([
+      { id: 'd1', body: '――――――\nPodcast: {{show_name}}' },
+      { id: 'd2', body: 'はじめに\nおわり' },
+      { id: 'd3', body: '{{title}} の回' },
+    ]);
+  });
+
+  it('calls beforeMigrate once with the old version only for an existing database with pending migrations', async () => {
+    const calls: number[] = [];
+    const beforeMigrate = async (from: number) => {
+      calls.push(from);
+    };
+    // 新しい DB（user_version 0）は写すものが無いので呼ばない
+    const fresh = createNodeSqliteExecutor();
+    await migrate(fresh, MIGRATIONS.slice(0, 9), { beforeMigrate });
+    expect(calls).toEqual([]);
+    // 既存の DB に未適用の移行があれば、移行の前に 1 回だけ呼ぶ
+    await migrate(fresh, MIGRATIONS, { beforeMigrate });
+    expect(calls).toEqual([9]);
+    // 移行が無ければ呼ばない
+    await migrate(fresh, MIGRATIONS, { beforeMigrate });
+    expect(calls).toEqual([9]);
+  });
+
+  it('does not migrate when beforeMigrate fails (no backup, no destructive change)', async () => {
+    const db = createNodeSqliteExecutor();
+    await migrate(db, MIGRATIONS.slice(0, 9));
+    await expect(
+      migrate(db, MIGRATIONS, {
+        beforeMigrate: async () => {
+          throw new Error('disk full');
+        },
+      }),
+    ).rejects.toThrow('disk full');
+    expect(await getUserVersion(db)).toBe(9);
   });
 
   it('rolls back a failing migration without advancing user_version', async () => {

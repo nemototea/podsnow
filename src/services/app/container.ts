@@ -33,7 +33,7 @@ import { ExportService } from '../export/ExportService';
 import type { HapticsPort } from '../feedback/HapticsPort';
 import { HapticsService } from '../feedback/HapticsService';
 import { HomeService } from '../home/HomeService';
-import { OutlineService } from '../outline/OutlineService';
+import { NotesService } from '../notes/NotesService';
 import { PodcastImportService } from '../podcast/PodcastImportService';
 import type { RecorderPort } from '../recording/RecorderPort';
 import { RECORDING_FORMAT, RecordingSession } from '../recording/RecordingSession';
@@ -58,7 +58,7 @@ export interface AppServices {
   exporter: ExportService;
   episodes: EpisodeService;
   assets: AssetsService;
-  outline: OutlineService;
+  notes: NotesService;
   /** 番組アートワークの正規化・永続化・削除（Issue #133）。 */
   coverArt: CoverArtService;
   showColors: ShowColorService;
@@ -173,7 +173,7 @@ export async function bootstrap(
   // 復旧（recoverUnfinishedTakes）のあとに行う。復元した録音のある回は空ではない（FR-EP-10）。
   await episodes.discardEmptyOpened(show.id).catch(() => 0);
   const assets = new AssetsService({ db, engine, root, ensureDir, newId, now });
-  const outline = new OutlineService({ db, newId, now });
+  const notes = new NotesService({ db });
   const coverArt = new CoverArtService({
     db,
     fs: expoFsPort,
@@ -217,7 +217,7 @@ export async function bootstrap(
     exporter,
     episodes,
     assets,
-    outline,
+    notes,
     coverArt,
     showColors,
     podcastImport,

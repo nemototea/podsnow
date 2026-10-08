@@ -3,7 +3,6 @@ import { AppError } from '@/domain/errors';
 import type { EditableDoc } from '@/domain/editing/doc';
 import { renderTemplate } from '@/domain/metadata/template';
 import { renderFingerprint } from '@/domain/render/fingerprint';
-import { newItem } from '@/domain/outline';
 import { smp, ZERO_SMP } from '@/domain/time';
 import type { OverlayClip } from '@/domain/timeline/types';
 import type { SqlExecutor } from '@/infra/db/executor';
@@ -20,10 +19,10 @@ import {
   type EpisodeRow,
 } from '@/infra/db/repositories/episodesRepo';
 import {
-  listOutline,
-  listShowTopicTemplate,
-  saveOutline,
-} from '@/infra/db/repositories/outlineRepo';
+  getEpisodeNotes,
+  getShowNotesTemplate,
+  setEpisodeNotes,
+} from '@/infra/db/repositories/notesRepo';
 import {
   getDefaultTemplate,
   getLayout,
@@ -88,13 +87,8 @@ export class EpisodeService {
       });
       const doc: EditableDoc = { voice: [], overlays: await this.defaultOverlays(showId) };
       await saveDoc(db, id, doc, t);
-      // 番組のトークテーマのひな形を写す（FR-SHOW-4）。写した後はエピソードのデータ。
-      const template = await listShowTopicTemplate(db, showId);
-      await saveOutline(
-        db,
-        id,
-        template.map((tp) => newItem(newId(), tp.heading, tp.body)),
-      );
+      // 番組のカンペのひな形を写す（FR-SHOW-4）。写した後はエピソードのデータ。
+      await setEpisodeNotes(db, id, await getShowNotesTemplate(db, showId));
     });
     return (await getEpisode(db, id))!;
   }
@@ -112,7 +106,6 @@ export class EpisodeService {
           title: '',
           episodeNumber: numbering.episodeNumber,
           season: numbering.season,
-          topics: [],
           showName: show.name,
         })
       : '';
@@ -310,20 +303,7 @@ export class EpisodeService {
       sound: parseSoundSettings(ep.sound_settings),
     });
     if (current !== blank) return false;
-    const [outline, template] = await Promise.all([
-      listOutline(db, id),
-      listShowTopicTemplate(db, ep.show_id),
-    ]);
-    return (
-      outline.length === template.length &&
-      outline.every(
-        (item, i) =>
-          item.heading === template[i]!.heading &&
-          item.body === template[i]!.body &&
-          item.doneAt === null &&
-          item.recordedTakeId === null,
-      )
-    );
+    return (await getEpisodeNotes(db, id)) === (await getShowNotesTemplate(db, ep.show_id));
   }
 
   /**
@@ -395,12 +375,8 @@ export class EpisodeService {
         { voice: [], overlays: doc.overlays.filter((o) => o.anchor.type !== 'source') },
         t,
       );
-      // 録音中の出来事とチャプターも、指していた録音ごと消える。
+      // 録音中の出来事も、指していた録音ごと消える。
       await db.run('DELETE FROM recording_events WHERE episode_id = ?', [id]);
-      await db.run(
-        'UPDATE outline_items SET recorded_take_id = NULL, recorded_src_smp = NULL WHERE episode_id = ?',
-        [id],
-      );
       // 編集履歴は消えた声を指すので、Undo で復元できないようにここで捨てる。
       await db.run('DELETE FROM edit_ops WHERE episode_id = ?', [id]);
       await db.run('UPDATE episodes SET undo_cursor = 0 WHERE id = ?', [id]);
@@ -412,7 +388,7 @@ export class EpisodeService {
 
   /**
    * 複製して新しい回にする: 概要・音の仕上げ・書き出しプリセットの選択・オーバーレイ・
-   * トークテーマを引き継ぎ、録音は引き継がない（書き出しプリセットは DATA_MODEL.md §4.5.1）。
+   * カンペを引き継ぎ、録音は引き継がない（書き出しプリセットは DATA_MODEL.md §4.5.1）。
    * 話数・シーズンは引き継がず、新しい回と同じ規則で決める（REQUIREMENTS.md §2.1.1）。
    */
   async duplicate(id: string): Promise<EpisodeRow> {
@@ -442,13 +418,7 @@ export class EpisodeService {
         },
         this.deps.now(),
       );
-      // トークテーマと台本は引き継ぐが、チャプター（録音位置）は引き継がない。
-      const outline = await listOutline(this.deps.db, id);
-      await saveOutline(
-        this.deps.db,
-        created.id,
-        outline.map((i) => newItem(this.deps.newId(), i.heading, i.body)),
-      );
+      await setEpisodeNotes(this.deps.db, created.id, await getEpisodeNotes(this.deps.db, id));
     });
     return (await getEpisode(this.deps.db, created.id))!;
   }

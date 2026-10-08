@@ -44,7 +44,7 @@ function matches(filter: Filter, kind: EpisodeStatusKind): boolean {
 const SHORTCUTS: readonly { key: string; icon: IconName; kind?: AssetKind }[] = [
   { key: 'openingEnding', icon: 'music', kind: 'opening' },
   { key: 'bgmJingle', icon: 'music', kind: 'bgm' },
-  { key: 'topicTemplate', icon: 'list' },
+  { key: 'notesTemplate', icon: 'edit' },
 ];
 
 export default function HomeScreen() {

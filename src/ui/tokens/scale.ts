@@ -80,7 +80,7 @@ export const radius = {
   x6: 6,
   /** カード、ミニプレーヤー、通知、波形パネル。 */
   sm: 8,
-  /** トークテーマのカード（見本 `.topic`）。 */
+  /** カンペのカード（見本 `.cue`）。 */
   x10: 10,
   md: 12,
   /** シートの上辺（見本 `.sheet`）。 */
@@ -145,19 +145,19 @@ export const typography = {
   title: { fontSize: 22, lineHeight: 32, fontWeight: '800', letterSpacing: -0.22 },
   /** 収録画面のエピソードの題（見本 `.np .title b`）。 */
   nowPlaying: { fontSize: 21, lineHeight: 30, fontWeight: '800' },
-  /** トークテーマの今の項目（見本 `.topic b`）。 */
-  topic: { fontSize: 19, lineHeight: 26, fontWeight: '800' },
+  /** 録音中のカンペの本文（見本 `.cue p`。Issue #180）。 */
+  notes: { fontSize: 16, lineHeight: 24, fontWeight: '700' },
   /** 書き出しタブの題（見本 `.exhero b`）。 */
   heading: { fontSize: 18, lineHeight: 23, fontWeight: '800' },
   /** エピソード画面の上部の題（見本 `.ephead .row b`）。 */
   screenTitle: { fontSize: 16, lineHeight: 23, fontWeight: '800' },
-  /** 画面内の小見出し（見本 `.chapters h4`、`.fields h4`）。 */
+  /** 画面内の小見出し（見本 `.notesbox h4`、`.fields h4`）。 */
   subheading: { fontSize: 15, lineHeight: 22, fontWeight: '800' },
   /** 番組画面の一覧の題（見本 `.epi b`）。 */
   rowTitleStrong: { fontSize: 15, lineHeight: 22, fontWeight: '700' },
   /** Home の一覧の題（見本 `.ep .t b`）。 */
   rowTitle: { fontSize: 14.5, lineHeight: 21, fontWeight: '600' },
-  /** 行の本文、通知（見本 `.chap`、`.check`、`.toast`）。 */
+  /** 行の本文、通知（見本 `.notesbox p`、`.check`、`.toast`）。 */
   body: { fontSize: 13.5, lineHeight: 20, fontWeight: '400' },
   /** 本文の強調。大きさは変えず太さだけ一段上げる（見本 `.toast` の 600）。 */
   bodyStrong: { fontSize: 13.5, lineHeight: 20, fontWeight: '600' },
@@ -183,10 +183,8 @@ export const typography = {
   smallStrong: { fontSize: 12, lineHeight: 17, fontWeight: '700' },
   /** 行の上の小さい名前（見本 `.field small`）。 */
   fieldLabel: { fontSize: 11.5, lineHeight: 17, fontWeight: '400' },
-  /** カードの上段、波形パネルの名札（見本 `.topic small`、`.wavebox .chap`）。 */
+  /** カードの上段（見本 `.cue small`）。 */
   meta: { fontSize: 11, lineHeight: 16, fontWeight: '800', letterSpacing: 0.66 },
-  /** 波形のパネルの名札（見本 `.wavebox .chap` の 11 / 700）。 */
-  tag: { fontSize: 11, lineHeight: 16, fontWeight: '700' },
   /** 下部タブの名前（見本 `.tabs button` の 10.5 / 500。選んでいるタブは `tabActive`）。 */
   tab: { fontSize: 10.5, lineHeight: 15, fontWeight: '500' },
   tabActive: { fontSize: 10.5, lineHeight: 15, fontWeight: '700' },
@@ -196,7 +194,7 @@ export const typography = {
   eyebrow: { fontSize: 10.5, lineHeight: 15, fontWeight: '700', letterSpacing: 1.05 },
   /** 状態の札、下部タブ、素材のレーン名（見本 `.pill`、`.tabs button`、`.layer`）。 */
   overline: { fontSize: 10.5, lineHeight: 15, fontWeight: '700', letterSpacing: 0.21 },
-  /** 行の中の値・時刻（見本 `.check .val`、`.chap span`）。 */
+  /** 行の中の値・時刻（見本 `.check .val`）。 */
   numeric: {
     fontSize: 12,
     lineHeight: 14,
@@ -322,14 +320,16 @@ export const timeline = {
 
 /** 収録画面（見本 3.「収録」）。 */
 export const recordView = {
-  /** 波形のパネルの高さ（見本 `.wavebox`）。 */
-  wave: 200,
+  /** 波形のパネルの高さ（見本 `.wavebox`。Issue #180 で 200 から下げ、カンペに場所を回した）。 */
+  wave: 136,
   /** 棒の高さに使わない上下の余白の和と、棒の中心を下へずらす量（見本の `h - 56`、`h / 2 + 10`）。 */
   waveInset: 56,
   waveShift: 10,
   /** 録音の丸の中の止める印（見本 `.recbtn i` の 26）。待機中の丸い印は 30。 */
   stopMark: 26,
   recordMark: 30,
+  /** カンペのカードの最低の高さ（見本 `.cue` の min-height）。残りの高さが足りないときも、これより縮めない。 */
+  notesMin: 96,
 } as const;
 
 /** 下部（見本 `.dock` / `.tabs`）。 */
