@@ -33,17 +33,14 @@ const OUT = process.env.OUT || '.';
     await p.getByText('音声を書き出す').click(); await p.waitForTimeout(3500);
     await p.mouse.wheel(0, 2400); await shot('export-failed');
   });
-  await run('topics', '', async (p, shot) => {
+  await run('notes', '', async (p, shot) => {
     await newEp(p);
-    await p.getByLabel('一覧', { exact: true }).first().click(); await p.waitForTimeout(600);
-    await p.getByLabel('話すことを追加', { exact: true }).fill('最近の朝のルーティン\n習慣をひとつ、手放してみる\n明日から試してみたいこと');
-    await p.getByText('追加', { exact: true }).click(); await p.waitForTimeout(800);
-    await shot('topics-sheet');
-    await p.getByLabel('閉じる', { exact: true }).last().click(); await p.waitForTimeout(600);
+    await lab(p, 'カンペを書く').click(); await p.waitForTimeout(600);
+    await p.getByLabel('カンペ', { exact: true }).last().fill('オープニング\n・最近の朝のルーティン\n・習慣をひとつ、手放してみる\n・明日から試してみたいこと\nエンディング');
+    await shot('notes-sheet');
+    await lab(p, '完了してカンペを保存').click(); await p.waitForTimeout(600);
     await lab(p, '録音を開始').click(); await p.waitForTimeout(1200);
-    await p.getByText(/話し始める/).click(); await p.waitForTimeout(800);
-    await p.getByText(/次へ：/).click(); await p.waitForTimeout(800);
-    await shot('topics-recording');
+    await shot('notes-recording');
   });
   await run('menu', '', async (p, shot) => {
     await newEp(p); await lab(p, '録音を開始').click(); await p.waitForTimeout(1200); await lab(p, '収録を終える').click(); await p.waitForTimeout(1200);

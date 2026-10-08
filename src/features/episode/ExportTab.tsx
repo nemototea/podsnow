@@ -2,9 +2,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { parseNumberingInput } from '@/domain/episodes/numbering';
-import { insertTopics, renderTemplate } from '@/domain/metadata/template';
+import { renderTemplate } from '@/domain/metadata/template';
 import { EPISODE_TYPES } from '@/domain/podcast/feed';
-import { headings } from '@/domain/outline';
 import { formatSmp, smp } from '@/domain/time';
 import { useServices } from '@/features/app/ServicesProvider';
 import {
@@ -767,20 +766,6 @@ export function ExportTab({ ws, details, onShowToast, onDone, onGoEdit }: Export
         />
         <View style={st.actionRow}>
           <Button
-            label={t.details.insertTopics}
-            kind="secondary"
-            compact
-            onPress={() => {
-              const list = headings(state.outline);
-              if (!list.length) {
-                onShowToast(t.details.noTopics);
-                return;
-              }
-              edit({ description: insertTopics(draft.description, list) });
-              void flush();
-            }}
-          />
-          <Button
             label={t.details.reapplyTemplate}
             kind="secondary"
             compact
@@ -798,7 +783,6 @@ export function ExportTab({ ws, details, onShowToast, onDone, onGoEdit }: Export
                     title: cur.title.trim(),
                     episodeNumber: parseNumberingInput(cur.episodeNumber) ?? null,
                     season: parseNumberingInput(cur.season) ?? null,
-                    topics: headings(state.outline),
                     showName: show.name,
                   }),
                 });

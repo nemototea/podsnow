@@ -24,7 +24,7 @@ import { grabber, icon, radius, space, stroke, tabularNums, typography } from '@
 
 import { parseSeconds, validateRange } from './selectionInput';
 import { storageLine } from './storageLine';
-import { TopicsSheet } from './TopicsSheet';
+import { NotesSheet } from './NotesSheet';
 import type { RecordingContext } from './useRecordingContext';
 import type { Workspace } from './useWorkspace';
 import { Waveform } from './Waveform';
@@ -49,7 +49,7 @@ const toSec = (s: number) => (s / 48000).toFixed(1);
 
 /**
  * 収録タブの待機中・編集（見本 4.「編集」、DESIGN_SYSTEM.md §8）。無彩色とアクセントだけ。
- * 波形のパネル（目盛り・声のレーン・素材のレーン・再生ヘッド）、チャプターの一覧、下から出る選択のシート。
+ * 波形のパネル（目盛り・声のレーン・素材のレーン・再生ヘッド）、カンペ、下から出る選択のシート。
  * 録音中は `RecordingView` に切り替わる（Issue #122）。
  */
 export function StudioTab({
@@ -75,10 +75,7 @@ export function StudioTab({
   const [rangeError, setRangeError] = useState<string | null>(null);
   // 開始・終了の秒数入力（読み上げでも選べるように。DESIGN_SYSTEM.md §8）。ふだんは畳んでおく
   const [numeric, setNumeric] = useState(false);
-  const [topics, setTopics] = useState<{ open: boolean; focus: string | null }>({
-    open: false,
-    focus: null,
-  });
+  const [notesOpen, setNotesOpen] = useState(false);
 
   const sel = state.selection;
   const selKey = sel ? `${sel.start}-${sel.end}` : '';
@@ -154,8 +151,6 @@ export function StudioTab({
     if (sel) await ws.seek(sel.start);
     onRecord();
   };
-
-  const chapters = ws.chaptersOnTimeline;
 
   // 見本 `.sheet`: 選択中は情報と「削除」「ここから録る」、選んでいなければ再生位置と「再生」「録音」
   const editSheet = (
@@ -332,7 +327,6 @@ export function StudioTab({
             peaksByTake={state.peaksByTake}
             overlays={state.placedOverlays}
             assetNames={state.assets}
-            chapters={chapters}
             events={ws.eventsOnTimeline}
             total={state.total}
             playhead={state.playhead}
@@ -352,14 +346,6 @@ export function StudioTab({
               ws.selectOverlay(oid);
               if (oid) setSheet('overlay');
             }}
-            onChapterPress={(item: { id: string }) => {
-              const at = chapters.find((ch) => ch.item.id === item.id)?.at;
-              if (at !== undefined) void ws.seek(at);
-            }}
-            onChapterLongPress={(item: { id: string }) => {
-              const range = ws.chapterRange(item.id);
-              if (range) ws.setSelection(range);
-            }}
           />
         </View>
       )}
@@ -368,65 +354,41 @@ export function StudioTab({
         <Notice kind="warning" title={t.record.bluetoothTitle} body={t.settings.bluetoothWarning} />
       ) : null}
 
-      {/* 見本 `.chapters`: トークテーマから作ったチャプター（FR-OUT-4） */}
-      <View style={st.chapters}>
-        <View style={st.chaptersHead}>
+      {/* 見本 `.notesbox`: カンペ（FR-OUT-2）。鉛筆か本文を押すとシートで書く */}
+      <View style={st.notes}>
+        <View style={st.notesHead}>
           <Text
             style={[typography.subheading, st.flex, { color: c.textPrimary }]}
             accessibilityRole="header"
           >
-            {t.edit.chaptersTitle}
+            {t.notes.title}
           </Text>
+          <IconButton name="edit" label={t.notes.a11yEdit} onPress={() => setNotesOpen(true)} />
         </View>
-        {state.outline.length === 0 ? (
-          <Button
-            label={t.record.addTopics}
-            icon="plus"
-            kind="secondary"
-            onPress={() => setTopics({ open: true, focus: null })}
-          />
-        ) : (
-          state.outline.map((item) => {
-            const at = chapters.find((ch) => ch.item.id === item.id)?.at;
-            return (
-              <View key={item.id} style={st.chap}>
-                <Pressable
-                  onPress={() => (at === undefined ? undefined : void ws.seek(at))}
-                  disabled={at === undefined}
-                  accessibilityRole="button"
-                  accessibilityLabel={t.edit.a11yChapter(item.heading)}
-                  style={st.chapMain}
-                >
-                  <Text style={[typography.numeric, st.chapAt, { color: c.textSecondary }]}>
-                    {at === undefined ? '—' : formatSmp(at)}
-                  </Text>
-                  <Text
-                    style={[
-                      typography.bodyStrong,
-                      st.flex,
-                      { color: at === undefined ? c.textSecondary : c.textPrimary },
-                    ]}
-                  >
-                    {item.heading}
-                  </Text>
-                </Pressable>
-                <IconButton
-                  name="more"
-                  label={t.edit.a11yChapterMenu(item.heading)}
-                  onPress={() => setTopics({ open: true, focus: item.id })}
-                />
-              </View>
-            );
-          })
-        )}
+        <Pressable
+          onPress={() => setNotesOpen(true)}
+          accessibilityRole="button"
+          accessibilityLabel={
+            state.notes.trim() ? `${t.notes.a11yEdit}, ${state.notes}` : t.notes.a11yEdit
+          }
+          style={({ pressed }) => [
+            st.notesCard,
+            { backgroundColor: pressed ? c.surfaceHover : c.surface },
+          ]}
+        >
+          <Text
+            style={[
+              typography.body,
+              { color: state.notes.trim() ? c.textPrimary : c.textSecondary },
+            ]}
+            numberOfLines={4}
+          >
+            {state.notes.trim() ? state.notes : t.notes.empty}
+          </Text>
+        </Pressable>
       </View>
 
-      <TopicsSheet
-        ws={ws}
-        open={topics.open}
-        focus={topics.focus}
-        onClose={() => setTopics({ open: false, focus: null })}
-      />
+      <NotesSheet ws={ws} open={notesOpen} onClose={() => setNotesOpen(false)} />
 
       <Sheet
         visible={sheet === 'insert'}
@@ -565,18 +527,10 @@ const st = StyleSheet.create({
     paddingBottom: space.x14,
     overflow: 'hidden',
   },
-  // 見本 `.chapters`: 上 14、行の間 2。行は上下 8、時刻の幅 40、間 12。
-  chapters: { marginTop: space.x14, gap: space.hair },
-  chaptersHead: { flexDirection: 'row', alignItems: 'center', marginBottom: space.x6 },
-  chap: { flexDirection: 'row', alignItems: 'center' },
-  chapMain: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.md,
-    paddingVertical: space.sm,
-  },
-  chapAt: { width: space.xxxl },
+  // 見本 `.notesbox`: 上 14、間 6。本文の地は角丸 8、内側 上下 12・左右 14。
+  notes: { marginTop: space.x14, gap: space.x6 },
+  notesHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  notesCard: { borderRadius: radius.sm, paddingVertical: space.md, paddingHorizontal: space.x14 },
   // 見本 `.sheet`: 上の角丸 14、上 12・左右 16・下 24、行の間 12。
   sheet: {
     borderTopLeftRadius: radius.x14,

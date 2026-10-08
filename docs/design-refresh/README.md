@@ -121,7 +121,7 @@
 | 英語 / Dark | 320 x 640 |
 
 状態: マイク未許可・拒否、Bluetooth 入力の注意、割り込み、収録中のタブ移動の抑止、書き出し失敗、
-トークテーマの進行、Home の番組カードとエピソード一覧、エピソードの操作シート。
+カンペ（Issue #180 でトークテーマの進行から置き換え。`state-notes-recording.png`）、Home の番組カードとエピソード一覧、エピソードの操作シート。
 
 代表的な画像は `docs/design-refresh/screens/`、参照案との並べ比較は `docs/design-refresh/comparison.png`。
 

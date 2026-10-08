@@ -6,6 +6,14 @@ export async function getUserVersion(db: SqlExecutor): Promise<number> {
   return row?.user_version ?? 0;
 }
 
+export interface MigrateOptions {
+  /**
+   * 既存の DB（user_version が 1 以上）に未適用の移行があるとき、最初の移行の前に 1 回だけ呼ぶ。
+   * 移行前の DB ファイルのバックアップに使う（DATA_MODEL.md §7）。失敗したら移行しない。
+   */
+  beforeMigrate?: (from: number) => Promise<void>;
+}
+
 /**
  * user_version より新しい移行を順に適用する。
  * 各移行は 1 トランザクション。途中で失敗したら user_version は進まない。
@@ -13,9 +21,12 @@ export async function getUserVersion(db: SqlExecutor): Promise<number> {
 export async function migrate(
   db: SqlExecutor,
   migrations: readonly Migration[] = MIGRATIONS,
+  options: MigrateOptions = {},
 ): Promise<{ from: number; to: number; applied: string[] }> {
   assertMonotonic(migrations);
   const from = await getUserVersion(db);
+  const pending = migrations.some((m) => m.version > from);
+  if (pending && from > 0) await options.beforeMigrate?.(from);
   const applied: string[] = [];
   let current = from;
   for (const m of migrations) {

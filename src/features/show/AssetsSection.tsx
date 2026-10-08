@@ -2,7 +2,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import { useCallback, useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
-import { moveItem } from '@/domain/outline';
+import { moveItem } from '@/domain/list';
 import { formatSmp, smp } from '@/domain/time';
 import { useServices } from '@/features/app/ServicesProvider';
 import { ASSET_KIND_ORDER, assetKinds, kindLabel } from '@/features/show/assetKinds';

@@ -5,10 +5,10 @@ import type { PodcastFeedItem } from '@/domain/podcast/feed';
 import { getEpisode } from '@/infra/db/repositories/episodesRepo';
 import { upsertFeedEpisodes } from '@/infra/db/repositories/feedEpisodesRepo';
 import {
-  listOutline,
-  saveOutline,
-  saveShowTopicTemplate,
-} from '@/infra/db/repositories/outlineRepo';
+  getEpisodeNotes,
+  setEpisodeNotes,
+  setShowNotesTemplate,
+} from '@/infra/db/repositories/notesRepo';
 import { ensureDefaultShow, updateLayout } from '@/infra/db/repositories/showsRepo';
 import { TEST_LABELS, TEST_SHOW_SEED } from '@/services/app/__tests__/labels';
 import { parseSoundSettings } from '@/services/audio/renderDocumentFromDb';
@@ -145,21 +145,23 @@ describe('EpisodeService', () => {
     const ep = await svc.create(show.id);
     await svc.refreshStatus(ep.id);
     expect((await svc.get(ep.id))?.status).toBe('draft');
-    await db.run(
-      'INSERT INTO outline_items (id, episode_id, position, heading, body, recorded_take_id, recorded_src_smp) VALUES (?,?,?,?,?,?,?)',
-      ['t', ep.id, 0, 'テーマ', '台本', null, null],
-    );
+    await setEpisodeNotes(db, ep.id, 'オープニング\n・近況');
     const dup = await svc.duplicate(ep.id);
     expect(dup.episode_number).toBeNull();
-    // 見出しと台本は引き継ぎ、チャプター（録音位置）は引き継がない。
-    expect(
-      await db.all(
-        'SELECT heading, body, recorded_take_id FROM outline_items WHERE episode_id = ?',
-        [dup.id],
-      ),
-    ).toEqual([{ heading: 'テーマ', body: '台本', recorded_take_id: null }]);
+    // カンペは引き継ぐ（FR-OUT-3）
+    expect(await getEpisodeNotes(db, dup.id)).toBe('オープニング\n・近況');
     await svc.remove(ep.id);
     expect((await svc.list(show.id)).map((e) => e.id)).toEqual([dup.id]);
+  });
+
+  it('copies the show notes template into a new episode, and later template edits do not follow (FR-SHOW-4)', async () => {
+    const { db, show, svc } = await setup();
+    expect(await getEpisodeNotes(db, (await svc.create(show.id)).id)).toBe('');
+    await setShowNotesTemplate(db, show.id, 'オープニング\nお便り');
+    const ep = await svc.create(show.id);
+    expect(await getEpisodeNotes(db, ep.id)).toBe('オープニング\nお便り');
+    await setShowNotesTemplate(db, show.id, '別の文章');
+    expect(await getEpisodeNotes(db, ep.id)).toBe('オープニング\nお便り');
   });
 
   it('duplicate carries over the export preset choice (DATA_MODEL.md §4.5.1)', async () => {
@@ -369,17 +371,14 @@ describe('EpisodeService', () => {
 
   // Issue #168 / REQUIREMENTS.md FR-EP-10: 開いて何も入れずに離れた回は自動で捨てる
   describe('discardIfEmpty', () => {
-    async function setupWithTopics() {
+    async function setupWithNotes() {
       const ctx = await setup();
-      await saveShowTopicTemplate(ctx.db, ctx.show.id, () => `tp${Math.random()}`, [
-        { heading: 'Opening talk', body: '' },
-        { heading: 'News', body: 'three items' },
-      ]);
+      await setShowNotesTemplate(ctx.db, ctx.show.id, 'Opening talk\nNews: three items');
       return ctx;
     }
 
     it('discards a freshly created episode', async () => {
-      const { db, show, svc, deleted } = await setupWithTopics();
+      const { db, show, svc, deleted } = await setupWithNotes();
       const ep = await svc.create(show.id);
       expect(await svc.discardIfEmpty(ep.id)).toBe(true);
       expect((await getEpisode(db, ep.id))?.deleted_at).not.toBeNull();
@@ -495,16 +494,15 @@ describe('EpisodeService', () => {
       expect(await svc.discardIfEmpty(byGuid.id)).toBe(false);
     });
 
-    it('keeps an episode whose talk topics differ from the show template', async () => {
-      const { db, show, svc } = await setupWithTopics();
+    it('keeps an episode whose notes differ from the show template', async () => {
+      const { db, show, svc } = await setupWithNotes();
       const edited = await svc.create(show.id);
-      const [first, second] = await listOutline(db, edited.id);
-      await saveOutline(db, edited.id, [{ ...first!, heading: 'Changed' }, second!]);
+      await setEpisodeNotes(db, edited.id, 'Opening talk\nNews: four items');
       expect(await svc.discardIfEmpty(edited.id)).toBe(false);
 
-      const removed = await svc.create(show.id);
-      await saveOutline(db, removed.id, [(await listOutline(db, removed.id))[0]!]);
-      expect(await svc.discardIfEmpty(removed.id)).toBe(false);
+      const cleared = await svc.create(show.id);
+      await setEpisodeNotes(db, cleared.id, '');
+      expect(await svc.discardIfEmpty(cleared.id)).toBe(false);
     });
 
     it('keeps an episode whose overlays differ from the show layout', async () => {

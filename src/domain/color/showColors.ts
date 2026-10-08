@@ -19,8 +19,8 @@ export interface ShowColors {
   nowPlayingMid: string;
   /** 収録画面のグラデーションの下端（見本 `--np-c`）。 */
   nowPlayingEnd: string;
-  /** トークテーマのカード（見本 `--topic`）。 */
-  topicCard: string;
+  /** カンペのカード（見本 `--cue`）。 */
+  notesCard: string;
   /** ミニプレーヤー（見本 `--mini`）。 */
   miniPlayer: string;
 }
@@ -45,7 +45,8 @@ export const SHOW_TONES: Readonly<
   nowPlaying: [0.85, 0.32, 4.5, 0.72],
   nowPlayingMid: [0.6, 0.16, 7, 0],
   nowPlayingEnd: [0.35, 0.08, 10, 0],
-  topicCard: [1, 0.44, 4.5, 0.8],
+  // 補助文字 80% は旧トークテーマのカードの「次へ」の行の名残。色を変えないために残す（カンペの上段は 85%）
+  notesCard: [1, 0.44, 4.5, 0.8],
   miniPlayer: [0.75, 0.27, 4.5, 0.72],
 };
 

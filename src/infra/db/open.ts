@@ -18,7 +18,18 @@ export function openAppDatabase(): Promise<SqlExecutor> {
       const raw = await SQLite.openDatabaseAsync(DB_NAME);
       await raw.execAsync('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;');
       const db = createExpoSqliteExecutor(raw);
-      await migrate(db);
+      await migrate(db, undefined, {
+        // 移行前の DB を同じ場所に丸ごと写す（DATA_MODEL.md §7。0010 はデータを捨てる移行なので必須）。
+        // 同じ版からの移行をやり直したときは上書きする。
+        beforeMigrate: async (from) => {
+          const dest = await SQLite.openDatabaseAsync(`${DB_NAME}.bak-${from}`);
+          try {
+            await SQLite.backupDatabaseAsync({ sourceDatabase: raw, destDatabase: dest });
+          } finally {
+            await dest.closeAsync();
+          }
+        },
+      });
       return db;
     })();
     opened.catch(() => {

@@ -185,7 +185,11 @@ describe('文言カタログ', () => {
         [/カット/, [], '音を消す操作は「削除」'],
         [/無音を削除/, [], '無音は「詰める」'],
         [/しゃべり中|声に合わせて|声の間は/, [], 'BGM を声の間だけ下げるのは「ダッキング」'],
-        [/話すこと|話題/, ['showSettings.topicTemplatePlaceholder'], '「トークテーマ」'],
+        [
+          /トークテーマ|台本|チャプター|メモ/,
+          [],
+          '話す内容を書いておくものは「カンペ」（Issue #180）',
+        ],
         [
           /収録/,
           [
@@ -214,6 +218,7 @@ describe('文言カタログ', () => {
         [/· (mono|stereo|uncompressed)\b/, [], 'Spec lines capitalise each item'],
         [/High Quality/, [], 'Sentence case'],
         [/Record tab/, [], 'The tab is “Studio”'],
+        [/talking points?|\bscript\b|\bchapters?\b/i, [], 'Say “Notes” (Issue #180)'],
         [
           /import/i,
           ['errors.import_', 'home.importShow', 'home.onboarding', 'podcastImport.'],

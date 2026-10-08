@@ -11,7 +11,6 @@ import {
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { runOnJS, useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
 
-import type { OutlineItem } from '@/domain/outline';
 import { formatSmp, smp, type Smp } from '@/domain/time';
 import type { PlacedOverlay } from '@/domain/timeline/overlays';
 import type { Range, VoiceSegment } from '@/domain/timeline/types';
@@ -20,17 +19,7 @@ import { insertAt, placeVoice } from '@/domain/timeline/voice';
 import { useT } from '@/i18n';
 import type { RecordingEvent } from '@/infra/db/repositories/recordingEventsRepo';
 import { Icon, Text } from '@/ui/components';
-import {
-  glyphSlop,
-  hit,
-  icon,
-  radius,
-  space,
-  stroke,
-  tabularNums,
-  timeline,
-  typography,
-} from '@/ui/tokens';
+import { hit, icon, radius, space, stroke, tabularNums, timeline, typography } from '@/ui/tokens';
 import { useAppTheme } from '@/ui/ThemeContext';
 
 import { liveColumns, type LivePeak } from './livePeaks';
@@ -46,8 +35,6 @@ export interface WaveformProps {
   peaksByTake: ReadonlyMap<string, TakePeaks>;
   overlays: readonly PlacedOverlay[];
   assetNames?: readonly { id: string; name: string }[];
-  /** トークテーマ由来のチャプター（FR-OUT-4）。ユーザーは打たない。 */
-  chapters: readonly { item: OutlineItem; at: Smp }[];
   /** 割り込みなど、アプリが記録した位置（DATA_MODEL.md §4.10）。 */
   events: readonly { event: RecordingEvent; at: Smp }[];
   total: Smp;
@@ -64,9 +51,6 @@ export interface WaveformProps {
   livePeaks?: readonly LivePeak[];
   onSeek: (to: Smp) => void;
   onSelectOverlay: (id: string | null) => void;
-  onChapterPress: (item: OutlineItem) => void;
-  /** チャプターを長押ししたとき。そのチャプターを丸ごと選ぶ。 */
-  onChapterLongPress?: (item: OutlineItem) => void;
   /** 録音タブ用の低い表示。収録中は波形より読む内容に高さを使う（§5.1）。 */
   compact?: boolean;
   /** 無音で区切られた声の塊（FR-EDIT-2）。タップで選び、ハンドルで広げる。 */
@@ -429,26 +413,6 @@ export const Waveform = memo(function Waveform(p: WaveformProps) {
               );
             })}
           </View>
-          {p.chapters.map(({ item, at }) => (
-            <Pressable
-              key={item.id}
-              onPress={() => p.onChapterPress(item)}
-              onLongPress={() => p.onChapterLongPress?.(item)}
-              hitSlop={glyphSlop}
-              accessibilityRole="button"
-              accessibilityLabel={t.edit.a11yChapter(item.heading)}
-              accessibilityHint={t.edit.a11yChapterHint}
-              style={[styles.chapter, { left: xOf(shiftAt(at)), top: laneTop }]}
-            >
-              <View style={[styles.chapterTick, { backgroundColor: c.textSecondary }]} />
-              <Text
-                numberOfLines={1}
-                style={[typography.overline, { color: c.textSecondary, flexShrink: 1 }]}
-              >
-                {item.heading}
-              </Text>
-            </Pressable>
-          ))}
           {p.events.map(({ event, at }) => (
             <View
               key={event.id}
@@ -532,14 +496,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: space.sm,
   },
   overlayLabel: typography.overline,
-  chapter: {
-    position: 'absolute',
-    maxWidth: 140,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.xs,
-  },
-  chapterTick: { width: stroke.selected, height: space.md },
   event: { position: 'absolute', alignItems: 'center' },
   // 見本 `.playhead`: 白の 2、目盛りの下から素材のレーンの下まで、上端に 10 の丸。
   playhead: {

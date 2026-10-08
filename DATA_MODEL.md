@@ -464,7 +464,7 @@ planSilenceRemoval(ranges, { padMs }): Range[]
 ## 7. 移行戦略
 - `PRAGMA user_version` を 1 から開始。`src/infra/db/migrations/0001_init.sql` … を順に適用。
 - Drizzle 採用時は drizzle-kit の生成 SQL をそのまま使う【仮説】。
-- 破壊的変更は必ず「新列追加 → データ移送 → 旧列放置」の順。ただし 0.1.0（未公開）の間は、二重の真実を残すほうが害が大きい場合に限り旧テーブル・旧列を落とす（0003 の `topics` / `markers`、0004 の `shows.default_export_preset`、0009 の `episodes.episode_number` / `season` を NULL 可の列へ置き換え、0010 の `outline_items` / `show_topic_template` をカンペの列へ置き換え。0010 はデータを移さずに捨てる。ユーザー判断 2026-10-08、Issue #180）。DB ファイル自体のバックアップを移行前に `db/podsnow.db.bak-<version>` として残す。
+- 破壊的変更は必ず「新列追加 → データ移送 → 旧列放置」の順。ただし 0.1.0（未公開）の間は、二重の真実を残すほうが害が大きい場合に限り旧テーブル・旧列を落とす（0003 の `topics` / `markers`、0004 の `shows.default_export_preset`、0009 の `episodes.episode_number` / `season` を NULL 可の列へ置き換え、0010 の `outline_items` / `show_topic_template` をカンペの列へ置き換え。0010 はデータを移さずに捨てる。ユーザー判断 2026-10-08、Issue #180）。DB ファイル自体のバックアップを、未適用の移行があるときに移行前に `podsnow.db.bak-<移行前の user_version>`（DB と同じ場所。expo-sqlite の `backupDatabaseAsync`）として残す。新しい DB（user_version 0）は写さない。バックアップに失敗したら移行しない（`src/infra/db/open.ts`、`migrate()` の `beforeMigrate`。Issue #180 で実装。それまでは文書にあるだけだった）。
 
 ## 9. ストレージ見積り
 - 48 kHz / 16 bit / mono = 96 KB/s ≈ 5.8 MB/分 ≈ **345 MB/時間**。ステレオは 2 倍。

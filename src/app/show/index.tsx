@@ -11,7 +11,6 @@ import {
   type TemplateVar,
   type TextSelection,
 } from '@/domain/metadata/template';
-import { splitIntoHeadings } from '@/domain/outline';
 import { htmlToPlainText } from '@/domain/podcast/parseFeed';
 import { formatSmp, smp } from '@/domain/time';
 import { useServices } from '@/features/app/ServicesProvider';
@@ -114,8 +113,8 @@ interface Loaded {
   layout: ShowLayoutRow | null;
   template: TemplateRow | null;
   assets: AssetRow[];
-  /** トークテーマのひな形（FR-SHOW-4）。1 行 1 項目で編集する。 */
-  topicTemplate: string;
+  /** カンペのひな形（FR-SHOW-4）。1 つの文章。 */
+  notesTemplate: string;
 }
 
 type LayoutSlot = 'opening' | 'ending' | 'bgm';
@@ -137,7 +136,7 @@ const PLACEHOLDER_KEYS =
 /**
  * 番組設定（FR-SHOW-3, FR-SHOW-4, FR-SHOW-5, FR-META-2）。
  * 先頭の入口から素材管理の子画面へ進み、ここでは番組情報・毎回入れる素材・
- * トークテーマのひな形・概要のひな形を編集する（docs/ux-restructure.md §8）。
+ * カンペのひな形・概要のひな形を編集する（docs/ux-restructure.md §8）。
  */
 export default function ShowScreen() {
   const c = useAppTheme();
@@ -178,27 +177,21 @@ export default function ShowScreen() {
   };
 
   const loader = useCallback(async (): Promise<Loaded> => {
-    const [show, layout, template, list, topics] = await Promise.all([
+    const [show, layout, template, list, notesTemplate] = await Promise.all([
       getShow(db, showId),
       getLayout(db, showId),
       getDefaultTemplate(db, showId),
       assets.list(showId),
-      services.outline.listTemplate(showId),
+      services.notes.getTemplate(showId),
     ]);
-    return {
-      show,
-      layout,
-      template,
-      assets: list,
-      topicTemplate: topics.map((x) => x.heading).join('\n'),
-    };
-  }, [assets, db, services.outline, showId]);
+    return { show, layout, template, assets: list, notesTemplate };
+  }, [assets, db, services.notes, showId]);
   const { data, reload } = useAsyncData<Loaded>(loader, {
     show: null,
     layout: null,
     template: null,
     assets: [],
-    topicTemplate: '',
+    notesTemplate: '',
   });
 
   // 取り込み（/import）から戻ったときに、上書きされた番組情報を読み直す
@@ -209,13 +202,13 @@ export default function ShowScreen() {
     }, [reload, reloadList]),
   );
 
-  const [editing, setEditing] = useState<'show' | 'topics' | 'template' | null>(null);
+  const [editing, setEditing] = useState<'show' | 'notes' | 'template' | null>(null);
   const [showDraft, setShowDraft] = useState<{
     name: string;
     description: string;
     author: string;
   } | null>(null);
-  const [topicDraft, setTopicDraft] = useState<string | null>(null);
+  const [notesDraft, setNotesDraft] = useState<string | null>(null);
   const [templateDraft, setTemplateDraft] = useState<string | null>(null);
   const [picking, setPicking] = useState<LayoutSlot | null>(null);
   const { playingId: previewingId, toggle: togglePreview, stop: stopPreview } = useAssetPreview();
@@ -232,9 +225,9 @@ export default function ShowScreen() {
     });
     setEditing('show');
   };
-  const openTopicEditor = () => {
-    setTopicDraft(data.topicTemplate);
-    setEditing('topics');
+  const openNotesEditor = () => {
+    setNotesDraft(data.notesTemplate);
+    setEditing('notes');
   };
   const openTemplateEditor = () => {
     templateSel.current = null;
@@ -245,7 +238,7 @@ export default function ShowScreen() {
   const closeEditor = () => {
     setEditing(null);
     setShowDraft(null);
-    setTopicDraft(null);
+    setNotesDraft(null);
     setTemplateDraft(null);
   };
 
@@ -289,15 +282,12 @@ export default function ShowScreen() {
     });
   };
 
-  const saveTopics = async () => {
-    if (topicDraft === null) return;
-    await services.outline.saveTemplate(
-      showId,
-      splitIntoHeadings(topicDraft).map((heading) => ({ heading, body: '' })),
-    );
+  const saveNotes = async () => {
+    if (notesDraft === null) return;
+    await services.notes.saveTemplate(showId, notesDraft);
     closeEditor();
     await reload();
-    showToast({ text: t.showSettings.topicTemplateSaved });
+    showToast({ text: t.showSettings.notesTemplateSaved });
   };
 
   const insertPlaceholder = (key: TemplateVar) => {
@@ -379,10 +369,10 @@ export default function ShowScreen() {
       t.showSettings.placeholderToken(t.showSettings.placeholders[k]),
     ]),
   ) as Record<TemplateVar, string>;
-  const topicHeadings = splitIntoHeadings(data.topicTemplate);
-  const topicsRow = {
-    label: topicHeadings[0] ?? t.common.none,
-    sub: topicHeadings.length ? t.showSettings.topicCount(topicHeadings.length) : null,
+  const notesLines = data.notesTemplate.split('\n').filter((l) => l.trim());
+  const notesRow = {
+    label: notesLines[0]?.trim() ?? t.common.none,
+    sub: notesLines.length ? t.showSettings.templateLines(notesLines.length) : null,
   };
   const templateBody = data.template?.body.trim() ?? '';
   const templateLines = templateBody ? templateBody.split('\n') : [];
@@ -748,12 +738,12 @@ export default function ShowScreen() {
         {section === 'templates' ? (
           <>
             <ListRow
-              heading={t.showSettings.topicTemplateEyebrow}
-              label={topicsRow.label}
-              muted={!topicHeadings.length}
-              {...(topicsRow.sub ? { sub: topicsRow.sub } : {})}
-              accessibilityLabel={rowA11y(t.showSettings.a11yEditTopicTemplate, topicsRow)}
-              onPress={openTopicEditor}
+              heading={t.showSettings.notesTemplateEyebrow}
+              label={notesRow.label}
+              muted={!notesLines.length}
+              {...(notesRow.sub ? { sub: notesRow.sub } : {})}
+              accessibilityLabel={rowA11y(t.showSettings.a11yEditNotesTemplate, notesRow)}
+              onPress={openNotesEditor}
             />
             <ListRow
               heading={t.showSettings.templateEyebrow}
@@ -802,24 +792,25 @@ export default function ShowScreen() {
       </Sheet>
 
       <Sheet
-        visible={editing === 'topics'}
+        visible={editing === 'notes'}
         onClose={closeEditor}
-        title={t.showSettings.topicTemplateEyebrow}
+        title={t.showSettings.notesTemplateEyebrow}
       >
-        {topicDraft !== null ? (
+        {notesDraft !== null ? (
           <>
             <Field
-              label={t.showSettings.topicTemplateEyebrow}
-              value={topicDraft}
-              onChangeText={setTopicDraft}
+              label={t.showSettings.notesTemplateEyebrow}
+              value={notesDraft}
+              onChangeText={setNotesDraft}
               multiline
-              placeholder={t.showSettings.topicTemplatePlaceholder}
+              placeholder={t.showSettings.notesTemplatePlaceholder}
+              help={t.showSettings.notesTemplateHelp}
             />
             <View style={st.sheetActions}>
               <Button
                 label={t.common.save}
-                accessibilityLabel={t.showSettings.a11ySaveTopicTemplate}
-                onPress={() => void saveTopics()}
+                accessibilityLabel={t.showSettings.a11ySaveNotesTemplate}
+                onPress={() => void saveNotes()}
               />
               <Button label={t.common.cancel} kind="ghost" onPress={closeEditor} />
             </View>

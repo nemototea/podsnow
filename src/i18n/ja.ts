@@ -130,9 +130,7 @@ export const ja = {
     showName: 'マイポッドキャスト',
     takeName: (n: number) => `録音 ${n}`,
     addTakeOp: (take: string) => `${take} を追加`,
-    descriptionTemplate: `{{topics}}
-
-――――――
+    descriptionTemplate: `――――――
 Podcast: {{show_name}}
 感想は #PodsNow まで`,
     interruptionNote: '割り込みで録音が途切れました',
@@ -203,7 +201,7 @@ Podcast: {{show_name}}
     shortcuts: {
       openingEnding: 'オープニング・エンディング',
       bgmJingle: 'BGM・ジングル',
-      topicTemplate: 'トークテーマのひな形',
+      notesTemplate: 'カンペのひな形',
     },
     sectionShows: 'あなたの番組',
     sectionRecent: '最近のエピソード',
@@ -282,17 +280,12 @@ Podcast: {{show_name}}
   record: {
     /** 収録画面の波形の左上の札（見本 `.wavebox .pill.rec`）。 */
     recPill: 'REC',
-    chapterTag: (n: number, heading: string) => `チャプター ${n} · ${heading}`,
     /** 収録画面の題の下（見本「テイク 4 · 末尾に追加」）。 */
     appendAtEnd: '末尾に追加',
     insertAtPosition: (at: string) => `${at} に差し込み`,
-    /** トークテーマのカードの下段（見本 `.topic .next`）。 */
-    nextMakesChapter: (heading: string) => `次へ送るとチャプターになります: ${heading}`,
-    notStarted: '次へ送ると最初のチャプターが始まります',
     levelDb: (db: number) => `${db} dB`,
     close: '閉じる',
     a11yMenuLocked: '録音中は操作できません',
-    nextTopicShort: '次のトークテーマへ',
     stop: '録音を止める',
     cannotLeave: '録音中は戻れません。停止してください',
     diskLow: '空き容量が少ないため録音を停止しました',
@@ -303,15 +296,6 @@ Podcast: {{show_name}}
     routeChanged: (input: string) => `入力が ${input} に切り替わりました`,
     takeAdded: (duration: string) => `録音を追加しました（${duration}）`,
     takeInserted: (duration: string, at: string) => `${at} に録音を差し込みました（${duration}）`,
-
-    talkingNow: 'いま話していること',
-    /** 話題を進めたときの読み上げ。画面の通知は出さない（#190）。 */
-    a11yAdvanced: (heading: string) => `「${heading}」へ進みました`,
-    topicsTitle: 'トークテーマと台本',
-    topicsPlaceholder: 'トークテーマを 1 行ずつ。貼り付けもできます',
-    addScript: 'タップして台本を書く',
-    scriptTitle: '台本',
-    scriptPlaceholder: '読み上げる原稿（任意）',
 
     registerAssets: '番組の音',
     moreAssets: 'ほかの素材',
@@ -334,14 +318,7 @@ Podcast: {{show_name}}
     inputLine: (name: string, channels: string) => `${name} · ${channels}`,
     inputUnknown: '入力を確認できません',
     bluetoothTitle: 'Bluetooth マイクは音質が落ちます',
-    talkingPoints: 'トークテーマ',
-    progress: (done: number, total: number) => `${done}/${total}`,
-    nextTopic: (heading: string) => `次へ：${heading}`,
     a11yInsertNow: (name: string) => `${name} をいまの位置に入れる`,
-    a11yDeleteTopic: (heading: string) => `${heading} を削除`,
-    confirmDeleteTopic: (heading: string) => `「${heading}」を削除しますか？`,
-    confirmDeleteTopicNote: '書いた台本も一緒に消える',
-    addTopics: 'トークテーマを追加',
     start: '録音を開始',
     startHere: 'ここから録音',
     savingOnDevice: (left: string) => `保存中 · 残り約 ${left}`,
@@ -361,13 +338,22 @@ Podcast: {{show_name}}
     permDeniedBody: '設定でマイクへのアクセスを許可すると、録音できるようになります',
   },
 
+  /** カンペ（FR-OUT-1..3、Issue #180）。英語は Notes。 */
+  notes: {
+    /** 編集画面の見出し、録音中のカードの上段（見本 `.notesbox h4`、`.cue small`）、シートの題。 */
+    title: 'カンペ',
+    /** 編集画面でカンペが空のとき（DESIGN_SYSTEM.md §8）。 */
+    empty: '話す内容を書いておけます',
+    placeholder: 'オープニング\n・今日の話題\n・お便り\nエンディング',
+    a11yEdit: 'カンペを書く',
+    a11ySave: '完了してカンペを保存',
+  },
+
   edit: {
     selectedLabel: '選択中',
     seconds: (s: string) => `${s} 秒`,
     enterNumbers: '秒数で指定',
     playheadInfo: (pos: string, total: string) => `${pos} / ${total}`,
-    chaptersTitle: 'チャプター',
-    a11yChapterMenu: (heading: string) => `${heading} のトークテーマを開く`,
     emptyTitle: 'まだ録音がありません',
     emptySub: '下の録音ボタンで始めます。途中の位置を選んで録ると、そこに差し込まれます',
     insertBefore: '前に素材',
@@ -399,8 +385,6 @@ Podcast: {{show_name}}
     endSec: '終了（秒）',
     playSelection: '選択範囲を試聴',
     a11yOverlay: (kind: string, name: string) => `${kind}：${name}`,
-    a11yChapter: (heading: string) => `チャプター ${heading}`,
-    a11yChapterHint: 'タップで移動、長押しでチャプター全体を選択',
     a11yInterruption: '割り込みで止まった位置',
     a11yRouteChange: '入力が切り替わった位置',
   },
@@ -441,7 +425,6 @@ Podcast: {{show_name}}
     titlePlaceholder: 'タイトル',
     descriptionEyebrow: '概要',
     descriptionPlaceholder: '概要',
-    insertTopics: 'トークテーマを差し込む',
     reapplyTemplate: 'テンプレートを再適用',
     episodeEyebrow: '話数',
     seasonEyebrow: 'シーズン',
@@ -453,7 +436,6 @@ Podcast: {{show_name}}
     numberHelp: '空にすると話数なしになります',
     recordedEyebrow: '収録日',
     badDate: '収録日は YYYY-MM-DD で入力してください',
-    noTopics: 'トークテーマがありません',
     noTemplate: '概要欄テンプレートがありません',
     templateApplied: 'テンプレートを適用しました',
     undoTemplate: 'テンプレートの適用を取り消す',
@@ -633,8 +615,6 @@ Podcast: {{show_name}}
     newEpisode: '新しいエピソードを録音',
     a11yEditEpisode: (label: string) => `${label} を編集`,
     a11yShareEpisode: (label: string) => `${label} を共有`,
-    topicTemplateEyebrow: 'トークテーマのひな形',
-    topicTemplatePlaceholder: 'オープニング\n今日の話題\nお便り\nお知らせ\nエンディング',
     editShowInfo: '番組情報を編集',
     a11yEditShowInfo: '番組名、概要、著者、既定のシーズンを編集',
     a11ySaveShowInfo: '完了して番組情報を保存',
@@ -650,10 +630,13 @@ Podcast: {{show_name}}
     artworkSaved: 'アートワークを保存しました',
     artworkRemoved: 'アートワークを削除しました',
     layoutEyebrow: '新しいエピソードの構成',
-    topicCount: (n: number) => `${n} 件`,
-    a11yEditTopicTemplate: 'トークテーマのひな形を編集',
-    a11ySaveTopicTemplate: 'トークテーマのひな形を保存',
-    topicTemplateSaved: 'トークテーマのひな形を保存しました',
+    notesTemplateEyebrow: 'カンペのひな形',
+    notesTemplatePlaceholder: 'オープニング\n・今日の話題\n・お便り\nエンディング',
+    notesTemplateHelp:
+      '新しいエピソードのカンペに最初から入ります。作った後のエピソードは変わりません',
+    a11yEditNotesTemplate: 'カンペのひな形を編集',
+    a11ySaveNotesTemplate: 'カンペのひな形を保存',
+    notesTemplateSaved: 'カンペのひな形を保存しました',
     duckingLabel: 'BGM ダッキング',
     duckingSub: '新しいエピソードの既定。エピソードごとに書き出しタブで変えられます',
     a11yDuckAmount: 'ダッキング量',
@@ -671,7 +654,6 @@ Podcast: {{show_name}}
       title: 'タイトル',
       episode_number: '話数',
       season: 'シーズン',
-      topics: 'トークテーマ',
       show_name: '番組名',
     },
     a11yInsertPlaceholder: (name: string) => `${name} を挿入`,

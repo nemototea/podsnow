@@ -7,6 +7,7 @@ import { MIGRATION_0006_EXPORT_SOURCE_FINGERPRINT } from './0006_export_source_f
 import { MIGRATION_0007_LOUDNESS_CACHE } from './0007_loudness_cache';
 import { MIGRATION_0008_SHOW_COVER_COLOR } from './0008_show_cover_color';
 import { MIGRATION_0009_OPTIONAL_EPISODE_NUMBERING } from './0009_optional_episode_numbering';
+import { MIGRATION_0010_NOTES } from './0010_notes';
 
 export interface Migration {
   /** PRAGMA user_version に対応する。1 から単調増加。 */
@@ -33,4 +34,5 @@ export const MIGRATIONS: readonly Migration[] = [
     name: '0009_optional_episode_numbering',
     sql: MIGRATION_0009_OPTIONAL_EPISODE_NUMBERING,
   },
+  { version: 10, name: '0010_notes', sql: MIGRATION_0010_NOTES },
 ];
