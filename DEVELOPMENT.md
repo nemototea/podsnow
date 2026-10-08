@@ -1,21 +1,65 @@
-# DEVELOPMENT.md — podsnow 開発ガイド
+# DEVELOPMENT.md — PodsNow 開発ガイド
 
 > 凡例: **【事実】** 対話で決定した仕様 / **【確認済み】** 公式ドキュメント等で確認済み（出典付き） / **【仮説】** 未検証・要スパイク
 
 ## 1. 開発環境【事実】
 
-- macOS、Xcode（SDK 57 は Xcode 27 / iOS 27 SDK を想定【確認済み】https://expo.dev/changelog/sdk-57）、Android Studio（Android 14 / 15 の実機またはエミュレータ）
+- macOS、Xcode 26.4 以上（SDK 57 の要件【確認済み】https://docs.expo.dev/versions/v57.0.0/ 。Xcode 16 系ではビルドできない）、Android Studio（Android 14 / 15 の実機またはエミュレータ）
+- 対応 OS は iOS 18.0 以上、Android 10（API 29）以上（REQUIREMENTS.md NFR-7）
 - VS Code をメイン IDE
 - Node.js LTS、npm（パッケージマネージャは npm を既定【仮説: 変更可】）、Watchman、CocoaPods、JDK 17【仮説: SDK 57 の要求バージョンは docs で確認】
 - 開発 Agent: Claude Code、Codex（§8）
 
-## 2. リポジトリ
+## 2. リポジトリとブランチ戦略【事実】
 
-- リモート: https://github.com/nemototea/podsnow（初期状態は空リポジトリ）
-- ローカル: `git init` → `git remote add origin …` → 最初のコミットは設計文書のみ。
-- ブランチ: `main` を保護対象とし、作業は `feat/…` `fix/…` `docs/…` ブランチ → PR → squash merge【仮説: 一人開発なので簡略化可】
-- コミットメッセージ: Conventional Commits（`feat:`, `fix:`, `docs:`, `chore:`, `native:`）
-- `.gitignore`: `node_modules/`, `ios/`, `android/`（prebuild 生成物。CNG 運用【仮説】）, `.expo/`, `*.log`, `.DS_Store`, `*.wav` 等のテスト用大容量音源（`fixtures/` の小さなものは除く）
+- リモート: https://github.com/nemototea/podsnow
+- Issue / PR / ラベル / マイルストーンは GitHub で管理し、`gh` CLI から操作する。
+
+### 2.1 ブランチの 3 層
+
+```
+main ◀── PR ── release/<version> ◀── PR ── issue/<番号>-<slug>
+```
+
+| ブランチ | 役割 | 直接コミット |
+|---|---|---|
+| `main` | **ストアリリース可能な状態のみ**。`release/<version>` からの PR マージでしか進まない。マージ = そのバージョンの公開準備完了 | 禁止（初回コミットのみ例外） |
+| `release/<version>` | そのバージョン（例: `release/0.1.0` = MVP、`release/1.0.0` = ストア公開版）の統合ブランチ。Issue ブランチの PR 宛先。バージョンに必要な Issue がすべて閉じたら `main` へ PR | 禁止（Issue ブランチ経由） |
+| `issue/<番号>-<slug>` | 1 Issue = 1 ブランチ。`release/<version>` から切り、PR は同じ `release/<version>` 宛て | ここで作業 |
+
+- バージョンは SemVer。版の切り方は PRODUCT.md §7（ユーザー判断 2026-09-29）: `0.1.0` = MVP（クローズドなドッグフーディング。TestFlight / 内部テストだけで、ストア審査に出さない）、`1.0.0` = ストア公開版（配信基盤・アカウント・課金を含む。#107 / #156 / #157）。次バージョンの作業は `release/<次の版>` を `main` から切って始める。
+- 公開後の緊急修正は `hotfix/<slug>` を `main` から切り、`main` と進行中の `release/*` の両方へ PR。
+- マージ方式は **マージコミット**（GitHub の "Create a merge commit"）。squash はしない。Issue ブランチのコミットをそのまま残し、1 Issue の作業過程を `release/*` の履歴から追えるようにする。
+- Issue ブランチはマージ後に削除。
+
+### 2.2 Issue 運用
+
+- 作業は必ず Issue から始める（MVP 外の構想も Issue にして Backlog に置く）。
+- 版の振り分けはラベルで行う（マイルストーンは使っていない）。
+- ラベル:
+  - `phase:0-foundation` … `phase:4-show`: DEVELOPMENT.md §6 のフェーズ
+  - `mvp` / `store-release` / `post-mvp`: 版（0.1.0 / 1.0.0 / それ以降）
+  - `native` / `ios` / `android`: ネイティブ実装を含む
+  - `spike`: 技術検証。結果は `docs/adr/` に ADR として残す
+  - `data-safety`: 録音データの保全に関わる（最優先。テスト必須）
+  - `docs` / `infra` / `ui` / `release`
+- PR 本文に `Closes #<番号>` を書き、マージで Issue を自動クローズする。
+
+### 2.3 コミット・PR
+
+- コミットメッセージ: Conventional Commits（`feat:`, `fix:`, `docs:`, `chore:`, `native:`, `spike:`）。日本語可。
+- PR タイトルは Issue タイトルに合わせる。PR の前に `npm run lint && npm run typecheck && npm test && npm run format:check` を手元（またはエージェント）で通す。CI は置かない（§7）。
+- `.gitignore`: `node_modules/`, ルートの `/ios/` と `/android/`（prebuild 生成物。`modules/*/ios|android` は追跡する）, `.expo/`, `*.log`, `.DS_Store`, 大容量音源（`fixtures/` の小さなものは除く）
+
+### 2.4 典型的な作業手順
+
+```sh
+git switch release/0.1.0 && git pull
+git switch -c issue/12-dsp-language-adr
+# ... 作業・コミット ...
+git push -u origin issue/12-dsp-language-adr
+gh pr create --base release/0.1.0 --fill --body "Closes #12"
+```
 
 ## 3. セットアップ手順（予定）
 
@@ -28,6 +72,31 @@ npx expo run:android
 ```
 
 - Expo Go は使わない（ローカルネイティブモジュールを含むため）。【事実】
+
+### 3.1 Mac から離れて実機で試す（release variant）【確認済み】
+
+Development Build は JS を Metro から受け取るため、Mac が起動していないとアプリが開かない。
+外出先で空き時間に触りたいときは **release variant** を入れる。JS バンドルと assets がバイナリに
+埋め込まれ、Metro も Mac も不要になる（出典: https://docs.expo.dev/more/expo-cli/ の
+`--variant` / "Production builds will export the project and embed the files in the native binary"。
+このページは v57 のバージョン付き URL が無い）。
+
+```sh
+export ANDROID_HOME=$HOME/Library/Android/sdk        # 未設定なら
+npx expo prebuild --clean --platform android --no-install   # 依存追加・アイコン変更のあとだけ
+npx expo run:android --variant release --device Pixel_9a --no-bundler
+```
+
+- `--device` は `adb devices -l` の `model:` の値（例 `Pixel_9a`）。シリアル番号では見つからない。
+- 署名は prebuild が生成する `android/app/build.gradle` の既定どおり **debug keystore**（release も同じ鍵）。
+  Development Build と鍵が同じなので、上書きインストールできる。ストア配布用の鍵は EAS 導入時に別途決める。
+- R8 / minify は既定で無効（`android.enableMinifyInReleaseBuilds` 未設定）。有効にするなら
+  `expo-build-properties` で `app.json` から設定し、`android/` を手で編集しない（`prebuild --clean` で消える）。
+- 成果物: `android/app/build/outputs/apk/release/app-release.apk`。別の端末には
+  `adb -s <serial> install -r` で入れられる。
+- iOS は Xcode 26 が必要（SDK 57）。用意できたら `npx expo run:ios --configuration Release --device` で同じことができる【仮説: 未検証】。
+- release では `expo-dev-client` のランチャー画面が出ない。起動直後にアプリの Home が出ること、
+  機内モードで開けることを最初に確認する。
 - `ios/` `android/` を Git 管理外にする（Continuous Native Generation）か、コミットするかは Phase 0 で決める。ネイティブモジュールは `modules/` にあるので、いずれでも可【仮説】。
 
 ## 4. プロジェクト規約
@@ -38,14 +107,34 @@ npx expo run:android
 - 時間の型は `Smp`（サンプル数）と `Ms` をブランド型で区別する【仮説】。
 
 ### 4.2 Lint / Format
-- ESLint（`eslint-config-expo` 基準）+ Prettier。`npm run lint` / `npm run typecheck` を CI で必須化。
+- ESLint（`eslint-config-expo` 基準）+ Prettier。`npm run lint` / `npm run typecheck` は PR の前に必ず通す（§7）。
 
 ### 4.3 ネイティブ
 - Swift: SwiftLint【仮説】。Kotlin: ktlint【仮説】。
 - ネイティブ側の公開 API は `modules/<name>/src/index.ts` に型定義し、JS からはそこだけを import する。
 - ネイティブで「録音データが宙に浮く」状態を作らない（Segment 確定 → 通知の順を守る）。
 
-### 4.4 ドキュメント
+### 4.4 文言・ローカライゼーション（Issue #80、FR-I18N-4）
+
+- ユーザーに見える文言は `src/i18n/ja.ts`（キーの正）と `src/i18n/en.ts` の両方に書く。画面や `features/` に直接書かない。`accessibilityLabel` も対象。
+- `en.ts` は `Messages = typeof ja` に縛られているので、キーや関数の引数を変えると **英語側を直すまで `npm run typecheck` が落ちる**。これが翻訳漏れの防波堤。
+- 画面からは `const t = useT();` で引く。`useCallback` / `useEffect` の依存配列には `t` を入れる（言語切替で再生成させる）。
+- 文言に値を差し込むときは関数にする（`takes: (n: number) => ...`）。テンプレート文字列を画面側で組み立てない（語順が言語で変わる）。
+- `domain/` / `services/` / `infra/` は文言を持たない（**ESLint で `@/i18n` の import を禁止**している）:
+  - エラーは `src/domain/errors.ts` の `AppError` / `AppErrorCode` で投げ、表示は UI 層の `errorText()`。DB の `error` 列にもコードを入れる。
+  - DB に書き込む既定文言は `ServiceLabels`（`src/services/app/labels.ts`）として UI 層から注入する。
+- 新しい言語を足すときは `src/i18n/types.ts` の `LOCALES` にコードを追加し、カタログを 1 つ書き、`app.json` の `expo.locales` と expo-localization プラグインの `supportedLocales` にも足す（ネイティブ側は `npx expo prebuild --clean` が必要）。`locales/*.json` の iOS 専用キー（`CFBundleDisplayName` など）は `ios` の下に入れる。トップレベルに置くと Android の `values-b+xx/strings.xml` にも書き出され、release ビルドの `lintVitalRelease`（ExtraTranslation）が失敗する【確認済み: 2026-09-21 Pixel 9a】。
+
+### 4.5 デザイン・ブランド・書体（Issue #82 → Issue #94）
+
+- 色は `scripts/design/ramps.py` を直して `python3 scripts/design/generate.py`。`src/ui/tokens/colors.ts` を手で直さない（DESIGN_SYSTEM.md §5）。
+- ロゴ・アプリアイコン・スプラッシュ・favicon は **`python3 scripts/brand/generate.py` で生成**する（標準ライブラリのみ）。PNG / SVG / `src/ui/brand/wordmark.ts` を直接編集しない。配置の正は `scripts/brand/geometry.py`、字形は `scripts/brand/glyphs.py`（`extract_glyphs.py` の生成物）。
+- ロゴはサービス名そのもの `PodsNow.`。マイク・波形・雪・電波・頭文字だけのマークに戻さない（`assets/brand/README.md`）。
+- Android のアダプティブアイコンは前景の中央 66%（半径 338px / 1024px 中）しか見える保証がない。`generate.py` が検査して、はみ出していれば失敗する。`app.json` の背景色がトークンとずれていても失敗する。
+- 書体は `python3 scripts/fonts/generate.py`（`python3 -m pip install fonttools` が必要）で `assets/fonts/` に静的ウェイトを書く。原本（Google Fonts の可変フォント）はリポジトリに入れず、ハッシュを照合して取得する。ライセンスは `assets/fonts/README.md`。
+- アイコン・書体を変えたら `npx expo prebuild --clean` → 再ビルドが必要（ネイティブに焼き込まれる）。
+
+### 4.6 ドキュメント
 - 仕様変更は必ず該当 `.md` を更新してからコードを書く（設計と実装の乖離を防ぐ）。
 - 記述には **【事実】/【確認済み】/【仮説】** のいずれかを付ける。【確認済み】には出典 URL を付ける。
 - Expo / React Native / OS の API を **記憶で断定しない**。docs.expo.dev、developer.apple.com、developer.android.com を確認してから書く。【事実】
@@ -72,13 +161,17 @@ npx expo run:android
 | 1. 収録 | Home / 新規 / Editor（録音部分）、Take・Segment 永続化、復旧、レベル計、入力選択、マーカー、トークテーマ、ジングル挿入イベント | 自分の番組を 1 本収録できる。強制終了しても復元できる |
 | 2. 編集 | 波形、タイムライン再生、範囲削除、無音カット、並び替え、パンチイン、素材挿入・位置・音量、Undo/Redo 永続化 | 収録した回を編集して聴ける |
 | 3. 書き出し | ミックス、ラウドネス、ダッキング、AAC / WAV、共有・保存、Distribution Pack、書き出し履歴 | 配信サービスへ投稿できる |
-| 4. Show と仕上げ | Show Assets、既定構成、概要欄テンプレート、設定、テーマ、バックアップ / 復元、ストレージ管理 | 成功基準（PRODUCT.md §8）を満たす |
-| 5. 次フェーズ候補 | MP3 / FLAC、ノイズ除去、OS 音声認識、ローカル LLM、編集履歴一覧 | — |
+| 4. Show と仕上げ | Show Assets、既定構成、概要欄テンプレート、設定、テーマ、ストレージ管理 | 成功基準（PRODUCT.md §8）を満たす |
+| 5. 0.1.0 の仕上げ | 試聴への音の仕上げの反映（#158）、書き出しの削除とファイルの片付け（#152）、メタデータの埋め込み（#56）、取り込みの実機検証（#141）、実機チェックリスト、TestFlight / 内部テストへの配布（#53） | 成功基準 0.1.0（PRODUCT.md §8）を満たす |
+| 6. 1.0.0 ストア公開版 | 配信基盤（#107）、アカウントと運営（#157）、収益構造（#156）、複数の番組（#64 / #147）、取り込みの仕上げ（#139 / #140 / #161）、容量の整理（#160）、ストア掲載素材と提出（#67 / #155） | 成功基準 1.0.0（PRODUCT.md §8）を満たし、ストア審査を通る |
+| 7. 後続候補 | MP3 / FLAC、ノイズ除去、OS 音声認識、ローカル LLM、複数テンプレート、同期 | — |
 
-## 7. CI【仮説】
+## 7. CI / CD【事実】ユーザー判断（2026-09-29）
 
-- GitHub Actions: `npm ci` → `lint` → `typecheck` → `jest`。ネイティブビルドは初期は手元のみ（macOS ランナーのコストを避ける）。必要になったら iOS/Android ビルドジョブを追加。
-- EAS Build は当面使わない（ローカルビルドで足りる）。配布時に検討。
+- **CI（PR ごとの lint / typecheck / test）は置かない。** 個人開発で、テストと構文チェックはコーディングエージェントが PR の前に必ず回す（AGENTS.md）。Issue #4 は取りやめた。
+  - 抜けうるのは、エージェントを通さない変更（手元での直接編集、スマホからのマージ）と、`release/*` で複数の PR が合わさったときの組み合わせ。これは CD の最初の段で拾う（下記）。
+- **CD（ストア提出の自動化）は 1.0.0 で作る**（Issue #67）。ワークフローの最初に `npm ci` → `format:check` → `lint` → `typecheck` → `jest` を置き、落ちたらビルド・提出しない。
+- EAS Build / Submit か fastlane かは #67 で決める。ネイティブビルドは macOS ランナーのコストがかかるので、`main` へのマージ（= 提出）のときだけ走らせる。
 
 ## 8. Claude Code / Codex での開発ルール【事実】
 

@@ -1,0 +1,500 @@
+package dev.nemotea.podsnow.recorder
+
+import android.annotation.SuppressLint
+import android.content.Context
+import android.media.AudioDeviceCallback
+import android.media.AudioDeviceInfo
+import android.media.AudioFocusRequest
+import android.media.AudioFormat
+import android.media.AudioManager
+import android.media.AudioRecord
+import android.media.MediaRecorder
+import android.os.Build
+import android.os.Handler
+import android.os.Looper
+import android.os.Process
+import android.os.StatFs
+import java.io.File
+import kotlin.math.abs
+import kotlin.math.log10
+import kotlin.math.max
+import kotlin.math.sqrt
+
+/**
+ * AudioRecord から Int16 PCM を読み出して WavWriter に書く録音エンジン（AUDIO_DESIGN.md §3.2, §4）。
+ * Audio Focus の喪失を割り込み、AudioDeviceCallback をルート変更として通知する。
+ * フォアグラウンドサービス（RecorderService）はプロセス維持と通知のみを担う。
+ * 録音前の入力モニター（ファイルに書かず、レベルだけ出す）も同じ読み出しループで行う（§3.6、Issue #169）。
+ */
+class RecorderEngine(private val context: Context, private val emit: (String, Map<String, Any?>) -> Unit) {
+  enum class State(val raw: String) {
+    IDLE("idle"), PREPARED("prepared"), MONITORING("monitoring"), RECORDING("recording"), PAUSED("paused"), INTERRUPTED("interrupted"), STOPPING("stopping")
+  }
+
+  data class Config(
+    val sampleRate: Int = 48000,
+    val channels: Int = 1,
+    val inputUid: String? = null,
+    val diskLowThresholdBytes: Long = 30L * 1024 * 1024,
+    val headerFlushIntervalMs: Long = 1000,
+    val levelIntervalMs: Long = 50,
+    val audioSource: String = "voice_recognition",
+  )
+
+  @Volatile var state: State = State.IDLE
+    private set(v) {
+      if (field != v) {
+        field = v
+        emit("onStateChange", mapOf("state" to v.raw))
+      }
+    }
+
+  var config = Config()
+    private set
+
+  private val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+  private val main = Handler(Looper.getMainLooper())
+  private var record: AudioRecord? = null
+  /** 書き込み先。writer が無い間はモニター（§3.6）。 */
+  private val router = CaptureRouter()
+  private var thread: Thread? = null
+  @Volatile private var running = false
+  private var focusRequest: AudioFocusRequest? = null
+  private var hasFocus = false
+  private var deviceCallback: AudioDeviceCallback? = null
+
+  private val focusListener = AudioManager.OnAudioFocusChangeListener { change ->
+    main.post { handleFocusChange(change) }
+  }
+
+  // ---- Public API（メインスレッドから呼ぶ）----
+
+  fun prepare(c: Config) {
+    check(state == State.IDLE || state == State.PREPARED) { "prepare: invalid state ${state.raw}" }
+    config = c
+    registerDeviceCallback()
+    state = State.PREPARED
+  }
+
+  /**
+   * 録音前の入力モニターを始める（§3.6）。ファイルは開かず、onLevel（frames = 0）だけ出す。
+   * 録音と同じく音声フォーカスを取る（録音側が音声セッションを持つ。§10.1）。前面サービスは始めない
+   * （「録音中」の通知を出さない。モニターは画面を開いている間だけ使う）。
+   */
+  fun startMonitor() {
+    check(state == State.PREPARED) { "startMonitor: invalid state ${state.raw}" }
+    if (!requestFocus()) throw IllegalStateException("audio focus denied")
+    val rec = try {
+      createRecord().also { r ->
+        r.startRecording()
+        if (r.recordingState != AudioRecord.RECORDSTATE_RECORDING) {
+          r.release()
+          throw IllegalStateException("AudioRecord failed to start (busy or permission?)")
+        }
+      }
+    } catch (e: Exception) {
+      // 始まらなかったのにフォーカスだけ持ち続けない
+      abandonFocus()
+      throw e
+    }
+    record = rec
+    router.paused = false
+    running = true
+    thread = Thread({ readLoop(rec) }, "podsnow-recorder").also { it.start() }
+    state = State.MONITORING
+  }
+
+  /** モニターを止める。マイクを離し、音声フォーカスも手放す（使っていないのに他アプリの音を止めたままにしない）。 */
+  fun stopMonitor() {
+    check(state == State.MONITORING) { "stopMonitor: invalid state ${state.raw}" }
+    stopInput()
+    abandonFocus()
+    state = State.PREPARED
+  }
+
+  fun start(path: String) {
+    check(state == State.PREPARED || state == State.INTERRUPTED || state == State.MONITORING) {
+      "start: invalid state ${state.raw}"
+    }
+    if (!requestFocus()) throw IllegalStateException("audio focus denied")
+    if (state == State.MONITORING) {
+      // 入力は動かしたまま、ヘッダを書き終えた writer を渡す。次に読んだバッファから書き込まれる。
+      // WavWriter の作成・前面サービスの開始に失敗したら例外のまま返し、モニターは続く（何も書かない）。
+      val w = WavWriter(path, config.sampleRate, config.channels, config.headerFlushIntervalMs)
+      try {
+        RecorderService.start(context)
+      } catch (e: Exception) {
+        w.finalizeFile()
+        throw e
+      }
+      router.paused = false
+      router.attach(w)
+      state = State.RECORDING
+      return
+    }
+    val rec = createRecord()
+    val w = WavWriter(path, config.sampleRate, config.channels, config.headerFlushIntervalMs)
+    router.paused = false
+    router.attach(w)
+    record = rec
+    running = true
+    RecorderService.start(context)
+    rec.startRecording()
+    if (rec.recordingState != AudioRecord.RECORDSTATE_RECORDING) {
+      running = false
+      rec.release(); record = null
+      router.detach()?.finalizeFile()
+      throw IllegalStateException("AudioRecord failed to start (busy or permission?)")
+    }
+    thread = Thread({ readLoop(rec) }, "podsnow-recorder").also { it.start() }
+    state = State.RECORDING
+  }
+
+  fun pause() {
+    check(state == State.RECORDING) { "pause: invalid state ${state.raw}" }
+    router.paused = true
+    router.writer?.flushHeader()
+    state = State.PAUSED
+  }
+
+  fun resume() {
+    check(state == State.PAUSED) { "resume: invalid state ${state.raw}" }
+    router.paused = false
+    state = State.RECORDING
+  }
+
+  fun stop(reason: String = "stop"): Map<String, Any?> {
+    check(state == State.RECORDING || state == State.PAUSED || state == State.INTERRUPTED) { "stop: invalid state ${state.raw}" }
+    state = State.STOPPING
+    val result = closeCurrent(reason)
+    RecorderService.stop(context)
+    state = State.PREPARED
+    return result ?: emptyMap()
+  }
+
+  fun release() {
+    if (state == State.RECORDING || state == State.PAUSED || state == State.INTERRUPTED) {
+      runCatching { stop("stop") }
+    }
+    if (state == State.MONITORING) stopInput()
+    abandonFocus()
+    unregisterDeviceCallback()
+    RecorderService.stop(context)
+    state = State.IDLE
+  }
+
+  val frames: Long get() = router.writer?.frames ?: 0
+
+  fun setInput(uid: String?) {
+    config = config.copy(inputUid = uid)
+    val rec = record ?: return
+    if (Build.VERSION.SDK_INT >= 23) {
+      rec.preferredDevice = findDevice(uid)
+    }
+  }
+
+  // ---- 読み出しループ（専用スレッド）----
+
+  /**
+   * モニターと録音で同じループを回す。書くかどうかは router が決める（モニター中は writer が無い）。
+   * モニターから録音へは、このループを止めずに writer を渡して切り替える（§3.6）。
+   */
+  private fun readLoop(rec: AudioRecord) {
+    Process.setThreadPriority(Process.THREAD_PRIORITY_URGENT_AUDIO)
+    val bufBytes = bufferSize()
+    val buf = ByteArray(bufBytes)
+    var lastLevel = 0L
+    var lastDisk = 0L
+    while (running) {
+      val n = rec.read(buf, 0, buf.size)
+      if (n < 0) {
+        emitError("read: $n", "read")
+        failFromLoop("error")
+        return
+      }
+      if (n == 0) continue
+      val outcome = try {
+        router.route(buf, n)
+      } catch (e: Exception) {
+        emitError("write: ${e.message}", "write")
+        failFromLoop("error")
+        return
+      }
+      if (outcome == CaptureRouter.Outcome.PAUSED) continue
+      val w = if (outcome == CaptureRouter.Outcome.WRITTEN) router.writer else null
+      val now = System.currentTimeMillis()
+      if (now - lastLevel >= config.levelIntervalMs) {
+        lastLevel = now
+        val (peak, rms) = levels(buf, n)
+        emit("onLevel", mapOf("peakDb" to db(peak), "rmsDb" to db(rms), "frames" to (w?.frames ?: 0L), "clipped" to (peak >= 0.99f)))
+      }
+      if (w != null && now - lastDisk >= 5000) {
+        lastDisk = now
+        val free = availableBytes(w.path)
+        if (free in 0 until config.diskLowThresholdBytes) {
+          emit("onDiskLow", mapOf("availableBytes" to free))
+          main.post { runCatching { stop("disk_low") } }
+          return
+        }
+      }
+    }
+  }
+
+  /** 読み出しループが続けられなくなった。そのときの状態で、モニターなら止め、録音なら Segment を確定する。 */
+  private fun failFromLoop(reason: String) {
+    main.post {
+      if (state == State.MONITORING) {
+        runCatching { stopMonitor() }
+      } else {
+        runCatching { stop(reason) }
+      }
+    }
+  }
+
+  /** 読み出しスレッドと AudioRecord を止めて解放する。writer には触らない。 */
+  private fun stopInput() {
+    running = false
+    thread?.let { t -> runCatching { t.join(2000) } }
+    thread = null
+    record?.let { r ->
+      runCatching { if (r.recordingState == AudioRecord.RECORDSTATE_RECORDING) r.stop() }
+      r.release()
+    }
+    record = null
+  }
+
+  private fun closeCurrent(reason: String): Map<String, Any?>? {
+    // 先にループを止めてから writer を外す。外したあとに append が来ても finalize 済みなら捨てられる。
+    stopInput()
+    val w = router.detach() ?: return null
+    try {
+      w.finalizeFile()
+    } catch (e: Exception) {
+      emitError("finalize: ${e.message}", "finalize")
+      runCatching { WavWriter.repairHeader(w.path) }
+    }
+    val result = mapOf(
+      "path" to w.path, "frames" to w.frames, "bytes" to w.fileBytes,
+      "sampleRate" to w.sampleRate, "channels" to w.channels,
+    )
+    emit("onSegmentClosed", result + ("reason" to reason))
+    return result
+  }
+
+  // ---- AudioRecord ----
+
+  @SuppressLint("MissingPermission")
+  private fun createRecord(): AudioRecord {
+    val channelMask = if (config.channels == 2) AudioFormat.CHANNEL_IN_STEREO else AudioFormat.CHANNEL_IN_MONO
+    val source = when (config.audioSource) {
+      "mic" -> MediaRecorder.AudioSource.MIC
+      "camcorder" -> MediaRecorder.AudioSource.CAMCORDER
+      "unprocessed" -> if (Build.VERSION.SDK_INT >= 24 &&
+        audioManager.getProperty(AudioManager.PROPERTY_SUPPORT_AUDIO_SOURCE_UNPROCESSED) == "true"
+      ) MediaRecorder.AudioSource.UNPROCESSED else MediaRecorder.AudioSource.VOICE_RECOGNITION
+      else -> MediaRecorder.AudioSource.VOICE_RECOGNITION
+    }
+    val format = AudioFormat.Builder()
+      .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+      .setSampleRate(config.sampleRate)
+      .setChannelMask(channelMask)
+      .build()
+    val rec = AudioRecord.Builder()
+      .setAudioSource(source)
+      .setAudioFormat(format)
+      .setBufferSizeInBytes(bufferSize() * 4)
+      .build()
+    if (rec.state != AudioRecord.STATE_INITIALIZED) {
+      rec.release()
+      throw IllegalStateException("AudioRecord init failed (${config.sampleRate} Hz, ${config.channels} ch)")
+    }
+    if (Build.VERSION.SDK_INT >= 23) {
+      config.inputUid?.let { uid -> rec.preferredDevice = findDevice(uid) }
+    }
+    return rec
+  }
+
+  private fun bufferSize(): Int {
+    val channelMask = if (config.channels == 2) AudioFormat.CHANNEL_IN_STEREO else AudioFormat.CHANNEL_IN_MONO
+    val min = AudioRecord.getMinBufferSize(config.sampleRate, channelMask, AudioFormat.ENCODING_PCM_16BIT)
+    val twentyMs = config.sampleRate * config.channels * 2 / 50
+    return max(min, twentyMs)
+  }
+
+  // ---- Audio Focus（割り込み）----
+
+  private fun requestFocus(): Boolean {
+    val result = if (Build.VERSION.SDK_INT >= 26) {
+      val attrs = android.media.AudioAttributes.Builder()
+        .setUsage(android.media.AudioAttributes.USAGE_MEDIA)
+        .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SPEECH)
+        .build()
+      val req = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
+        .setAudioAttributes(attrs)
+        .setOnAudioFocusChangeListener(focusListener, main)
+        .build()
+      focusRequest = req
+      audioManager.requestAudioFocus(req)
+    } else {
+      @Suppress("DEPRECATION")
+      audioManager.requestAudioFocus(focusListener, AudioManager.STREAM_MUSIC, AudioManager.AUDIOFOCUS_GAIN)
+    }
+    hasFocus = result == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+    return hasFocus
+  }
+
+  private fun abandonFocus() {
+    if (!hasFocus) return
+    if (Build.VERSION.SDK_INT >= 26) {
+      focusRequest?.let { audioManager.abandonAudioFocusRequest(it) }
+    } else {
+      @Suppress("DEPRECATION")
+      audioManager.abandonAudioFocus(focusListener)
+    }
+    hasFocus = false
+  }
+
+  private fun handleFocusChange(change: Int) {
+    when (change) {
+      AudioManager.AUDIOFOCUS_LOSS, AudioManager.AUDIOFOCUS_LOSS_TRANSIENT, AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> {
+        // 着信・他アプリの排他再生など。Segment を確定してから通知する。
+        if (state == State.RECORDING || state == State.PAUSED) {
+          state = State.STOPPING
+          closeCurrent("interruption")
+          state = State.INTERRUPTED
+        }
+        // モニターは書いていないので、止めて prepared に戻すだけ（再開するかは JS が決める）。
+        if (state == State.MONITORING) {
+          stopInput()
+          state = State.PREPARED
+        }
+        if (change == AudioManager.AUDIOFOCUS_LOSS) hasFocus = false
+        emit("onInterruption", mapOf("type" to "began", "shouldResume" to false, "reason" to "focus_$change"))
+      }
+      AudioManager.AUDIOFOCUS_GAIN -> {
+        emit("onInterruption", mapOf("type" to "ended", "shouldResume" to true))
+      }
+    }
+  }
+
+  // ---- 入力デバイス ----
+
+  private fun registerDeviceCallback() {
+    if (deviceCallback != null || Build.VERSION.SDK_INT < 23) return
+    val cb = object : AudioDeviceCallback() {
+      override fun onAudioDevicesAdded(added: Array<out AudioDeviceInfo>) {
+        if (added.any { it.isSource }) emit("onRouteChange", mapOf("reason" to "new_device", "currentInput" to currentInput()))
+      }
+      override fun onAudioDevicesRemoved(removed: Array<out AudioDeviceInfo>) {
+        if (removed.any { it.isSource }) emit("onRouteChange", mapOf("reason" to "old_device_unavailable", "currentInput" to currentInput()))
+      }
+    }
+    audioManager.registerAudioDeviceCallback(cb, main)
+    deviceCallback = cb
+  }
+
+  private fun unregisterDeviceCallback() {
+    deviceCallback?.let { audioManager.unregisterAudioDeviceCallback(it) }
+    deviceCallback = null
+  }
+
+  private fun findDevice(uid: String?): AudioDeviceInfo? {
+    if (uid == null || Build.VERSION.SDK_INT < 23) return null
+    return audioManager.getDevices(AudioManager.GET_DEVICES_INPUTS).firstOrNull { it.id.toString() == uid }
+  }
+
+  /**
+   * 選べる入力の一覧。GET_DEVICES_INPUTS は通話（TYPE_TELEPHONY）、エコー参照、リモートサブミックス、
+   * FM チューナーなどアプリから録れない内部デバイスも返し、名前はどれも端末名になる。さらに内蔵マイクは
+   * 位置（下・背面など）ごとに複数返る。どれを使うかは録音ソースで端末が決めるので、内蔵は 1 件にまとめる。
+   */
+  fun availableInputs(): List<Map<String, Any?>> {
+    if (Build.VERSION.SDK_INT < 23) return emptyList()
+    var builtin = false
+    return audioManager.getDevices(AudioManager.GET_DEVICES_INPUTS)
+      .filter { it.type in SELECTABLE_INPUT_TYPES }
+      .filter {
+        if (it.type != AudioDeviceInfo.TYPE_BUILTIN_MIC) return@filter true
+        val first = !builtin
+        builtin = true
+        first
+      }
+      .map { describe(it) }
+  }
+
+  fun currentInput(): Map<String, Any?>? {
+    val rec = record
+    if (Build.VERSION.SDK_INT >= 24 && rec != null) {
+      rec.routedDevice?.let { return describe(it) }
+    }
+    return findDevice(config.inputUid)?.let { describe(it) }
+      ?: availableInputs().firstOrNull { it["type"] == "builtin" }
+  }
+
+  fun isSpeakerOutput(): Boolean {
+    if (Build.VERSION.SDK_INT < 23) return true
+    val outs = audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
+    val external = outs.any {
+      it.type == AudioDeviceInfo.TYPE_WIRED_HEADPHONES || it.type == AudioDeviceInfo.TYPE_WIRED_HEADSET ||
+        it.type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP || it.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO ||
+        it.type == AudioDeviceInfo.TYPE_USB_HEADSET || it.type == AudioDeviceInfo.TYPE_USB_DEVICE
+    }
+    return !external
+  }
+
+  private fun describe(d: AudioDeviceInfo): Map<String, Any?> {
+    val (type, low) = when (d.type) {
+      AudioDeviceInfo.TYPE_BUILTIN_MIC -> "builtin" to false
+      AudioDeviceInfo.TYPE_WIRED_HEADSET -> "wired" to false
+      AudioDeviceInfo.TYPE_BLUETOOTH_SCO -> "bluetooth" to true
+      // LE Audio も録音時は双方向（通話用）の帯域になる【仮説】
+      AudioDeviceInfo.TYPE_BLE_HEADSET -> "bluetooth" to true
+      AudioDeviceInfo.TYPE_USB_DEVICE, AudioDeviceInfo.TYPE_USB_HEADSET, AudioDeviceInfo.TYPE_USB_ACCESSORY -> "usb" to false
+      else -> "other" to false
+    }
+    return mapOf("uid" to d.id.toString(), "name" to d.productName.toString(), "type" to type, "lowQuality" to low)
+  }
+
+  // ---- Helpers ----
+
+  private fun emitError(message: String, code: String) {
+    emit("onError", mapOf("message" to message, "code" to code))
+  }
+
+  private fun levels(buf: ByteArray, len: Int): Pair<Float, Float> {
+    var peak = 0f
+    var sum = 0.0
+    val n = len / 2
+    var i = 0
+    while (i + 1 < len) {
+      val s = ((buf[i + 1].toInt() shl 8) or (buf[i].toInt() and 0xff)).toShort().toInt()
+      val v = abs(s) / 32768f
+      if (v > peak) peak = v
+      sum += (v * v).toDouble()
+      i += 2
+    }
+    return peak to (if (n > 0) sqrt(sum / n).toFloat() else 0f)
+  }
+
+  private fun db(linear: Float): Double = if (linear <= 0f) -120.0 else max(-120.0, 20 * log10(linear.toDouble()))
+
+  companion object {
+    /** 録音の入力として選べる種類。これ以外（通話・内部ルーティング用）は一覧に出さない。 */
+    private val SELECTABLE_INPUT_TYPES = setOf(
+      AudioDeviceInfo.TYPE_BUILTIN_MIC,
+      AudioDeviceInfo.TYPE_WIRED_HEADSET,
+      AudioDeviceInfo.TYPE_BLUETOOTH_SCO,
+      AudioDeviceInfo.TYPE_BLE_HEADSET,
+      AudioDeviceInfo.TYPE_USB_DEVICE,
+      AudioDeviceInfo.TYPE_USB_HEADSET,
+      AudioDeviceInfo.TYPE_USB_ACCESSORY,
+    )
+
+    fun availableBytes(path: String): Long = try {
+      val dir = File(path).parentFile ?: File(path)
+      StatFs(dir.absolutePath).availableBytes
+    } catch (e: Exception) {
+      -1
+    }
+  }
+}

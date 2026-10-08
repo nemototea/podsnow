@@ -1,0 +1,9 @@
+{
+  "platforms": ["apple", "android"],
+  "apple": {
+    "modules": ["PodsnowAudioEngineModule"]
+  },
+  "android": {
+    "modules": ["dev.nemotea.podsnow.audioengine.PodsnowAudioEngineModule"]
+  }
+}

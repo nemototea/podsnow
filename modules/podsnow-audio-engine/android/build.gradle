@@ -1,0 +1,27 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'dev.nemotea.podsnow.audioengine'
+version = '0.1.0'
+
+android {
+  namespace "dev.nemotea.podsnow.audioengine"
+  defaultConfig {
+    versionCode 1
+    versionName "0.1.0"
+  }
+  lintOptions {
+    abortOnError false
+  }
+}
+
+dependencies {
+  // 書き出しのサンプルレート変換（48 → 44.1 kHz）に SonicAudioProcessor を使う（AUDIO_DESIGN.md §8.1.1）。
+  // expo-audio が同じ Media3 を使っているので、版はそろえる（node_modules/expo-audio/android/build.gradle）
+  implementation 'androidx.media3:media3-common:1.9.0'
+  // DSP（Mixer / Loudness）の JVM 単体テスト。org.json は Android の実装が JVM に無いので本物を入れる
+  testImplementation 'junit:junit:4.13.2'
+  testImplementation 'org.json:json:20240303'
+}

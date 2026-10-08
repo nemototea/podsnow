@@ -1,0 +1,164 @@
+{
+  "expo": {
+    "name": "PodsNow",
+    "slug": "podsnow",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "podsnow",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": true,
+    "ios": {
+      "bundleIdentifier": "dev.nemotea.podsnow",
+      "deploymentTarget": "18.0",
+      "supportsTablet": false,
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "PodsNow uses the microphone to record your podcast.",
+        "UIBackgroundModes": ["audio"]
+      },
+      "buildNumber": "1"
+    },
+    "android": {
+      "package": "dev.nemotea.podsnow",
+      "adaptiveIcon": {
+        "backgroundColor": "#121212",
+        "foregroundImage": "./assets/images/android-icon-foreground.png",
+        "backgroundImage": "./assets/images/android-icon-background.png",
+        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_MICROPHONE",
+        "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK",
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.MODIFY_AUDIO_SETTINGS"
+      ],
+      "versionCode": 1
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#121212",
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 240,
+          "android": {
+            "imageWidth": 176
+          }
+        }
+      ],
+      [
+        "expo-localization",
+        {
+          "supportedLocales": ["ja", "en"],
+          "supportsRTL": false
+        }
+      ],
+      [
+        "expo-font",
+        {
+          "ios": {
+            "fonts": [
+              "./assets/fonts/Figtree-Regular.ttf",
+              "./assets/fonts/Figtree-Medium.ttf",
+              "./assets/fonts/Figtree-SemiBold.ttf",
+              "./assets/fonts/Figtree-Bold.ttf",
+              "./assets/fonts/Figtree-ExtraBold.ttf",
+              "./assets/fonts/Figtree-Black.ttf",
+              "./assets/fonts/NotoSansJP-Regular.ttf",
+              "./assets/fonts/NotoSansJP-Medium.ttf",
+              "./assets/fonts/NotoSansJP-SemiBold.ttf",
+              "./assets/fonts/NotoSansJP-Bold.ttf"
+            ]
+          },
+          "android": {
+            "fonts": [
+              {
+                "fontFamily": "Figtree",
+                "fontDefinitions": [
+                  {
+                    "path": "./assets/fonts/Figtree-Regular.ttf",
+                    "weight": 400
+                  },
+                  {
+                    "path": "./assets/fonts/Figtree-Medium.ttf",
+                    "weight": 500
+                  },
+                  {
+                    "path": "./assets/fonts/Figtree-SemiBold.ttf",
+                    "weight": 600
+                  },
+                  {
+                    "path": "./assets/fonts/Figtree-Bold.ttf",
+                    "weight": 700
+                  },
+                  {
+                    "path": "./assets/fonts/Figtree-ExtraBold.ttf",
+                    "weight": 800
+                  },
+                  {
+                    "path": "./assets/fonts/Figtree-Black.ttf",
+                    "weight": 900
+                  }
+                ]
+              },
+              {
+                "fontFamily": "Noto Sans JP",
+                "fontDefinitions": [
+                  {
+                    "path": "./assets/fonts/NotoSansJP-Regular.ttf",
+                    "weight": 400
+                  },
+                  {
+                    "path": "./assets/fonts/NotoSansJP-Medium.ttf",
+                    "weight": 500
+                  },
+                  {
+                    "path": "./assets/fonts/NotoSansJP-SemiBold.ttf",
+                    "weight": 600
+                  },
+                  {
+                    "path": "./assets/fonts/NotoSansJP-Bold.ttf",
+                    "weight": 700
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "PodsNow uses your photos so you can choose show artwork.",
+          "cameraPermission": false
+        }
+      ],
+      "expo-image",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "minSdkVersion": 29
+          },
+          "ios": {
+            "enableSceneSupport": true
+          }
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "splash": {
+      "backgroundColor": "#121212"
+    },
+    "locales": {
+      "ja": "./locales/ja.json",
+      "en": "./locales/en.json"
+    }
+  }
+}

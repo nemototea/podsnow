@@ -1,0 +1,946 @@
+<title>PodsNow Studio 仮デザイン</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800;900&family=Noto+Sans+JP:wght@400;500;700;900&display=swap">
+<style>
+/* Layout: 横に並ぶ端末 5 台 + 色の取り方の例。地は無彩色、色はアートワークから取った色とアクセント 1 色だけ。ダーク単一 */
+:root {
+  color-scheme: dark;
+  --page: #0a0a0a;
+  --bg: #121212;
+  --s1: #1a1a1a;
+  --s2: #242424;
+  --s3: #2e2e2e;
+  --line: #2f2f2f;
+  --fg: #ffffff;
+  --sub: #b3b3b3;
+  --dim: #828282;
+  --accent: #ffe34d;
+  --accent-ink: #000000;
+  --rec: #ff4d4d;
+  /* 以下はアートワークから JS で計算して上書きする */
+  --show-a: #8a3f2a;
+  --show-b: #5b2a2c;
+  --np-a: #6e2f2a;
+  --np-b: #3a1d1f;
+  --np-c: #1a1212;
+  --topic: #b5483b;
+  --mini: #5a2a3c;
+  --hero-a: #3b2350;
+  --font: "Figtree", "Noto Sans JP", system-ui, sans-serif;
+  --r-pill: 999px;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { background: var(--page); color: var(--fg); }
+body { font-family: var(--font); padding-inline: 16px; padding-block: 40px 80px; -webkit-font-smoothing: antialiased; }
+button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; padding: 0; text-align: inherit; }
+button:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; border-radius: 6px; }
+svg { display: block; }
+.phone *, .phone *::before, .phone *::after { transition: background-color .45s ease, color .2s ease; }
+
+/* ---------- page chrome ---------- */
+.intro { max-width: 1240px; margin: 0 auto 36px; display: grid; gap: 18px; }
+.intro h1 { font-size: clamp(28px, 4vw, 44px); font-weight: 900; letter-spacing: -0.02em; margin: 0; text-wrap: balance; }
+.intro p { color: var(--sub); margin: 0; max-width: 70ch; line-height: 1.75; font-size: 15px; }
+.controls { display: grid; gap: 12px; }
+.pick { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; color: var(--sub); font-size: 13px; }
+.pick > span { width: 6.5em; flex: none; }
+.pick button { display: flex; align-items: center; gap: 8px; padding: 5px 12px 5px 5px; border-radius: var(--r-pill); background: var(--s2); font-size: 13px; font-weight: 600; }
+.pick button[aria-pressed="true"] { background: var(--fg); color: #000; }
+.pick i { width: 20px; height: 20px; border-radius: 50%; display: block; flex: none; }
+.pick .art { width: 22px; height: 22px; border-radius: 3px; padding: 0; }
+.pick .art span { display: none; }
+
+.gallery { max-width: 1240px; margin: 0 auto; display: flex; flex-wrap: wrap; gap: 56px 40px; justify-content: center; }
+figure { margin: 0; width: min(360px, 100%); display: grid; gap: 18px; align-content: start; }
+figcaption { display: grid; gap: 6px; }
+figcaption b { font-size: 17px; font-weight: 800; }
+figcaption span { color: var(--sub); font-size: 13.5px; line-height: 1.7; }
+
+/* ---------- phone ---------- */
+.phone { position: relative; width: 100%; height: 760px; border-radius: 46px; border: 9px solid #000; box-shadow: 0 0 0 1.5px #2a2a2a, 0 30px 60px -20px rgba(0,0,0,.8); overflow: hidden; background: var(--bg); display: flex; flex-direction: column; }
+.status { height: 40px; flex: none; display: flex; align-items: center; justify-content: space-between; padding: 6px 26px 0; font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; position: relative; z-index: 3; }
+.status::after { content: ""; position: absolute; left: 50%; top: 9px; width: 96px; height: 26px; margin-left: -48px; background: #000; border-radius: 20px; }
+.scroll { flex: 1; overflow-y: auto; overflow-x: hidden; scrollbar-width: none; position: relative; }
+.scroll::-webkit-scrollbar { display: none; }
+
+.dock { flex: none; position: relative; z-index: 2; background: linear-gradient(to bottom, rgba(18,18,18,0) 0, rgba(18,18,18,.92) 30px, #121212 60px); padding-top: 18px; }
+.mini { margin: 0 8px; border-radius: 8px; background: var(--mini); display: flex; align-items: center; gap: 10px; padding: 8px; position: relative; overflow: hidden; }
+.mini .art { width: 38px; height: 38px; }
+.mini .t { flex: 1; min-width: 0; }
+.mini .t b { display: block; font-size: 13px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mini .t small { font-size: 12px; color: rgba(255,255,255,.72); }
+.mini .bar { position: absolute; left: 8px; right: 8px; bottom: 0; height: 2px; background: rgba(255,255,255,.25); border-radius: 2px; }
+.mini .bar i { display: block; height: 100%; width: 38%; background: #fff; border-radius: 2px; }
+.tabs { display: grid; grid-template-columns: repeat(4, 1fr); padding: 10px 0 22px; }
+.tabs button { display: grid; justify-items: center; gap: 4px; font-size: 10.5px; color: var(--sub); font-weight: 500; }
+.tabs button.on { color: var(--fg); font-weight: 700; }
+
+/* ---------- artwork（ユーザーの画像の代わり。番組ごとに違う） ---------- */
+.art { border-radius: 4px; flex: none; position: relative; overflow: hidden; display: flex; align-items: flex-end; padding: 6px; color: #fff; font-weight: 900; line-height: 1.08; letter-spacing: -0.02em; background: #333; }
+.art::before, .art::after { content: ""; position: absolute; pointer-events: none; }
+.art span { position: relative; }
+.art.small span { font-size: 9px; font-weight: 800; }
+.art-yoru { background: linear-gradient(165deg, #f08a45 0%, #c4492f 42%, #5b1f4a 100%); }
+.art-yoru::before { right: 14%; top: 12%; width: 26%; aspect-ratio: 1; border-radius: 50%; background: #ffe7b8; box-shadow: 0 0 0 6px rgba(255,231,184,.15); }
+.art-coffee { background: #1d8c84; }
+.art-coffee { align-items: flex-start; }
+.art-coffee::before { right: -22%; bottom: -34%; width: 85%; aspect-ratio: 1; border-radius: 50%; background: #f1e4c8; }
+.art-coffee::after { right: 10%; bottom: 8%; width: 30%; aspect-ratio: 1; border-radius: 50%; background: #6b4226; }
+.art-coffee span { color: #f1e4c8; }
+.art-cinema { background: repeating-linear-gradient(90deg, #b8123c 0 12%, #8e0d2d 12% 24%); }
+.art-cinema::before { inset: 18% 18% auto auto; width: 34%; aspect-ratio: 1; border: 3px solid #ffd9a0; border-radius: 50%; }
+.art-cinema span { color: #ffd9a0; }
+.art-ima { background: radial-gradient(circle, rgba(243,239,230,.32) 1.1px, transparent 1.6px) 0 0 / 7px 7px, #1f5fd6; }
+.art-ima::before { right: 12%; top: 12%; width: 18%; aspect-ratio: 1; border-radius: 18%; background: #ffe34d; }
+/* 素材タイル（番組に関係なく固定） */
+.art.mat { background: var(--s3); color: var(--sub); align-items: center; justify-content: center; padding: 0; }
+
+.h2 { font-size: 22px; font-weight: 800; letter-spacing: -0.01em; margin: 0; }
+.row { display: flex; align-items: center; gap: 12px; }
+.chip { padding: 7px 14px; border-radius: var(--r-pill); background: var(--s2); font-size: 13px; font-weight: 600; white-space: nowrap; }
+.chip.on { background: var(--accent); color: var(--accent-ink); }
+.ib { width: 32px; height: 32px; display: grid; place-items: center; color: var(--sub); border-radius: 50%; }
+.ib:hover { color: var(--fg); }
+.pill { font-size: 10.5px; font-weight: 700; padding: 2px 7px; border-radius: 4px; background: var(--s3); color: var(--sub); letter-spacing: .02em; }
+.pill.ok { background: #2a2a2a; color: var(--fg); }
+.pill.rec { background: var(--rec); color: #fff; }
+.bigplay { width: 56px; height: 56px; border-radius: 50%; background: var(--accent); color: var(--accent-ink); display: grid; place-items: center; flex: none; transition: transform .12s; }
+.bigplay:hover { transform: scale(1.05); }
+.bigplay:active { transform: scale(.96); }
+.avatar { width: 32px; height: 32px; border-radius: 50%; background: #535353; color: #fff; font-weight: 800; display: grid; place-items: center; font-size: 14px; flex: none; }
+
+/* ---------- 1. Home ---------- */
+.home { padding: 6px 16px 16px; display: grid; gap: 22px; }
+.wmrow { display: flex; align-items: center; justify-content: space-between; }
+.wm { display: flex; align-items: center; gap: 8px; font-size: 24px; font-weight: 900; letter-spacing: -0.045em; line-height: 1; }
+.wm i { font-style: normal; color: var(--accent); }
+
+/* ---------- logo marks ---------- */
+.lg-icon { position: relative; flex: none; border-radius: 22.5%; overflow: hidden; display: grid; place-items: center; box-shadow: 0 0 0 1px rgba(255,255,255,.08); }
+.lg-words { font-weight: 900; letter-spacing: -0.05em; line-height: .9; display: grid; }
+.lg-words i { font-style: normal; }
+.lg-ring { border-radius: 50%; background: var(--accent); display: grid; place-items: center; flex: none; }
+.lg-pod { background: #000; border-radius: 999px; }
+.logo-sec { max-width: 1240px; margin: 72px auto 0; display: grid; gap: 20px; }
+.logo-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; }
+.lcard { background: var(--s1); border-radius: 12px; padding: 18px; display: grid; gap: 16px; border: 2px solid transparent; text-align: left; }
+.lcard[aria-pressed="true"] { border-color: var(--accent); }
+.lcard .ttl { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.lcard .ttl b { font-size: 16px; font-weight: 800; }
+.lcard .ttl small { color: var(--sub); font-size: 12px; }
+.lcard .icons { display: flex; align-items: flex-end; gap: 14px; }
+.lcard .walls { display: flex; gap: 8px; }
+.lcard .wall { border-radius: 10px; padding: 10px; display: flex; gap: 8px; align-items: center; }
+.lcard .wall.dark { background: #2b2d3a; }
+.lcard .wall.light { background: #d9dde6; }
+.lcard .wmline { background: #121212; border-radius: 8px; padding: 14px; display: flex; align-items: center; }
+.lcard p { margin: 0; color: var(--sub); font-size: 13px; line-height: 1.7; }
+.lcard p.warn { color: #ffb340; }
+.quick { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.quick button { display: flex; align-items: center; gap: 8px; background: var(--s2); border-radius: 4px; overflow: hidden; height: 52px; font-size: 12.5px; font-weight: 700; line-height: 1.3; padding-right: 8px; }
+.quick button:hover { background: var(--s3); }
+.quick .art { width: 52px; height: 52px; border-radius: 0; }
+.quick .live { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); margin-left: auto; flex: none; }
+.shows { display: flex; gap: 14px; overflow-x: auto; scrollbar-width: none; margin: 0 -16px; padding: 0 16px; }
+.shows::-webkit-scrollbar { display: none; }
+.showcard { flex: none; width: 128px; display: grid; gap: 8px; }
+.showcard .art { width: 128px; height: 128px; font-size: 15px; padding: 9px; box-shadow: 0 8px 20px rgba(0,0,0,.45); }
+.showcard b { font-size: 13px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.showcard small { font-size: 12px; color: var(--sub); margin-top: -6px; }
+.showcard[aria-pressed="true"] b { color: var(--accent); }
+.ep { display: flex; gap: 12px; align-items: center; }
+.ep .art { width: 52px; height: 52px; }
+.ep .t { flex: 1; min-width: 0; display: grid; gap: 3px; }
+.ep .t b { font-size: 14.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ep .t span { font-size: 12.5px; color: var(--sub); display: flex; gap: 6px; align-items: center; }
+.list { display: grid; gap: 14px; }
+
+/* ---------- 2. Show ---------- */
+.showhead { padding: 50px 16px 16px; margin-top: -40px; background: linear-gradient(to bottom, var(--show-a) 0, var(--show-b) 48%, var(--bg) 100%); display: grid; gap: 14px; }
+.showhead .art { width: 196px; height: 196px; margin: 0 auto; font-size: 28px; padding: 14px; box-shadow: 0 16px 40px rgba(0,0,0,.55); }
+.showhead h3 { font-size: 26px; font-weight: 900; margin: 6px 0 0; letter-spacing: -0.02em; line-height: 1.2; }
+.showhead .by { font-size: 13px; color: rgba(255,255,255,.75); display: flex; gap: 8px; align-items: center; }
+.showhead .by .avatar { width: 22px; height: 22px; font-size: 10px; }
+.showhead .by b { color: var(--fg); }
+.actions { display: flex; align-items: center; gap: 6px; }
+.actions .ib { color: rgba(255,255,255,.75); }
+.actions .grow { flex: 1; }
+.eplist { padding: 0 16px 16px; display: grid; }
+.epi { display: grid; gap: 6px; padding: 14px 0; border-bottom: 1px solid var(--line); }
+.epi .d { font-size: 12px; color: var(--sub); display: flex; gap: 8px; align-items: center; }
+.epi b { font-size: 15px; font-weight: 700; }
+.epi p { margin: 0; font-size: 12.5px; color: var(--sub); line-height: 1.55; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.epi .ctl { display: flex; align-items: center; gap: 4px; }
+.epi .ctl .grow { flex: 1; }
+.epi .ctl .dur { font-size: 12px; color: var(--sub); margin-right: 8px; }
+.minicircle { width: 32px; height: 32px; border-radius: 50%; background: var(--fg); color: #000; display: grid; place-items: center; }
+
+/* ---------- 3. Recording ---------- */
+.np { flex: 1; display: flex; flex-direction: column; padding: 4px 20px 26px; background: linear-gradient(to bottom, var(--np-a) 0%, var(--np-b) 55%, var(--np-c) 100%); gap: 16px; overflow: hidden; }
+.np .head { display: flex; align-items: center; justify-content: space-between; }
+.np .head div { text-align: center; display: grid; gap: 2px; }
+.np .head small { font-size: 10.5px; letter-spacing: .1em; color: rgba(255,255,255,.75); font-weight: 700; }
+.np .head b { font-size: 13px; font-weight: 700; }
+.np .ib { color: #fff; }
+.wavebox { position: relative; border-radius: 8px; background: rgba(0,0,0,.28); height: 200px; overflow: hidden; }
+.wavebox canvas { width: 100%; height: 100%; display: block; }
+.wavebox .chap { position: absolute; left: 12px; top: 10px; font-size: 11px; font-weight: 700; color: rgba(255,255,255,.85); display: flex; gap: 6px; align-items: center; white-space: nowrap; }
+.np .title { display: flex; align-items: center; gap: 10px; }
+.np .title div { flex: 1; min-width: 0; }
+.np .title b { display: block; font-size: 21px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.np .title span { color: rgba(255,255,255,.72); font-size: 14px; }
+.clock { display: flex; align-items: baseline; justify-content: space-between; font-variant-numeric: tabular-nums; }
+.clock b { font-size: 40px; font-weight: 800; letter-spacing: -0.02em; }
+.clock span { font-size: 12px; color: rgba(255,255,255,.72); display: flex; align-items: center; gap: 6px; }
+.meter { display: grid; grid-template-columns: repeat(24, 1fr); gap: 3px; height: 6px; }
+.meter i { border-radius: 2px; background: rgba(255,255,255,.18); }
+.meter i.on { background: #fff; }
+.meter i.on.hot { background: #ffb340; }
+.topic { background: var(--topic); border-radius: 10px; padding: 14px 14px 12px; display: grid; gap: 8px; }
+.topic small { font-size: 11px; font-weight: 800; letter-spacing: .06em; color: rgba(255,255,255,.85); display: flex; justify-content: space-between; }
+.topic b { font-size: 19px; font-weight: 800; line-height: 1.35; }
+.topic .next { font-size: 12.5px; color: rgba(255,255,255,.8); display: flex; align-items: center; gap: 6px; }
+.pads { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; }
+.pads button { flex: none; padding: 8px 12px; border-radius: var(--r-pill); background: rgba(255,255,255,.12); font-size: 12.5px; font-weight: 700; display: flex; gap: 6px; align-items: center; }
+.pads button:hover { background: rgba(255,255,255,.2); }
+.pads button.hit { background: #fff; color: #000; }
+.transport { display: flex; align-items: center; justify-content: space-between; margin-top: auto; }
+.recbtn { width: 72px; height: 72px; border-radius: 50%; background: #fff; display: grid; place-items: center; transition: transform .12s; }
+.recbtn:active { transform: scale(.95); }
+.recbtn i { width: 26px; height: 26px; border-radius: 6px; background: var(--rec); display: block; transition: border-radius .2s, width .2s, height .2s; }
+.recbtn.idle i { border-radius: 50%; width: 30px; height: 30px; }
+.transport .ib { width: 44px; height: 44px; color: #fff; }
+
+/* ---------- 4. Edit ---------- */
+.ephead { padding: 0 16px 12px; display: grid; gap: 12px; }
+.ephead .row b { font-size: 16px; font-weight: 800; flex: 1; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.seg { display: flex; gap: 8px; }
+.timeline { margin: 0 16px; background: var(--s1); border-radius: 8px; padding: 12px 0 14px; position: relative; overflow: hidden; }
+.ruler { display: flex; justify-content: space-between; padding: 0 12px; font-size: 10px; color: var(--dim); font-variant-numeric: tabular-nums; margin-bottom: 8px; }
+.lane { position: relative; height: 72px; margin: 0 12px; display: flex; gap: 3px; align-items: center; }
+.chunk { height: 100%; border-radius: 4px; background: var(--s3); display: flex; align-items: center; gap: 1.5px; padding: 0 4px; position: relative; outline: 2px solid transparent; outline-offset: -2px; }
+.chunk i { flex: 1; background: #8c8c8c; border-radius: 1px; min-width: 1px; }
+.chunk:hover { background: #3a3a3a; }
+.chunk.sel { background: var(--sel-bg, #3d3a22); outline-color: var(--accent); }
+.chunk.sel i { background: var(--accent); }
+.chunk.sel::before, .chunk.sel::after { content: ""; position: absolute; top: 50%; width: 6px; height: 28px; margin-top: -14px; border-radius: 3px; background: var(--accent); }
+.chunk.sel::before { left: -3px; } .chunk.sel::after { right: -3px; }
+.chunk.gone { display: none; }
+.playhead { position: absolute; top: 28px; bottom: 6px; width: 2px; background: #fff; left: 46%; border-radius: 2px; }
+.playhead::before { content: ""; position: absolute; top: -4px; left: -4px; width: 10px; height: 10px; border-radius: 50%; background: #fff; }
+.layers { margin: 10px 12px 0; display: grid; gap: 6px; }
+.layer { height: 24px; border-radius: 4px; font-size: 10.5px; font-weight: 700; display: flex; align-items: center; padding: 0 8px; background: #4a4a4a; color: #fff; }
+.layer.insert { background: #254146; }
+.layer.music { background: #3e3757; }
+.chapters { margin: 14px 16px 0; display: grid; gap: 2px; }
+.chapters h4 { margin: 0 0 6px; font-size: 15px; font-weight: 800; }
+.chap { display: flex; align-items: center; gap: 12px; padding: 8px 0; font-size: 13.5px; }
+.chap span { color: var(--sub); font-variant-numeric: tabular-nums; font-size: 12px; width: 40px; flex: none; }
+.chap b { font-weight: 600; flex: 1; }
+.sheet { flex: none; background: var(--s2); border-radius: 14px 14px 0 0; padding: 12px 16px 24px; display: grid; gap: 12px; position: relative; z-index: 2; }
+.sheet .grab { width: 36px; height: 4px; border-radius: 2px; background: #555; margin: 0 auto; }
+.sheet .info { font-size: 12.5px; color: var(--sub); font-variant-numeric: tabular-nums; }
+.sheet .info b { color: var(--fg); }
+.sheet .btns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.btn { height: 44px; border-radius: var(--r-pill); font-weight: 800; font-size: 14px; display: flex; align-items: center; justify-content: center; gap: 8px; }
+.btn.pri { background: var(--accent); color: var(--accent-ink); }
+.btn.sec { border: 1px solid #7a7a7a; }
+.btn.sec:hover { border-color: #fff; }
+.btn.wht { background: #fff; color: #000; }
+.toast { position: absolute; left: 12px; right: 12px; bottom: 150px; background: #fff; color: #000; border-radius: 8px; padding: 12px 14px; font-size: 13.5px; font-weight: 600; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 10px 30px rgba(0,0,0,.5); z-index: 5; }
+.toast button { font-weight: 800; color: #000; text-decoration: underline; text-underline-offset: 3px; }
+
+/* ---------- 5. Export ---------- */
+.ex { padding: 0 16px 20px; display: grid; gap: 20px; }
+.exhero { display: flex; gap: 14px; align-items: center; }
+.exhero .art { width: 84px; height: 84px; }
+.exhero div { min-width: 0; display: grid; gap: 4px; }
+.exhero b { font-size: 18px; font-weight: 800; line-height: 1.3; }
+.exhero span { color: var(--sub); font-size: 12.5px; }
+.checks { display: grid; gap: 10px; background: var(--s1); border-radius: 8px; padding: 14px; }
+.check { display: flex; align-items: center; gap: 10px; font-size: 13.5px; }
+.check .dot { width: 20px; height: 20px; border-radius: 50%; background: var(--accent); color: var(--accent-ink); display: grid; place-items: center; flex: none; }
+.check .val { color: var(--sub); margin-left: auto; font-size: 12px; font-variant-numeric: tabular-nums; }
+.fields { display: grid; }
+.fields h4 { margin: 0 0 4px; font-size: 15px; font-weight: 800; }
+.field { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.field div { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.field small { font-size: 11.5px; color: var(--sub); }
+.field b { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.copybtn { padding: 6px 12px; border-radius: var(--r-pill); border: 1px solid #7a7a7a; font-size: 12px; font-weight: 700; flex: none; }
+.copybtn.done { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+
+/* ---------- 色の取り方 ---------- */
+.derive { max-width: 1240px; margin: 72px auto 0; display: grid; gap: 20px; }
+.derive-head { display: grid; gap: 8px; }
+.derive-head h2 { margin: 0; font-size: 22px; font-weight: 900; }
+.derive-head p { margin: 0; color: var(--sub); font-size: 14px; line-height: 1.75; max-width: 72ch; }
+.dgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); gap: 12px; }
+.dcard { background: var(--s1); border-radius: 10px; padding: 14px; display: grid; gap: 12px; }
+.dcard .top { display: flex; gap: 12px; align-items: center; }
+.dcard .top .art { width: 56px; height: 56px; }
+.dcard .top .art span { display: none; }
+.dcard .top b { font-size: 14px; font-weight: 800; display: block; }
+.dcard .top small { color: var(--sub); font-size: 12px; font-variant-numeric: tabular-nums; }
+.dcard .top em { font-style: normal; display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; vertical-align: -1px; }
+.strip { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.strip div { border-radius: 6px; padding: 10px 8px; display: grid; gap: 2px; min-height: 72px; align-content: end; }
+.strip b { font-size: 11.5px; font-weight: 800; color: #fff; }
+.strip small { font-size: 10.5px; color: rgba(255,255,255,.8); font-variant-numeric: tabular-nums; }
+.strip .acc { display: inline-block; width: 14px; height: 14px; border-radius: 50%; background: var(--accent); margin-bottom: auto; }
+
+.notes { max-width: 1240px; margin: 48px auto 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 28px; }
+.notes section { display: grid; gap: 8px; align-content: start; }
+.notes h2 { font-size: 15px; font-weight: 800; margin: 0; }
+.notes ul { margin: 0; padding-left: 1.1em; color: var(--sub); font-size: 13.5px; line-height: 1.75; }
+
+@media (prefers-reduced-motion: reduce) { *, .phone * { transition: none !important; } }
+</style>
+
+<header class="intro">
+  <h1>PodsNow Studio 仮デザイン</h1>
+  <p>大手音楽ストリーミングのクリエイター向けアプリに、本格的な収録機能が付いたら、という想定で描き直した見本です。テーマはダーク 1 つ。アプリの地は黒とグレーだけにして、色は番組のアートワークから自動で取ります。番組を切り替えると、5 つの画面のグラデーションとカードの色がすべて変わります。PodsNow の色は、主操作に使う黄 1 色とロゴだけです。ロゴとアプリアイコンも、今のリソグラフの方向から、この画面に合う形に描き直した 3 案を下に置きました。</p>
+  <div class="controls">
+    <div class="pick" role="group" aria-label="番組" id="showPick"><span>番組:</span></div>
+    <div class="pick" role="group" aria-label="黄の色味" id="accentPick">
+      <span>黄の色味:</span>
+      <button data-accent="#ffe34d" aria-pressed="true"><i style="background:#ffe34d"></i>レモン #FFE34D（決定）</button>
+      <button data-accent="#ffd43b" aria-pressed="false"><i style="background:#ffd43b"></i>サンフラワー #FFD43B</button>
+      <button data-accent="#ffc21a" aria-pressed="false"><i style="background:#ffc21a"></i>マリーゴールド #FFC21A</button>
+    </div>
+    <div class="pick" role="group" aria-label="ロゴ案" id="logoPick">
+      <span>ロゴ案:</span>
+      <button data-logo="a" aria-pressed="true">A 文字だけ（決定）</button>
+      <button data-logo="b" aria-pressed="false">B 丸いマーク</button>
+      <button data-logo="c" aria-pressed="false">C 黄の地</button>
+    </div>
+  </div>
+</header>
+
+<main class="gallery">
+
+  <!-- 1. Home -->
+  <figure>
+    <div class="phone">
+      <div class="status"><span>9:41</span><span>100%</span></div>
+      <div class="scroll">
+        <div class="home">
+          <div class="wmrow"><span class="wm" id="wm"></span><div class="avatar">N</div></div>
+          <div class="row" style="gap:8px;overflow:hidden"><span class="chip on">すべて</span><span class="chip">下書き</span><span class="chip">書き出し済み</span></div>
+          <div class="quick">
+            <button><div class="art small" data-art="ep" data-ep="0"></div><span data-b="ep0short"></span><span class="live"></span></button>
+            <button><div class="art small mat" data-ic="note"></div>オープニング・エンディング</button>
+            <button><div class="art small" data-art="ep" data-ep="1"></div><span data-b="ep1short"></span></button>
+            <button><div class="art small mat" data-ic="note"></div>BGM・ジングル</button>
+            <button><div class="art small" data-art="ep" data-ep="2"></div><span data-b="ep2short"></span></button>
+            <button><div class="art small mat" data-ic="list"></div>トークテーマのひな形</button>
+          </div>
+          <div style="display:grid;gap:12px">
+            <h2 class="h2">あなたの番組</h2>
+            <div class="shows" id="showRow"></div>
+          </div>
+          <div style="display:grid;gap:12px">
+            <h2 class="h2">最近のエピソード</h2>
+            <div class="list">
+              <div class="ep"><div class="art small" data-art="ep" data-ep="0"></div><div class="t"><b data-b="ep0"></b><span><span class="pill">下書き</span><span data-b="ep0dur"></span></span></div><button class="ib" data-ic="more"></button></div>
+              <div class="ep"><div class="art small" data-art="ep" data-ep="1"></div><div class="t"><b data-b="ep1"></b><span><span class="pill ok">書き出し済み</span><span data-b="ep1dur"></span></span></div><button class="ib" data-ic="more"></button></div>
+              <div class="ep"><div class="art small" data-art="ep" data-ep="2"></div><div class="t"><b data-b="ep2"></b><span><span class="pill ok">書き出し済み</span><span data-b="ep2dur"></span></span></div><button class="ib" data-ic="more"></button></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="dock">
+        <div class="mini">
+          <div class="art small" data-art="ep" data-ep="0"></div>
+          <div class="t"><b data-b="ep0"></b><small>下書き · <span data-b="ep0dur"></span> · 録音を続ける</small></div>
+          <button class="ib" style="color:#fff" data-ic="mic"></button>
+          <button class="ib" style="color:#fff" data-ic="play"></button>
+          <div class="bar"><i></i></div>
+        </div>
+        <nav class="tabs">
+          <button class="on"><span data-ic="home"></span>ホーム</button>
+          <button><span data-ic="search"></span>検索</button>
+          <button><span data-ic="library"></span>素材</button>
+          <button><span data-ic="plus"></span>作成</button>
+        </nav>
+      </div>
+    </div>
+    <figcaption><b>1. ホーム</b><span>地は黒とグレーだけです。「あなたの番組」のカードを押すと番組が切り替わり、画面下の下書きバーもその番組の色になります。色が付くのは、アートワークとそこから取った色、アクセントだけです。</span></figcaption>
+  </figure>
+
+  <!-- 2. Show -->
+  <figure>
+    <div class="phone">
+      <div class="status" style="background:var(--show-a)"><span>9:41</span><span>100%</span></div>
+      <div class="scroll">
+        <div class="showhead">
+          <div class="row" style="justify-content:space-between"><button class="ib" style="color:#fff" data-ic="back"></button><button class="ib" style="color:#fff" data-ic="search"></button></div>
+          <div class="art" data-art="cover"></div>
+          <h3 data-b="name"></h3>
+          <div class="by"><div class="avatar">N</div><b>nemoto</b> · <span data-b="count"></span></div>
+          <div class="actions">
+            <button class="ib" data-ic="pen"></button>
+            <button class="ib" data-ic="share"></button>
+            <button class="ib" data-ic="more"></button>
+            <span class="grow"></span>
+            <button class="bigplay" aria-label="新しいエピソードを録音" data-ic="mic-lg"></button>
+          </div>
+        </div>
+        <div class="eplist">
+          <div class="row" style="gap:8px;padding-bottom:4px"><span class="chip on">エピソード</span><span class="chip">素材</span><span class="chip">ひな形</span></div>
+          <div class="epi">
+            <div class="d"><span class="pill">下書き</span>今日</div>
+            <b data-b="ep0"></b>
+            <p data-b="ep0desc"></p>
+            <div class="ctl"><button class="ib" data-ic="pen"></button><button class="ib" data-ic="more"></button><span class="grow"></span><span class="dur" data-b="ep0dur"></span><button class="minicircle" data-ic="mic"></button></div>
+          </div>
+          <div class="epi">
+            <div class="d" data-b="ep1date"></div>
+            <b data-b="ep1"></b>
+            <p data-b="ep1desc"></p>
+            <div class="ctl"><button class="ib" data-ic="share"></button><button class="ib" data-ic="more"></button><span class="grow"></span><span class="dur">書き出し済み</span><button class="minicircle" data-ic="play"></button></div>
+          </div>
+          <div class="epi">
+            <div class="d" data-b="ep2date"></div>
+            <b data-b="ep2"></b>
+            <p data-b="ep2desc"></p>
+            <div class="ctl"><button class="ib" data-ic="share"></button><button class="ib" data-ic="more"></button><span class="grow"></span><span class="dur">書き出し済み</span><button class="minicircle" data-ic="play"></button></div>
+          </div>
+        </div>
+      </div>
+      <div class="dock">
+        <nav class="tabs">
+          <button class="on"><span data-ic="home"></span>ホーム</button>
+          <button><span data-ic="search"></span>検索</button>
+          <button><span data-ic="library"></span>素材</button>
+          <button><span data-ic="plus"></span>作成</button>
+        </nav>
+      </div>
+    </div>
+    <figcaption><b>2. 番組</b><span>上部のグラデーションはアートワークの代表色から作ります。録音ボタンだけは番組に関係なくアクセント色で、どの番組でも同じ場所・同じ色です。</span></figcaption>
+  </figure>
+
+  <!-- 3. Recording -->
+  <figure>
+    <div class="phone">
+      <div class="status" style="background:var(--np-a)"><span>9:41</span><span>100%</span></div>
+      <div class="np">
+        <div class="head">
+          <button class="ib" data-ic="down"></button>
+          <div><small id="recState">REC中</small><b data-b="name"></b></div>
+          <button class="ib" data-ic="more"></button>
+        </div>
+        <div class="wavebox">
+          <canvas id="live"></canvas>
+          <div class="chap"><span class="pill rec">REC</span>チャプター 2 · <span data-b="chap"></span></div>
+        </div>
+        <div class="title">
+          <div><b data-b="ep0"></b><span>テイク 4 · 末尾に追加</span></div>
+          <button class="ib" data-ic="flag"></button>
+        </div>
+        <div style="display:grid;gap:8px">
+          <div class="clock"><b id="clock">12:48</b><span><span data-ic="mic-sm"></span>内蔵マイク · -18 dB</span></div>
+          <div class="meter" id="meter"></div>
+        </div>
+        <div class="topic">
+          <small><span>トークテーマ</span><span>2 / 5</span></small>
+          <b data-b="topic"></b>
+          <div class="next"><span data-ic="next-sm"></span><span>次へ送るとチャプターになります: <span data-b="next"></span></span></div>
+        </div>
+        <div class="pads" id="pads">
+          <button><span data-ic="note"></span>ジングル A</button>
+          <button><span data-ic="note"></span>拍手</button>
+          <button><span data-ic="note"></span>コーナー明け</button>
+          <button><span data-ic="note"></span>笑い</button>
+        </div>
+        <div class="transport">
+          <button class="ib" data-ic="undo" aria-label="取り消す"></button>
+          <button class="ib" data-ic="pause" id="pauseBtn" aria-label="一時停止"></button>
+          <button class="recbtn" id="recBtn" aria-label="録音を止める"><i></i></button>
+          <button class="ib" data-ic="next" aria-label="次のトークテーマへ"></button>
+          <button class="ib" data-ic="list" aria-label="トークテーマ一覧"></button>
+        </div>
+      </div>
+    </div>
+    <figcaption><b>3. 収録</b><span>背景とトークテーマのカードが番組の色になります。歌詞カードと同じで、カードはグラデーションより少し明るい同じ色相です。録音ボタンは白、録音中の印は赤で、どちらも番組によって変わりません。</span></figcaption>
+  </figure>
+
+  <!-- 4. Edit -->
+  <figure>
+    <div class="phone">
+      <div class="status"><span>9:41</span><span>100%</span></div>
+      <div class="scroll" style="padding-bottom:16px">
+        <div class="ephead">
+          <div class="row"><button class="ib" data-ic="back"></button><b data-b="ep0"></b><button class="ib" data-ic="undo"></button><button class="ib" data-ic="redo"></button></div>
+          <div class="seg"><span class="chip on">収録</span><span class="chip">書き出し</span></div>
+        </div>
+        <div class="timeline">
+          <div class="ruler"><span>04:00</span><span>04:30</span><span>05:00</span><span>05:30</span></div>
+          <div class="lane" id="lane"></div>
+          <div class="playhead"></div>
+          <div class="layers">
+            <div class="layer insert" style="width:34%">Opening</div>
+            <div class="layer music" style="width:62%;margin-left:30%">BGM · -18 dB</div>
+          </div>
+        </div>
+        <div class="chapters">
+          <h4>チャプター</h4>
+          <div class="chap"><span>00:00</span><b>オープニング</b><button class="ib" data-ic="more"></button></div>
+          <div class="chap"><span>01:12</span><b data-b="chap"></b><button class="ib" data-ic="more"></button></div>
+          <div class="chap"><span>06:40</span><b data-b="next"></b><button class="ib" data-ic="more"></button></div>
+        </div>
+      </div>
+      <div class="toast" id="toast" hidden><span id="toastText">4.2 秒を削除しました</span><button id="undoBtn">取り消す</button></div>
+      <div class="sheet">
+        <div class="grab"></div>
+        <div class="info" id="selInfo">選択中 <b>04:31.2 – 04:35.4</b> · 4.2 秒</div>
+        <div class="btns">
+          <button class="btn sec" id="delBtn"><span data-ic="trash"></span>削除</button>
+          <button class="btn wht"><span data-ic="mic-sm"></span>ここから録る</button>
+        </div>
+      </div>
+    </div>
+    <figcaption><b>4. 編集（収録タブの中）</b><span>作業の画面は番組の色を使わず、無彩色とアクセントだけにしています。細かい波形を見る場所に色が混ざると、選択中の塊が見分けにくくなるためです。塊を押すと選択が移り、削除すると取り消しの通知が出ます。</span></figcaption>
+  </figure>
+
+  <!-- 5. Export -->
+  <figure>
+    <div class="phone">
+      <div class="status"><span>9:41</span><span>100%</span></div>
+      <div class="scroll">
+        <div class="ephead">
+          <div class="row"><button class="ib" data-ic="back"></button><b data-b="ep1"></b><button class="ib" data-ic="more"></button></div>
+          <div class="seg"><span class="chip">収録</span><span class="chip on">書き出し</span></div>
+        </div>
+        <div class="ex">
+          <div class="exhero">
+            <div class="art small" data-art="ep" data-ep="1"></div>
+            <div><b data-b="ep1"></b><span><span data-b="name"></span> · <span data-b="ep1dur"></span></span></div>
+          </div>
+          <div class="checks">
+            <div class="check"><span class="dot" data-ic="check"></span>音量をそろえる<span class="val">-16 LUFS</span></div>
+            <div class="check"><span class="dot" data-ic="check"></span>話す間は BGM を下げる<span class="val">-12 dB</span></div>
+            <div class="check"><span class="dot" data-ic="check"></span>アートワークとタイトルを埋め込む</div>
+          </div>
+          <div style="display:grid;gap:10px">
+            <div class="row" style="gap:8px"><span class="chip on">M4A</span><span class="chip">WAV</span><span style="margin-left:auto;font-size:12px;color:var(--sub)">約 28 MB</span></div>
+            <button class="btn pri" style="height:50px;font-size:15px"><span data-ic="share"></span>書き出して共有</button>
+          </div>
+          <div class="fields">
+            <h4>配信サービスに貼る情報</h4>
+            <div class="field"><div><small>タイトル</small><b data-b="ep1"></b></div><button class="copybtn">コピー</button></div>
+            <div class="field"><div><small>概要</small><b data-b="ep1desc"></b></div><button class="copybtn">コピー</button></div>
+            <div class="field"><div><small>その他の詳細</small><b data-b="ep1no"></b></div></div>
+            <div class="field"><div><small>収録日</small><b data-b="ep1day"></b></div><button class="copybtn">コピー</button></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <figcaption><b>5. 書き出し</b><span>ここも無彩色とアクセントだけです。番組らしさはアートワークの画像で十分に出るので、画面全体を塗る必要はありません。</span></figcaption>
+  </figure>
+</main>
+
+<section class="logo-sec">
+  <div class="derive-head">
+    <h2>ロゴとアプリアイコン</h2>
+    <p>今のロゴ（Dela Gothic One、ピンクの版ズレ、網点の青い地）はリソグラフの方向に合わせて作ったものなので、この画面には合いません。黒の地と黄 1 色に合わせて描き直した 3 案です。A 案に決まりました（B / C は比較のために残しています）。どれも書体は画面と同じ太いサンセリフで、版ズレや網点は使いません。カードを押すと、ホーム上部のロゴも切り替わります。</p>
+  </div>
+  <div class="logo-grid" id="logoGrid"></div>
+</section>
+
+<section class="derive">
+  <div class="derive-head">
+    <h2>アートワークから色を取る</h2>
+    <p>番組ごとにアートワークの代表色を 1 つ取り、明るさと鮮やかさを決まった範囲に収めてから使います。どんなアートワークでも白い文字が読めるように、コントラスト比が 4.5 を下回るときは届くまで暗くします。アクセント色と録音の赤は計算の対象にせず、常に同じ色です。下の比は白い文字との比、円はアクセントの見え方です。</p>
+  </div>
+  <div class="dgrid" id="dgrid"></div>
+</section>
+
+<div class="notes">
+  <section>
+    <h2>色のルール</h2>
+    <ul>
+      <li>テーマはダーク 1 つ。地は黒とグレー 3 段だけ</li>
+      <li>色が付くのは、アートワークから取った色とアクセント 1 色だけ</li>
+      <li>番組の色を使うのは番組画面・収録画面・下書きバーだけ。編集と書き出しは無彩色</li>
+      <li>アクセントは主操作・選択中・完了だけ。録音中の印は赤で固定</li>
+    </ul>
+  </section>
+  <section>
+    <h2>PodsNow らしさの置き場所</h2>
+    <ul>
+      <li>アクセントの黄。ロゴもアプリアイコンも同じ黄を使う</li>
+      <li>ロゴはホームの上部だけ。ほかの画面には出さない</li>
+      <li>画面の地や部品には PodsNow の色を塗らない。番組の色とぶつかるため</li>
+    </ul>
+  </section>
+  <section>
+    <h2>決まったこと / まだ決めていないこと</h2>
+    <ul>
+      
+      <li>決定: テーマはダーク 1 つ、アクセントはレモン #FFE34D、ロゴは A 案</li>
+      <li>未定: アートワークがまだ無い番組の色（既定の 1 色を決める）</li>
+      <li>未定: 代表色の取り方の実装（画像から色を取るライブラリの選定は未調査）</li>
+    </ul>
+  </section>
+</div>
+
+<script>
+(function () {
+  /* ---------- icons ---------- */
+  var P = {
+    home: '<path d="M12 3 3 10.5V21h6.5v-6h5v6H21V10.5z" fill="currentColor"/>',
+    search: '<circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="m16 16 4.5 4.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+    library: '<path d="M5 4v16M10 4v16M15 4.5l4.5 15.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/>',
+    plus: '<path d="M12 4v16M4 12h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+    more: '<circle cx="5" cy="12" r="1.8" fill="currentColor"/><circle cx="12" cy="12" r="1.8" fill="currentColor"/><circle cx="19" cy="12" r="1.8" fill="currentColor"/>',
+    mic: '<rect x="9" y="3" width="6" height="11" rx="3" fill="currentColor"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>',
+    play: '<path d="M8 5v14l11-7z" fill="currentColor"/>',
+    pause: '<rect x="6" y="5" width="4" height="14" rx="1" fill="currentColor"/><rect x="14" y="5" width="4" height="14" rx="1" fill="currentColor"/>',
+    back: '<path d="M15 5 8 12l7 7" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>',
+    down: '<path d="m5 9 7 7 7-7" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>',
+    pen: '<path d="M4 20h4L19 9l-4-4L4 16z" stroke="currentColor" stroke-width="2" fill="none" stroke-linejoin="round"/>',
+    share: '<path d="M12 3v12M7 8l5-5 5 5M5 14v6h14v-6" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>',
+    undo: '<path d="M9 14 4 9l5-5" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 9h10a6 6 0 0 1 0 12h-3" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>',
+    redo: '<path d="m15 14 5-5-5-5" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M20 9H10a6 6 0 0 0 0 12h3" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>',
+    next: '<path d="M6 5v14l10-7z" fill="currentColor"/><rect x="17" y="5" width="2.5" height="14" rx="1" fill="currentColor"/>',
+    list: '<path d="M4 6h16M4 12h16M4 18h10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+    flag: '<path d="M6 21V4M6 4h11l-2 4 2 4H6" stroke="currentColor" stroke-width="2" fill="none" stroke-linejoin="round" stroke-linecap="round"/>',
+    note: '<path d="M9 18V6l10-2v12" stroke="currentColor" stroke-width="2" fill="none"/><circle cx="7" cy="18" r="2.5" fill="currentColor"/><circle cx="17" cy="16" r="2.5" fill="currentColor"/>',
+    trash: '<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" stroke="currentColor" stroke-width="2" fill="none" stroke-linejoin="round"/>',
+    check: '<path d="m5 12 4.5 4.5L19 7" stroke="currentColor" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>'
+  };
+  var SIZES = { 'mic-lg': ['mic', 26], 'mic-sm': ['mic', 15], 'next-sm': ['next', 13], note: ['note', 15], check: ['check', 12], trash: ['trash', 18], share: ['share', 20] };
+  document.querySelectorAll('[data-ic]').forEach(function (el) {
+    var k = el.getAttribute('data-ic'), size = 22, name = k;
+    if (SIZES[k]) { name = SIZES[k][0]; size = SIZES[k][1]; }
+    if (el.closest('.tabs')) size = 24;
+    if (el.classList.contains('minicircle')) size = 16;
+    if (el.classList.contains('mat')) size = 20;
+    el.insertAdjacentHTML('afterbegin', '<svg width="' + size + '" height="' + size + '" viewBox="0 0 24 24" aria-hidden="true">' + P[name] + '</svg>');
+  });
+
+  /* ---------- shows（色は本来アートワーク画像から取る。ここでは代表色を手で与える） ---------- */
+  var SHOWS = [
+    { key: 'yoru', name: '夜更けのラジオ', cover: '夜更けの<br>ラジオ', count: '43 エピソード', dominant: '#c4492f',
+      eps: [
+        { no: 43, t: '寝る前に読む本', d: '眠れない夜に開く本の話。トークテーマ 2/5 まで収録済み。', dur: '18:04' },
+        { no: 42, t: '雨の日の話', d: '梅雨が明けたのに雨ばかり。雨の日にしかしないことを 3 つ話しました。', dur: '29:51', date: '9月27日', day: '2026年9月27日' },
+        { no: 41, t: '古い手帳を見つけた', d: '引っ越しの片付けで出てきた 2014 年の手帳。当時の予定を読み上げます。', dur: '24:17', date: '9月20日' }],
+      chap: '本の選び方', topic: '最近、寝る前に読んで眠れなくなった本', next: '紙と電子のどちら派か' },
+    { key: 'coffee', name: '朝のコーヒー会議', cover: '朝の<br>コーヒー<br>会議', count: '128 エピソード', dominant: '#1d8c84',
+      eps: [
+        { no: 129, t: '浅煎りに戻れない', d: '深煎り派だった 2 人が浅煎りに転んだ経緯。いま収録中。', dur: '09:12' },
+        { no: 128, t: 'ハンドドリップの道具', d: 'ケトル、ドリッパー、スケール。最初に買うならどれか。', dur: '21:40', date: '10月1日', day: '2026年10月1日' },
+        { no: 127, t: '近所の喫茶店ベスト 3', d: 'リスナーのおすすめを全部回ってきました。', dur: '26:05', date: '9月24日' }],
+      chap: 'きっかけの一杯', topic: '浅煎りを初めておいしいと思った日', next: '家で淹れるときの失敗' },
+    { key: 'cinema', name: '週末シネマ部', cover: '週末<br>シネマ部', count: '67 エピソード', dominant: '#b8123c',
+      eps: [
+        { no: 68, t: '字幕と吹替', d: '同じ映画を字幕と吹替で 2 回観て比べた話。', dur: '14:30' },
+        { no: 67, t: '秋に観たい 5 本', d: '涼しくなってきたので、夜長に向く映画を 5 本選びました。', dur: '33:12', date: '9月30日', day: '2026年9月30日' },
+        { no: 66, t: '映画館の座席はどこがいい', d: '前方派と後方派で 30 分揉めました。', dur: '28:48', date: '9月23日' }],
+      chap: '吹替で観た理由', topic: '吹替のほうが良かった映画', next: '字幕の文字数の制約' },
+    { key: 'ima', name: 'いまここ雑談', cover: 'いまここ<br>雑談', count: '12 エピソード', dominant: '#1f5fd6',
+      eps: [
+        { no: 13, t: '散歩のルール', d: '毎朝の散歩で決めているルールを紹介。', dur: '06:51' },
+        { no: 12, t: '最近買ってよかったもの', d: '今月の買い物から 3 つ。', dur: '19:22', date: '10月3日', day: '2026年10月3日' },
+        { no: 11, t: '夏休みの宿題', d: '大人になってからの夏休みの宿題を考えた回。', dur: '22:10', date: '9月26日' }],
+      chap: '歩く時間', topic: '雨の日でも散歩に行くか', next: 'イヤホンをするかしないか' }
+  ];
+
+  /* ---------- color math ---------- */
+  function hexToRgb(h) { h = h.replace('#', ''); return [0, 2, 4].map(function (i) { return parseInt(h.substr(i, 2), 16) / 255; }); }
+  function rgbToHsl(r, g, b) {
+    var mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2, h = 0, s = 0, d = mx - mn;
+    if (d) { s = l > .5 ? d / (2 - mx - mn) : d / (mx + mn);
+      h = mx === r ? ((g - b) / d + (g < b ? 6 : 0)) : mx === g ? ((b - r) / d + 2) : ((r - g) / d + 4); h /= 6; }
+    return [h, s, l];
+  }
+  function hslToRgb(h, s, l) {
+    function f(n) { var k = (n + h * 12) % 12, a = s * Math.min(l, 1 - l); return l - a * Math.max(-1, Math.min(k - 3, 9 - k, 1)); }
+    return [f(0), f(8), f(4)];
+  }
+  function toHex(rgb) { return '#' + rgb.map(function (v) { return ('0' + Math.round(v * 255).toString(16)).slice(-2); }).join(''); }
+  function lum(rgb) { var c = rgb.map(function (v) { return v <= .03928 ? v / 12.92 : Math.pow((v + .055) / 1.055, 2.4); }); return .2126 * c[0] + .7152 * c[1] + .0722 * c[2]; }
+  function contrast(a, b) { var x = lum(a), y = lum(b); return (Math.max(x, y) + .05) / (Math.min(x, y) + .05); }
+  var WHITE = [1, 1, 1];
+  // 指定の明るさで作り、白文字が min を下回るなら暗くする
+  // 8 bit に丸めた色（書き出す #RRGGBB と同じ値）で測る。
+  function round8(rgb) { return rgb.map(function (v) { return Math.round(v * 255) / 255; }); }
+  // 白い文字が min 以上、かつ半透明の白（alpha）を重ねた補助文字も 4.5:1 以上になるまで暗くする
+  // （確認点 6-D。ユーザー判断 2026-10-06）。
+  function readable(rgb, min, alpha) {
+    var r = round8(rgb);
+    if (contrast(r, WHITE) < min) return false;
+    if (alpha) {
+      var m = round8(r.map(function (v) { return alpha + v * (1 - alpha); }));
+      if (contrast(m, r) < 4.5) return false;
+    }
+    return true;
+  }
+  function tone(h, s, l, min, alpha) {
+    var rgb = hslToRgb(h, s, l);
+    while (!readable(rgb, min, alpha) && l > .05) { l -= .01; rgb = hslToRgb(h, s, l); }
+    return rgb;
+  }
+  function derive(hex) {
+    var hsl = rgbToHsl.apply(null, hexToRgb(hex)), h = hsl[0], s = Math.min(hsl[1], .72);
+    return {
+      header: tone(h, s * .9, .36, 4.5, .75),
+      headerB: tone(h, s * .7, .2, 7),
+      npA: tone(h, s * .85, .32, 4.5, .72),
+      npB: tone(h, s * .6, .16, 7),
+      npC: tone(h, s * .35, .08, 10),
+      topic: tone(h, s, .44, 4.5, .8),
+      mini: tone(h, s * .75, .27, 4.5, .72),
+      hero: tone(h, s * .6, .26, 4.5)
+    };
+  }
+
+  var root = document.documentElement, cur = 0;
+  function setVars(d) {
+    root.style.setProperty('--show-a', toHex(d.header));
+    root.style.setProperty('--show-b', toHex(d.headerB));
+    root.style.setProperty('--np-a', toHex(d.npA));
+    root.style.setProperty('--np-b', toHex(d.npB));
+    root.style.setProperty('--np-c', toHex(d.npC));
+    root.style.setProperty('--topic', toHex(d.topic));
+    root.style.setProperty('--mini', toHex(d.mini));
+    root.style.setProperty('--hero-a', toHex(d.hero));
+  }
+  function artClass(el, show) {
+    el.className = el.className.replace(/\bart-\w+/g, '').trim() + ' art-' + show.key;
+  }
+  function applyShow(i) {
+    cur = i; var s = SHOWS[i];
+    setVars(derive(s.dominant));
+    var b = { name: s.name, count: s.count, chap: s.chap, topic: s.topic, next: s.next };
+    s.eps.forEach(function (e, k) {
+      // 一覧・見出し・ミニプレーヤーには話数を出さず題だけ（Issue #211）
+      b['ep' + k] = e.t;
+      b['ep' + k + 'short'] = e.t;
+      b['ep' + k + 'desc'] = e.d;
+      b['ep' + k + 'dur'] = e.dur;
+      b['ep' + k + 'date'] = (e.date || '') + (e.date ? ' · ' + e.dur.split(':')[0] + '分' : '');
+      b['ep' + k + 'no'] = 'フル · #' + e.no + ' · シーズン 1';
+      b['ep' + k + 'day'] = e.day || '';
+    });
+    document.querySelectorAll('[data-b]').forEach(function (el) { var v = b[el.getAttribute('data-b')]; if (v != null) el.textContent = v; });
+    document.querySelectorAll('[data-art]').forEach(function (el) {
+      artClass(el, s);
+      // 画像が無いときのエピソードのアートワークも番組の表紙（話数は描かない。Issue #211）
+      el.innerHTML = '<span>' + s.cover + '</span>';
+    });
+    document.querySelectorAll('[data-show]').forEach(function (el) { el.setAttribute('aria-pressed', +el.getAttribute('data-show') === i ? 'true' : 'false'); });
+    try { localStorage.setItem('pn-show', String(i)); } catch (e) {}
+  }
+
+  // 番組の切り替え（ページ上部と、ホームのカード）
+  var pick = document.getElementById('showPick'), row = document.getElementById('showRow'), grid = document.getElementById('dgrid');
+  SHOWS.forEach(function (s, i) {
+    var a = document.createElement('button');
+    a.setAttribute('data-show', i);
+    a.innerHTML = '<span class="art art-' + s.key + '"><span></span></span>' + s.name;
+    a.addEventListener('click', function () { applyShow(i); });
+    pick.appendChild(a);
+    var c = document.createElement('button');
+    c.className = 'showcard'; c.setAttribute('data-show', i);
+    c.innerHTML = '<div class="art art-' + s.key + '"><span>' + s.cover + '</span></div><b>' + s.name + '</b><small>' + s.count + '</small>';
+    c.addEventListener('click', function () { applyShow(i); });
+    row.appendChild(c);
+  });
+
+  function renderDerive() {
+    var acc = hexToRgb(getComputedStyle(root).getPropertyValue('--accent').trim());
+    grid.innerHTML = '';
+    SHOWS.forEach(function (s) {
+      var d = derive(s.dominant);
+      function cell(label, rgb) {
+        return '<div style="background:' + toHex(rgb) + '"><span class="acc" title="アクセント"></span><b>' + label + '</b><small>白文字 ' + contrast(rgb, WHITE).toFixed(1) + '</small><small>アクセント ' + contrast(rgb, acc).toFixed(1) + '</small></div>';
+      }
+      var card = document.createElement('div');
+      card.className = 'dcard';
+      card.innerHTML = '<div class="top"><div class="art art-' + s.key + '"><span></span></div><div><b>' + s.name + '</b><small><em style="background:' + s.dominant + '"></em>代表色 ' + s.dominant.toUpperCase() + '</small></div></div>' +
+        '<div class="strip">' + cell('番組の上部', d.header) + cell('収録画面', d.npA) + cell('トークテーマ', d.topic) + '</div>';
+      grid.appendChild(card);
+    });
+  }
+
+  // accent
+  var accs = document.querySelectorAll('#accentPick button');
+  function setAccent(btn) {
+    root.style.setProperty('--accent', btn.dataset.accent);
+    accs.forEach(function (b) { b.setAttribute('aria-pressed', b === btn ? 'true' : 'false'); });
+    renderDerive();
+    try { localStorage.setItem('pn-accent5', btn.dataset.accent); } catch (e) {}
+  }
+  accs.forEach(function (b) { b.addEventListener('click', function () { setAccent(b); }); });
+
+  var startShow = 0, startAcc = accs[0];
+  try {
+    var ss = parseInt(localStorage.getItem('pn-show'), 10); if (ss >= 0 && ss < SHOWS.length) startShow = ss;
+    var sa = localStorage.getItem('pn-accent5'); accs.forEach(function (b) { if (b.dataset.accent === sa) startAcc = b; });
+  } catch (e) {}
+  applyShow(startShow);
+
+  /* ---------- recording ---------- */
+  var seed = 7; function rnd() { seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147483646; }
+  var meter = document.getElementById('meter');
+  for (var i = 0; i < 24; i++) meter.appendChild(document.createElement('i'));
+  var bars = meter.children;
+  function setMeter(level) { for (var i = 0; i < 24; i++) bars[i].className = i < level ? (i >= 19 ? 'on hot' : 'on') : ''; }
+  setMeter(15);
+
+  var cv = document.getElementById('live'), ctx = cv.getContext('2d');
+  var hist = []; for (var j = 0; j < 90; j++) hist.push(0.15 + rnd() * 0.75);
+  var recording = true, paused = false, secs = 768;
+  var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function draw() {
+    var w = cv.clientWidth, h = cv.clientHeight, dpr = window.devicePixelRatio || 1;
+    if (!w) return;
+    if (cv.width !== w * dpr) { cv.width = w * dpr; cv.height = h * dpr; }
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+    var n = hist.length, step = w / n, bw = Math.max(1.5, step * 0.55);
+    for (var k = 0; k < n; k++) {
+      var a = hist[k], bh = Math.max(2, a * (h - 56));
+      ctx.fillStyle = k > n - 4 ? '#ffffff' : 'rgba(255,255,255,' + (0.35 + 0.5 * k / n) + ')';
+      var x = k * step + (step - bw) / 2;
+      ctx.beginPath();
+      if (ctx.roundRect) ctx.roundRect(x, h / 2 + 10 - bh / 2, bw, bh, bw / 2); else ctx.rect(x, h / 2 + 10 - bh / 2, bw, bh);
+      ctx.fill();
+    }
+  }
+  draw();
+  window.addEventListener('resize', draw);
+  var clock = document.getElementById('clock');
+  function fmt(s) { return Math.floor(s / 60) + ':' + ('0' + (s % 60)).slice(-2); }
+  if (!reduce) {
+    setInterval(function () {
+      if (!recording || paused) return;
+      var v = rnd() < 0.12 ? 0.04 + rnd() * 0.06 : 0.2 + rnd() * 0.75;
+      hist.push(v); hist.shift(); draw();
+      setMeter(Math.round(v * 22));
+    }, 110);
+  }
+  setInterval(function () { if (recording && !paused) { secs++; clock.textContent = fmt(secs); } }, 1000);
+
+  var recBtn = document.getElementById('recBtn'), pauseBtn = document.getElementById('pauseBtn'), st = document.getElementById('recState');
+  recBtn.addEventListener('click', function () {
+    recording = !recording; paused = false;
+    recBtn.classList.toggle('idle', !recording);
+    recBtn.setAttribute('aria-label', recording ? '録音を止める' : '録音する');
+    st.textContent = recording ? 'REC中' : '停止中 · テイク確定';
+    if (!recording) setMeter(0);
+  });
+  pauseBtn.addEventListener('click', function () {
+    if (!recording) return;
+    paused = !paused;
+    st.textContent = paused ? '一時停止中' : 'REC中';
+  });
+  document.querySelectorAll('#pads button').forEach(function (b) {
+    b.addEventListener('click', function () { b.classList.add('hit'); setTimeout(function () { b.classList.remove('hit'); }, 300); });
+  });
+
+  /* ---------- timeline ---------- */
+  var lane = document.getElementById('lane');
+  var widths = [14, 9, 18, 7, 16, 11, 13, 12];
+  var times = ['04:02.0 – 04:09.8', '04:10.3 – 04:15.1', '04:16.0 – 04:27.9', '04:31.2 – 04:35.4', '04:36.1 – 04:46.0', '04:46.8 – 04:53.2', '04:54.0 – 05:02.7', '05:03.5 – 05:10.9'];
+  var durs = ['7.8', '4.8', '11.9', '4.2', '9.9', '6.4', '8.7', '7.4'];
+  var chunks = [];
+  widths.forEach(function (wd, idx) {
+    var c = document.createElement('button');
+    c.className = 'chunk' + (idx === 3 ? ' sel' : '');
+    c.style.flex = wd + ' 1 0';
+    c.setAttribute('aria-label', '塊 ' + times[idx]);
+    var cnt = Math.round(wd * 1.3);
+    for (var q = 0; q < cnt; q++) { var b = document.createElement('i'); b.style.height = (18 + rnd() * 78) + '%'; c.appendChild(b); }
+    c.addEventListener('click', function () { select(idx); });
+    lane.appendChild(c); chunks.push(c);
+  });
+  var selIdx = 3, lastDeleted = null;
+  var info = document.getElementById('selInfo'), toast = document.getElementById('toast'), toastText = document.getElementById('toastText'), tmr;
+  function select(i) {
+    selIdx = i;
+    chunks.forEach(function (c, k) { c.classList.toggle('sel', k === i); });
+    info.innerHTML = '選択中 <b>' + times[i] + '</b> · ' + durs[i] + ' 秒';
+  }
+  document.getElementById('delBtn').addEventListener('click', function () {
+    if (selIdx == null) return;
+    lastDeleted = selIdx;
+    chunks[selIdx].classList.add('gone');
+    toastText.textContent = durs[selIdx] + ' 秒を削除しました';
+    toast.hidden = false;
+    var nxt = chunks.findIndex(function (c, k) { return k > selIdx && !c.classList.contains('gone'); });
+    if (nxt < 0) nxt = chunks.findIndex(function (c) { return !c.classList.contains('gone'); });
+    if (nxt >= 0) select(nxt); else { selIdx = null; info.textContent = '塊をタップして選びます'; }
+    clearTimeout(tmr); tmr = setTimeout(function () { toast.hidden = true; }, 4000);
+  });
+  document.getElementById('undoBtn').addEventListener('click', function () {
+    if (lastDeleted == null) return;
+    chunks[lastDeleted].classList.remove('gone'); select(lastDeleted); lastDeleted = null; toast.hidden = true;
+  });
+
+  setAccent(startAcc);
+
+  /* ---------- logo options ---------- */
+  function words(size, color, dot) {
+    return '<span class="lg-words" style="font-size:' + size + 'px;color:' + color + '"><span>Pods</span><span>Now<i style="color:' + dot + '">.</i></span></span>';
+  }
+  function icon(opt, px) {
+    var bg = opt === 'c' ? 'var(--accent)' : '#121212', inner;
+    if (opt === 'a') inner = words(px * .29, '#fff', 'var(--accent)');
+    else if (opt === 'c') inner = words(px * .29, '#121212', '#121212');
+    else inner = mark(px * .64);
+    return '<span class="lg-icon" style="width:' + px + 'px;height:' + px + 'px;background:' + bg + '">' + inner + '</span>';
+  }
+  function mark(px) {
+    return '<span class="lg-ring" style="width:' + px + 'px;height:' + px + 'px"><span class="lg-pod" style="width:' + px * .2 + 'px;height:' + px * .5 + 'px"></span></span>';
+  }
+  function wordmark(opt, fs) {
+    var m = opt === 'b' ? mark(fs * 1.15) : '';
+    return m + '<span>PodsNow' + (opt === 'b' ? '' : '<i>.</i>') + '</span>';
+  }
+  var LOGOS = [
+    { k: 'a', name: 'A 文字だけ', sub: '決定',
+      p: '黒の地に白の「Pods / Now.」、末尾の点だけ黄。サービス名を全部見せる今の方針（頭文字だけのマークにしない）をそのまま守れます。' },
+    { k: 'b', name: 'B 丸いマーク', sub: '記号で覚えてもらう',
+      p: '黄の丸に黒いカプセル（ポッド）。小さくしても形で見分けられます。一方で、黄の丸は他社の緑の丸に近い印象になります。',
+      warn: '今の方針「小さくしても全文を残す。頭文字や記号だけのマークにしない」を変える必要があります。' },
+    { k: 'c', name: 'C 黄の地', sub: 'ホーム画面で目立つ',
+      p: 'アイコン全体を黄にし、黒い文字を載せます。端末のホーム画面で一番目立ちます。アプリの中のロゴは A と同じです。' }
+  ];
+  var grid2 = document.getElementById('logoGrid'), lpicks = document.querySelectorAll('#logoPick button'), wmEl = document.getElementById('wm');
+  LOGOS.forEach(function (L) {
+    var c = document.createElement('button');
+    c.className = 'lcard'; c.setAttribute('data-logo', L.k);
+    c.innerHTML = '<div class="ttl"><b>' + L.name + '</b><small>' + L.sub + '</small></div>' +
+      '<div class="icons">' + icon(L.k, 128) + icon(L.k, 60) + icon(L.k, 29) + '</div>' +
+      '<div class="walls"><div class="wall dark">' + icon(L.k, 44) + '</div><div class="wall light">' + icon(L.k, 44) + '</div></div>' +
+      '<div class="wmline"><span class="wm">' + wordmark(L.k, 22) + '</span></div>' +
+      '<p>' + L.p + '</p>' + (L.warn ? '<p class="warn">' + L.warn + '</p>' : '');
+    c.addEventListener('click', function () { setLogo(L.k); });
+    grid2.appendChild(c);
+  });
+  function setLogo(k) {
+    wmEl.innerHTML = wordmark(k, 21);
+    document.querySelectorAll('[data-logo]').forEach(function (el) { el.setAttribute('aria-pressed', el.getAttribute('data-logo') === k ? 'true' : 'false'); });
+    try { localStorage.setItem('pn-logo2', k); } catch (e) {}
+  }
+  lpicks.forEach(function (b) { b.addEventListener('click', function () { setLogo(b.dataset.logo); }); });
+  var startLogo = 'a';
+  try { var sl = localStorage.getItem('pn-logo2'); if (sl === 'a' || sl === 'b' || sl === 'c') startLogo = sl; } catch (e) {}
+  setLogo(startLogo);
+
+  document.querySelectorAll('.copybtn').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var text = b.parentElement.querySelector('b').textContent;
+      if (navigator.clipboard) navigator.clipboard.writeText(text).catch(function () {});
+      b.classList.add('done'); b.textContent = 'コピー済み';
+      setTimeout(function () { b.classList.remove('done'); b.textContent = 'コピー'; }, 1600);
+    });
+  });
+})();
+</script>

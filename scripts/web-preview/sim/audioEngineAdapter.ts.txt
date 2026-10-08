@@ -1,0 +1,108 @@
+import type { AudioEnginePort } from '@/services/audio/AudioEnginePort';
+
+type L = (e: any) => void;
+const listeners = new Map<string, Set<L>>();
+const emit = (ev: string, p: unknown) => listeners.get(ev)?.forEach((l) => l(p));
+const g = globalThis as any;
+const fs = () => g.__memfs as Map<string, Uint8Array>;
+const FAIL = new URLSearchParams(typeof location !== 'undefined' ? location.search : '').get('exportFail');
+const strip = (p: string) => p.replace(/^file:\/\//, '');
+
+function envelope(i: number): number {
+  const word = Math.sin(i / 7) * Math.sin(i / 31) * Math.sin(i / 3.3);
+  const pause = Math.sin(i / 120) > 0.93 ? 0.03 : 1;
+  return Math.min(1, Math.abs(word) * 1.4 + 0.06) * pause;
+}
+
+export function createNativeAudioEngine(): AudioEnginePort {
+  let position = 0;
+  let playing = false;
+  let timer: any = null;
+  let seq = 0;
+  return {
+    generatePeaks: async (src, dst, perSecond) => {
+      const frames = g.__framesByPath?.get(strip(src)) ?? 48000 * 30;
+      const count = Math.ceil((frames / 48000) * perSecond);
+      const buf = new Uint8Array(16 + count * 2);
+      const dv = new DataView(buf.buffer);
+      buf.set([80, 75, 83, 49]);
+      dv.setUint32(4, 48000, true);
+      dv.setUint32(8, perSecond, true);
+      dv.setUint32(12, count, true);
+      const seed = src.length * 13;
+      for (let i = 0; i < count; i++) {
+        const a = Math.round(envelope(i + seed) * 120);
+        dv.setInt8(16 + i * 2, -a);
+        dv.setInt8(17 + i * 2, a);
+      }
+      fs().set(strip(dst), buf);
+      return { count };
+    },
+    detectSilence: async () => [],
+    importAsset: async (_s, dst, o) => {
+      fs().set(strip(dst), new Uint8Array(44));
+      return { path: dst, frames: 48000 * 8, sampleRate: o.sampleRate, channels: o.channels };
+    },
+    readWavInfo: async (p) => ({
+      frames: g.__framesByPath?.get(strip(p)) ?? 48000 * 8,
+      sampleRate: 48000,
+      channels: 1,
+    }),
+    loadTimeline: async () => {},
+    play: async (f) => {
+      if (f != null) position = f;
+      playing = true;
+      emit('onPlaybackState', { playing: true, frame: position });
+      clearInterval(timer);
+      timer = setInterval(() => {
+        position += 4800;
+        emit('onPosition', { frame: position });
+      }, 100);
+    },
+    pause: async () => {
+      playing = false;
+      clearInterval(timer);
+      emit('onPlaybackState', { playing: false, frame: position });
+    },
+    seek: async (f) => {
+      position = f;
+      emit('onPosition', { frame: f });
+    },
+    unload: async () => {},
+    getPosition: () => position,
+    isPlaying: () => playing,
+    startRender: (docJson, opts) => {
+      const jobId = `job${++seq}`;
+      const doc = JSON.parse(docJson);
+      let p = 0;
+      const fail = FAIL;
+      const h = setInterval(() => {
+        p += 0.1;
+        if (p < 0.5) emit('onRenderProgress', { jobId, progress: p * 2, phase: 'measuring' });
+        else if (p < 1) emit('onRenderProgress', { jobId, progress: (p - 0.5) * 2, phase: 'encoding' });
+        else {
+          clearInterval(h);
+          if (fail) {
+            emit('onRenderError', { jobId, message: 'encoder error (simulated)', cancelled: false });
+            return;
+          }
+          const sec = (doc.totalFrames ?? 0) / 48000;
+          fs().set(strip(opts.path), new Uint8Array(Math.round((sec * (opts.bitrate || 768000)) / 8)));
+          emit('onRenderDone', { jobId, path: opts.path, frames: doc.totalFrames, measuredLufs: -16.1, measuredTruePeakDb: -1.2, appliedGainDb: 2.3 });
+        }
+      }, 250);
+      (g.__renders = g.__renders ?? new Map()).set(jobId, h);
+      return jobId;
+    },
+    cancelRender: (jobId) => {
+      clearInterval(g.__renders?.get(jobId));
+      emit('onRenderError', { jobId, message: 'cancelled', cancelled: true });
+    },
+    on: (event, listener) => {
+      const set = listeners.get(event) ?? new Set();
+      set.add(listener as L);
+      listeners.set(event, set);
+      return { remove: () => set.delete(listener as L) };
+    },
+  };
+}

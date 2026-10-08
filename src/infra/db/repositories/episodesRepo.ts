@@ -1,0 +1,212 @@
+import type { EpisodeType } from '@/domain/podcast/feed';
+
+import type { SqlExecutor, SqlRow } from '../executor';
+
+export type EpisodeStatus = 'draft' | 'ready' | 'exported';
+
+/** 書き出しプリセットのキー（DATA_MODEL.md §4.5.1）。列の CHECK 制約と揃える。 */
+export const EPISODE_EXPORT_PRESETS = ['podcast', 'high', 'wav', 'custom'] as const;
+export type EpisodeExportPreset = (typeof EPISODE_EXPORT_PRESETS)[number];
+
+/** DB の保存値を検証する。知らない値は null（= 設定の既定）。 */
+export function parseEpisodeExportPreset(v: unknown): EpisodeExportPreset | null {
+  return typeof v === 'string' && (EPISODE_EXPORT_PRESETS as readonly string[]).includes(v)
+    ? (v as EpisodeExportPreset)
+    : null;
+}
+
+export interface EpisodeRow extends SqlRow {
+  id: string;
+  show_id: string;
+  title: string;
+  description: string;
+  description_suggestion: string | null;
+  /** 話数。任意（NULL = 未設定）。1 以上（REQUIREMENTS.md §2.1.1）。 */
+  episode_number: number | null;
+  /** シーズン。話数と同じ扱い。 */
+  season: number | null;
+  recorded_at: number | null;
+  publish_planned_at: number | null;
+  status: EpisodeStatus;
+  last_opened_at: number | null;
+  playhead_smp: number;
+  undo_cursor: number;
+  sound_settings: string;
+  /** 「音声を削除」を実行した時刻（FR-EP-4）。行と話数は残る。 */
+  audio_purged_at: number | null;
+  /** この回で最後に選んだ書き出しプリセット。NULL = 選んだことがない（DATA_MODEL.md §4.5.1）。 */
+  export_preset: EpisodeExportPreset | null;
+  // 以下は Podcast RSS の item に対応する列（DATA_MODEL.md §4.5、0005）
+  /** RSS の `guid`。作成時の id を入れ、以後変えない */
+  guid: string | null;
+  episode_type: EpisodeType;
+  /** 0 / 1。NULL は番組の設定に従う */
+  explicit: number | null;
+  website_url: string;
+  /** 実際に配信した日時（`pubDate`）。予定は `publish_planned_at` */
+  published_at: number | null;
+  created_at: number;
+  updated_at: number;
+  deleted_at: number | null;
+}
+
+export interface EpisodeListItem extends EpisodeRow {
+  duration_smp: number;
+  take_count: number;
+}
+
+/** 手元の回の一覧。作った順の新しい方から（話数に関係なく。Issue #211）。 */
+export async function listEpisodes(db: SqlExecutor, showId: string): Promise<EpisodeListItem[]> {
+  return db.all<EpisodeListItem>(
+    `SELECT e.*,
+       COALESCE((SELECT SUM(v.src_end_smp - v.src_start_smp) FROM voice_segments v WHERE v.episode_id = e.id), 0) AS duration_smp,
+       (SELECT COUNT(*) FROM takes t WHERE t.episode_id = e.id AND t.deleted_at IS NULL AND t.status IN ('ready','recovered')) AS take_count
+     FROM episodes e WHERE e.show_id = ? AND e.deleted_at IS NULL
+     ORDER BY e.created_at DESC, e.rowid DESC`,
+    [showId],
+  );
+}
+
+export async function getEpisode(db: SqlExecutor, id: string): Promise<EpisodeRow | null> {
+  return db.get<EpisodeRow>('SELECT * FROM episodes WHERE id = ?', [id]);
+}
+
+/** 同じ Show に同じ RSS guid の（削除されていない）エピソードがあるか。 */
+export async function episodeGuidTaken(
+  db: SqlExecutor,
+  showId: string,
+  guid: string,
+): Promise<boolean> {
+  const r = await db.get<{ n: number }>(
+    'SELECT COUNT(*) AS n FROM episodes WHERE show_id = ? AND guid = ? AND deleted_at IS NULL',
+    [showId, guid],
+  );
+  return (r?.n ?? 0) > 0;
+}
+
+/**
+ * 収録日を最初の録音の日時にする（Issue #167）。作成時の既定（`recorded_at = created_at`）か
+ * 未設定のときだけ書き換え、ユーザーが選んだ日（その日の 0 時になる）は変えない。
+ */
+export async function fillRecordedAtFromFirstTake(
+  db: SqlExecutor,
+  id: string,
+  now: number,
+): Promise<void> {
+  await db.run(
+    `UPDATE episodes SET recorded_at = ?, updated_at = ?
+      WHERE id = ? AND deleted_at IS NULL AND (recorded_at IS NULL OR recorded_at = created_at)`,
+    [now, now, id],
+  );
+}
+
+export async function insertEpisode(
+  db: SqlExecutor,
+  e: {
+    id: string;
+    showId: string;
+    title: string;
+    description: string;
+    episodeNumber: number | null;
+    season: number | null;
+    /** 音の仕上げ（JSON）。番組の既定から作る。省略すると列の既定（`{}` = アプリの既定値）。 */
+    soundSettings?: string;
+    now: number;
+  },
+): Promise<void> {
+  await db.run(
+    'INSERT INTO episodes (id, show_id, title, description, episode_number, season, sound_settings, recorded_at, last_opened_at, guid, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
+    [
+      e.id,
+      e.showId,
+      e.title,
+      e.description,
+      e.episodeNumber,
+      e.season,
+      e.soundSettings ?? '{}',
+      e.now,
+      e.now,
+      // guid は配信後に変えてはいけない（PSP-1）。作成時の id で固定する。
+      e.id,
+      e.now,
+      e.now,
+    ],
+  );
+}
+
+export async function updateEpisode(
+  db: SqlExecutor,
+  id: string,
+  patch: Partial<{
+    title: string;
+    description: string;
+    descriptionSuggestion: string | null;
+    episodeNumber: number | null;
+    season: number | null;
+    recordedAt: number | null;
+    publishPlannedAt: number | null;
+    status: EpisodeStatus;
+    lastOpenedAt: number;
+    playheadSmp: number;
+    soundSettings: string;
+    exportPreset: EpisodeExportPreset | null;
+    episodeType: EpisodeType;
+    explicit: boolean | null;
+    websiteUrl: string;
+    publishedAt: number | null;
+  }>,
+  now: number,
+): Promise<void> {
+  const map: Record<string, string> = {
+    title: 'title',
+    description: 'description',
+    descriptionSuggestion: 'description_suggestion',
+    episodeNumber: 'episode_number',
+    season: 'season',
+    recordedAt: 'recorded_at',
+    publishPlannedAt: 'publish_planned_at',
+    status: 'status',
+    lastOpenedAt: 'last_opened_at',
+    playheadSmp: 'playhead_smp',
+    soundSettings: 'sound_settings',
+    exportPreset: 'export_preset',
+    episodeType: 'episode_type',
+    explicit: 'explicit',
+    websiteUrl: 'website_url',
+    publishedAt: 'published_at',
+  };
+  const sets: string[] = [];
+  const vals: (string | number | null)[] = [];
+  for (const [k, col] of Object.entries(map)) {
+    const v = (patch as Record<string, string | number | boolean | null | undefined>)[k];
+    if (v !== undefined) {
+      sets.push(`${col} = ?`);
+      vals.push(typeof v === 'boolean' ? (v ? 1 : 0) : v);
+    }
+  }
+  if (!sets.length) return;
+  sets.push('updated_at = ?');
+  vals.push(now);
+  vals.push(id);
+  await db.run(`UPDATE episodes SET ${sets.join(', ')} WHERE id = ?`, vals);
+}
+
+export async function softDeleteEpisode(db: SqlExecutor, id: string, now: number): Promise<void> {
+  await db.run('UPDATE episodes SET deleted_at = ?, updated_at = ? WHERE id = ?', [now, now, id]);
+}
+
+/**
+ * 「音声を削除」の DB 側（FR-EP-4）。takes を論理削除し、`audio_purged_at` を立てる。
+ * 行・話数・タイトル・概要・書き出し履歴は残す。ファイルの削除は呼び出し側（EpisodeService）。
+ */
+export async function markAudioPurged(db: SqlExecutor, id: string, now: number): Promise<void> {
+  await db.run(
+    'UPDATE takes SET deleted_at = ?, updated_at = ? WHERE episode_id = ? AND deleted_at IS NULL',
+    [now, now, id],
+  );
+  await db.run('UPDATE episodes SET audio_purged_at = ?, updated_at = ? WHERE id = ?', [
+    now,
+    now,
+    id,
+  ]);
+}

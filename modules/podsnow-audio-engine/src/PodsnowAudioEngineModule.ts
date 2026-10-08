@@ -1,0 +1,52 @@
+import { NativeModule, requireNativeModule } from 'expo';
+
+import type {
+  FrameRange,
+  ImportedAsset,
+  ImportOptions,
+  NowPlayingNativeInfo,
+  PodsnowAudioEngineModuleEvents,
+  RenderOptions,
+  SilenceOptions,
+  WavInfo,
+} from './PodsnowAudioEngine.types';
+
+declare class PodsnowAudioEngineModule extends NativeModule<PodsnowAudioEngineModuleEvents> {
+  generatePeaksAsync(
+    src: string,
+    dst: string,
+    samplesPerSecond: number,
+  ): Promise<{ count: number }>;
+  detectSilenceAsync(src: string, opts: SilenceOptions): Promise<FrameRange[]>;
+  importAssetAsync(src: string, dst: string, opts: ImportOptions): Promise<ImportedAsset>;
+  readWavInfoAsync(path: string): Promise<WavInfo>;
+
+  /** RenderDocument（JSON 文字列）を読み込む。 */
+  loadTimelineAsync(docJson: string): Promise<void>;
+  /**
+   * 読み込み済みのタイムラインの音の仕上げ（ダッキング・ゲイン・リミッター）を、読み直さずに差し替える
+   * （AUDIO_DESIGN.md §7.1）。JSON は RenderDocument の `{ ducking, loudness }` と同じ形。
+   */
+  updateTimelineSoundAsync(soundJson: string): Promise<void>;
+  playAsync(atFrame?: number | null): Promise<void>;
+  pauseAsync(): Promise<void>;
+  seekAsync(frame: number): Promise<void>;
+  unloadAsync(): Promise<void>;
+  getPosition(): number;
+  isPlaying(): boolean;
+
+  /** ロック画面・通知の表示を更新する（AUDIO_DESIGN.md §10.5）。Android は前面サービスを始める。 */
+  setNowPlayingAsync(info: NowPlayingNativeInfo): Promise<void>;
+  /** ロック画面・通知の表示を消す。Android は前面サービスを止める。 */
+  clearNowPlayingAsync(): Promise<void>;
+
+  /** バックグラウンドで書き出しを開始し jobId を返す。進捗・完了はイベント。 */
+  startRender(docJson: string, opts: RenderOptions): string;
+  cancelRender(jobId: string): void;
+
+  /** 試聴のゲインを裏で測り jobId を返す（AUDIO_DESIGN.md §8.4）。進捗・完了はイベント。 */
+  measureLoudness(docJson: string): string;
+  cancelMeasure(jobId: string): void;
+}
+
+export default requireNativeModule<PodsnowAudioEngineModule>('PodsnowAudioEngine');

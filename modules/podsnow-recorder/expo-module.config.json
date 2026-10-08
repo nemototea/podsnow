@@ -1,0 +1,9 @@
+{
+  "platforms": ["apple", "android"],
+  "apple": {
+    "modules": ["PodsnowRecorderModule"]
+  },
+  "android": {
+    "modules": ["dev.nemotea.podsnow.recorder.PodsnowRecorderModule"]
+  }
+}

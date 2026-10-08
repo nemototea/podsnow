@@ -1,0 +1,44 @@
+import type {
+  AudioInput,
+  PermissionResult,
+  PodsnowRecorderModuleEvents,
+  RecorderConfig,
+  RecorderState,
+  SegmentResult,
+} from '../../../modules/podsnow-recorder/src/PodsnowRecorder.types';
+
+export interface Subscription {
+  remove(): void;
+}
+
+/**
+ * services が依存する録音モジュールの抽象。実装は infra/native/recorderAdapter（ネイティブ）と
+ * テスト用の FakeRecorder。
+ */
+export interface RecorderPort {
+  requestPermissions(): Promise<PermissionResult>;
+  getPermissions(): Promise<PermissionResult>;
+  prepare(config: RecorderConfig): Promise<void>;
+  /** 録音前の入力モニター（ファイルに書かない）。prepared → monitoring。AUDIO_DESIGN.md §3.6 */
+  startMonitor(): Promise<void>;
+  /** monitoring → prepared */
+  stopMonitor(): Promise<void>;
+  /** prepared / interrupted / monitoring → recording */
+  start(path: string): Promise<void>;
+  pause(): Promise<void>;
+  resume(): Promise<void>;
+  stop(): Promise<SegmentResult>;
+  release(): Promise<void>;
+  getState(): RecorderState;
+  getFrames(): number;
+  getInputs(): Promise<AudioInput[]>;
+  setInput(uid: string | null): Promise<void>;
+  getCurrentInput(): Promise<AudioInput | null>;
+  isSpeakerOutput(): Promise<boolean>;
+  repairWavHeader(path: string): Promise<SegmentResult>;
+  getAvailableDiskBytes(path: string): Promise<number>;
+  on<K extends keyof PodsnowRecorderModuleEvents>(
+    event: K,
+    listener: PodsnowRecorderModuleEvents[K],
+  ): Subscription;
+}

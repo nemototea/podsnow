@@ -31,9 +31,27 @@ npm-debug.log*
 *.mp3
 *.flac
 !fixtures/**/*.wav
+!src/services/export/__tests__/fixtures/*.m4a
 
 # IDE
 .idea/
 .vscode/*
 !.vscode/settings.json
 !.vscode/extensions.json
+
+# Expo / TypeScript 生成物
+expo-env.d.ts
+*.tsbuildinfo
+.kotlin/
+.metro-health-check*
+coverage/
+
+# ローカル Expo Module のビルド成果物
+modules/*/android/build/
+modules/*/android/.cxx/
+modules/*/ios/build/
+
+# Python（scripts/ の生成ツール）
+__pycache__/
+*.pyc
+scripts/fonts/.cache/

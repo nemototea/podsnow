@@ -1,10 +1,10 @@
-# AUDIO_DESIGN.md — podsnow 音声設計
+# AUDIO_DESIGN.md — PodsNow 音声設計
 
 > 凡例: **【事実】** 対話で決定した仕様 / **【確認済み】** 公式ドキュメント等で確認済み（出典付き） / **【仮説】** 未検証・要スパイク
 
 ## 1. 要件の要約【事実】
 
-- 収録は非圧縮 PCM（WAV、48 kHz / 16 bit、モノラル既定・ステレオ可）
+- 収録は非圧縮 PCM（WAV、48 kHz / 16 bit / ステレオで固定。設定は持たない。チャンネルとサンプルレートは書き出しで選ぶ。Issue #174）
 - 画面ロック・他アプリ表示中も録音継続（必須）
 - 一時停止／再開、レベルメーター、入力ソース選択（内蔵 / 有線 / Bluetooth / オーディオインターフェース）
 - 収録中のジングル挿入は「イベント記録 + モニター再生」。マイクに回り込ませず書き出し時にミックス
@@ -20,10 +20,11 @@
 |---|---|---|
 | 録音（PCM 取得 → WAV 書き込み） | **ネイティブ**（`podsnow-recorder`） | Android の expo-audio は `AndroidAudioEncoder = aac / he_aac / aac_eld / amr_*` のみで PCM 不可。iOS は `LINEARPCM` 可だが、統一のためネイティブ |
 | Audio Session / Audio Focus 管理（録音中） | ネイティブ | 割り込み・ルート変更の通知が expo-audio に無い |
+| 再生の音声モード、再生中の割り込み・出力の抜去 | JS（`setAudioModeAsync` を 1 か所で）+ ネイティブ（タイムラインの音声フォーカス、検知） | §10 |
 | レベルメーター（peak / RMS） | ネイティブ → イベント | 生 PCM が JS に来ないため |
 | Android フォアグラウンドサービス | ネイティブ | `foregroundServiceType="microphone"`（Android 14+ 必須）【確認済み】 |
 | WAV ヘッダ定期更新・fsync・復旧 | ネイティブ | ファイル I/O をリアルタイムスレッドで行う |
-| 素材の試聴（単一ファイル再生） | **JS**（expo-audio `AudioPlayer`） | 十分 |
+| 素材の試聴（単一ファイル再生） | **JS**（expo-audio `AudioPlayer`。`PlaybackService` のファイル再生を共用。§10.1） | 十分 |
 | 収録中のジングルのモニター再生 | JS（expo-audio）【仮説】 | 録音セッションと同居できるか要スパイク（§4.5） |
 | 波形ピーク生成、無音検出 | ネイティブ（`podsnow-audio-engine`） | 数百 MB のファイル走査 |
 | タイムラインのリアルタイムミックス再生 | ネイティブ | expo-audio に複数トラック同期再生・ゲイン自動化はない |
@@ -84,6 +85,36 @@ AudioRecord(source = VOICE_RECOGNITION or UNPROCESSED or MIC,
 ### 3.5 一時停止
 - ファイルは閉じず、書き込みだけ止める（Segment は分けない）。iOS はエンジンを止めない（セッション維持）。Android は `AudioRecord` と read ループを動かしたままにし、読み出したバッファをファイルに書かず捨てる（デバイスの再初期化コストとギャップを避けるため）。長時間ポーズはバッテリーを消費するため、10 分以上で通知【仮説】。
 
+### 3.6 録音前の入力モニター（Issue #169）
+
+録音を始める前に、マイクの距離・音量・外部マイクが効いているかをレベルメーターで確かめるための経路。**ファイルには書かない。**
+
+**ネイティブ（`podsnow-recorder`）【事実: コード】**
+
+- 状態 `monitoring` を足した。`prepareAsync()` → `startMonitorAsync()`（prepared → monitoring）→ `stopMonitorAsync()`（monitoring → prepared）。モニター中は `onLevel` だけを出し、`frames` は 0。
+- 入力は録音と同じものを使う（iOS: `AVAudioEngine` の入力タップ。Android: `AudioRecord` と読み出しスレッド）。iOS はモニター中、変換（`AVAudioConverter`）もしない。
+- **モニターから録音へは入力を止めずに切り替える。** `startAsync(path)` を monitoring から呼ぶと、WAV のヘッダを書いて fsync し終えた writer を書き込み側に渡し、**渡したあとに届いたバッファから**書き込む。デバイスの再初期化がないのでギャップがなく、書きかけのファイルに途中から割り込むこともない。
+  - iOS: writer は書き込みキュー（`writeQueue`）の上で渡し、`write()` も同じキューで writer を見る。
+  - Android: `CaptureRouter` が `@Volatile` の writer を持ち、読み出しスレッドはバッファごとに「モニター / 一時停止 / 書く」を決める。止めるときは読み出しスレッドを止めてから writer を外して finalize する。外したあとに書き込みが来ても、finalize 済みの `WavWriter` は捨てる。
+  - writer を作れない（ファイルを開けない）ときは例外になり、モニターは続く。
+  - 検証【確認済み: JVM 上の Kotlin 実装】: `android/src/test` の JUnit 9 件。読み出しスレッドを回したまま writer を渡して外す操作を 40 回繰り返し、WAV の data がバッファ単位で欠け・重なりなく連番で入ること、ヘッダのサイズがファイル長と一致することを確かめた。WavWriter のヘッダ・復旧も同じテストに入れた。Swift は同じ手順で書いたが、この環境ではビルドできず未検証。
+- 録音を止めると prepared に戻る（モニターには戻らない）。続けてモニターするかは呼び出し側が決める。
+- 割り込み（iOS `interruptionNotification` `.began` / メディアサービスのリセット、Android の音声フォーカスの喪失）・入力のエラーでは、モニターを止めて prepared に戻し、`onInterruption` / `onStateChange` を出す。書いていないので Segment は無い。自動では再開しない。
+- 音声セッション: 録音側が持つ（§10.1）。iOS は `prepare()` で `.playAndRecord` を設定する。Android はモニターの開始で `AUDIOFOCUS_GAIN` を取り、`stopMonitorAsync()` で手放す（使っていないのに他アプリの音を止めたままにしない）。録音を止めたあとは今までどおり手放さない。
+- Android の前面サービス（録音中の通知）はモニターでは始めない。録音へ切り替えたときに始める（前面にいるときの操作なので Android 14 の制限にかからない）。
+
+**services（`RecordingSession`）【事実: コード】**
+
+- `startMonitor()` / `stopMonitor()`。`SessionState` に `monitoring` を足した。モニター中も `start()` で録音を始められる（準備し直さない）。録音の開始に失敗して、ネイティブがまだモニター中なら `monitoring` に戻る。
+- `holdsAudioSession`（`idle` 以外）が真の間、`PlaybackService` は再生を始めない（`container.ts` の `recorderBusy`）。`isIdle`（取り消し・編集ができる）はモニター中も真。
+- 呼ぶ側は、録音の開始と同じく先に `PlaybackService.stopForRecording()` を呼ぶ（§10.1）。
+
+**いつ動かすか【仮説: 案。画面への組み込みは #175 で決める】**
+
+- 収録タブを表示していて、アプリが前面にいる間だけ動かす。タブを離れる・アプリがバックグラウンドへ移る・エピソード画面を閉じるときに `stopMonitor()` を呼ぶ。バックグラウンドでは動かさない（Android は前面サービスなしではバックグラウンドでマイクを使えず、iOS はバックグラウンドの `audio` モードで動き続けて電池を使う）。
+- 割り込みで止まったら、自動では再開しない（利用者が収録タブを開き直すか、操作したときに始め直す）。
+- **未検証（実機）**: 電池の消費（モニター 10 分あたりの減り方。録音中と同程度の見込み）。OS のマイク使用中の表示（iOS のオレンジの点、Android 12 以降の緑の点・プライバシーインジケーター）がモニター中に出て、止めると消えること。iOS は `setActive(false)` を呼ばないので、エンジンを止めたあとに表示が消えるかを特に確かめる。モニターから録音へ切り替えた直後の音の欠け・プチノイズの有無。
+
 ## 4. 割り込み・異常系マトリクス
 
 | 事象 | iOS 検知 | Android 検知 | 動作 |
@@ -105,7 +136,7 @@ AudioRecord(source = VOICE_RECOGNITION or UNPROCESSED or MIC,
 - 同時に手元で再生（モニター）。**スピーカー出力中はマイクに回り込む**ので:
   - 出力ルートがイヤホン / BT 出力のとき: 再生する
   - スピーカーのとき: 設定 `monitor.jinglePlayback` に従う（既定 `headphonesOnly` = 再生せず「挿入しました」表示のみ）
-- 再生は expo-audio `AudioPlayer`【仮説】。録音セッション（ネイティブが `.playAndRecord` を保持）と同居できるか、expo-audio の `setAudioModeAsync` がセッション設定を上書きしないかを Phase 0 で確認。衝突するなら `podsnow-recorder` に簡易プレイヤーを持たせる。
+- 再生は expo-audio `AudioPlayer`【仮説】。録音セッション（ネイティブが `.playAndRecord` を保持）と同居できるかを Phase 0 で確認。衝突するなら `podsnow-recorder` に簡易プレイヤーを持たせる。録音中は `setAudioModeAsync` を呼ばず、プレイヤーは `keepAudioSessionActive: true` で作る（§10.1）。
 
 ## 6. 解析（`podsnow-audio-engine`）
 
@@ -124,6 +155,84 @@ AudioRecord(source = VOICE_RECOGNITION or UNPROCESSED or MIC,
 - Android: `AudioTrack` 1 本に対し、自前ミキサーがタイムラインから PCM を生成して書き込む（プル型）。
 - **推奨**: 両 OS とも「自前ミキサー（§8 と同じコード）が PCM を生成 → 出力 1 本」に統一する。再生と書き出しで同じレンダラを使えば、聴いた通りに書き出せる。Phase 2 で確定。
 
+Issue #135 の画面間再生【事実】:
+- 書き出しタブはこのタイムライン再生を使い、聴いた内容と書き出し結果を一致させる。
+- 試聴には音の仕上げをすべて即座に反映する（ユーザー判断 2026-09-29、REQUIREMENTS.md FR-EP-7、Issue #158）。構成は §7.1。
+- Home は制作中の回と RSS から取り込んだ配信済みの回を同じ一覧に見せる。再生元は、端末に実体がある最新の書き出し済みファイル、対応する RSS `enclosure_url`、ローカルのタイムラインの順で選ぶ。RSS だけの回も `enclosure_url` があれば再生する。
+- ファイル再生（書き出し・RSS）は読み込みを待たずに「読み込み中」を出し、音が出たら再生中に変える。バッファ待ちの間も読み込み中を出す。読み込みに失敗したら（URL が切れている・通信できない・壊れたファイル）再生を止め、`AppErrorCode`（`playback_stream_failed` / `playback_file_failed`）を出す。次に再生を押すと同じ再生元を読み込み直す。読み込み中に一時停止したら、読み込みが終わっても鳴らさない。後から別の回を再生したら、先の読み込みの結果は捨てる。【事実: Issue #185】【確認済み: expo-audio 57.0.5 の `AudioStatus` に `isLoaded` / `isBuffering` / `error`（`node_modules/expo-audio/build/Audio.types.d.ts`。https://docs.expo.dev/versions/v57.0.0/sdk/audio/ はこの環境から開けず未照合）】
+- 両方の状態と切替はサービス層の単一 `PlaybackService` が所有する。一方を始める前に他方を止め、収録開始時は再生を自動停止する。音声セッション（音声モード・割り込み・イヤホンの抜去・録音との切り替え）は §10。
+- 制作中の回と配信済みの回は、`feed_episodes.episode_id` の明示リンクを最優先し、次に GUID 完全一致だけを自動対応として扱う。題名や話数の類似では結びつけない。
+
+### 7.1 試聴の音の仕上げ（Issue #158）【事実: Kotlin は JVM で確認済み / Swift と実機は未検証】
+
+**以前の挙動（#158 より前）:** 試聴の Mixer にかかる音の仕上げはダッキングだけだった。ラウドネス正規化とトゥルーピークリミッターは書き出しの中（`LoudnessRenderer`、§8.2）だけで、正規化を ON にしても試聴の音量は変わらなかった。ダッキングを変えるとタイムラインを読み直し、その間音が途切れた。
+
+**難しいところ【事実】:** 正規化のゲインは番組全体の統合ラウドネス（BS.1770-4）を測ってから決まる。リミッターで下がった分は、リミッター込みで測り直して合わせ込む（§8.2、最大 3 回）。再生しながら先頭から決めることはできない。
+
+**構成:**
+
+```
+編集・音の仕上げ・チャンネル
+  │ 指紋（声の並び・素材・音の仕上げ・チャンネル）
+  ▼
+測定のキャッシュ（回ごと、§8.4）── 当たり → ゲイン
+  │ 外れ
+  ▼
+裏で測定（LoudnessRenderer.solveGain と同じ手順。別の Mixer・低い優先度）
+  │ 入力の測定が終わった時点で「仮のゲイン」、測り直しが終わったら確定のゲイン
+  ▼
+試聴の Mixer: ミックス → ダッキング → ゲイン → トゥルーピークリミッター → 出力
+```
+
+- **同じ実装を使う。** 試聴のゲインとリミッターは、書き出しと同じ `Loudness.kt` / `Loudness.swift` の `Limiter` と、`LoudnessRenderer.solveGain()` が求めたゲインを使う。試聴用に別の近似は作らない（聴いた音と書き出す音を一致させるため）。
+  - Issue 本文の「C++ コア」は無い（ARCHITECTURE.md §5.3 の案のまま。今は Kotlin と Swift で同じ手順を二重に書いている）。
+- **Mixer の中に収める。** ゲインとリミッターは `Mixer` に持たせ、`TimelinePlayer` の再生ループ・音声セッション・割り込みの部分（§10、Issue #183 / #184）は変えない。`TimelinePlayer` に足すのは、Mixer へ設定を渡すだけの口（下の `updateTimelineSound`）。
+  - リミッターは先読みのぶん遅れる（48 kHz で約 250 フレーム = 5 ms 強）。Mixer は内部でその分だけ先を読み、`render(frame, n)` が返す音は `frame` の位置に揃える。シーク・`reset()` のあとは先読みの分を流してから返す（頭の 5 ms が無音にならない）。
+- **書き出しタブの設定と試聴（ユーザー判断 2026-10-04）:** 音の仕上げはすべてすぐ反映する。ファイルの形式に関わる設定は反映しない。
+
+| 設定 | 試聴 | 理由・動き |
+|---|---|---|
+| モノラル / ステレオ | 反映する | 済み（#174、§8.1） |
+| サンプルレート（48 / 44.1 kHz） | 反映しない | 変換は書き出しの最後だけ（#174、§8.1.1） |
+| 形式（M4A / WAV）・ビットレート | 反映しない | 反映するには試聴しながら AAC に圧縮して戻す必要がある。128 kbps 以上なら聴き分けはほぼつかない見込み【仮説】 |
+| 音量の調整（正規化）の ON / OFF | すぐ反映 | ゲインとリミッターを入れる / 外す |
+| 目標の音量（LUFS） | すぐ反映 | 変えた瞬間に目標の差だけゲインを動かし（-16 → -14 なら +2 dB）、裏で測り直して正確な値に移す。リミッターが働かない回は最初の値でほぼ正確 |
+| 最大ピーク（dBTP） | すぐ反映 | リミッターの天井をその場で変える。ゲインは裏で測り直す |
+| BGM を下げる（ON / OFF・下げ幅・アタック・リリース・しきい値） | すぐ反映 | Mixer の値を差し替える（読み直さない）。ミックスが変わるのでゲインは裏で測り直す |
+
+- **設定を変えても再生を止めない。** 音の仕上げ（ダッキング・正規化の ON/OFF・目標・天井）の変更は、タイムラインを読み直さず `updateTimelineSound` で Mixer の値を差し替える。ゲインは 50 ms かけて移す（急に変えるとプツッと鳴る）。声の並び・素材の変更は今どおり読み直す（中身が変わるため）。
+- **測定が終わるまでの音:**
+  1. この回・このチャンネル数の前回のゲインがあれば、それで鳴らす（編集の前後でゲインは大きく変わらないことが多い）
+  2. 無ければゲイン 0 dB・リミッター無し（今の試聴と同じ）
+  3. 最初の測定パス（§8.2 の 1.、全体を 1 回流す）が終わったら「仮のゲイン」（目標 − 入力のラウドネス）に移す。リミッターが働かない回はこれが確定値と同じ
+  4. 測り直しが終わったら確定のゲインに移す
+  - 測っている間、書き出しタブに「音量を測っています」と出す（測定に入ってから終わるまで。進み具合も出す）。
+- **いつ測るか:** 書き出しタブを開いたとき、および書き出しタブを開いている間に編集・音の仕上げ・チャンネルが変わったとき（最後の変更から 1 秒待つ）。新しい測定を始めたら、古い測定は止める。収録タブ・編集タブでは測らない（電池を使わない）。書き出しが走っている間は測らない（書き出しがキャッシュを書く、§8.4）。
+- **どこに反映するか:** 書き出しタブの試聴だけ（下の「決めたこと」1）。編集タブはステレオ・正規化なしのまま。Home の「ローカルのタイムライン」（今の編集と同じ書き出しが無い回）も正規化なしで鳴らす（Home で鳴らすのは多くが書き出したファイルで、キャッシュを引く経路を足すほどの効き目が無いため。実装で決めた）。
+- **区間ごとの測り直し（Issue 本文の方針 4）は 0.1.0 では入れない。** ダッキングとリミッターの状態が前の区間に依存し、変わった区間だけ測っても統合値が書き出しと一致する保証が無いため。60 分の回で測定時間が問題になったら、実機の計測をもとに見直す。
+- **今後の音の処理**（ノイズ除去 #57、サウンドスタイル・EQ・コンプ #58）も、この Mixer の中でリアルタイムに鳴らせることを受け入れの条件にする（FR-SND-3）。
+
+**実装:**
+- ネイティブ: `Mixer.enablePreview()`（`TimelinePlayer.load` だけが呼ぶ。書き出しの Mixer は今までどおりミックスだけ）、`Mixer.updateSound()`、`Limiter.setCeiling()` / `reset()`、`LoudnessRenderer.solveGain(onInputMeasured)`、`LoudnessMeasureJob`。Kotlin と Swift で同じ手順。
+- JS: `LoudnessService`（書き出しタブが `activate` / `deactivate`）、`PlaybackService.setTimelineSound`、`ExportService`（キャッシュの読み書き、§8.4）。
+- 正規化が OFF・未測定のときは、リミッターの天井を素通し（+60 dB）にして同じ経路を通す。遅れが変わらないので、オン・オフで位置がずれない。
+
+**確かめたこと:**
+- 【確認済み: JVM 上の Kotlin】`android/src/test/.../PreviewMasteringTest.kt`（9 件）
+  - 先頭から 2048 フレームずつ鳴らした試聴は、書き出しの本番のパスと**サンプル単位で同じ**（ステレオ・モノラル）。正規化 OFF・未測定はミックスと同じ
+  - 行ったり来たりシークしても、10 秒ごとの区間のラウドネスの差が ±0.5 LU 以内
+  - 再生中にゲインを差し替えると、先読みの分（約 250 フレーム）あとから 50 ms かけて移り、1 秒後からは書き出しと ±0.5 LU 以内。急に変えるとテストが落ちることも確かめた
+  - ダッキングを読み直さずに変えた音は、その設定で書き出した音とサンプル単位で同じ
+  - 測定ジョブのゲインは書き出しの `solveGain` と同じ値。仮のゲインを先に出す。止められる
+- 【確認済み: Jest】`LoudnessService`（キャッシュが当たれば測らない、外れたら仮の値で鳴らして測り保存、目標の差だけすぐずらす、離れたら止めて調整なし、書き出し中は測らない）、`PlaybackService`（読み直さずに差し替える、測ったチャンネル数・回のときだけゲインを使う）、`ExportService`（§8.4）。
+- **未検証:** Swift（この環境でビルドできない）。実機での 60 分の回の測定時間、試聴中に裏で測ったときの音切れ・電池、リミッターをリアルタイムで回したときの CPU。手順は Issue #158 のコメント。
+
+**決めたこと（ユーザー判断 2026-10-04）:**
+1. 反映するのは書き出しタブの試聴だけ。編集タブにも入れると、編集タブのステレオでも測る必要があり、測定が 2 倍になる。
+2. 測定が終わるまでの音は「前回の値 → 無ければ調整なし」。
+3. 測定結果を DB に保存する（§8.4）。メモリだけだと、アプリを開き直すたびに測り直す。
+4. 書き出しでもキャッシュのゲインを使う（§8.4）。試聴と書き出しのゲインが必ず同じになり、書き出しが測定の分だけ速くなる（全体を流す回数が、リミッターが働かない回で 2 → 1、働く回で 3〜5 → 1）。
+
 ## 8. レンダリング（書き出し）
 
 ```
@@ -133,19 +242,138 @@ RenderDocument (JSON)
 Mixer: 声 EDL を順に読み出し（Segment ファイルをシーク）+ オーバーレイをアンカー位置に合成
   ├─ 各クリップ: gain, fade in/out
   ├─ Ducking: 声のエンベロープ（RMS, attack 50 ms / release 500 ms【仮説】）で BGM ゲインを depthDb まで下げる
-  ▼ Float32 PCM 48 kHz (mono / stereo)
-Loudness pass 1: ITU-R BS.1770-4 integrated loudness (K-weighting, gating) + true peak(4x oversampling)
+  ▼ Float32 PCM 48 kHz (mono / stereo、§8.1)
+測定パス: ITU-R BS.1770-4 統合ラウドネス + トゥルーピーク（4 倍補間）
+  │ （測定のキャッシュ §8.4 に今の音のゲインがあれば、測定パスと測り直しを飛ばす【設計: Issue #158】）
   ▼
-Gain = target(-16 LUFS) − measured
-True-peak limiter（簡易ルックアヘッド、ceiling -1 dBTP）
+Gain = target(-16 LUFS) − measured（-40〜+20 dB）
+  ▼（ゲイン後のトゥルーピークが天井を超えるときだけ）
+測り直しパス: ゲイン + リミッター後の出力を測り、割線法でゲインを合わせる（最大 3 回、±0.1 LU）
   ▼
+本番パス: Gain → トゥルーピークリミッター（ceiling -1 dBTP）→ 出力を測定 → Encoder
 Encoder: AAC (iOS AVAssetWriter / Android MediaCodec+MediaMuxer) または WAV writer
   ▼ progress イベント → exports.progress
+後処理（JS、§8.3）: 題名・番組名・アートワーク等のメタデータを埋め込む → exports を done に
 ```
-- 2 パス（測定 → 書き出し）にするため、中間 PCM は一時ファイルに書く（60 分 ≈ 690 MB Float32 mono）。ストレージが足りない場合は Int16 中間【仮説】。
-- 測定値（LUFS / dBTP）は `exports` に保存し UI に表示。
+- 中間 PCM は持たず、パスごとにミキサーで作り直す（60 分でも一時ファイルが要らない）。
+- `exports.measured_lufs` / `measured_true_peak` は**書き出したファイル（出力）**の実測値。UI（書き出し履歴・配信の準備）に表示し、目標より 1 LU 以上小さければ「目標に届いていません」と出す。
 - 書き出しはネイティブスレッド。iOS はバックグラウンドでも数分は継続（`beginBackgroundTask`【仮説】）。Android は短時間 FGS（`dataSync` 種別【仮説】）または前面のみ。
 - 決定論: 同じ `RenderDocument` から両 OS で同じ PCM を出すため、DSP は整数／Float32 の固定手順で書き、ゴールデンファイルテストで検証（ARCHITECTURE.md §5.3 の C++ 共通コア案の動機）。
+
+### 8.1 チャンネルの扱い【事実】
+
+ミキサー以降（ラウドネス測定・トゥルーピーク・リミッター・エンコード）は `RenderDocument.channels`（1 / 2）のインターリーブ PCM で処理する。
+
+| 素材 \ 出力 | モノラル (1) | ステレオ (2) |
+|---|---|---|
+| モノラル素材 | そのまま | 左右に複製 |
+| ステレオ素材（ステレオ録音・バイノーラル・ステレオ BGM） | 左右の平均 | 左右をそのまま保つ |
+
+- ラウドネスは BS.1770-4 に従い各チャンネルの二乗和で測る（L / R の重み 1.0）。同じ音を左右に入れたステレオはモノラルより +3.01 LU と測られる。
+- リミッターのゲインは全チャンネル共通（リンク）。片側だけ大きくても定位は崩れない。
+- ダッキングの声検出は、各フレームで左右の大きいほうを使う（片側マイクの話者も拾う）。
+- 試聴（§7）は編集タブではステレオで鳴らす（ステレオ録音の左右を編集中にも確かめられる）。書き出しタブでは、選んでいる書き出し設定のチャンネル（モノラル / ステレオ）で鳴らす（`PlaybackService.setTimelineChannels`。Issue #174、ユーザー判断 2026-10-03）。
+
+### 8.1.1 サンプルレートの扱い【事実 + 仮説】
+
+ユーザー判断（2026-10-03、Issue #174）: **録音は 48 kHz 固定。書き出しで 48 kHz か 44.1 kHz を選ぶ。**
+
+- タイムライン・ミックス・ラウドネス測定・リミッターはすべて 48 kHz（`RenderDocument.sampleRate`）で行い、**エンコードの直前に出力のレートへ変換する**（`RenderOptions.sampleRate`）。位置や長さ（`exports.duration_smp` を含む）は 48 kHz のサンプル数のまま。
+- 変換は OS 標準・既存ライブラリのリサンプラーを使い、自前で補間しない（ユーザー判断）。
+  - iOS: `AVAudioConverter`（`sampleRateConverterQuality = .max`、アルゴリズム `Mastering`）。`RenderJob.swift` の `ResamplingSink`【仮説: 実機で未検証】
+  - Android: Media3 の `SonicAudioProcessor`（`androidx.media3:media3-common`。expo-audio と同じ版）。`RenderJob.kt` の `ResamplingSink`【仮説: 実機で未検証】
+    - 線形補間なので高域がわずかに下がる（理論値で 10 kHz が約 -1.3 dB、15 kHz が約 -3 dB）。下げる変換で、劣化させたくなければ 48 kHz を選べばよい。ポッドキャスト配信の用途では受け入れる（ユーザー判断 2026-10-03）。高品質な変換が要る用途になったら Oboe のリサンプラー（ポリフェーズ sinc）を検討する
+- 試聴にはサンプルレートを反映しない（変換は書き出しの最後だけ）。
+- 測定値（`measured_lufs` / `measured_true_peak_db`）は変換前の 48 kHz の値。変換で増えるサンプル間ピークはごくわずかの見込み【仮説】。
+- 素材（BGM / ジングル等）はステレオ 48 kHz で取り込む。モノラルの元ファイルは左右同じになる。この変更より前に取り込んだ素材はモノラルのまま。
+
+### 8.2 ラウドネスとトゥルーピーク【事実】
+
+実装: `modules/podsnow-audio-engine/{ios/Loudness.swift, android/.../Loudness.kt}`（同じ手順・同じ定数）。
+
+- **K 特性フィルタ**: libebur128 と同じ双一次変換の式（f0 = 1681.97 Hz / 38.14 Hz ほか）。48 kHz で BS.1770-4 Table 1 / 2 の係数と一致する。
+  - 以前は同じパラメータを RBJ cookbook の式に入れており、2 kHz 付近で最大 0.41 dB 低く測っていた（= 書き出しがその分大きくなっていた）。
+- **ゲーティング**: 400 ms ブロック・75% 重なり、-70 LUFS 絶対ゲート、-10 LU 相対ゲート。
+- **トゥルーピーク**: 49 タップ Hann 窓 sinc の 4 相補間（libebur128 と同じ設計）。正弦波で真値との差は 15 kHz まで ±0.05 dB 程度。以前の 8 タップは高域で最大 1 dB 低く見積もっていた。
+- **リミッター**: ピークはサンプル間（4 倍補間）で検出し、天井より 0.2 dB 低く収める。必要ゲインを「補間の遅れ + 先読み 5 ms」で最小値ホールドし、5 ms の移動平均で滑らかにしてから掛ける（瞬時にゲインを下げると波形に角ができ、それ自体がサンプル間ピークになる）。戻りは 50 ms。
+- **目標への合わせ込み**: リミッターで削った分だけ音量が下がる（声の合成信号で約 1.2 LU）。リミッターが働くときだけ、出力を測り直してゲインを割線法で合わせる。持ち上げは +20 dB まで（雑音を持ち上げすぎないため）で、それでも届かない録音は UI で知らせる。
+- **参考**: libebur128（https://github.com/jiixyj/libebur128 、MIT License）【確認済み】。BS.1770-4 の係数値は同書の既知の値と数値で照合（ITU の原文はこの作業環境から取得できず未照合）。
+
+検証【確認済み: JVM 上の Kotlin 実装】（`android/src/test`、JUnit 14 件）
+
+| 項目 | 結果 |
+|---|---|
+| EBU Tech 3341 ケース 1〜5（1 kHz ステレオ正弦、許容 ±0.1 LU） | 最大誤差 0.02 LU |
+| 1 kHz 正弦 -6.02 dBFS（モノラル） | -9.02 LUFS（理論値 -9.03） |
+| 声の合成信号を -16 LUFS / -1 dBTP で書き出し | -15.96〜-16.01 LUFS（pyloudnorm で -16.00〜-16.05）、トゥルーピーク -1.2 dBTP（16 倍再構成でも ≤ -0.99 dBTP） |
+| 小さすぎる録音（+20 dB で頭打ち） | 目標未達として検出 |
+
+- 処理時間（参考、サーバー CPU）: 120 秒ステレオで約 2.4 秒（測り直し 2 回を含む）。60 分なら約 1 分強。実機では数倍かかる見込み【仮説】。
+- **未検証**: Swift 実装（この環境でビルドできない）、実機での書き出し時間、AAC エンコード後のトゥルーピーク（エンコーダで少し増える。-1 dBTP の天井はその余裕）。
+
+### 8.3 メタデータの埋め込み（Issue #56、FR-EXP-10）【事実 + 仮説】
+
+ネイティブのレンダ（ミックス・ラウドネス・リミッター・エンコード）が終わったあと、`ExportService` が**後処理として** JS で埋め込み、それから `exports` を `done` にする。`RenderJob` / `Loudness` には手を入れない。
+
+- 両 OS とも同じ実装（`src/services/export/embedMetadata.ts`、バイト列の組み立ては `src/domain/metadata/`）。
+  - Android の `MediaMuxer` には題名・アートワークなどファイル単位のメタデータを書く API が無い【確認済み】（公開メソッドは `addTrack` / `setLocation` / `setOrientationHint` / `start` / `stop` / `writeSampleData` / `release`。「Metadata Track」はフレームごとの時刻付きデータで別物）。https://developer.android.com/reference/android/media/MediaMuxer
+  - iOS の `AVAssetWriter.metadata` は書ける（書き込み開始後は変更不可）【確認済み】が使わない。片方の OS だけ別経路にすると、同じ値・構造かを片方しか確かめられないため。https://developer.apple.com/documentation/avfoundation/avassetwriter/metadata
+- **ライブラリを使わず自前で書く**（ユーザー判断 2026-10-04）。ffmpeg 等もアプリには入れない。
+  - 理由: 書くのは題名・アートワークの箱 / チャンクだけで音声には触らず、範囲が小さい（約 350 行）。両 OS で 1 つの実装になり、Jest で読み戻して確かめられる。結果は ffprobe・mutagen と照合した（下の「検証」）。
+  - 比べた候補（2026-10-04 時点。React Native で動くかは未確認【仮説】）:
+
+| 候補 | 状況 | 採らなかった理由 |
+|---|---|---|
+| `taglib-wasm`（npm、MIT） | TagLib の WebAssembly 版。MP4 / WAV のタグを書ける | Hermes で WebAssembly が動かない見込み【仮説】 |
+| `mp4box`（npm、BSD-3-Clause） | MP4 の読み書き | iTunes 形式のタグを書けるか未確認 |
+| `music-metadata` / `node-id3`（npm） | 読むだけ / MP3 の ID3 だけ | 用途に合わない |
+| iOS `AVAssetExportSession`（パススルー + `metadata`） | OS 標準 | Android は別に要り、両 OS で実装が分かれる |
+| Android `org.mp4parser:isoparser`（Apache-2.0） | MP4 の箱を組み立てられる | 最終リリース 1.9.56（2022-04）。OS で実装が分かれる |
+| Android `net.jthink:jaudiotagger`（LGPL） | M4A / WAV のタグ・アートワーク | 最終リリース 3.0.1（2021-10）。LGPL |
+
+- 自前の実装を見直す条件: 扱う形式が増える（MP3 の ID3 など）、章（チャプター）を書く、または React Native で動いて保守されているライブラリが見つかったとき。
+- **M4A**: `moov/udta/meta`（ハンドラ `mdir`）の `ilst` に iTunes 形式で書く。値の型は QuickTime の well-known types（UTF-8 = 1、JPEG = 13、PNG = 14、`trkn` は 0）【確認済み】https://developer.apple.com/documentation/quicktime-file-format/well-known_types
+  - `moov` を組み直した写しを同じフォルダ（`<exportId>.m4a.tagging`）に書き、できてから元と置き換える。途中で失敗しても元は壊れない。
+  - `moov` が `mdat` より前にあれば、大きくなった分だけ `stco` / `co64` をずらす。`MediaMuxer` がどちらに置くかは未確認【仮説】なので、どちらでも動くようにした。
+  - 既存の `udta/meta` は置き換え、`udta` のほかの子（位置情報など）は残す。
+- **WAV**: 末尾に `LIST/INFO` を足し、RIFF の長さを直す（数百 MB を写さないため、その場で書く）。**アートワークは入れない**（WAV にアートワークの標準は無い。`id3 ` チャンクは慣習で、読めるアプリがまちまち）。文字は UTF-8【仮説: 古い Windows のアプリでは化けることがある】。
+- **埋め込めなくても書き出しは完了にし、音声のファイルを渡す**（形式・音量に問題が無いのにメタデータだけで書き出せないのは困る。ユーザー判断 2026-10-03）。
+  - なるべく埋め込む: アートワークが読めない（無い・JPEG / PNG でない）ときはアートワークを省く。アートワーク込みで失敗したら、アートワーク無しでもう一度試す。
+  - それでも駄目なら、ファイルは埋め込む前のまま（M4A は写しに書くので元は壊れない。WAV は書く前に検査する）。`exports` は `done` で、`error` に警告 `export_metadata_failed` を残す。完了時にトーストで知らせ、書き出し履歴に「題名・アートワークなし」と出す。
+- 長いファイルの写しで画面を止めないよう、4 MB ごとに JS のスレッドを空ける。
+
+| 項目 | MP4 | WAV | 値 |
+|---|---|---|---|
+| 題名 | `©nam` | `INAM` | エピソードのタイトル（空なら書かない） |
+| アーティスト | `©ART` / `aART` | `IART` | 番組の著者（`shows.author`）。空なら番組名 |
+| アルバム | `©alb` | `IPRD` | 番組名 |
+| 話数 | `trkn` | `ITRK` | `episodes.episode_number` |
+| 日付 | `©day` | `ICRD` | 配信日時 `published_at` → 無ければ配信予定 `publish_planned_at`。端末の時差つき ISO 8601（WAV は日付だけ）。どちらも無ければ書かない |
+| ジャンル | `©gen` | `IGNR` | `Podcast`（ID3 の拡張ジャンル名。訳さない） |
+| 書いたアプリ | `©too` | `ISFT` | `PodsNow <version>` |
+| アートワーク | `covr` | — | `shows.cover_path` |
+
+検証
+- 【確認済み: Jest】書き出したファイル（ffmpeg 6.1 で作った AAC。`moov` が後ろ / 前の 2 種類）に埋め込み、読み戻して値・アートワークが一致すること、`mdat` が 1 バイトも変わらずチャンク位置がずれた先を正しく指すこと、壊れたファイルで元が残ること（`src/services/export/__tests__/embedMetadata.test.ts`）。
+- 【確認済み: この作業環境】同じ処理の出力を ffprobe（FFmpeg 6.1.1）と mutagen（Python）で読み、全項目とアートワークを読めた。デコードした音声の MD5 が埋め込み前と一致。
+- **未検証（実機）**: iOS の `AVAssetWriter` と Android の `MediaMuxer` が実際に書いたファイルへの埋め込み、iOS の「ファイル」アプリ・ミュージック、Android のファイルアプリ、配信サービス（Spotify for Creators / stand.fm）のアップロード画面での表示。手順は Issue #56 のコメント。
+
+### 8.4 測定のキャッシュ（Issue #158）【事実】
+
+試聴（§7.1）と書き出しで同じゲインを使うため、`LoudnessRenderer.solveGain()` の結果を回ごとに保存する。
+
+- **キー:** 指紋 = 声の並び・素材の配置・音の仕上げ（`renderFingerprint`、DATA_MODEL.md §4.13 の `source_fingerprint` と同じ）＋ **チャンネル数**（同じ音でもモノラルとステレオで約 3 LU 違う、§8.1）＋ 測定手順の版（`Loudness` の定数や手順を変えたら上げ、古い値を捨てる）。
+  - サンプルレートは入れない（測定は 48 kHz で、変換は最後だけ。§8.1.1）。
+  - 音の仕上げの目標・天井が変わればゲインも変わるので、指紋が変わって測り直しになる。
+- **値:** ゲイン（dB）、測ったときの目標（LUFS。目標だけを変えたときの仮のゲインに使う）、入力のラウドネス（LUFS）、測った時刻。
+- **置き場:** `episodes.loudness_cache`（DATA_MODEL.md §4.5、移行 0007）。チャンネル数ごとに最新の 1 件ずつ（最大 2 件）。古い値は上書きする。
+- **書き込む人:** 試聴の測定（§7.1）と、書き出し（測定パスを走らせたとき）。どちらも同じ形で書く。
+- **書き出しでの使い方:** `RenderDocument.loudness.gainDb` にキャッシュの値を入れて渡すと、`RenderJob` は `solveGain()` を飛ばしてそのゲインで本番のパスだけを走らせる。出力の測定値（`exports.measured_lufs` 等）は今どおり本番のパスで測る。値を渡さなければ今どおり測る。
+- **ネイティブの口（JS との境界、ARCHITECTURE.md §5.2）:**
+  - `measureLoudness(docJson): jobId` と `cancelMeasure(jobId)`。イベント `onMeasureProgress { jobId, progress, gainDb? }`（入力の測定が終わったら仮のゲインを載せる）、`onMeasureDone { jobId, gainDb, inputLufs, inputTruePeakDb, trials }`、`onMeasureError { jobId, message, cancelled }`。
+  - `updateTimelineSoundAsync(json)`: 読み込み済みのタイムラインのダッキング・ゲイン・リミッターを、読み直さずに差し替える（§7.1）。JSON は RenderDocument の `{ ducking, loudness }` と同じ形で、`loudness.gainDb` が無ければ調整なし。
+  - 測定手順の版はネイティブの `LoudnessRenderer.ALGO_VERSION` と JS の `LOUDNESS_ALGO`（`src/domain/render/loudnessCache.ts`）。どちらも 1。
+- 測定は書き出しと同じ `RenderDocument` から作る。ネイティブは DB を読まない（ARCHITECTURE.md §5.2）。
 
 ## 9. コーデック対応表
 
@@ -159,9 +387,107 @@ Encoder: AAC (iOS AVAssetWriter / Android MediaCodec+MediaMuxer) または WAV w
 
 素材取り込み（デコード）: MP3 / AAC / WAV / FLAC / ALAC は両 OS の標準デコーダで対応できる想定【仮説】。
 
-## 10. Audio Session 設定の一元管理
-- 録音中は `podsnow-recorder` がセッションの所有者。JS 側で expo-audio の `setAudioModeAsync` を呼ぶのは録音していないときだけ（`RecordingSession` が状態を見てガード）。
-- 再生（Editor のタイムライン再生）も `podsnow-audio-engine` が同じセッション設定（`.playback` / `.playAndRecord`）を使う。
+## 10. 音声セッションの持ち主と切り替え（録音・再生）【事実】
+
+Issue #183。録音前の入力モニター（#169）とロック画面・通知の操作（#184）はこの節に従う。
+ここでいう音声セッションは、iOS の `AVAudioSession`（カテゴリ・オプション・有効化）と Android の音声フォーカス。
+
+### 10.1 持ち主は同時に 1 つ
+
+| 持ち主 | 期間 | 設定する場所 |
+|---|---|---|
+| **録音側** | 入力モニター（#169）・録音の準備・録音中・一時停止中・割り込み中・停止処理中。`RecordingSession` が `idle` でない間 | `podsnow-recorder`。`prepare()` のたびに iOS `.playAndRecord`、Android `AUDIOFOCUS_GAIN`（§3） |
+| **再生側** | `PlaybackService` が再生を始めてから、次に録音側が取るまで | 音声モード（§10.2）は `src/infra/playback/playbackSession.ts` だけが `setAudioModeAsync` で決める。タイムライン再生の Android の音声フォーカスと、割り込み・抜去の検知は `podsnow-audio-engine` の `PlaybackSessionWatcher`（§10.3） |
+
+- **後から取る側が設定し直す。手放す側は元に戻さない。** 戻すと、次の持ち主の設定と順番しだいで食い違う（録音直後の再生で出力先・音量が変わる、Issue #183）。
+  - 録音側が取るとき: 先に `PlaybackService.stopForRecording()` で再生を止め、それから `recorder.prepare()` が録音用に設定する。入力モニター（#169）も始める前に `stopForRecording()` を呼び、`RecordingSession` が `idle` でない状態として扱う（そうしないと下の「再生を断る」が効かない）。
+  - 再生側が取るとき: `PlaybackService` は再生を始める直前に**毎回** `PlaybackSessionPort.enterPlayback()` で §10.2 のモードを当て直す。録音のあとに `.playAndRecord`（`.defaultToSpeaker`、Bluetooth の通話プロファイル）が残っていても、ここで再生用に戻る。録音側は毎回 `prepare()` で設定し直すので、再生用に戻しても次の録音は壊れない。
+- **録音側が持っている間、`PlaybackService` は再生を始めない**（`recorderBusy()` が真なら再生・再開を断る）。割り込みのあとの自動再開（§10.3）もしない。
+- **セッションを無効にしない（`setActive(false)` を呼ばない）。** expo-audio は既定で、自分のプレイヤーが止まる・鳴り終わると 100 ms 後にセッションを無効にする【事実: コード】（`node_modules/expo-audio/ios/AudioModule.swift` の `pause` / `onPlaybackComplete` → `deactivateSession()`）。同じアプリのタイムライン再生や録音が鳴っていても無効にするので、expo-audio のプレイヤーは必ず `keepAudioSessionActive: true` で作る。
+  - ファイル再生（`expoFilePlayback.ts`）: 一時停止してタイムライン再生へ切り替えた直後に、タイムラインが止まるのを防ぐ。
+  - 録音中のジングルのモニター（§5、`features/episode/monitor.ts`）: 鳴り終わったときに録音の I/O を止めないため【仮説: 有効なセッションを無効にすると動いている I/O が止まる。実機で未検証】。録音側のセッションに相乗りするので `setAudioModeAsync` も呼ばない。
+  - 素材の試聴（素材の一覧と、番組設定の既定構成）: `PlaybackService.toggleAssetPreview()` で、ファイル再生と同じプレイヤーを使う（`features/show/useAssetPreview.ts`）。始めるとほかの再生は止まり、録音側が持つ間は始めない。ミニプレーヤーには出さない（`source` は null）。画面を離れたら止める（Issue #174）。
+  - 無効にしない代わり、他アプリの音は再生を止めても自動では戻らない。必要になったら、持ち主が手放すとき（ミニプレーヤーを閉じる等）に限って無効にすることを別 Issue で検討する。
+- iOS のタイムライン再生（`TimelinePlayer`）は、`setActive(true)` を専用の直列キューで呼び、終わってからメインスレッドでエンジンを起動する。メインで呼ぶと OS が UI の固まり（Hang Risk）を警告する。非同期の `activate(options:completionHandler:)` は iOS 27 からなので使わない。有効化を待つ間に一時停止・読み直し・次の再生が来たら、その要求ではエンジンを起動しない（Issue #229）。録音側（`RecorderEngine`）も同じく、`setCategory` / `setActive` を専用の直列キューで行い、エンジン・タップ・状態はメインスレッドで扱う。各操作はセッションの操作とその続きの両方が終わってから JS に返す。`release` は無効にし終えてから返す（Issue #231）。
+- ロック画面・通知の操作は再生側が持つ間だけ出す。録音側が取ったら消す（録音の通知と混ぜない）。状態は `PlaybackService` から出し、アプリ内のプレーヤーと同じ値を見る（§10.5）。
+
+### 10.2 再生の音声モード
+
+`setAudioModeAsync`（expo-audio 57.0.5）に渡す値。`src/infra/playback/playbackSession.ts` の `PLAYBACK_AUDIO_MODE` が唯一の定義。
+
+| 項目 | 値 | 理由 |
+|---|---|---|
+| `interruptionMode` | `'doNotMix'` | 他アプリの音と重ねない（既定の `mixWithOthers` では重なり、Android では音声フォーカスを取らないので着信でも止まらない【確認済み: `node_modules/expo-audio/build/Audio.types.d.ts`】）。expo-audio のロック画面（`setActiveForLockScreen`）も `doNotMix` を求める（同）。ロック画面は自作にした（§10.5）が、OS の他アプリとの扱いは同じ |
+| `shouldPlayInBackground` | `true` | 画面を消しても・他アプリへ移っても続ける（REQUIREMENTS.md FR-EP-8）。`false` だと expo-audio はバックグラウンドへ移るときに止める【事実: コード】 |
+| `playsInSilentMode` | `true` | 消音スイッチ・マナーモードでも鳴らす。再生ボタンを押した操作を優先する |
+| `allowsRecording` | `false` | iOS のカテゴリは `.playback`。録音の設定は録音側が `prepare()` で行う |
+| `shouldRouteThroughEarpiece` | `false` | 受話口ではなくスピーカー（またはつないだイヤホン）から鳴らす |
+
+- iOS: expo-audio はこの値から `.playback`・オプションなしを設定する【事実: コード】（`AudioModule.swift` の `setAudioMode`）。タイムライン再生（`TimelinePlayer.swift`）は**カテゴリを設定せず**、`setActive(true)` だけ行う。カテゴリを決めるのは JS の 1 か所だけにする。
+- Android: expo-audio は `doNotMix` のとき、ファイル再生の開始時に `AUDIOFOCUS_GAIN_TRANSIENT` を取り、喪失で止め、`AUDIOFOCUS_GAIN` で再開する【事実: コード】。タイムライン（`AudioTrack`）は expo-audio の外なので、`PlaybackSessionWatcher.kt` が再生開始時に `AUDIOFOCUS_GAIN`（`USAGE_MEDIA` / `CONTENT_TYPE_SPEECH`、`setWillPauseWhenDucked(true)`）を取り、利用者の一時停止・鳴り終わり・解放で手放す。話し声はダッキングではなく一時停止する【確認済み】(https://developer.android.com/media/optimize/audio-focus)。
+- バックグラウンド: iOS は `UIBackgroundModes: audio`（`app.json`。録音のために入れたもの）で続く。Android はロック画面の操作（前面サービス）が無いと約 3 分で止まる【確認済み: 型定義の `shouldPlayInBackground` の注記】。ファイル再生もタイムライン再生も、§10.5 の前面サービス（`mediaPlayback`）でプロセスを保つ。
+
+### 10.3 割り込み・出力の抜去
+
+ファイル再生とタイムライン再生で同じ動きにする。止める・再開するの判断は `PlaybackService` の 1 か所。
+
+| 事象 | iOS の検知 | Android の検知 | 動作 |
+|---|---|---|---|
+| 着信・Siri・他アプリの排他再生 | `interruptionNotification` `.began` | 音声フォーカスの喪失（`LOSS` / `LOSS_TRANSIENT` / `LOSS_TRANSIENT_CAN_DUCK`） | 一時停止 |
+| 割り込みの終了 | `.ended` + `.shouldResume`【確認済み】(https://developer.apple.com/documentation/avfaudio/handling-audio-interruptions) | 一時的な喪失のあとの `AUDIOFOCUS_GAIN`【確認済み】(https://developer.android.com/media/optimize/audio-focus) | OS が再開を勧めるときだけ、**割り込みで止めた再生を**再開する。割り込み中に利用者が操作した・録音を始めた・別の回を再生した場合は再開しない。永続の喪失（`AUDIOFOCUS_LOSS`）では `GAIN` が来ないので再開しない |
+| イヤホン・Bluetooth が外れた | `routeChangeNotification` `.oldDeviceUnavailable`（直前の出力が内蔵スピーカー・受話口以外のとき）【仮説: Apple の該当ページはこの環境から本文を取得できず未照合】 | `ACTION_AUDIO_BECOMING_NOISY`【確認済み】(https://developer.android.com/media/platform/output) | 一時停止。**自動では再開しない**（スピーカーから突然鳴らさない） |
+
+経路:
+
+1. `podsnow-audio-engine` の `PlaybackSessionWatcher`（`ios/PlaybackSessionWatcher.swift`、`android/.../PlaybackSessionWatcher.kt`。`TimelinePlayer` とは別のファイル）が検知する。アプリが動いている間は常に見張る（録音中も。そのとき `PlaybackService` は鳴らしていないので何もしない）。
+2. Watcher は `onPlaybackInterruption`（`{ type: 'began' | 'ended', shouldResume }`）/ `onOutputDisconnected` を JS へ送り、**そのあとで**タイムライン再生をネイティブ側で止める。JS を待つ間にスピーカーから鳴らさないためと、`PlaybackService` が「割り込みの時点で鳴っていたか」をイベントの順番で正しく知るため（止めた通知 `onPlaybackState` が先に届くと、鳴っていなかったと判断してしまう）。
+3. `PlaybackService` はイベントを受けて、鳴っている方（ファイル / タイムライン）を止め、割り込みなら止めた方を覚える。終了のイベントで再開を判断する。
+4. expo-audio も自分のプレイヤーを止め・再開する（iOS: 割り込みと抜去で止め、`.shouldResume` で再開。Android: フォーカスの喪失で止め `GAIN` で再開。抜去は扱わない）【事実: コード】。`PlaybackService` の止める・鳴らす操作はどちらも冪等なので、二重になっても状態は食い違わない。
+   - ただし expo-audio の再開は、割り込み中に利用者が止めた・閉じたプレイヤーまで鳴らし直す（iOS は割り込みの時点で鳴っていたものを無条件に `play()`、Android は利用者の一時停止で再開の印を消さない）【事実: コード】。そのため `PlaybackService` はファイル再生を「鳴らしたいか」（`fileWanted`、こちらの操作だけで変わる）で持ち、鳴らしたくないのに鳴り出したら止め返す。ミニプレーヤーを閉じたあとに画面に出ないまま鳴り出すのを防ぐ。
+   - iOS では expo-audio の止めた通知が Watcher のイベントより先に届くことがある。割り込みの時点で鳴っていたかは `fileWanted` で見るので、順番に依らない。
+   - ロック画面・通知の操作も `PlaybackService` を通す（§10.5）。expo-audio の `setActiveForLockScreen` の操作はプレイヤーを直接鳴らすので、上の止め返しで止まる。使わない理由の 1 つ。
+5. Android のファイル再生の音声フォーカスは expo-audio が持つ（Watcher がフォーカスを取ると expo-audio のプレイヤーが喪失を受けて止まる）。そのため Android のファイル再生では割り込みのイベントは来ず、`PlaybackService` は状態通知（`playbackStatusUpdate`）で追う。抜去（`BECOMING_NOISY`）は Watcher が受けるので、ファイル再生でも止まる。
+
+### 10.5 ロック画面・通知の操作（Issue #184）
+
+ファイル再生（書き出し・配信）とタイムライン再生（下書き・書き出しタブの試聴）で、同じ表示と操作を出す。
+
+**出すもの**: 題（空なら「無題のエピソード」）、番組名、番組のアートワーク（`shows.cover_path`。プレーヤー画面と同じ）、長さ、再生位置、再生中か。操作は再生 / 一時停止、15 秒戻る、30 秒進む、位置の指定（シークバー）。Android の通知には「止めて閉じる」も出す。ヘッドホン・Bluetooth の再生ボタンも同じ操作として届く。
+
+**持ち主と経路**:
+
+1. 表示と OS からの操作の受け口は `podsnow-audio-engine` の `NowPlaying`（`ios/NowPlaying.swift`、`android/.../NowPlayingService.kt`）。`TimelinePlayer` とは別のファイルにする（`Mixer` を触る #158 と並行するため）。
+2. 何を出すかは `PlaybackService` だけが決め、`NowPlayingPort.update()` / `clear()` で渡す。アプリ内のミニプレーヤー・プレーヤー画面と同じ状態（`source` / `isPlaying` / `position` / `duration`）から作るので食い違わない。
+3. OS からの操作（`onRemoteCommand`）は鳴らす側を直接触らず、JS の `PlaybackService` に送る。`PlaybackService` が操作し、その結果の状態がまた表示に戻る。利用者の操作として扱うので、割り込みのあとの自動再開は取り消す（§10.3）。
+4. 位置は、状態が変わったとき・位置を動かしたとき・再生元が変わったときだけ送る。間は OS が再生中かどうかから進める（iOS `MPNowPlayingInfoPropertyPlaybackRate`、Android `PlaybackState` の速度と更新時刻）。0.1 秒ごとに送らない。
+
+**出す期間**:
+
+- 出す: 利用者が再生を始めたとき（Home・プレーヤー・書き出しタブ・編集画面）。一時停止中も出したままにし、ロック画面から再開できるようにする。
+- 消す: ミニプレーヤーの「閉じる」・通知の「止めて閉じる」（`stopHome`）、再生中の書き出しを削除したとき、エピソード画面を抜けたとき（Home から始めていないタイムライン再生）、**録音側が取ったとき**（`stopForRecording`。#169 の入力モニターも同じ）。録音中は出さない（録音の通知と混ぜない。§10.1）。
+- 素材の試聴（§10.1）はロック画面に出さない（ミニプレーヤーにも出さない再生なので）。試聴を始めると、それまで出していた表示は消える（同じプレイヤーで鳴らすため、前の再生は止まっている）。
+
+**expo-audio の `setActiveForLockScreen` を使わない理由**【事実: コード】（`node_modules/expo-audio/ios/MediaController.swift`、57.0.5）:
+
+- 送り・戻しの秒数が 10 秒で固定（`preferredIntervals = [10.0]`）。#184 は 15 秒戻る / 30 秒進む。
+- ロック画面の操作がプレイヤーを直接動かし、`PlaybackService` を通らない。アプリ内の状態と食い違い、§10.3 の止め返しとも衝突する。
+- iOS の `MPRemoteCommandCenter` はアプリで 1 つなので、タイムライン再生の自作と同時に使えない。また、足したハンドラを `removeTarget(self)` で外しており、クロージャで足したものは外れない（切り替えのたびに溜まる）。
+- 対象は expo-audio のプレイヤーだけで、タイムライン再生（ネイティブ）は出せない。結局 2 つの実装になる。
+
+**Android の前面サービス**:
+
+- 種別は `mediaPlayback`（`FOREGROUND_SERVICE_MEDIA_PLAYBACK`。Android 14 以降は必須）【確認済み】(https://developer.android.com/develop/background-work/services/fgs/service-types)。宣言は `podsnow-audio-engine` の `AndroidManifest.xml`。expo-audio の config plugin（`AudioControlsService`）は使わない。
+- 表示している間は、一時停止中も前面に保つ。【仮説】一時停止で前面を外すと、ロック画面から再開するときにバックグラウンドから前面サービスを始め直すことになり、Android 12 以降の制限で失敗するおそれがある。代わりに通知に「止めて閉じる」を置き、消したい人が消せるようにする。
+- 前面サービスは利用者が画面で再生を押したときに始まる（前面にいるときなので Android 14 の制限にかからない）。
+- 通知は `MediaSession` と `Notification.MediaStyle`（Android 標準。androidx.media を足さない）で作る。Android 13 以降のメディア操作は `PlaybackState` の操作と独自の操作（15 秒戻る・30 秒進む）から作られる【仮説: 実機で表示を確認する】。
+- 通知の文言（操作の名前・チャンネル名）は UI 層から `ServiceLabels.nowPlaying` で渡す（ネイティブは文言を持たない。録音の通知と同じ）。
+
+### 10.4 未検証（実機で確かめる）
+
+- iPhone / Pixel 9a で: 他アプリの音楽を鳴らしたまま再生 → 他アプリが止まる / 再生中の着信 → 止まり、通話後に再開する / 再生中にイヤホン・Bluetooth を外す → 止まり、スピーカーから鳴らない / 録音直後の再生 → 出力先・音量が録音前と同じ / 画面を消したあとも再生が続く（10 分以上。§10.5）/ 録音中のジングルのモニターが鳴り終わっても録音が続く。
+- ロック画面・通知（§10.5）: 題・番組名・アートワークの表示、各操作、アプリ内との一致、録音を始めると消えること、10 分以上の継続、Android の通知の「止めて閉じる」、ヘッドホンの再生ボタン。
+- iOS の `mediaServicesWereResetNotification`（音声デーモンの再起動）での再生の立て直しは扱っていない（録音側は §4）。
+- 入力モニター（§3.6）: 他アプリの音楽を鳴らしたままモニターを始める → 他アプリが止まる / モニター中に再生しようとしても鳴らない / モニターを止めたあとの再生の出力先・音量が録音前と同じ / モニター中の着信 → モニターが止まり、通話後も勝手に始まらない。
 
 ## 11. 検証計画（Phase 0 スパイク）
 

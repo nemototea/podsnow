@@ -1,4 +1,4 @@
-# DATA_MODEL.md — podsnow データモデル
+# DATA_MODEL.md — PodsNow データモデル
 
 > 凡例: **【事実】** 対話で決定した仕様 / **【確認済み】** 公式ドキュメント等で確認済み（出典付き） / **【仮説】** 未検証・要スパイク
 
@@ -19,7 +19,7 @@
 podsnow/
 ├── db/podsnow.db                       # SQLite (+ -wal, -shm)
 ├── shows/<showId>/
-│   ├── cover.jpg
+│   ├── cover-<時刻>.jpg|png          # 番組のアートワーク（取り込みは jpg/png、手動選択は 3000px 以下の JPEG）
 │   └── assets/<assetId>.wav            # 取り込み時に 48k WAV へ変換したもの【仮説】
 │   └── assets/<assetId>.peaks          # 波形キャッシュ
 ├── episodes/<episodeId>/
@@ -27,14 +27,15 @@ podsnow/
 │   │   ├── seg-0001.wav                # Segment（連続録音の単位）
 │   │   ├── seg-0002.wav
 │   │   └── seg-0001.peaks
-│   ├── exports/<exportId>.m4a|.wav
-│   └── backup-staging/                 # バックアップ作成時の一時領域
+│   └── exports/<exportId>.m4a|.wav
 └── tmp/                                # 取り込み・レンダリングの中間ファイル（起動時に掃除）
+    └── share/<番組名> - <話数> - <タイトル>.m4a|.wav   # 共有用の別名コピー（1 つだけ置く）
 ```
 
 - Segment は 1 つの連続録音。一時停止ではファイルを分けず、割り込み・エラー・ルート変更（設定次第）で分ける（AUDIO_DESIGN.md §4）。
 - `.peaks`: 独自のバイナリ（ヘッダ + `Int8` の min/max ペア列、既定 100 サンプル/秒）【仮説】。
-- バックアップ `.podsnow` は zip（`manifest.json` + `episode.json` + `takes/**`、`assets/**` は参照 ID のみ、または同梱を選択）。
+- 書き出しの実物は `<exportId>.<ext>` のまま動かさない（履歴・試聴・削除が `exports.path` で指す）。共有するときだけ `tmp/share/` に分かる名前でコピーして渡す。コピーは次の共有と起動時の `tmp/` の掃除で消える（共有シートを閉じた直後には消さない。Android では受け取る側が後から読むことがある）。名前の規則は `src/domain/metadata/fileName.ts`（使えない文字は空白、拡張子を除いて UTF-8 で 180 バイトまで）。【事実: Issue #166】
+- 番組アートワークの置き換えは別名へ書き、`shows.cover_path` を確定してから旧ファイルを消す。中断されても DB が存在しないファイルを指さないようにする。【事実: Issue #133】
 
 ## 3. ER 図
 
@@ -43,13 +44,16 @@ shows 1──* episodes 1──* takes 1──* take_segments
   │            │            │
   │            ├──* voice_segments (EDL: take_id + src range)
   │            ├──* overlay_clips ──▶ assets
-  │            ├──* markers
-  │            ├──* topics
+  │            ├──* recording_events
+  │            ├──* outline_items
   │            ├──* edit_ops
   │            ├──* exports
   │            └──* transcripts (将来) ──▶ takes
   ├──* assets
+  ├──* show_categories / show_funding / show_external_ids (RSS の番組情報)
+  ├──* feed_episodes (配信済みの回: 取り込み + PodsNow から配信) ··▶ episodes
   ├──1 description_templates
+  ├──* show_topic_template (トークテーマのひな形)
   └──1 show_layout (既定構成)
 app_settings (key-value)
 recovery_journal
@@ -67,12 +71,73 @@ recovery_journal
 | description | TEXT | 番組概要 |
 | author | TEXT | |
 | cover_path | TEXT | 相対パス |
-| default_season | INTEGER | 新規エピソードの既定シーズン |
-| next_episode_number | INTEGER | 次の話数（作成時に採番） |
-| default_export_preset | TEXT | JSON |
+| default_season | INTEGER | **使わない**（Issue #211 で廃止。列は残すが読み書きしない。`next_episode_number` と同じ扱い） |
+| website_url | TEXT NOT NULL DEFAULT '' | `link` |
+| language | TEXT NOT NULL DEFAULT '' | `language`（ISO 639。小文字。空 = 未設定） |
+| explicit | INTEGER NOT NULL DEFAULT 0 | `itunes:explicit`（0 / 1） |
+| show_type | TEXT NOT NULL DEFAULT 'episodic' | `itunes:type`。`episodic` / `serial` |
+| copyright | TEXT NOT NULL DEFAULT '' | `copyright` |
+| owner_name / owner_email | TEXT NOT NULL DEFAULT '' | `itunes:owner` の `itunes:name` / `itunes:email` |
+| complete | INTEGER NOT NULL DEFAULT 0 | `itunes:complete`（yes = 1） |
+| locked | INTEGER NOT NULL DEFAULT 0 | `podcast:locked`（yes = 1）。PodsNow が配信する RSS では yes にして、他のホスティングによる無断の取り込みを断る（REQUIREMENTS.md FR-PUB-3） |
+| feed_url | TEXT nullable | RSS の URL（`atom:link rel="self"`、無ければ取得に使った URL）。自分で始めた番組は NULL |
+| podcast_guid | TEXT nullable | `podcast:guid`（UUIDv5） |
+| cover_source_url | TEXT nullable | `itunes:image@href`。取得元の記録で、表示と書き出しは `cover_path` を使う |
+| cover_color | TEXT nullable | アートワークの代表色（`#RRGGBB`）。番組の色の元（DESIGN_SYSTEM.md §2.6）。`cover_path` を変えたら NULL に戻して計算し直す。NULL = アートワークが無い、またはまだ計算していない |
+| feed_imported_at | INTEGER nullable | 最後に RSS から取り込んだ時刻 |
 | created_at / updated_at / deleted_at | INTEGER | Unix ms |
 
 MVP は起動時に 1 行自動作成。【事実】
+
+番組ごとの既定書き出しプリセット（旧 `default_export_preset`）は持たない。移行 0004 で列を削除した（Issue #136）。
+既定は設定の `export.defaultPreset`（§4.16）の 1 か所だけで、MVP は番組が 1 つなので番組単位の既定は二重の真実になる。【事実】
+`website_url` から `feed_imported_at` までは 0005 で追加した（REQUIREMENTS.md FR-SHOW-3a）。
+`cover_color` は 0008 で追加した（Issue #235）。端末内でアートワークを 16×16 に縮めて計算する（画像を外部に送らない。NFR-2）。計算に失敗しても NULL のまま（番組の色は既定の色になる）。【事実】
+値の範囲は Podcast Standards Project の PSP-1 に従う
+【確認済み】(https://github.com/Podcast-Standards-Project/PSP-1-Podcast-RSS-Specification)。
+取り込んだ値の正規化（`true` / `yes` / `clean` などの揺れ）は `src/domain/podcast/feed.ts` が持つ。
+
+`podcast:person`、`podcast:txt`、`itunes:block` は今は持たない。必要になったら列を足す（`podcast:txt` は所有権の確認 FR-PUB-6 で使う可能性がある）。【事実】
+
+配信基盤（Issue #107）の番組 ID などは、配信を実装するときに足す。トークンは SQLite に置かない（REQUIREMENTS.md NFR-11）。
+
+### 4.1.1 `show_categories`（`itunes:category`）
+| 列 | 型 | 説明 |
+|---|---|---|
+| id | TEXT PK | |
+| show_id | TEXT FK | |
+| position | INTEGER | 0 が主カテゴリー |
+| category | TEXT | Apple の分類名（英語の `text` 属性値、例 `Society & Culture`）。表示名は UI 層で訳す |
+| subcategory | TEXT NOT NULL DEFAULT '' | 入れ子の `itunes:category`。無ければ空 |
+
+### 4.1.2 `show_funding`（`podcast:funding`）
+| 列 | 型 | 説明 |
+|---|---|---|
+| id | TEXT PK | |
+| show_id | TEXT FK | |
+| position | INTEGER | |
+| url | TEXT | `url` 属性 |
+| label | TEXT NOT NULL DEFAULT '' | 要素の本文（リンクの説明） |
+
+### 4.1.3 `show_external_ids`（外部サービスの番組 ID）
+| 列 | 型 | 説明 |
+|---|---|---|
+| show_id | TEXT FK | 主キー（`show_id`, `provider`） |
+| provider | TEXT | `apple_podcasts`（iTunes Search API の `collectionId`） / `podcast_index` |
+| external_id | TEXT | |
+| updated_at | INTEGER | |
+
+外部の ID を `shows.id` に使わない。検索元を増やしても PodsNow の ID は変わらない（Issue #101 §9）。
+
+カテゴリー・支援リンク・外部 ID は「番組の子の並び」で、`show_topic_template` と同じく `created_at` / `deleted_at` を持たない。
+置き換えは丸ごと（`replaceCategories` / `replaceFunding`）。
+
+話数の採番用カウンター列も、既定のシーズンも使わない。新規作成時の話数・シーズンの初期値は、
+`feed_episodes`（配信済みの回）のうち配信日が最新の本編から導く（話数 + 1、シーズンは同じ値。0 か空なら空）。
+手元の `episodes` は見ない（REQUIREMENTS.md §2.1.1 / FR-EP-6、Issue #211）。【事実】
+
+理由: カウンターは `episodes` と二重の真実になり、ストレージクリアやクリーンインストールで失われる。
+導出なら状態を持たないので壊れる状態も存在しない。
 
 ### 4.2 `show_layout`（既定構成）
 | 列 | 型 | 説明 |
@@ -82,10 +147,22 @@ MVP は起動時に 1 行自動作成。【事実】
 | ending_asset_id | TEXT FK nullable | |
 | bgm_asset_id | TEXT FK nullable | |
 | bgm_gain_db | REAL | 既定 -14 |
-| bgm_duck_db | REAL | 既定 -10（声がある区間での追加減衰） |
+| bgm_duck_db | REAL | 既定 -10（声がある区間での追加減衰）。新しいエピソードの既定の下げ幅で、作成時に `episodes.sound_settings.ducking.depthDb` へ写す。写した後はエピソードの値で、ここを変えても作成済みの回は変わらない（Issue #174） |
 | opening_gain_db / ending_gain_db | REAL | |
 
 新規エピソード作成時、この行から `overlay_clips` を生成する。MVP は 1 種類のみ【事実】。将来 `episode_templates` テーブルに一般化。
+
+### 4.2.1 `show_topic_template`（トークテーマのひな形）
+| 列 | 型 | 説明 |
+|---|---|---|
+| id | TEXT PK | |
+| show_id | TEXT FK | |
+| position | INTEGER | 並び順 |
+| heading | TEXT | 見出し |
+| body | TEXT NOT NULL DEFAULT '' | 台本の下書き（空でよい） |
+
+新規エピソード作成時、この並びから `outline_items` を生成する（FR-SHOW-4）。
+生成後はエピソードのデータなので、ひな形を変えても既存エピソードは書き換えない（`ServiceLabels` と同じ考え方）。
 
 ### 4.3 `description_templates`
 | 列 | 型 | 説明 |
@@ -121,16 +198,37 @@ MVP は起動時に 1 行自動作成。【事実】
 | title | TEXT | |
 | description | TEXT | 編集済み本文 |
 | description_suggestion | TEXT nullable | 将来 AI の下書き候補（提案 → 採用/破棄）【事実: 接続点】 |
-| episode_number | INTEGER | |
-| season | INTEGER | |
+| episode_number | INTEGER nullable | 話数。任意（NULL = 未設定）。1 以上だけを入れる（CHECK）。初期値は REQUIREMENTS.md §2.1.1。移行 0009 で NULL 可にした |
+| season | INTEGER nullable | シーズン。話数と同じ扱い |
 | recorded_at | INTEGER | |
 | publish_planned_at | INTEGER nullable | |
-| status | TEXT | `draft` / `ready` / `exported`（自動判定。DB にはキャッシュとして保存） |
+| status | TEXT | `draft` / `ready` / `exported`（自動判定。DB にはキャッシュとして保存）。`exported` は書き出しが完了したときに付き、編集しても戻さない。Home で「書き出し済み」と見せるかは、今の編集と同じ書き出し（§4.13 の `source_fingerprint`）があるかで決める（REQUIREMENTS.md FR-EP-3、Issue #168） |
 | last_opened_at | INTEGER | Home の「続き」判定 |
 | playhead_smp | INTEGER | 最後の再生位置 |
 | undo_cursor | INTEGER | `edit_ops.seq` の現在位置（0 = 履歴なし）。§4.12 |
 | sound_settings | TEXT | JSON: `{ loudness: { enabled, targetLufs: -16, truePeakDbtp: -1 }, ducking: { enabled, depthDb, attackMs, releaseMs } }` |
+| audio_purged_at | INTEGER nullable | 「音声を削除」（FR-EP-4）を実行した時刻。録音だけ消し、行・話数・メタデータ・書き出し履歴は残す。一覧では「音声なし」として表示する |
+| export_preset | TEXT nullable | この回で最後に選んだ書き出しプリセットのキー（`podcast` / `high` / `wav` / `custom`）。NULL = 選んだことがない。§4.5.1 |
+| loudness_cache | TEXT nullable | ラウドネス測定の結果（Issue #158、移行 0007）。JSON の配列（チャンネル数ごとに最新 1 件、最大 2 件）: `[{ fingerprint, channels, algo, gainDb, targetLufs, inputLufs, measuredAt }]`（`src/domain/render/loudnessCache.ts`）。`fingerprint` は §4.13 の `source_fingerprint` と同じ計算。今の指紋・チャンネル数・`algo` と合う値だけを使う。試聴と書き出しが同じゲインを使うため（AUDIO_DESIGN.md §8.4）。キャッシュなので、消えても測り直すだけ。複製では引き継がない（複製した回は最初に開いたときに測る） |
+| guid | TEXT | RSS の `guid`。作成時の `id` を入れ、以後変えない（PSP-1: 一意で、決して変えない）。配信基盤はこの値を RSS に出す（REQUIREMENTS.md FR-PUB-3。#107 §7）。0005 で既存行にも `id` を入れた。索引 `(show_id, guid)` |
+| episode_type | TEXT NOT NULL DEFAULT 'full' | `itunes:episodeType`。`full` / `trailer` / `bonus` |
+| explicit | INTEGER nullable | `itunes:explicit`（0 / 1）。NULL は番組の `explicit` に従う |
+| website_url | TEXT NOT NULL DEFAULT '' | `link` |
+| published_at | INTEGER nullable | 実際に配信した日時（`pubDate`）。予定は `publish_planned_at` |
 | created_at / updated_at / deleted_at | INTEGER | |
+
+#### 4.5.1 書き出しプリセットの選択（`export_preset`）【事実: Issue #136】
+
+書き出しタブで選ぶプリセットは次の順で決める。
+
+1. その回の `episodes.export_preset`（書き出しタブでプリセットを選んだ時点で保存する）
+2. NULL、または知らない値なら設定の `export.defaultPreset`（§4.16）
+
+- 保存するのは**キーだけ**。「カスタム」の中身（形式・ビットレート・チャンネル・サンプルレート）は設定の `export.custom` に 1 つだけ持ち、回ごとには持たない。
+  カスタムを選んだ回は、書き出す時点の `export.custom` で書き出す。
+- 書き出したファイルの実際の中身は `exports.preset`（§4.13）に残る。`export_preset` は「次に開いたときの選択」であって履歴ではない。
+- **複製**（FR-EP-4）は `export_preset` を引き継ぐ（`sound_settings` と同じ扱い）。
+- 移行 0004 で追加。既存の回は NULL（= 設定の既定）から始まる。
 
 ### 4.6 `takes`
 | 列 | 型 | 説明 |
@@ -178,9 +276,8 @@ Take の「時間軸」は Segment を `seq` 順に連結したもの。割り�
 
 - 声トラック上の時刻は `position` 順に長さを累積して求める（`domain/timeline`）。
 - 範囲削除 = 対象 `voice_segments` の分割・削除。Take ファイルは触らない。【事実: 非破壊】
-- 録音停止時に `[0, duration)` を指す 1 行を末尾（または再生位置）に追加。
-- パンチイン = 範囲を除去 → その `position` に新 Take の行を挿入。
-- **不変条件（重要）**: 同一 Take の同一ソース範囲は声トラック上に **高々 1 回** しか現れない（範囲同士が重ならない）。マーカー（§4.10）と `source` アンカーのオーバーレイ（§4.9）は `(take_id, src_smp)` → 声トラック上の位置 1 点 に解決される前提で設計されている。MVP の編集操作（範囲削除 / 並び替え / パンチイン / 無音カット）はこの不変条件を保つ。将来「声クリップの複製」を追加する場合は、`resolveTimeline` が複数位置を返せるように変更し、マーカー・オーバーレイの解決規則を決め直す必要がある。
+- 録音停止時に `[0, duration)` を指す 1 行を末尾（または再生位置に差し込み）に追加する。この追加は取り消しの履歴に 1 つの操作として積む（§4.12）。
+- **不変条件（重要）**: 同一 Take の同一ソース範囲は声トラック上に **高々 1 回** しか現れない（範囲同士が重ならない）。マーカー（§4.10）と `source` アンカーのオーバーレイ（§4.9）は `(take_id, src_smp)` → 声トラック上の位置 1 点 に解決される前提で設計されている。MVP の編集操作（範囲削除 / 位置を選んだ差し込み / 無音カット）はこの不変条件を保つ。将来「声クリップの複製」を追加する場合は、`resolveTimeline` が複数位置を返せるように変更し、マーカー・オーバーレイの解決規則を決め直す必要がある。
 
 ### 4.9 `overlay_clips`（素材レイヤー）
 | 列 | 型 | 説明 |
@@ -195,7 +292,7 @@ Take の「時間軸」は Segment を `seq` 順に連結したもの。割り�
 | src_start_smp / src_end_smp | INTEGER | 素材内の使用範囲（トリム） |
 | gain_db | REAL | |
 | fade_in_smp / fade_out_smp | INTEGER | |
-| duck | INTEGER | BGM 等、声のある区間で減衰させるか |
+| duck | INTEGER | 互換のために残す列。**読まない。** 下げるかどうかは `kind` で決まり（BGM だけ。`domain/timeline/types.ts` の `ducksUnderVoice`）、書き込みは `kind = 'bgm'` のとき 1（Issue #174） |
 | loop | INTEGER | BGM を末尾まで繰り返すか |
 | end_mode | TEXT | `asset_end` / `timeline_end` / `fixed`（BGM 用） |
 | updated_at | INTEGER | |
@@ -205,29 +302,45 @@ Take の「時間軸」は Segment を `seq` 順に連結したもの。割り�
 - Opening は `timeline_start`、Ending は `timeline_end`（オフセット付き）。声の総尺が変わっても自動追従。
 - 後から手で配置した素材は `timeline_abs`（絶対位置）だが、UI で「発言に追従」に切り替え可。
 
-### 4.10 `markers`
+### 4.10 `recording_events`（録音中の出来事）
 | 列 | 型 | 説明 |
 |---|---|---|
 | id | TEXT PK | |
 | episode_id | TEXT FK | |
-| take_id | TEXT FK | マーカーは Take の時刻に紐づく（カットに追従） |
+| take_id | TEXT FK | Take の時刻に紐づく（カットに追従） |
 | src_smp | INTEGER | |
-| label | TEXT | 任意メモ |
-| kind | TEXT | `edit_point`（既定） / `mistake` / `interruption`（自動） / `route_change`（自動） / `topic`（トークテーマのチェック時） |
-| resolved | INTEGER | 対応済みフラグ |
+| label | TEXT | 表示用の補足（デバイス名など。文言は UI 層が作る） |
+| kind | TEXT | `interruption` / `route_change` / `disk_low`。**すべてアプリが自動で記録する** |
 | created_at | INTEGER | |
 
-### 4.11 `topics`（トークテーマ）
+**ユーザーが打つマーカーは持たない【事実】。** 旧 `markers` の `edit_point` / `mistake` は廃止し、
+収録タブの塊の選択と削除（FR-EDIT-2）、位置を選んだ録音（FR-REC-1）で置き換える（「言い直す」も #122 で廃止）。
+旧 `topic` は `outline_items.recorded_take_id / recorded_src_smp`（§4.11）に吸収した。
+
+理由: マーカーは押した時点では何も解決せず、あとで「戻る → 次へ → 範囲選択 → 削除」の作業が残る。
+ユーザーが本当に指したいのは「捨てる範囲」であり、「あとで見る場所」ではない（`docs/ux-restructure.md` §1.3）。
+
+### 4.11 `outline_items`（トークテーマと台本）
 | 列 | 型 | 説明 |
 |---|---|---|
 | id | TEXT PK | |
 | episode_id | TEXT FK | |
-| position | INTEGER | |
-| text | TEXT | |
-| checked_at | INTEGER nullable | 収録中にチェックした時刻 |
-| checked_take_id / checked_src_smp | TEXT / INTEGER nullable | チェック時の録音位置（マーカーと連動） |
+| position | INTEGER | 並び順 |
+| heading | TEXT | 見出し（トークテーマ）。必須 |
+| body | TEXT NOT NULL DEFAULT '' | 台本本文。**空なら見出しだけの項目**。台本かどうかを表す列は持たない |
+| recorded_take_id | TEXT FK nullable | 録音中にこの項目へ進んだ位置 = チャプターの始まり |
+| recorded_src_smp | INTEGER nullable | 同上（Take 内の時刻。カットに追従する） |
+| done_at | INTEGER nullable | 話し終えた時刻 |
 
-概要欄の `{{topics}}` に箇条書きとして差し込む。将来 AI 要約の入力にもなる。【事実】
+**「収録スタイル」を表す列は `episodes` にも置かない【事実】。**
+台本を書けば `body` が埋まり、書かなければ見出しだけになり、何も書かなければ項目が 0 件になる。
+モードを持たせると、ユーザーに「選ぶ前に選択肢の意味を理解させる」ことになる（REQUIREMENTS.md §2.2.1）。
+
+概要欄の `{{topics}}` には `heading` を箇条書きとして差し込む。将来の文字起こし（§4.14）は
+チャプター単位のテキストとしてここにぶら下がり、要約・概要の下書きの入力になる。【事実】
+
+旧 `topics` からの移行: `text → heading`、`checked_at → done_at`、
+`checked_take_id / checked_src_smp → recorded_take_id / recorded_src_smp`、`body` は空文字で追加。
 
 ### 4.12 `edit_ops`（編集履歴 / Undo）
 | 列 | 型 | 説明 |
@@ -236,13 +349,20 @@ Take の「時間軸」は Segment を `seq` 順に連結したもの。割り�
 | episode_id | TEXT FK | |
 | seq | INTEGER | 単調増加 |
 | label | TEXT | 「範囲を削除」など |
-| op | TEXT | JSON。`{ type, forward: [...row changes], inverse: [...row changes] }` |
+| op | TEXT | JSON。`{ before, after }`。声の並びと重ねた素材（`EditableDoc`）の操作前後のスナップショット |
 | group_key | TEXT nullable | 連続操作のまとめ（スライダー） |
 | created_at | INTEGER | |
 
-`episodes.undo_cursor` に「現在位置の seq」を持つ。Undo = cursor を 1 つ戻し `inverse` を適用、Redo = `forward` を適用。新規操作で cursor より後の行を削除。**アプリ再起動後も Undo 可能**。【事実】上限は既定 200 件【仮説】。
+`episodes.undo_cursor` に「適用済みの最後の op の seq」を持つ（0 = なし）。Undo = cursor を 1 つ戻し `before` を書き戻す、Redo = `after` を書き戻す。新規操作で cursor より後の行を削除する。上限は既定 200 件【仮説】。
 
-対象テーブル: `voice_segments`, `overlay_clips`, `markers`, `episodes.sound_settings`。Take 自体（録音）は Undo 対象外（削除は論理削除 + ゴミ箱）。
+【事実】スナップショットにする理由: 逆操作の実装ミスで録音データの参照が壊れるのを避ける（エピソードのセグメント数は高々数百で、JSON にしても小さい）。
+その代わり、**声の並びと素材を書き換える処理は、すべてこの履歴を通す**。履歴の外で書くと、古い `before` を書き戻したときにその変更が消える（Issue #122 で、録音の追加が履歴の外にあり、録音後に取り消すとテイクが外れた）。
+
+- **履歴の寿命**: エピソード画面を開いたときと抜けたときに空にする（FR-EDIT-7）。再起動をまたいで持たない。doc（声の並びと素材）は常に保存済み（FR-SAFE-8）。
+- **対象**: `voice_segments`、`overlay_clips`。
+- **録音の追加**: 停止時に、録音を始めたときの doc を `before`、テイクを足した doc を `after` として積む（Take の確定と同じトランザクション）。録音中に重ねた素材も `after` に含まれ、取り消せばテイクと一緒に外れる。Take の行と録音ファイルは消さない（FR-SAFE-7）。
+- **対象外**: `outline_items`（削除の確認で守る、FR-UI-2）、`episodes.sound_settings`、`episodes.export_preset`、`recording_events`（アプリが記録した事実）、Take の行そのもの（削除は論理削除 + ゴミ箱）。
+- 復旧（`RecoveryService`）が足すテイクは履歴に積まない。復旧は起動時に走り、次に画面を開いた時点で履歴は空から始まる。
 
 ### 4.13 `exports`
 | 列 | 型 | 説明 |
@@ -256,9 +376,12 @@ Take の「時間軸」は Segment を `seq` 順に連結したもの。割り�
 | path | TEXT nullable | |
 | bytes | INTEGER nullable | |
 | duration_smp | INTEGER | |
-| measured_lufs / measured_true_peak | REAL nullable | 正規化前後の測定値 |
-| error | TEXT nullable | |
+| source_fingerprint | TEXT nullable | 書き出したときの音の中身の指紋。声の並び・素材の配置・音の仕上げ（`sound_settings` を既定値で埋めたもの）を、行の `id` を除いて正規化した JSON のハッシュ（`src/domain/render/fingerprint.ts`）。今の値と同じなら「今の編集と同じ書き出し」で、Home はこの書き出しを鳴らす（REQUIREMENTS.md FR-EP-7）。ファイルのパスは入れない（iOS はアプリの更新で絶対パスが変わる）。取り消しで元に戻せば同じ値に戻る。0006 より前の行は NULL で、古い書き出しとして扱う。Issue #168 |
+| measured_lufs / measured_true_peak | REAL nullable | **書き出したファイル（出力）**の統合ラウドネス（LUFS）とトゥルーピーク（dBTP）。`preset.loudness` が無い古い行は調整前の値なので表示しない |
+| error | TEXT nullable | `AppErrorCode`。`failed` なら失敗の理由。`done` なら警告で、音声のファイルはある（`export_metadata_failed`: 題名・アートワークを埋め込めなかった。Issue #56） |
 | created_at / finished_at | INTEGER | |
+
+書き出し履歴からの削除（Issue #152）は、ファイルを消してから行を物理削除する（進行中の `queued` / `rendering` / `encoding` は消さない）。エピソードの削除でも、その回の書き出しのファイルと行を消す（§6）。
 
 ### 4.14 `transcripts`（将来。MVP はスキーマのみ）
 | 列 | 型 | 説明 |
@@ -282,10 +405,42 @@ Take の「時間軸」は Segment を `seq` 順に連結したもの。割り�
 
 起動時に `state='open'` の行があれば復旧フロー（§6）へ。
 
+### 4.17 `feed_episodes`（配信済みの回）
+| 列 | 型 | 説明 |
+|---|---|---|
+| id | TEXT PK | |
+| show_id | TEXT FK | |
+| guid | TEXT | item の `guid`。`(show_id, guid)` で一意。`guid` の無い item は取り込まない |
+| title | TEXT | |
+| description | TEXT | 本文（HTML を含みうる。表示時に扱う。REQUIREMENTS.md NFR-10） |
+| published_at | INTEGER nullable | `pubDate`（Unix ms） |
+| enclosure_url / enclosure_length / enclosure_type | TEXT / INTEGER / TEXT nullable | `enclosure` の `url` / `length`（バイト）/ `type` |
+| duration_smp | INTEGER nullable | `itunes:duration`。秒・`HH:MM:SS` どちらもサンプル数に直す（§1） |
+| episode_number / season | INTEGER nullable | `itunes:episode` / `itunes:season`（0 でない整数のみ） |
+| episode_type | TEXT NOT NULL DEFAULT 'full' | `itunes:episodeType` |
+| explicit | INTEGER nullable | NULL は番組に従う |
+| website_url | TEXT NOT NULL DEFAULT '' | `link` |
+| image_url | TEXT nullable | `itunes:image@href` |
+| episode_id | TEXT FK nullable | PodsNow で作った回との対応 |
+| created_at / updated_at | INTEGER | |
+
+配信済みの回の端末側の写し。入る経路は 2 つ: 既存の配信サービスの RSS から取り込んだ回（Issue #101）と、
+PodsNow の配信基盤から配信した回（REQUIREMENTS.md FR-PUB-5）。正本は配信基盤（乗り換え前は旧配信元の RSS）。
+
+`episodes` とは分ける。`episodes` は「PodsNow で作っている回（録音と編集の作業場所）」、
+`feed_episodes` は「配信済みの回のカタログ」であり、同じ回でも責務とライフサイクルが異なる。
+Home のサービス層だけが両方を 1 一覧へ投影する。`episode_id` の明示リンクを最優先し、次に GUID 完全一致だけを同じ回として統合する。題名や話数では自動統合しない。【事実: Issue #135】
+
+- 再取り込みは `guid` で突き合わせて上書きし、`id` / `episode_id` / `created_at` は残す。
+- フィードから消えた行は消さない。最新 N 件しか RSS に載せないホスティングがあるため。
+- 音声（`enclosure`）はダウンロードせず、Home からの再生時に URL をストリーミングする。
+- 新しい回の話数・シーズンの初期値（§4.1）は、ここの配信日が最新の本編から導く。公開するときの重複のチェックもここと比べる（REQUIREMENTS.md §2.1.1、#107）。
+- 乗り換え時は、ここにある過去の回を `guid` を変えずに PodsNow の配信基盤の RSS へ載せる（REQUIREMENTS.md FR-PUB-4）。
+
 ### 4.16 `app_settings`
 `expo-sqlite/kv-store`（【確認済み】AsyncStorage 互換の KV）を使う案と、専用テーブル `app_settings(key TEXT PK, value TEXT)` の案がある。型安全性のため専用テーブル + Zod スキーマ【仮説】。
 
-キー例: `theme`, `recording.sampleRate`, `recording.channels`, `recording.preferredInput`, `silence.minDurationMs`, `silence.thresholdDb`, `silence.autoApply`, `haptics`, `export.defaultPreset`, `interruption.autoResume`, `monitor.jinglePlayback`（`always` / `headphonesOnly` / `never`）。
+キー例: `recording.preferredInput`, `silence.minDurationMs`, `silence.thresholdDb`, `silence.autoApply`, `haptics`, `export.defaultPreset`（`podcast` / `high` / `wav` / `custom`）, `export.custom`（`{ format: m4a|wav, bitrate, channels: 1|2, sampleRate: 48000|44100 }`。録音は 48 kHz / ステレオ固定で、設定に持たない。Issue #174）, `interruption.autoResume`, `monitor.jinglePlayback`（`always` / `headphonesOnly` / `never`）。
 
 ## 5. タイムラインのセマンティクス（domain/timeline）
 
@@ -307,6 +462,11 @@ planSilenceRemoval(ranges, { padMs }): Range[]
 
 ## 6. 復旧フロー（起動時）
 
+起動時の処理の順: 録音の復旧（下記）→ 進行中のまま残った書き出しを `failed` に倒す → **削除済みなのにファイルが残っている回を片付ける**（`EpisodeService.cleanupDeleted`。Issue #152 より前に消した回が対象）。失敗しても起動は止めず、次の起動で再試行する。
+
+**ファイルの削除の順序【事実】ユーザー判断（2026-09-29）:** エピソードを削除・音声を削除・書き出しを削除のいずれも、**ファイルを先に消し、全部消せたら DB を確定する**。DB だけ消えてファイルが残ると、どこからも参照されない容量が残り、ユーザーには消す手段が無い。途中で失敗したら `file_delete_failed` を返して DB は変えない（消すのは「無ければ何もしない」なので、もう一度実行すれば続きから消して DB まで進む）。エピソードの削除は録音・ピーク・書き出しのファイルと `exports` の行を消し、「音声を削除」と同じ DB の更新をかけてから `deleted_at` を立てる。行は削除の記録として残す（§1、将来の同期）。
+
+
 1. `recovery_journal.state='open'` を検索。
 2. 各 Segment について、ファイル実長からデータ長を計算し、WAV ヘッダを書き直す（ネイティブ `repairWavHeader(path)`）。
 3. `take_segments.duration_smp` を確定、`header_valid=1`、`reason_closed='crash_recovered'`。
@@ -314,22 +474,12 @@ planSilenceRemoval(ranges, { padMs }): Range[]
 5. ユーザーへ「未確定の録音を復元しました（n 分 m 秒）」を表示し、該当 Take を Editor で開く。
 6. `recovery_journal` を `closed` に。
 
-## 7. バックアップ形式 `.podsnow`【仮説】
-
-```
-manifest.json     { formatVersion: 1, app: "podsnow", createdAt, episodeId, showId }
-episode.json      episodes / takes / take_segments / voice_segments / overlay_clips / markers / topics / exports(メタのみ) の行を JSON で
-takes/<takeId>/seg-0001.wav ...
-assets/<assetId>.wav  (オプション。既定は同梱)
-```
-復元時、ID が衝突する場合は新 UUID を採番して参照を張り替える。
-
-## 8. 移行戦略
+## 7. 移行戦略
 - `PRAGMA user_version` を 1 から開始。`src/infra/db/migrations/0001_init.sql` … を順に適用。
 - Drizzle 採用時は drizzle-kit の生成 SQL をそのまま使う【仮説】。
-- 破壊的変更は必ず「新列追加 → データ移送 → 旧列放置」の順。DB ファイル自体のバックアップを移行前に `db/podsnow.db.bak-<version>` として残す。
+- 破壊的変更は必ず「新列追加 → データ移送 → 旧列放置」の順。ただし 0.1.0（未公開）の間は、二重の真実を残すほうが害が大きい場合に限り旧テーブル・旧列を落とす（0003 の `topics` / `markers`、0004 の `shows.default_export_preset`、0009 の `episodes.episode_number` / `season` を NULL 可の列へ置き換え）。DB ファイル自体のバックアップを移行前に `db/podsnow.db.bak-<version>` として残す。
 
 ## 9. ストレージ見積り
 - 48 kHz / 16 bit / mono = 96 KB/s ≈ 5.8 MB/分 ≈ **345 MB/時間**。ステレオは 2 倍。
-- 録音開始時の必要空き容量チェック: `Paths.availableDiskSpace`【確認済み】 ≥ (想定 60 分 × レート) + 200 MB 余裕。不足時は分数を示して警告。
+- 録音開始時の空き容量チェック: 録れる時間 =（`Paths.availableDiskSpace`【確認済み】 − 停止のしきい値）÷ レート。1 分未満なら始めない。収録タブの「残り約 ◯ 分」も同じ計算（`src/domain/storage.ts`、Issue #165）。想定時間ぶんを先に要求する判定と「想定する収録時間」の設定は持たない。
 - 録音中の監視: 残り 5 分相当（≈ 30 MB）を下回ったら `diskLow` → 安全停止。【仮説: しきい値】

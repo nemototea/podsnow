@@ -1,0 +1,314 @@
+import { useCallback, useState } from 'react';
+import { Platform, StyleSheet } from 'react-native';
+
+import { APP_VERSION } from '@/domain/version';
+import { useServices } from '@/features/app/ServicesProvider';
+import { formatBytes, summarizeStorage, type StorageSummary } from '@/features/settings/storage';
+import { useAsyncData } from '@/features/show/useAsyncData';
+import { useT, type Messages } from '@/i18n';
+import { availableDiskBytes } from '@/infra/files/fileSystem';
+import type { AppSettings } from '@/infra/db/repositories/settingsRepo';
+import { space, tabularNums, typography } from '@/ui/tokens';
+import {
+  Card,
+  Chip,
+  Notice,
+  Row,
+  Screen,
+  SectionHeader,
+  Segmented,
+  Text,
+  Toggle,
+} from '@/ui/components';
+import { ChoiceMenu } from '@/ui/ChoiceMenu';
+import { ScreenHeader } from '@/ui/ScreenHeader';
+import { useAppTheme } from '@/ui/ThemeContext';
+
+import type { AudioInput } from '../../modules/podsnow-recorder/src/PodsnowRecorder.types';
+
+interface Loaded {
+  storage: StorageSummary;
+  freeBytes: number;
+  inputs: AudioInput[];
+}
+
+/** 選択肢は「値の並び」だけ持ち、ラベルは i18n から引く（Issue #80）。 */
+/** 表示テーマと同じく「システム」を最後に置く。 */
+const LANGUAGES: readonly AppSettings['language'][] = ['ja', 'en', 'system'];
+const SILENCE_LEN = [1000, 1500, 2000, 3000];
+const SILENCE_DB = [-40, -45, -50, -55];
+const SILENCE_PAD = [100, 250, 400];
+const SOURCES: readonly AppSettings['recording']['androidAudioSource'][] = [
+  'voice_recognition',
+  'mic',
+  'unprocessed',
+  'camcorder',
+];
+const PRESETS: readonly AppSettings['export']['defaultPreset'][] = [
+  'podcast',
+  'high',
+  'wav',
+  'custom',
+];
+const MONITOR: readonly AppSettings['monitor']['jinglePlayback'][] = [
+  'headphonesOnly',
+  'always',
+  'never',
+];
+
+/** アプリ全般設定（REQUIREMENTS.md §2.9、DATA_MODEL.md §4.16）。 */
+export default function SettingsScreen() {
+  const c = useAppTheme();
+  const t: Messages = useT();
+  const services = useServices();
+  const { db, recorder, updateSettings } = services;
+  const [settings, setSettings] = useState<AppSettings>(services.settings);
+
+  const loader = useCallback(async (): Promise<Loaded> => {
+    const [storage, inputs] = await Promise.all([
+      summarizeStorage(db),
+      recorder.getInputs().catch(() => [] as AudioInput[]),
+    ]);
+    let freeBytes = 0;
+    try {
+      freeBytes = availableDiskBytes();
+    } catch {
+      freeBytes = 0;
+    }
+    return { storage, freeBytes, inputs };
+  }, [db, recorder]);
+  const { data } = useAsyncData<Loaded>(loader, {
+    storage: { recordingsBytes: 0, exportsBytes: 0, exportedEpisodesRecordingsBytes: 0 },
+    freeBytes: 0,
+    inputs: [],
+  });
+
+  const set = async <K extends keyof AppSettings>(key: K, value: AppSettings[K]) => {
+    const next = { ...settings, [key]: value };
+    setSettings(next);
+    await updateSettings(key, value);
+  };
+  const setRec = (p: Partial<AppSettings['recording']>) =>
+    set('recording', { ...settings.recording, ...p });
+  const setSilence = (p: Partial<AppSettings['silence']>) =>
+    set('silence', { ...settings.silence, ...p });
+
+  // 内蔵マイクは端末名（例: Pixel 9a）ではなく「内蔵マイク」と出し、端末名は補足に回す。
+  const inputName = (i: AudioInput) => (i.type === 'builtin' ? t.record.builtInMic : i.name);
+  const inputSub = (i: AudioInput) =>
+    `${i.type === 'builtin' ? i.name : t.settings.inputTypes[i.type]}${
+      i.lowQuality ? t.settings.lowQualitySuffix : ''
+    }`;
+  const currentInput = data.inputs.find((i) => i.uid === settings.recording.preferredInputUid);
+  const inputLabel = settings.recording.preferredInputUid
+    ? currentInput
+      ? inputName(currentInput)
+      : t.settings.inputLastUsed
+    : t.settings.inputOsDefault;
+
+  return (
+    <Screen>
+      <ScreenHeader title={t.settings.title} />
+
+      <SectionHeader title={t.settings.languageEyebrow} />
+      <Segmented
+        value={settings.language}
+        onChange={(v) => void set('language', v)}
+        options={LANGUAGES.map((v) => ({ value: v, label: t.settings.language[v] }))}
+      />
+
+      <SectionHeader title={t.settings.generalEyebrow} />
+      <Card rows>
+        <Row
+          label={t.settings.haptics}
+          info={t.glossary.haptics}
+          last
+          right={
+            <Toggle
+              accessibilityLabel={t.settings.haptics}
+              value={settings.haptics}
+              onChange={(v) => set('haptics', v)}
+            />
+          }
+        />
+      </Card>
+
+      <SectionHeader title={t.settings.recordingEyebrow} />
+      <Card rows>
+        <ChoiceMenu
+          label={t.settings.inputDefault}
+          sub={inputLabel}
+          title={t.settings.inputDefault}
+          value={settings.recording.preferredInputUid ?? ''}
+          options={[
+            { value: '', label: t.settings.inputOsDefault },
+            ...data.inputs.map((i) => ({
+              value: i.uid,
+              label: inputName(i),
+              sub: inputSub(i),
+            })),
+          ]}
+          onChange={(uid) => void setRec({ preferredInputUid: uid || null })}
+        />
+        {currentInput?.lowQuality ? (
+          <Notice
+            kind="warning"
+            title={t.record.bluetoothTitle}
+            body={t.settings.bluetoothWarning}
+          />
+        ) : null}
+        <Row
+          label={t.settings.autoResume}
+          right={
+            <Toggle
+              accessibilityLabel={t.settings.autoResume}
+              value={settings.recording.autoResumeAfterInterruption}
+              onChange={(v) => setRec({ autoResumeAfterInterruption: v })}
+            />
+          }
+        />
+        <ChoiceMenu
+          label={t.settings.monitorRow}
+          last={Platform.OS !== 'android'}
+          sub={t.settings.monitor[settings.monitor.jinglePlayback].label}
+          title={t.settings.monitorRow}
+          value={settings.monitor.jinglePlayback}
+          options={MONITOR.map((v) => ({
+            value: v,
+            label: t.settings.monitor[v].label,
+            sub: t.settings.monitor[v].sub,
+          }))}
+          onChange={(v) => void set('monitor', { jinglePlayback: v })}
+        />
+        {Platform.OS === 'android' ? (
+          <ChoiceMenu
+            label={t.settings.androidSource}
+            info={t.glossary.androidSource}
+            last
+            sub={t.settings.sources[settings.recording.androidAudioSource].label}
+            title={t.settings.androidSource}
+            value={settings.recording.androidAudioSource}
+            options={SOURCES.map((v) => ({
+              value: v,
+              label: t.settings.sources[v].label,
+              sub: t.settings.sources[v].sub,
+            }))}
+            onChange={(v) => void setRec({ androidAudioSource: v })}
+          />
+        ) : null}
+      </Card>
+
+      <SectionHeader title={t.settings.editingEyebrow} />
+      <Card rows>
+        <Row
+          label={t.settings.silenceLength}
+          below={
+            <>
+              {SILENCE_LEN.map((ms) => (
+                <Chip
+                  key={ms}
+                  label={t.settings.seconds((ms / 1000).toFixed(1))}
+                  active={settings.silence.minDurationMs === ms}
+                  onPress={() => setSilence({ minDurationMs: ms })}
+                />
+              ))}
+            </>
+          }
+        />
+        <Row
+          label={t.settings.silenceThreshold}
+          below={
+            <>
+              {SILENCE_DB.map((dbv) => (
+                <Chip
+                  key={dbv}
+                  label={`${dbv} dB`}
+                  active={settings.silence.thresholdDb === dbv}
+                  onPress={() => setSilence({ thresholdDb: dbv })}
+                />
+              ))}
+            </>
+          }
+        />
+        <Row
+          label={t.settings.silencePad}
+          below={
+            <>
+              {SILENCE_PAD.map((ms) => (
+                <Chip
+                  key={ms}
+                  label={`${ms} ms`}
+                  active={settings.silence.padMs === ms}
+                  onPress={() => setSilence({ padMs: ms })}
+                />
+              ))}
+            </>
+          }
+        />
+        <Row
+          label={t.settings.silenceAuto}
+          last
+          right={
+            <Toggle
+              accessibilityLabel={t.settings.silenceAuto}
+              value={settings.silence.autoApply}
+              onChange={(v) => setSilence({ autoApply: v })}
+            />
+          }
+        />
+      </Card>
+
+      <SectionHeader title={t.settings.exportEyebrow} />
+      <Card rows>
+        <ChoiceMenu
+          label={t.settings.defaultPreset}
+          last
+          sub={t.settings.presets[settings.export.defaultPreset].sub}
+          title={t.settings.defaultPresetSheet}
+          value={settings.export.defaultPreset}
+          options={PRESETS.map((v) => ({
+            value: v,
+            label: t.settings.presets[v].label,
+            sub: t.settings.presets[v].sub,
+          }))}
+          onChange={(v) => void set('export', { ...services.settings.export, defaultPreset: v })}
+        />
+      </Card>
+
+      <SectionHeader title={t.settings.storageEyebrow} />
+      <Card rows>
+        <Row
+          label={t.settings.recordingsSize}
+          right={
+            <Text style={[typography.numeric, tabularNums, { color: c.textPrimary }]}>
+              {formatBytes(data.storage.recordingsBytes)}
+            </Text>
+          }
+        />
+        <Row
+          label={t.settings.exportsSize}
+          right={
+            <Text style={[typography.numeric, tabularNums, { color: c.textPrimary }]}>
+              {formatBytes(data.storage.exportsBytes)}
+            </Text>
+          }
+        />
+        <Row
+          label={t.settings.freeSpace}
+          last
+          right={
+            <Text style={[typography.numeric, tabularNums, { color: c.textPrimary }]}>
+              {formatBytes(data.freeBytes)}
+            </Text>
+          }
+        />
+      </Card>
+
+      <Text style={[st.version, { color: c.textTertiary }]}>{t.app.versionLine(APP_VERSION)}</Text>
+    </Screen>
+  );
+}
+
+const st = StyleSheet.create({
+  version: { ...typography.caption, textAlign: 'center', marginTop: space.xl },
+});
