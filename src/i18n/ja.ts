@@ -172,12 +172,13 @@ Podcast: {{show_name}}
   },
 
   /** 素材の用途（FR-AST-1）。 */
+  /** 素材の用途。`hint` は素材の画面の見出しの下に出す、何に使う音かの一文。 */
   assetKinds: {
-    opening: { label: 'オープニング' },
-    ending: { label: 'エンディング' },
-    jingle: { label: 'ジングル' },
-    sfx: { label: '効果音' },
-    bgm: { label: 'BGM' },
+    opening: { label: 'オープニング', hint: 'エピソードの始まりに流す音' },
+    ending: { label: 'エンディング', hint: 'エピソードの終わりに流す音' },
+    jingle: { label: 'ジングル', hint: 'コーナーの切り替えなどに差し込む短い音' },
+    sfx: { label: '効果音', hint: '拍手や笑い声など、話の途中に差し込む音' },
+    bgm: { label: 'BGM', hint: '声の後ろで小さく流す音楽' },
   },
 
   /** 下部タブ（見本 `.tabs`）。 */
@@ -202,10 +203,14 @@ Podcast: {{show_name}}
     shortcuts: {
       openingEnding: 'オープニング・エンディング',
       bgmJingle: 'BGM・ジングル',
+      sfx: '効果音',
       notesTemplate: 'カンペのひな形',
     },
     sectionShows: 'あなたの番組',
     sectionRecent: '最近のエピソード',
+    /** 「最近のエピソード」の右端。上限を超えたときだけ出し、番組画面の一覧を開く。 */
+    seeAll: 'すべて見る',
+    a11ySeeAll: (count: number) => `エピソードをすべて見る（${count} 件）`,
     /** 下書きバー（見本 `.mini .t small`「下書き · 18:04 · 録音を続ける」）。 */
     miniDraft: (status: string, duration: string) => `${status} · ${duration} · 録音を続ける`,
     miniRecord: '録音に戻る',
@@ -356,6 +361,8 @@ Podcast: {{show_name}}
     seconds: (s: string) => `${s} 秒`,
     enterNumbers: '秒数で指定',
     playheadInfo: (pos: string, total: string) => `${pos} / ${total}`,
+    /** 再生位置を先頭（0:00）へ戻す。 */
+    toStart: '先頭へ戻る',
     insertBefore: '前に素材',
     insertAfter: '後ろに素材',
     insert: '素材を追加',
@@ -671,6 +678,11 @@ Podcast: {{show_name}}
     count: (n: number) => `${n} 件`,
     a11yOpen: (n: number) => `素材 ${n} 件の管理画面を開く`,
     a11yAdd: (kind: string) => `${kind} に音源を追加`,
+    /** 用途ごとのまとまりの最後の行（素材の画面）。押すとファイルを選ぶ。 */
+    addKind: (kind: string) => `${kind}を追加`,
+    addKindSub: 'ファイルから音声を選ぶ',
+    /** 用途の絞り込みの「すべて」。 */
+    all: 'すべて',
     importing: (pct: number) => `読み込み中… ${pct}%`,
     imported: (kind: string, name: string) => `${kind} に「${name}」を追加しました`,
     importFailed: (message: string) => `読み込めませんでした: ${message}`,

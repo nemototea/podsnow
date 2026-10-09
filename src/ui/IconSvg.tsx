@@ -56,6 +56,8 @@ const SHAPES = {
     { k: 'rect', x: 6, y: 5, w: 4, h: 14, r: 1, fill: true },
     { k: 'rect', x: 14, y: 5, w: 4, h: 14, r: 1, fill: true },
   ],
+  // 先頭へ戻る（縦棒と左向きの三角）
+  toStart: [{ k: 'rect', x: 5, y: 5, w: 3, h: 14, r: 1, fill: true }, p('M19 5v14L9 12Z', true)],
   stop: [{ k: 'rect', x: 6, y: 6, w: 12, h: 12, r: 2, fill: true }],
   record: [{ k: 'circle', cx: 12, cy: 12, r: 7, fill: true }],
   flag: [p('M6 21V4M6 4h11l-2 4 2 4H6')],

@@ -23,6 +23,7 @@ export const SYMBOLS: Record<IconName, SFSymbol> = {
   skipBack15: 'gobackward.15',
   skipForward30: 'goforward.30',
   pause: 'pause.fill',
+  toStart: 'backward.end.fill',
   stop: 'stop.fill',
   record: 'circle.fill',
   flag: 'flag',

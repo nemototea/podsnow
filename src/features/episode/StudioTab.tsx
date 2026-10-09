@@ -19,6 +19,7 @@ import {
 } from '@/ui/components';
 import { Sheet } from '@/ui/Sheet';
 import { useAppTheme } from '@/ui/ThemeContext';
+import { useScreenReader } from '@/ui/useScreenReader';
 import { grabber, icon, radius, space, stroke, tabularNums, typography } from '@/ui/tokens';
 
 import { parseSeconds, validateRange } from './selectionInput';
@@ -28,6 +29,7 @@ import { NotesSheet } from './NotesSheet';
 import type { RecordingContext } from './useRecordingContext';
 import type { Workspace } from './useWorkspace';
 import { Waveform } from './Waveform';
+import { ZOOM_MAX, ZOOM_MIN, ZOOM_STEP } from './waveScroll';
 
 export interface StudioTabProps {
   ws: Workspace;
@@ -82,6 +84,7 @@ export function StudioTab({
   // 開始・終了の秒数入力（読み上げでも選べるように。DESIGN_SYSTEM.md §8）。ふだんは畳んでおく
   const [numeric, setNumeric] = useState(false);
   const [notesOpen, setNotesOpen] = useState(false);
+  const screenReader = useScreenReader();
 
   /**
    * 入れた素材をその場で選び、素材のシートを開く（Issue #178）。挿入のシートが閉じ終わり、
@@ -284,22 +287,32 @@ export function StudioTab({
                 onPress={() => void trimSilence()}
               />
               <Chip raised label={t.edit.insert} icon="plus" onPress={() => setSheet('insert')} />
-              {/* 拡大・縮小（見本の波形のパネルには置かないので、選んでいないときのシートに置く） */}
-              <Chip
-                raised
-                label={t.a11y.zoomOut}
-                icon="minus"
-                onPress={() => onZoom(Math.max(4, pps / 1.6))}
-              />
-              <Chip
-                raised
-                label={t.a11y.zoomIn}
-                icon="plus"
-                onPress={() => onZoom(Math.min(200, pps * 1.6))}
-              />
+              {/* 拡大・縮小は波形のピンチで行う（ユーザー判断 2026-10-09）。ピンチできない読み上げ中だけボタンを出す */}
+              {screenReader ? (
+                <>
+                  <Chip
+                    raised
+                    label={t.a11y.zoomOut}
+                    icon="minus"
+                    onPress={() => onZoom(Math.max(ZOOM_MIN, pps / ZOOM_STEP))}
+                  />
+                  <Chip
+                    raised
+                    label={t.a11y.zoomIn}
+                    icon="plus"
+                    onPress={() => onZoom(Math.min(ZOOM_MAX, pps * ZOOM_STEP))}
+                  />
+                </>
+              ) : null}
             </View>
           )}
           <View style={st.btns}>
+            <IconButton
+              name="toStart"
+              label={t.edit.toStart}
+              disabled={empty || state.playhead === 0}
+              onPress={() => void ws.seek(smp(0))}
+            />
             <Button
               label={state.playing ? t.a11y.pause : t.a11y.play}
               kind="secondary"
@@ -345,6 +358,7 @@ export function StudioTab({
           selection={sel}
           selectedOverlay={state.selectedOverlay}
           pps={pps}
+          onZoom={onZoom}
           blocks={ws.blocks}
           onTap={(at: Smp, longPress: boolean) => void ws.tapAt(at, longPress)}
           onSelectionChange={(range: Range) => ws.setSelection(range)}
@@ -380,7 +394,10 @@ export function StudioTab({
           }
           style={({ pressed }) => [
             st.notesCard,
-            { backgroundColor: pressed ? c.surfaceHover : c.surface },
+            {
+              backgroundColor: pressed ? c.surfaceHover : c.surface,
+              borderColor: c.borderStrong,
+            },
           ]}
         >
           <Text
@@ -549,9 +566,16 @@ const st = StyleSheet.create({
     overflow: 'hidden',
   },
   // 見本 `.notesbox`: 上 14、間 6。本文の地は角丸 8、内側 上下 12・左右 14。
+  // 押すと書けることが分かるよう、入力欄（`Field`）と同じ細い輪郭を付ける（ユーザー判断 2026-10-09）。
+  // 枠の太さの分は内側の余白から引き、字の位置を見本のままにする。
   notes: { marginTop: space.x14, gap: space.x6 },
   notesHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  notesCard: { borderRadius: radius.sm, paddingVertical: space.md, paddingHorizontal: space.x14 },
+  notesCard: {
+    borderRadius: radius.sm,
+    borderWidth: stroke.hairline,
+    paddingVertical: space.md - stroke.hairline,
+    paddingHorizontal: space.x14 - stroke.hairline,
+  },
   // 見本 `.sheet`: 上の角丸 14、上 12・左右 16・下 24、行の間 12。
   sheet: {
     borderTopLeftRadius: radius.x14,
@@ -563,7 +587,7 @@ const st = StyleSheet.create({
   grab: { ...grabber, borderRadius: radius.pill, alignSelf: 'center' },
   fields: { flexDirection: 'row', gap: space.md },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
-  btns: { flexDirection: 'row', gap: space.sm },
+  btns: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   gainRow: {
     flexDirection: 'row',
     alignItems: 'center',

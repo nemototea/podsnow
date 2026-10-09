@@ -1,7 +1,10 @@
 import {
   PLAYHEAD_AT,
   clampScroll,
+  ZOOM_MAX,
+  ZOOM_MIN,
   follow,
+  pinchPps,
   release,
   reveal,
   zoomScroll,
@@ -93,5 +96,20 @@ describe('波形のスクロール位置（Issue #176）', () => {
     it('縮めて先頭より左になるときは 0 に収める', () => {
       expect(zoomScroll({ ...base, newPps: 4, headSec: 10, scrollX: 100 })).toBe(0);
     });
+  });
+});
+
+describe('ピンチの拡大率', () => {
+  it('始めたときの拡大率に指の倍率を掛ける', () => {
+    expect(pinchPps(24, 2)).toBe(48);
+    expect(pinchPps(24, 0.5)).toBe(12);
+  });
+  it('下限と上限に収める', () => {
+    expect(pinchPps(24, 100)).toBe(ZOOM_MAX);
+    expect(pinchPps(24, 0.01)).toBe(ZOOM_MIN);
+  });
+  it('おかしな倍率では変えない', () => {
+    expect(pinchPps(24, 0)).toBe(24);
+    expect(pinchPps(24, Number.NaN)).toBe(24);
   });
 });

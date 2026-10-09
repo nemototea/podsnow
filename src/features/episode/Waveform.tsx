@@ -23,7 +23,7 @@ import { hit, icon, radius, space, stroke, tabularNums, timeline, typography } f
 import { useAppTheme } from '@/ui/ThemeContext';
 
 import { sampleVoiceColumns, type TakePeaks } from './peaks';
-import { follow, release, reveal, zoomScroll, type FollowState } from './waveScroll';
+import { follow, pinchPps, release, reveal, zoomScroll, type FollowState } from './waveScroll';
 
 const SAMPLE_RATE = 48000;
 /** 0.1 秒（ハンドルを動かしている間に時間を知らせる刻み）。 */
@@ -52,6 +52,8 @@ export interface WaveformProps {
   selectedOverlay: string | null;
   /** 1 秒あたりのピクセル。 */
   pps: number;
+  /** ピンチで拡大率を変えたとき（新しい 1 秒あたりのピクセル）。 */
+  onZoom?: (pps: number) => void;
   onSeek: (to: Smp) => void;
   onSelectOverlay: (id: string | null) => void;
   /** 無音で区切られた声の塊（FR-EDIT-2）。2 回目のタップか長押しで選び、ハンドルで広げる。 */
@@ -280,6 +282,38 @@ export const Waveform = memo(function Waveform(p: WaveformProps) {
     [commit, dragging, endBase, lastTenths, pps, selEnd, selStart, total],
   );
 
+  // ---- ピンチで拡大・縮小 ----
+  // 拡大率は shared value でも持ち、ピンチの途中で描き直されてもジェスチャーを作り直さない。
+  // JS へは 4% 以上変わったときだけ返す（毎フレーム描き直さない）。位置は上の拡大・縮小の処理が保つ。
+  const ppsNow = useSharedValue(pps);
+  useEffect(() => {
+    ppsNow.value = pps;
+  }, [pps, ppsNow]);
+  const pinchBase = useSharedValue(pps);
+  const pinchSent = useSharedValue(pps);
+  const { onZoom } = p;
+  const zoomTo = useCallback((next: number) => onZoom?.(next), [onZoom]);
+  const pinch = useMemo(
+    () =>
+      Gesture.Pinch()
+        .enabled(!!onZoom)
+        .onBegin(() => {
+          pinchBase.value = ppsNow.value;
+          pinchSent.value = ppsNow.value;
+        })
+        .onUpdate((e) => {
+          const next = pinchPps(pinchBase.value, e.scale);
+          if (Math.abs(next / pinchSent.value - 1) < 0.04) return;
+          pinchSent.value = next;
+          runOnJS(zoomTo)(next);
+        })
+        .onEnd((e) => {
+          const next = pinchPps(pinchBase.value, e.scale);
+          if (next !== pinchSent.value) runOnJS(zoomTo)(next);
+        }),
+    [onZoom, pinchBase, pinchSent, ppsNow, zoomTo],
+  );
+
   const selectionStyle = useAnimatedStyle(() => ({
     left: (selStart.value / SAMPLE_RATE) * pps,
     width: Math.max(2, ((selEnd.value - selStart.value) / SAMPLE_RATE) * pps),
@@ -292,168 +326,171 @@ export const Waveform = memo(function Waveform(p: WaveformProps) {
   }));
 
   return (
-    <View onLayout={onLayout} style={styles.root}>
-      <ScrollView
-        ref={scrollRef}
-        horizontal
-        onScroll={onScroll}
-        onScrollBeginDrag={onDragStart}
-        onScrollEndDrag={onDragEnd}
-        onMomentumScrollBegin={onDragStart}
-        onMomentumScrollEnd={onDragEnd}
-        scrollEventThrottle={32}
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={[styles.content, { width: contentW }]}
-      >
-        <Pressable
-          style={{ width: contentW, height: laneTop + space.xl }}
-          onPress={(e) => tapAt(e.nativeEvent.locationX, false)}
-          onLongPress={(e) => tapAt(e.nativeEvent.locationX, true)}
+    <GestureDetector gesture={pinch}>
+      <View onLayout={onLayout} style={styles.root}>
+        <ScrollView
+          ref={scrollRef}
+          horizontal
+          onScroll={onScroll}
+          onScrollBeginDrag={onDragStart}
+          onScrollEndDrag={onDragEnd}
+          onMomentumScrollBegin={onDragStart}
+          onMomentumScrollEnd={onDragEnd}
+          scrollEventThrottle={32}
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={[styles.content, { width: contentW }]}
         >
-          {/* 目盛り */}
-          {Array.from({ length: Math.ceil(totalSec / tickSec) + 2 }).map((_, i) => (
-            <Text
-              key={i}
+          <Pressable
+            style={{ width: contentW, height: laneTop + space.xl }}
+            onPress={(e) => tapAt(e.nativeEvent.locationX, false)}
+            onLongPress={(e) => tapAt(e.nativeEvent.locationX, true)}
+          >
+            {/* 目盛り */}
+            {Array.from({ length: Math.ceil(totalSec / tickSec) + 2 }).map((_, i) => (
+              <Text
+                key={i}
+                style={[
+                  styles.tick,
+                  tabularNums,
+                  { left: i * tickSec * p.pps, color: c.textTertiary },
+                ]}
+              >
+                {formatSmp(smp(i * tickSec * SAMPLE_RATE))}
+              </Text>
+            ))}
+            {/* 声 */}
+            <View style={[styles.voiceTrack, { top: RULER, height }]}>
+              {/* 塊（見本 `.chunk`）。無音で区切った塊ごとに角丸 4 の面を置き、間を 3 あける */}
+              {(p.blocks?.length
+                ? p.blocks
+                : placed.map((x) => ({ start: x.start, end: x.end }))
+              ).map((b) => {
+                const left = xOf(b.start) + CHUNK_GAP / 2;
+                const width = Math.max(2, xOf(b.end) - xOf(b.start) - CHUNK_GAP);
+                const on =
+                  !!p.selection && b.start >= p.selection.start && b.end <= p.selection.end;
+                return (
+                  <View
+                    key={`${b.start}-${b.end}`}
+                    pointerEvents="none"
+                    style={[
+                      styles.chunk,
+                      { left, width, backgroundColor: on ? c.accentSubtle : c.voiceFill },
+                    ]}
+                  />
+                );
+              })}
+              {columns
+                ? Array.from({ length: columns.n }).map((_, i) => {
+                    const lo = columns.data[i * 2]! / 127;
+                    const hi = columns.data[i * 2 + 1]! / 127;
+                    const h = Math.max(1, (hi - lo) * (height / 2));
+                    const top = height / 2 - hi * (height / 2);
+                    const x = columns.x + i * COL_W;
+                    return (
+                      <View
+                        key={i}
+                        style={{
+                          position: 'absolute',
+                          left: x,
+                          top,
+                          width: COL_W - 1,
+                          height: h,
+                          // 選択中の塊の棒はアクセント（見本 `.chunk.sel i`）
+                          backgroundColor: selX && x >= selX[0] && x < selX[1] ? mark : c.waveBar,
+                          borderRadius: 1,
+                        }}
+                      />
+                    );
+                  })
+                : null}
+              {p.selection ? (
+                <Animated.View style={[styles.selection, selectionStyle, { borderColor: mark }]} />
+              ) : null}
+            </View>
+            {/* 選択のハンドル。掴んで伸ばす（FR-EDIT-2） */}
+            {p.selection && onSelectionChange ? (
+              <>
+                <GestureDetector gesture={startPan}>
+                  <Animated.View style={[styles.handle, styles.handleStart, startStyle]}>
+                    <View style={[styles.grip, { backgroundColor: mark }]} />
+                  </Animated.View>
+                </GestureDetector>
+                <GestureDetector gesture={endPan}>
+                  <Animated.View style={[styles.handle, styles.handleEnd, endStyle]}>
+                    <View style={[styles.grip, { backgroundColor: mark }]} />
+                  </Animated.View>
+                </GestureDetector>
+              </>
+            ) : null}
+            <View style={[styles.overlayTrack, { top: layersTop }]}>
+              {p.overlays.map((o) => {
+                if (o.status !== 'placed') return null;
+                const music =
+                  o.clip.kind === 'bgm' || o.clip.kind === 'opening' || o.clip.kind === 'ending';
+                const selected = p.selectedOverlay === o.clip.id;
+                const name =
+                  p.assetNames?.find((a) => a.id === o.clip.assetId)?.name ??
+                  t.assetKinds[o.clip.kind].label;
+                return (
+                  <Pressable
+                    key={o.clip.id}
+                    onPress={() => p.onSelectOverlay(o.clip.id)}
+                    accessibilityRole="button"
+                    accessibilityLabel={t.edit.a11yOverlay(t.assetKinds[o.clip.kind].label, name)}
+                    style={[
+                      styles.overlayClip,
+                      {
+                        left: xOf(o.range.start),
+                        top: music ? LAYER_H + LAYER_GAP : 0,
+                        width: Math.max(6, xOf(o.range.end) - xOf(o.range.start)),
+                        backgroundColor: music ? c.musicFill : c.insertFill,
+                        // 見本 `.layer` は枠を持たない。選んでいるときだけアクセントの輪郭
+                        borderColor: mark,
+                        borderWidth: selected ? stroke.selected : 0,
+                      },
+                    ]}
+                  >
+                    <Text numberOfLines={1} style={[styles.overlayLabel, { color: c.textPrimary }]}>
+                      {name}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+            {p.events.map(({ event, at }) => (
+              <View
+                key={event.id}
+                accessible
+                accessibilityLabel={
+                  event.kind === 'interruption' ? t.edit.a11yInterruption : t.edit.a11yRouteChange
+                }
+                style={[styles.event, { left: xOf(at) - icon.sm / 2, top: laneTop }]}
+              >
+                <Icon
+                  name={event.kind === 'interruption' ? 'warning' : 'route'}
+                  color={c.mistakeText}
+                  size={icon.sm}
+                />
+              </View>
+            ))}
+            <View
+              pointerEvents="none"
               style={[
-                styles.tick,
-                tabularNums,
-                { left: i * tickSec * p.pps, color: c.textTertiary },
+                styles.playhead,
+                {
+                  left: xOf(p.playhead),
+                  backgroundColor: c.textPrimary,
+                },
               ]}
             >
-              {formatSmp(smp(i * tickSec * SAMPLE_RATE))}
-            </Text>
-          ))}
-          {/* 声 */}
-          <View style={[styles.voiceTrack, { top: RULER, height }]}>
-            {/* 塊（見本 `.chunk`）。無音で区切った塊ごとに角丸 4 の面を置き、間を 3 あける */}
-            {(p.blocks?.length
-              ? p.blocks
-              : placed.map((x) => ({ start: x.start, end: x.end }))
-            ).map((b) => {
-              const left = xOf(b.start) + CHUNK_GAP / 2;
-              const width = Math.max(2, xOf(b.end) - xOf(b.start) - CHUNK_GAP);
-              const on = !!p.selection && b.start >= p.selection.start && b.end <= p.selection.end;
-              return (
-                <View
-                  key={`${b.start}-${b.end}`}
-                  pointerEvents="none"
-                  style={[
-                    styles.chunk,
-                    { left, width, backgroundColor: on ? c.accentSubtle : c.voiceFill },
-                  ]}
-                />
-              );
-            })}
-            {columns
-              ? Array.from({ length: columns.n }).map((_, i) => {
-                  const lo = columns.data[i * 2]! / 127;
-                  const hi = columns.data[i * 2 + 1]! / 127;
-                  const h = Math.max(1, (hi - lo) * (height / 2));
-                  const top = height / 2 - hi * (height / 2);
-                  const x = columns.x + i * COL_W;
-                  return (
-                    <View
-                      key={i}
-                      style={{
-                        position: 'absolute',
-                        left: x,
-                        top,
-                        width: COL_W - 1,
-                        height: h,
-                        // 選択中の塊の棒はアクセント（見本 `.chunk.sel i`）
-                        backgroundColor: selX && x >= selX[0] && x < selX[1] ? mark : c.waveBar,
-                        borderRadius: 1,
-                      }}
-                    />
-                  );
-                })
-              : null}
-            {p.selection ? (
-              <Animated.View style={[styles.selection, selectionStyle, { borderColor: mark }]} />
-            ) : null}
-          </View>
-          {/* 選択のハンドル。掴んで伸ばす（FR-EDIT-2） */}
-          {p.selection && onSelectionChange ? (
-            <>
-              <GestureDetector gesture={startPan}>
-                <Animated.View style={[styles.handle, styles.handleStart, startStyle]}>
-                  <View style={[styles.grip, { backgroundColor: mark }]} />
-                </Animated.View>
-              </GestureDetector>
-              <GestureDetector gesture={endPan}>
-                <Animated.View style={[styles.handle, styles.handleEnd, endStyle]}>
-                  <View style={[styles.grip, { backgroundColor: mark }]} />
-                </Animated.View>
-              </GestureDetector>
-            </>
-          ) : null}
-          <View style={[styles.overlayTrack, { top: layersTop }]}>
-            {p.overlays.map((o) => {
-              if (o.status !== 'placed') return null;
-              const music =
-                o.clip.kind === 'bgm' || o.clip.kind === 'opening' || o.clip.kind === 'ending';
-              const selected = p.selectedOverlay === o.clip.id;
-              const name =
-                p.assetNames?.find((a) => a.id === o.clip.assetId)?.name ??
-                t.assetKinds[o.clip.kind].label;
-              return (
-                <Pressable
-                  key={o.clip.id}
-                  onPress={() => p.onSelectOverlay(o.clip.id)}
-                  accessibilityRole="button"
-                  accessibilityLabel={t.edit.a11yOverlay(t.assetKinds[o.clip.kind].label, name)}
-                  style={[
-                    styles.overlayClip,
-                    {
-                      left: xOf(o.range.start),
-                      top: music ? LAYER_H + LAYER_GAP : 0,
-                      width: Math.max(6, xOf(o.range.end) - xOf(o.range.start)),
-                      backgroundColor: music ? c.musicFill : c.insertFill,
-                      // 見本 `.layer` は枠を持たない。選んでいるときだけアクセントの輪郭
-                      borderColor: mark,
-                      borderWidth: selected ? stroke.selected : 0,
-                    },
-                  ]}
-                >
-                  <Text numberOfLines={1} style={[styles.overlayLabel, { color: c.textPrimary }]}>
-                    {name}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-          {p.events.map(({ event, at }) => (
-            <View
-              key={event.id}
-              accessible
-              accessibilityLabel={
-                event.kind === 'interruption' ? t.edit.a11yInterruption : t.edit.a11yRouteChange
-              }
-              style={[styles.event, { left: xOf(at) - icon.sm / 2, top: laneTop }]}
-            >
-              <Icon
-                name={event.kind === 'interruption' ? 'warning' : 'route'}
-                color={c.mistakeText}
-                size={icon.sm}
-              />
+              {/* 見本 `.playhead::before`: 上端の白い丸 */}
+              <View style={[styles.playheadKnob, { backgroundColor: c.textPrimary }]} />
             </View>
-          ))}
-          <View
-            pointerEvents="none"
-            style={[
-              styles.playhead,
-              {
-                left: xOf(p.playhead),
-                backgroundColor: c.textPrimary,
-              },
-            ]}
-          >
-            {/* 見本 `.playhead::before`: 上端の白い丸 */}
-            <View style={[styles.playheadKnob, { backgroundColor: c.textPrimary }]} />
-          </View>
-        </Pressable>
-      </ScrollView>
-    </View>
+          </Pressable>
+        </ScrollView>
+      </View>
+    </GestureDetector>
   );
 });
 
