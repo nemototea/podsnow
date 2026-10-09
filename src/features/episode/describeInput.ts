@@ -9,7 +9,10 @@ import type { AudioInput } from '../../../modules/podsnow-recorder/src/PodsnowRe
  *
  * @param input 入力。null は「入力が無い」で、内蔵マイクとして扱う（OS が既定の入力を使う）
  */
-export function describeInput(t: Messages, input: AudioInput | null): { name: string; icon: IconName } {
+export function describeInput(
+  t: Messages,
+  input: AudioInput | null,
+): { name: string; icon: IconName } {
   if (!input || input.type === 'builtin') return { name: t.record.builtInMic, icon: 'mic' };
   const name = input.name.trim() || t.record.externalInput;
   return { name, icon: INPUT_ICON[input.type] };

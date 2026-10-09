@@ -449,9 +449,7 @@ export const Waveform = memo(function Waveform(p: WaveformProps) {
             ]}
           >
             {/* 見本 `.playhead::before`: 上端の白い丸 */}
-            <View
-              style={[styles.playheadKnob, { backgroundColor: c.textPrimary }]}
-            />
+            <View style={[styles.playheadKnob, { backgroundColor: c.textPrimary }]} />
           </View>
         </Pressable>
       </ScrollView>
