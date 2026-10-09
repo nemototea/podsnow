@@ -15,15 +15,15 @@ import { formatSmp, smp, type Smp } from '@/domain/time';
 import type { PlacedOverlay } from '@/domain/timeline/overlays';
 import type { Range, VoiceSegment } from '@/domain/timeline/types';
 import { snapToBoundary } from '@/domain/timeline/blocks';
-import { insertAt, placeVoice } from '@/domain/timeline/voice';
+import { placeVoice } from '@/domain/timeline/voice';
 import { useT } from '@/i18n';
 import type { RecordingEvent } from '@/infra/db/repositories/recordingEventsRepo';
 import { Icon, Text } from '@/ui/components';
 import { hit, icon, radius, space, stroke, tabularNums, timeline, typography } from '@/ui/tokens';
 import { useAppTheme } from '@/ui/ThemeContext';
 
-import { liveColumns, type LivePeak } from './livePeaks';
 import { sampleVoiceColumns, type TakePeaks } from './peaks';
+import { follow, release, reveal, zoomScroll, type FollowState } from './waveScroll';
 
 const SAMPLE_RATE = 48000;
 const COL_W = 3;
@@ -39,20 +39,17 @@ export interface WaveformProps {
   events: readonly { event: RecordingEvent; at: Smp }[];
   total: Smp;
   playhead: Smp;
+  /**
+   * シーク・カット・取り消し / やり直しのたびに変わる値。変わったとき、再生位置が画面外なら
+   * 見える位置へスクロールする（Issue #176）。
+   */
+  revealSeq: number;
   selection: Range | null;
   selectedOverlay: string | null;
   /** 1 秒あたりのピクセル。 */
   pps: number;
-  recording: boolean;
-  recFrames: number;
-  /** 録音を差し込んでいる位置。省略時は末尾（Issue #122）。 */
-  recordAt?: Smp | null;
-  /** 録音中のレベル（`useLivePeaks`）。録っている帯の中に波形として描く。 */
-  livePeaks?: readonly LivePeak[];
   onSeek: (to: Smp) => void;
   onSelectOverlay: (id: string | null) => void;
-  /** 録音タブ用の低い表示。収録中は波形より読む内容に高さを使う（§5.1）。 */
-  compact?: boolean;
   /** 無音で区切られた声の塊（FR-EDIT-2）。タップで選び、ハンドルで広げる。 */
   blocks?: readonly Range[];
   /** 塊をタップしたとき。指定すると、タップはシークではなく選択になる。 */
@@ -68,8 +65,9 @@ export interface WaveformProps {
 const HANDLE_W = hit.min;
 const HANDLE_IN = space.md;
 const EMPTY_BLOCKS: readonly Range[] = [];
-const FULL_HEIGHT = timeline.lane;
-const COMPACT_HEIGHT = 44;
+const HEIGHT = timeline.lane;
+/** 中身の左右の余白（見本 `.ruler` / `.lane` / `.layers` の左右 12）。時刻 0 の位置。 */
+const PAD = space.md;
 /** 目盛りの行（見本 `.ruler` の文字 12 と下の 8）。 */
 const RULER = timeline.ruler;
 /** 素材のレーン（見本 `.layer` の高さ 24、間 6、上 10）。上が差し込み素材、下が BGM・オープニング・エンディング。 */
@@ -80,100 +78,108 @@ const LAYERS_H = LAYER_H * 2 + LAYER_GAP;
 /** 目盛りの刻み（秒）と、隣の目盛りとの最小の間（px）。 */
 const TICK_STEPS = [1, 2, 5, 10, 15, 30, 60, 120, 300, 600, 1800] as const;
 const TICK_MIN_GAP = 72;
-/** 差し込み録音中の仮の区間。ピークが無いので棒は描かれず、録音の帯だけが見える。 */
-const LIVE_SEGMENT_ID = '__live__';
 
 /**
- * 声トラック + 素材レイヤーの波形タイムライン（FR-EDIT-8）。
+ * 声トラック + 素材レイヤーの波形タイムライン（FR-EDIT-8）。編集画面だけで使う。
+ * 録音中は `RecordingView` の小さな波形に切り替わるので、ここは録音中の表示を持たない。
  * 表示中の範囲だけ棒を描く（60 分でも全体を描画しない）。
  */
 export const Waveform = memo(function Waveform(p: WaveformProps) {
   const c = useAppTheme();
   const t = useT();
   const mark = c.accentSolid;
-  const height = p.compact ? COMPACT_HEIGHT : FULL_HEIGHT;
+  const height = HEIGHT;
   const layersTop = RULER + height + LAYERS_TOP;
   const laneTop = layersTop + LAYERS_H + space.x6;
   const [viewW, setViewW] = useState(0);
   const [scrollX, setScrollX] = useState(0);
   const scrollRef = useRef<ScrollView>(null);
-  const totalSec = (p.total + (p.recording ? p.recFrames : 0)) / SAMPLE_RATE;
-  const recFrom = p.recordAt ?? p.total;
-  // 途中に差し込んで録っている間は、差し込み位置より後ろを録った長さだけ右へずらして描く。
-  // 上書きではなく差し込みだと見て分かるように（Issue #122）。帯の区間は波形の無い仮の区間。
-  const liveShift = p.recording && p.recordAt != null ? p.recFrames : 0;
-  const shiftAt = useCallback(
-    (s: number) => (liveShift > 0 && s >= recFrom ? s + liveShift : s),
-    [liveShift, recFrom],
-  );
-  const voice = useMemo(
-    () =>
-      liveShift > 0
-        ? insertAt(p.voice, smp(recFrom), {
-            id: LIVE_SEGMENT_ID,
-            takeId: LIVE_SEGMENT_ID,
-            srcStart: smp(0),
-            srcEnd: smp(liveShift),
-            gainDb: 0,
-            fadeIn: smp(0),
-            fadeOut: smp(0),
-          })
-        : p.voice,
-    [liveShift, p.voice, recFrom],
-  );
+  const totalSec = p.total / SAMPLE_RATE;
   const contentW = Math.max(viewW, totalSec * p.pps + viewW);
   const onLayout = useCallback((e: LayoutChangeEvent) => setViewW(e.nativeEvent.layout.width), []);
-  const onScroll = useCallback(
-    (e: NativeSyntheticEvent<NativeScrollEvent>) => setScrollX(e.nativeEvent.contentOffset.x),
-    [],
+
+  // ---- 再生位置を追う（Issue #176） ----
+  // スクロール位置と指の状態は描画に使わないので ref で持つ（描き直しを増やさない）
+  const scrollXRef = useRef(0);
+  const followRef = useRef<FollowState>({ dragging: false, armed: true });
+  const headX = PAD + (p.playhead / SAMPLE_RATE) * p.pps;
+  const viewport = useCallback(
+    () => ({ scrollX: scrollXRef.current, viewW, contentW: contentW + PAD * 2 }),
+    [contentW, viewW],
   );
+  const scrollTo = useCallback((x: number) => {
+    scrollXRef.current = x;
+    scrollRef.current?.scrollTo({ x, animated: false });
+  }, []);
+  const onScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    scrollXRef.current = e.nativeEvent.contentOffset.x;
+    setScrollX(e.nativeEvent.contentOffset.x);
+  }, []);
+  const onDragStart = useCallback(() => {
+    followRef.current = { ...followRef.current, dragging: true };
+  }, []);
+  const onDragEnd = useCallback(
+    (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+      scrollXRef.current = e.nativeEvent.contentOffset.x;
+      followRef.current = release(headX, viewport());
+    },
+    [headX, viewport],
+  );
+
+  // 拡大・縮小。再生位置を画面上の同じ位置に保つ。追う処理より先に動かす（先に追うと位置がずれる）
+  const lastPps = useRef(p.pps);
+  useEffect(() => {
+    const oldPps = lastPps.current;
+    lastPps.current = p.pps;
+    if (viewW === 0 || oldPps === p.pps) return;
+    scrollTo(
+      zoomScroll({
+        pad: PAD,
+        headSec: p.playhead / SAMPLE_RATE,
+        oldPps,
+        newPps: p.pps,
+        scrollX: scrollXRef.current,
+        viewW,
+        newContentW: contentW + PAD * 2,
+      }),
+    );
+  }, [contentW, p.playhead, p.pps, scrollTo, viewW]);
+
+  // 再生中など、再生位置が動いたとき。画面の外へ出たら追う
+  useEffect(() => {
+    if (viewW === 0) return;
+    const r = follow(headX, viewport(), followRef.current);
+    followRef.current = r.state;
+    if (r.scrollTo !== null) scrollTo(r.scrollTo);
+  }, [headX, scrollTo, viewW, viewport]);
+
+  // シーク・カット・取り消し / やり直しの後。画面外なら見える位置へ移し、また追うようにする
+  const lastReveal = useRef(p.revealSeq);
+  useEffect(() => {
+    if (viewW === 0 || lastReveal.current === p.revealSeq) return;
+    lastReveal.current = p.revealSeq;
+    const to = reveal(headX, viewport(), followRef.current);
+    if (to !== null) scrollTo(to);
+    if (!followRef.current.dragging) followRef.current = { dragging: false, armed: true };
+  }, [headX, p.revealSeq, scrollTo, viewW, viewport]);
 
   // 可視範囲（前後 1 画面分の余裕）
   const from = Math.max(0, scrollX - viewW);
   const to = Math.min(contentW, scrollX + viewW * 2);
   const columns = useMemo(() => {
-    // 録音を止めた直後など、内容が縮んでスクロール位置が追いつく前は範囲が空になる
+    // 削除の直後など、内容が縮んでスクロール位置が追いつく前は範囲が空になる
     if (viewW === 0 || to <= from) return null;
     const n = Math.ceil((to - from) / COL_W);
     const fromSmp = Math.floor((from / p.pps) * SAMPLE_RATE);
     const toSmp = Math.floor((to / p.pps) * SAMPLE_RATE);
-    return { x: from, n, data: sampleVoiceColumns(voice, p.peaksByTake, fromSmp, toSmp, n) };
-  }, [from, to, viewW, p.pps, voice, p.peaksByTake]);
+    return { x: from, n, data: sampleVoiceColumns(p.voice, p.peaksByTake, fromSmp, toSmp, n) };
+  }, [from, to, viewW, p.pps, p.voice, p.peaksByTake]);
 
   const xOf = (s: number) => (s / SAMPLE_RATE) * p.pps;
   // 目盛りの間隔。拡大率に合わせて、隣と重ならない最小の刻みを選ぶ（見本 `.ruler` は画面幅に 4 つ）
   const tickSec = TICK_STEPS.find((sec) => sec * p.pps >= TICK_MIN_GAP) ?? TICK_STEPS.at(-1)!;
   const selX = p.selection ? ([xOf(p.selection.start), xOf(p.selection.end)] as const) : null;
-
-  // 録音中は録っている先端を画面の右寄りに保つ。止めたら位置はそのまま（手で動かせる）
-  const recHeadX = p.recording ? xOf(recFrom + p.recFrames) : null;
-  useEffect(() => {
-    if (recHeadX === null || viewW === 0) return;
-    const target = Math.max(0, recHeadX - viewW * 0.75);
-    if (target > scrollX + 1 || target < scrollX - viewW) {
-      scrollRef.current?.scrollTo({ x: target, animated: false });
-      setScrollX(target);
-    }
-  }, [recHeadX, viewW, scrollX]);
-
-  // 録っている帯の中の波形。見えている範囲だけ柱にする
-  const liveBars = useMemo(() => {
-    if (!p.recording || !p.livePeaks || p.livePeaks.length === 0 || p.recFrames <= 0) return null;
-    const bandX = (recFrom / SAMPLE_RATE) * p.pps;
-    const bandW = (p.recFrames / SAMPLE_RATE) * p.pps;
-    const x0 = Math.max(bandX, from);
-    const x1 = Math.min(bandX + bandW, to);
-    if (x1 <= x0) return null;
-    const first = Math.floor((x0 - bandX) / COL_W);
-    const n = Math.ceil((x1 - bandX) / COL_W) - first;
-    const framesPerCol = (COL_W / p.pps) * SAMPLE_RATE;
-    const amps = liveColumns(p.livePeaks, first * framesPerCol, (first + n) * framesPerCol, n);
-    return { x: bandX + first * COL_W, amps };
-  }, [p.recording, p.livePeaks, p.recFrames, p.pps, recFrom, from, to]);
-  const placed = useMemo(
-    () => placeVoice(voice).filter((x) => x.segment.id !== LIVE_SEGMENT_ID),
-    [voice],
-  );
+  const placed = useMemo(() => placeVoice(p.voice), [p.voice]);
 
   const seekAt = (x: number) => {
     if (!Number.isFinite(x)) return;
@@ -260,6 +266,10 @@ export const Waveform = memo(function Waveform(p: WaveformProps) {
         ref={scrollRef}
         horizontal
         onScroll={onScroll}
+        onScrollBeginDrag={onDragStart}
+        onScrollEndDrag={onDragEnd}
+        onMomentumScrollBegin={onDragStart}
+        onMomentumScrollEnd={onDragEnd}
         scrollEventThrottle={32}
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={[styles.content, { width: contentW }]}
@@ -288,8 +298,8 @@ export const Waveform = memo(function Waveform(p: WaveformProps) {
               ? p.blocks
               : placed.map((x) => ({ start: x.start, end: x.end }))
             ).map((b) => {
-              const left = xOf(shiftAt(b.start)) + CHUNK_GAP / 2;
-              const width = Math.max(2, xOf(shiftAt(b.end)) - xOf(shiftAt(b.start)) - CHUNK_GAP);
+              const left = xOf(b.start) + CHUNK_GAP / 2;
+              const width = Math.max(2, xOf(b.end) - xOf(b.start) - CHUNK_GAP);
               const on = !!p.selection && b.start >= p.selection.start && b.end <= p.selection.end;
               return (
                 <View
@@ -320,39 +330,6 @@ export const Waveform = memo(function Waveform(p: WaveformProps) {
                         height: h,
                         // 選択中の塊の棒はアクセント（見本 `.chunk.sel i`）
                         backgroundColor: selX && x >= selX[0] && x < selX[1] ? mark : c.waveBar,
-                        borderRadius: 1,
-                      }}
-                    />
-                  );
-                })
-              : null}
-            {p.recording ? (
-              <View
-                style={[
-                  styles.recLive,
-                  {
-                    left: xOf(recFrom),
-                    width: Math.max(4, xOf(p.recFrames)),
-                    backgroundColor: c.recordingOverlay,
-                    borderColor: c.recSolid,
-                  },
-                ]}
-              />
-            ) : null}
-            {liveBars
-              ? Array.from(liveBars.amps, (a, i) => {
-                  const h = Math.max(2, a * height);
-                  return (
-                    <View
-                      key={`live-${i}`}
-                      pointerEvents="none"
-                      style={{
-                        position: 'absolute',
-                        left: liveBars.x + i * COL_W,
-                        top: (height - h) / 2,
-                        width: COL_W - 1,
-                        height: h,
-                        backgroundColor: c.recSolid,
                         borderRadius: 1,
                       }}
                     />
@@ -396,9 +373,9 @@ export const Waveform = memo(function Waveform(p: WaveformProps) {
                   style={[
                     styles.overlayClip,
                     {
-                      left: xOf(shiftAt(o.range.start)),
+                      left: xOf(o.range.start),
                       top: music ? LAYER_H + LAYER_GAP : 0,
-                      width: Math.max(6, xOf(shiftAt(o.range.end)) - xOf(shiftAt(o.range.start))),
+                      width: Math.max(6, xOf(o.range.end) - xOf(o.range.start)),
                       backgroundColor: music ? c.musicFill : c.insertFill,
                       // 見本 `.layer` は枠を持たない。選んでいるときだけアクセントの輪郭
                       borderColor: mark,
@@ -420,7 +397,7 @@ export const Waveform = memo(function Waveform(p: WaveformProps) {
               accessibilityLabel={
                 event.kind === 'interruption' ? t.edit.a11yInterruption : t.edit.a11yRouteChange
               }
-              style={[styles.event, { left: xOf(shiftAt(at)) - icon.sm / 2, top: laneTop }]}
+              style={[styles.event, { left: xOf(at) - icon.sm / 2, top: laneTop }]}
             >
               <Icon
                 name={event.kind === 'interruption' ? 'warning' : 'route'}
@@ -434,17 +411,14 @@ export const Waveform = memo(function Waveform(p: WaveformProps) {
             style={[
               styles.playhead,
               {
-                left: xOf(p.recording ? recFrom + p.recFrames : p.playhead),
-                backgroundColor: p.recording ? c.recSolid : c.textPrimary,
+                left: xOf(p.playhead),
+                backgroundColor: c.textPrimary,
               },
             ]}
           >
             {/* 見本 `.playhead::before`: 上端の白い丸 */}
             <View
-              style={[
-                styles.playheadKnob,
-                { backgroundColor: p.recording ? c.recSolid : c.textPrimary },
-              ]}
+              style={[styles.playheadKnob, { backgroundColor: c.textPrimary }]}
             />
           </View>
         </Pressable>
@@ -455,8 +429,7 @@ export const Waveform = memo(function Waveform(p: WaveformProps) {
 
 const styles = StyleSheet.create({
   root: { width: '100%' },
-  // 見本 `.ruler` / `.lane` / `.layers` の左右 12
-  content: { paddingHorizontal: space.md, boxSizing: 'content-box' },
+  content: { paddingHorizontal: PAD, boxSizing: 'content-box' },
   tick: { position: 'absolute', top: 0, ...typography.tick },
   voiceTrack: {
     position: 'absolute',
@@ -466,7 +439,6 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   chunk: { position: 'absolute', top: 0, bottom: 0, borderRadius: radius.xs },
-  recLive: { position: 'absolute', top: 0, bottom: 0, borderLeftWidth: 1 },
   // 見本 `.chunk.sel`: アクセントの 2 の輪郭（地は塊の側で `accentSubtle`）
   selection: {
     position: 'absolute',
@@ -477,7 +449,7 @@ const styles = StyleSheet.create({
   },
   handle: {
     position: 'absolute',
-    top: RULER + (FULL_HEIGHT - hit.min) / 2,
+    top: RULER + (HEIGHT - hit.min) / 2,
     width: HANDLE_W,
     height: hit.min,
     justifyContent: 'center',
@@ -501,7 +473,7 @@ const styles = StyleSheet.create({
   playhead: {
     position: 'absolute',
     top: RULER + space.sm,
-    height: FULL_HEIGHT + LAYERS_TOP + LAYERS_H - space.sm,
+    height: HEIGHT + LAYERS_TOP + LAYERS_H - space.sm,
     width: space.hair,
     borderRadius: 1,
   },

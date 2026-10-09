@@ -45,6 +45,11 @@ export interface WorkspaceState {
   peaksByTake: Map<string, TakePeaks>;
   total: Smp;
   playhead: Smp;
+  /**
+   * シーク・編集・取り消し / やり直しのたびに 1 増える。波形はこれが変わったとき、
+   * 再生位置が画面外なら見える位置へスクロールする（Issue #176）。
+   */
+  revealSeq: number;
   playing: boolean;
   recording: SessionState;
   recFrames: number;
@@ -85,6 +90,7 @@ export function useWorkspace(episodeId: string) {
     peaksByTake: new Map(),
     total: ZERO_SMP,
     playhead: ZERO_SMP,
+    revealSeq: 0,
     playing: false,
     recording: recording.current,
     recFrames: 0,
@@ -117,6 +123,7 @@ export function useWorkspace(episodeId: string) {
         const durations = extra.assetDurations ?? s.assetDurations;
         return {
           doc,
+          revealSeq: s.revealSeq + 1,
           total: totalDuration(doc.voice),
           placedOverlays: placeOverlays(doc.voice, doc.overlays, durations),
           canUndo: e.canUndo,
@@ -235,7 +242,7 @@ export function useWorkspace(episodeId: string) {
   /** 再生位置を置く（保存もする）。範囲の確認は呼び出し側で済ませる。 */
   const placePlayhead = useCallback(
     async (to: Smp) => {
-      patch({ playhead: to });
+      patch((s) => ({ playhead: to, revealSeq: s.revealSeq + 1 }));
       await playback.seek(to).catch(() => {});
       void services.episodes.update(episodeId, { playheadSmp: to });
     },
@@ -317,7 +324,7 @@ export function useWorkspace(episodeId: string) {
   const seek = useCallback(
     async (to: Smp) => {
       const t = smp(Math.max(0, Math.min(state.total, to)));
-      patch({ playhead: t });
+      patch((s) => ({ playhead: t, revealSeq: s.revealSeq + 1 }));
       await playback.seek(t);
       void services.episodes.update(episodeId, { playheadSmp: t });
     },

@@ -330,11 +330,10 @@ export function StudioTab({
             events={ws.eventsOnTimeline}
             total={state.total}
             playhead={state.playhead}
+            revealSeq={state.revealSeq}
             selection={sel}
             selectedOverlay={state.selectedOverlay}
             pps={pps}
-            recording={false}
-            recFrames={0}
             blocks={ws.blocks}
             onSelectBlock={(at: Smp) => {
               const b = ws.selectBlockAt(at);
