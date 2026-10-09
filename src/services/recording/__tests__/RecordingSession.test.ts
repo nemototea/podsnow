@@ -330,7 +330,7 @@ describe('RecordingSession', () => {
       await session.stop();
 
       let svc = await EditingService.resume(deps, 'e');
-      expect(svc.undoLabel).toBe('Add Recording 1');
+      expect(svc.undoLabel).toBe('Add recording');
       await svc.apply('音量', (d) => ({ ...d, voice: d.voice.map((v) => ({ ...v, gainDb: -3 })) }));
 
       const t2 = await session.start('e');
@@ -339,7 +339,7 @@ describe('RecordingSession', () => {
       expect(await takeIds(db)).toEqual([t1, t2]);
 
       svc = await EditingService.resume(deps, 'e');
-      expect(svc.undoLabel).toBe('Add Recording 2');
+      expect(svc.undoLabel).toBe('Add recording');
       await svc.undo();
       expect(svc.current.voice.map((v) => [v.takeId, v.gainDb])).toEqual([[t1, -3]]);
       await svc.undo();
@@ -434,7 +434,7 @@ describe('RecordingSession', () => {
       await session.stop();
 
       const svc = await EditingService.resume(deps, 'e');
-      expect(svc.undoLabel).toBe('Add Recording 1');
+      expect(svc.undoLabel).toBe('Add recording');
       await svc.undo();
       expect(svc.current).toEqual({ voice: [], overlays: [] });
       expect(svc.canUndo).toBe(false);
@@ -458,7 +458,7 @@ describe('RecordingSession', () => {
       svc = await EditingService.resume(deps, 'e');
       expect(svc.canRedo).toBe(false);
       expect(svc.current.voice.map((v) => v.takeId)).toEqual([t1, t3]);
-      expect(svc.undoLabel).toBe('Add Recording 3');
+      expect(svc.undoLabel).toBe('Add recording');
     });
 
     it('途中の位置で録ると挿入し、今録った部分の終わりを知らせる', async () => {

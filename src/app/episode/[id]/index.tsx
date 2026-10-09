@@ -5,6 +5,7 @@ import { Linking, Platform, StyleSheet, View } from 'react-native';
 import { isAppError } from '@/domain/errors';
 import { formatSmp, smp, type Smp } from '@/domain/time';
 import { useServices } from '@/features/app/ServicesProvider';
+import { describeInput } from '@/features/episode/describeInput';
 import { ExportTab } from '@/features/episode/ExportTab';
 import { playMonitor } from '@/features/episode/monitor';
 import { RecordingView } from '@/features/episode/RecordingView';
@@ -122,7 +123,7 @@ export default function EpisodeScreen() {
       services.recording.on('routeChange', (e) => {
         if (e.reason === 'old_device_unavailable')
           showToast({
-            text: t.record.routeChanged(e.currentInput?.name ?? t.record.builtInMic),
+            text: t.record.routeChanged(describeInput(t, e.currentInput).name),
             persist: true,
           });
       }),

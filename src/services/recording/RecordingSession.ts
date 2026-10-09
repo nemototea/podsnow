@@ -94,7 +94,6 @@ export interface SessionEvents {
 interface ActiveTake {
   episodeId: string;
   takeId: string;
-  takeName: string;
   /** 録音を始めたときの doc。止めたときに「録音を追加」の取り消し先になる（Issue #122）。 */
   docBefore: EditableDoc;
   /** 声トラック上の挿入位置。null = 末尾。 */
@@ -314,7 +313,6 @@ export class RecordingSession {
       this.active = {
         episodeId,
         takeId,
-        takeName,
         docBefore,
         insertAtSmp: opts.insertAtSmp ?? null,
         segmentId: '',
@@ -519,7 +517,7 @@ export class RecordingSession {
         a.episodeId,
         a.docBefore,
         { ...doc, voice },
-        { id: this.deps.newId(), label: this.deps.labels().addTakeOp(a.takeName), now },
+        { id: this.deps.newId(), label: this.deps.labels().addTakeOp, now },
       );
     });
     this.setState('idle');

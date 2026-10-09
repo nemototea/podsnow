@@ -177,8 +177,9 @@ export const Waveform = memo(function Waveform(p: WaveformProps) {
   const from = Math.max(0, scrollX - viewW);
   const to = Math.min(contentW, scrollX + viewW * 2);
   const columns = useMemo(() => {
-    // 削除の直後など、内容が縮んでスクロール位置が追いつく前は範囲が空になる
-    if (viewW === 0 || to <= from) return null;
+    // 削除の直後など、内容が縮んでスクロール位置が追いつく前は範囲が空になる。
+    // 録音が無いときは棒を描かず、空の枠だけにする（Issue #179）
+    if (viewW === 0 || to <= from || p.voice.length === 0) return null;
     const n = Math.ceil((to - from) / COL_W);
     const fromSmp = Math.floor((from / p.pps) * SAMPLE_RATE);
     const toSmp = Math.floor((to / p.pps) * SAMPLE_RATE);

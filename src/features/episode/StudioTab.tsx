@@ -8,7 +8,6 @@ import { useT } from '@/i18n';
 import type { AssetRow } from '@/infra/db/repositories/assetsRepo';
 import {
   Button,
-  Card,
   Chip,
   Field,
   IconButton,
@@ -23,6 +22,7 @@ import { useAppTheme } from '@/ui/ThemeContext';
 import { grabber, icon, radius, space, stroke, tabularNums, typography } from '@/ui/tokens';
 
 import { parseSeconds, validateRange } from './selectionInput';
+import { describeInput } from './describeInput';
 import { storageLine } from './storageLine';
 import { NotesSheet } from './NotesSheet';
 import type { RecordingContext } from './useRecordingContext';
@@ -109,9 +109,8 @@ export function StudioTab({
   const selectedAsset = selectedOverlay
     ? state.assets.find((a) => a.id === selectedOverlay.assetId)
     : null;
-  const inputName = recCtx.inputKnown
-    ? (recCtx.input?.name ?? t.record.builtInMic)
-    : t.record.inputUnknown;
+  const inputName = recCtx.inputKnown ? describeInput(t, recCtx.input).name : t.record.inputUnknown;
+  const storage = storageLine(t, recCtx, false);
   const channels = recCtx.channels === 2 ? t.settings.stereo : t.settings.mono;
   const empty = state.total === 0;
   const inMiddle = state.playhead < state.total;
@@ -320,9 +319,10 @@ export function StudioTab({
           </View>
         </>
       )}
-      <Text style={[typography.small, tabularNums, { color: c.textTertiary }]}>
-        {storageLine(t, recCtx, false)}
-      </Text>
+      {/* 残りが 1 時間以上なら出さない（Issue #179） */}
+      {storage ? (
+        <Text style={[typography.small, tabularNums, { color: c.textTertiary }]}>{storage}</Text>
+      ) : null}
     </View>
   );
 
@@ -330,40 +330,32 @@ export function StudioTab({
     <Screen edgeTop overlay={overlay} bottomBar={editSheet} bottomBarBare>
       {header}
 
-      {empty ? (
-        <Card>
-          <Text style={[typography.heading, { color: c.textPrimary }]}>{t.edit.emptyTitle}</Text>
-          <Text style={[typography.body, st.emptySub, { color: c.textSecondary }]}>
-            {t.edit.emptySub}
-          </Text>
-        </Card>
-      ) : (
-        <View testID="timeline" style={[st.timeline, { backgroundColor: c.surface }]}>
-          <Waveform
-            voice={state.doc.voice}
-            peaksByTake={state.peaksByTake}
-            overlays={state.placedOverlays}
-            assetNames={state.assets}
-            events={ws.eventsOnTimeline}
-            total={state.total}
-            playhead={state.playhead}
-            revealSeq={state.revealSeq}
-            revealAt={state.revealAt}
-            selection={sel}
-            selectedOverlay={state.selectedOverlay}
-            pps={pps}
-            blocks={ws.blocks}
-            onTap={(at: Smp, longPress: boolean) => void ws.tapAt(at, longPress)}
-            onSelectionChange={(range: Range) => ws.setSelection(range)}
-            onSelectionDrag={setDragSel}
-            onSeek={(to: Smp) => void ws.seek(to)}
-            onSelectOverlay={(oid: string | null) => {
-              ws.selectOverlay(oid);
-              if (oid) setSheet('overlay');
-            }}
-          />
-        </View>
-      )}
+      {/* 録音が無いときも、説明の文は置かずに空の波形の枠だけ出す（DESIGN_SYSTEM.md §2.3、Issue #179） */}
+      <View testID="timeline" style={[st.timeline, { backgroundColor: c.surface }]}>
+        <Waveform
+          voice={state.doc.voice}
+          peaksByTake={state.peaksByTake}
+          overlays={state.placedOverlays}
+          assetNames={state.assets}
+          events={ws.eventsOnTimeline}
+          total={state.total}
+          playhead={state.playhead}
+          revealSeq={state.revealSeq}
+          revealAt={state.revealAt}
+          selection={sel}
+          selectedOverlay={state.selectedOverlay}
+          pps={pps}
+          blocks={ws.blocks}
+          onTap={(at: Smp, longPress: boolean) => void ws.tapAt(at, longPress)}
+          onSelectionChange={(range: Range) => ws.setSelection(range)}
+          onSelectionDrag={setDragSel}
+          onSeek={(to: Smp) => void ws.seek(to)}
+          onSelectOverlay={(oid: string | null) => {
+            ws.selectOverlay(oid);
+            if (oid) setSheet('overlay');
+          }}
+        />
+      </View>
 
       {recCtx.input?.lowQuality ? (
         <Notice kind="warning" title={t.record.bluetoothTitle} body={t.settings.bluetoothWarning} />
@@ -549,7 +541,6 @@ export function StudioTab({
 
 const st = StyleSheet.create({
   flex: { flex: 1 },
-  emptySub: { marginTop: space.xs },
   // 見本 `.timeline`: 角丸 8、上 12・下 14。
   timeline: {
     borderRadius: radius.sm,
