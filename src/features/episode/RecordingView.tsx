@@ -33,6 +33,7 @@ import {
 } from '@/ui/tokens';
 
 import { liveColumns, type LivePeak } from './livePeaks';
+import { describeInput } from './describeInput';
 import { storageLine } from './storageLine';
 import type { RecordingContext } from './useRecordingContext';
 import type { Workspace } from './useWorkspace';
@@ -165,7 +166,8 @@ function Pad({
 
 /**
  * 収録タブの録音中（見本 3.「収録」、DESIGN_SYSTEM.md §8）。画面全体を番組の色のグラデーションにし、
- * 上から 閉じる・状態・番組名 → ライブ波形 → 題 → 時間とレベル → トークテーマのカード → ジングル → 操作バー。
+ * 上から 閉じる・状態・番組名 → ライブ波形 → 題 → 時間とレベル → カンペ → ジングル → 操作バー（見本の並び。Issue #179 C1）。
+ * 題の下は差し込み位置の補足だけ（テイクの番号は出さない。Issue #179 C3）。
  * 録音中は戻れない（閉じるは理由を伝えるだけ）。録音ボタンは位置を動かさない（#128）。
  */
 export function RecordingView({
@@ -224,9 +226,9 @@ export function RecordingView({
   const favorites = state.assets.filter(
     (a) => a.is_favorite && (a.kind === 'jingle' || a.kind === 'sfx'),
   );
-  const inputName = recCtx.inputKnown
-    ? (recCtx.input?.name ?? t.record.builtInMic)
-    : t.record.inputUnknown;
+  const input = describeInput(t, recCtx.input);
+  const inputName = recCtx.inputKnown ? input.name : t.record.inputUnknown;
+  const storage = storageLine(t, recCtx, active);
   const db =
     s === 'recording' && state.level && Number.isFinite(state.level.peakDb)
       ? Math.round(state.level.peakDb)
@@ -299,7 +301,7 @@ export function RecordingView({
               {title}
             </Text>
             <Text style={[typography.subtitle, { color: sub }]} numberOfLines={1}>
-              {`${t.record.takeLabel(state.takes.length + 1)} · ${where}`}
+              {where}
             </Text>
           </View>
 
@@ -316,11 +318,7 @@ export function RecordingView({
                 {clock}
               </Text>
               <View style={st.input}>
-                <Icon
-                  name={recCtx.input?.type === 'builtin' || !recCtx.input ? 'mic' : 'headphones'}
-                  color={sub}
-                  size={icon.inline}
-                />
+                <Icon name={input.icon} color={sub} size={icon.inline} />
                 <Text style={[typography.small, st.shrink, { color: sub }]} numberOfLines={1}>
                   {db === null ? inputName : `${inputName} · ${t.record.levelDb(db)}`}
                 </Text>
@@ -334,14 +332,17 @@ export function RecordingView({
             {state.level?.clipped ? (
               <Text style={[typography.small, { color: c.textPrimary }]}>{t.record.clipped}</Text>
             ) : null}
-            <Text
-              style={[
-                typography.small,
-                { color: active && !recCtx.writerOk ? c.textPrimary : sub },
-              ]}
-            >
-              {storageLine(t, recCtx, active)}
-            </Text>
+            {/* 残りが 1 時間以上なら出さない。保存停止・確認できないときは常に出す（Issue #179） */}
+            {storage ? (
+              <Text
+                style={[
+                  typography.small,
+                  { color: active && !recCtx.writerOk ? c.textPrimary : sub },
+                ]}
+              >
+                {storage}
+              </Text>
+            ) : null}
           </View>
 
           {/* 見本 `.cue`（DESIGN_SYSTEM.md §2.7）。読むだけ。空なら出さない */}

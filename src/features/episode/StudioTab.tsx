@@ -1,4 +1,4 @@
-import { useCallback, useState, type ReactNode } from 'react';
+import { useCallback, useRef, useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -8,7 +8,6 @@ import { useT } from '@/i18n';
 import type { AssetRow } from '@/infra/db/repositories/assetsRepo';
 import {
   Button,
-  Card,
   Chip,
   Field,
   IconButton,
@@ -23,6 +22,7 @@ import { useAppTheme } from '@/ui/ThemeContext';
 import { grabber, icon, radius, space, stroke, tabularNums, typography } from '@/ui/tokens';
 
 import { parseSeconds, validateRange } from './selectionInput';
+import { describeInput } from './describeInput';
 import { storageLine } from './storageLine';
 import { NotesSheet } from './NotesSheet';
 import type { RecordingContext } from './useRecordingContext';
@@ -38,11 +38,14 @@ export interface StudioTabProps {
   overlay: ReactNode;
   /** 録音を始める（再生位置から。途中なら差し込む）。 */
   onRecord: () => void;
-  /** `at` を省くと再生位置に入る。 */
-  onInsertAsset: (a: AssetRow, at?: Smp) => void;
+  /** `at` を省くと再生位置に入る。入れた素材の id を返す（入れられなかったら null）。 */
+  onInsertAsset: (a: AssetRow, at?: Smp) => Promise<string | null>;
   onOpenAssets: () => void;
   onShowToast: (text: string, undo?: () => void) => void;
   onError: (message: string) => void;
+  /** 波形の拡大率（1 秒あたりの px）。タブを切り替えても保つため、エピソード画面が持つ（Issue #177）。 */
+  pps: number;
+  onZoom: (pps: number) => void;
 }
 
 const toSec = (s: number) => (s / 48000).toFixed(1);
@@ -62,12 +65,15 @@ export function StudioTab({
   onOpenAssets,
   onShowToast,
   onError,
+  pps,
+  onZoom,
 }: StudioTabProps) {
   const c = useAppTheme();
   const t = useT();
   const insets = useSafeAreaInsets();
   const { state } = ws;
-  const [pps, setPps] = useState(24);
+  // ハンドルを動かしている間の範囲（Issue #177）。離すまで `state.selection` は変わらない
+  const [dragSel, setDragSel] = useState<Range | null>(null);
   const [sheet, setSheet] = useState<null | 'overlay' | 'insert'>(null);
   const [insertSide, setInsertSide] = useState<'before' | 'after'>('after');
   const [analyzing, setAnalyzing] = useState(false);
@@ -77,7 +83,21 @@ export function StudioTab({
   const [numeric, setNumeric] = useState(false);
   const [notesOpen, setNotesOpen] = useState(false);
 
+  /**
+   * 入れた素材をその場で選び、素材のシートを開く（Issue #178）。挿入のシートが閉じ終わり、
+   * 素材が入り終わってから開く（どちらが先に済むかは決まっていない）。
+   */
+  const afterInsert = useRef<{ id: string | null; dismissed: boolean } | null>(null);
+  const openInserted = () => {
+    const pending = afterInsert.current;
+    if (!pending?.id || !pending.dismissed) return;
+    afterInsert.current = null;
+    ws.selectOverlay(pending.id);
+    setSheet('overlay');
+  };
+
   const sel = state.selection;
+  const shown = dragSel ?? sel;
   const selKey = sel ? `${sel.start}-${sel.end}` : '';
   const f =
     fields && fields.key === selKey
@@ -89,9 +109,8 @@ export function StudioTab({
   const selectedAsset = selectedOverlay
     ? state.assets.find((a) => a.id === selectedOverlay.assetId)
     : null;
-  const inputName = recCtx.inputKnown
-    ? (recCtx.input?.name ?? t.record.builtInMic)
-    : t.record.inputUnknown;
+  const inputName = recCtx.inputKnown ? describeInput(t, recCtx.input).name : t.record.inputUnknown;
+  const storage = storageLine(t, recCtx, false);
   const channels = recCtx.channels === 2 ? t.settings.stereo : t.settings.mono;
   const empty = state.total === 0;
   const inMiddle = state.playhead < state.total;
@@ -140,12 +159,6 @@ export function StudioTab({
     ws.setSelection({ start: secToSmp(start!), end: secToSmp(end!) });
   };
 
-  const playSelection = async () => {
-    if (!sel) return;
-    await ws.seek(sel.start);
-    if (!state.playing) await ws.togglePlay();
-  };
-
   /** 選択の先頭から録る（見本「ここから録る」）。差し込みになる。 */
   const recordFromSelection = async () => {
     if (sel) await ws.seek(sel.start);
@@ -163,13 +176,16 @@ export function StudioTab({
       <View style={[st.grab, { backgroundColor: c.grabber }]} />
       {sel ? (
         <>
-          {/* 見本 `.sheet .info`: 「選択中 <b>04:31.2 – 04:35.4</b> · 4.2 秒」 */}
-          <Text style={[typography.caption, tabularNums, { color: c.textSecondary }]}>
+          {/* 見本 `.sheet .info`: 「選択中 <b>04:31.2 – 04:35.4</b> · 4.2 秒」。ハンドルを動かしている間はその位置 */}
+          <Text
+            style={[typography.caption, tabularNums, { color: c.textSecondary }]}
+            accessibilityLiveRegion="polite"
+          >
             {`${t.edit.selectedLabel} `}
             <Text style={[typography.captionStrong, { color: c.textPrimary }]}>
-              {`${formatSmp(sel.start, { tenths: true })} – ${formatSmp(sel.end, { tenths: true })}`}
+              {`${formatSmp(shown!.start, { tenths: true })} – ${formatSmp(shown!.end, { tenths: true })}`}
             </Text>
-            {` · ${t.edit.seconds(toSec(sel.end - sel.start))}`}
+            {` · ${t.edit.seconds(toSec(shown!.end - shown!.start))}`}
           </Text>
           {numeric ? (
             <View style={st.fields}>
@@ -201,7 +217,7 @@ export function StudioTab({
               raised
               label={t.edit.playSelection}
               icon="play"
-              onPress={() => void playSelection()}
+              onPress={() => void ws.playSelection()}
             />
             <Chip
               raised
@@ -273,13 +289,13 @@ export function StudioTab({
                 raised
                 label={t.a11y.zoomOut}
                 icon="minus"
-                onPress={() => setPps((p) => Math.max(4, p / 1.6))}
+                onPress={() => onZoom(Math.max(4, pps / 1.6))}
               />
               <Chip
                 raised
                 label={t.a11y.zoomIn}
                 icon="plus"
-                onPress={() => setPps((p) => Math.min(200, p * 1.6))}
+                onPress={() => onZoom(Math.min(200, pps * 1.6))}
               />
             </View>
           )}
@@ -303,9 +319,10 @@ export function StudioTab({
           </View>
         </>
       )}
-      <Text style={[typography.small, tabularNums, { color: c.textTertiary }]}>
-        {storageLine(t, recCtx, false)}
-      </Text>
+      {/* 残りが 1 時間以上なら出さない（Issue #179） */}
+      {storage ? (
+        <Text style={[typography.small, tabularNums, { color: c.textTertiary }]}>{storage}</Text>
+      ) : null}
     </View>
   );
 
@@ -313,42 +330,32 @@ export function StudioTab({
     <Screen edgeTop overlay={overlay} bottomBar={editSheet} bottomBarBare>
       {header}
 
-      {empty ? (
-        <Card>
-          <Text style={[typography.heading, { color: c.textPrimary }]}>{t.edit.emptyTitle}</Text>
-          <Text style={[typography.body, st.emptySub, { color: c.textSecondary }]}>
-            {t.edit.emptySub}
-          </Text>
-        </Card>
-      ) : (
-        <View testID="timeline" style={[st.timeline, { backgroundColor: c.surface }]}>
-          <Waveform
-            voice={state.doc.voice}
-            peaksByTake={state.peaksByTake}
-            overlays={state.placedOverlays}
-            assetNames={state.assets}
-            events={ws.eventsOnTimeline}
-            total={state.total}
-            playhead={state.playhead}
-            selection={sel}
-            selectedOverlay={state.selectedOverlay}
-            pps={pps}
-            recording={false}
-            recFrames={0}
-            blocks={ws.blocks}
-            onSelectBlock={(at: Smp) => {
-              const b = ws.selectBlockAt(at);
-              void ws.seek(b ? b.start : at);
-            }}
-            onSelectionChange={(range: Range) => ws.setSelection(range)}
-            onSeek={(to: Smp) => void ws.seek(to)}
-            onSelectOverlay={(oid: string | null) => {
-              ws.selectOverlay(oid);
-              if (oid) setSheet('overlay');
-            }}
-          />
-        </View>
-      )}
+      {/* 録音が無いときも、説明の文は置かずに空の波形の枠だけ出す（DESIGN_SYSTEM.md §2.3、Issue #179） */}
+      <View testID="timeline" style={[st.timeline, { backgroundColor: c.surface }]}>
+        <Waveform
+          voice={state.doc.voice}
+          peaksByTake={state.peaksByTake}
+          overlays={state.placedOverlays}
+          assetNames={state.assets}
+          events={ws.eventsOnTimeline}
+          total={state.total}
+          playhead={state.playhead}
+          revealSeq={state.revealSeq}
+          revealAt={state.revealAt}
+          selection={sel}
+          selectedOverlay={state.selectedOverlay}
+          pps={pps}
+          blocks={ws.blocks}
+          onTap={(at: Smp, longPress: boolean) => void ws.tapAt(at, longPress)}
+          onSelectionChange={(range: Range) => ws.setSelection(range)}
+          onSelectionDrag={setDragSel}
+          onSeek={(to: Smp) => void ws.seek(to)}
+          onSelectOverlay={(oid: string | null) => {
+            ws.selectOverlay(oid);
+            if (oid) setSheet('overlay');
+          }}
+        />
+      </View>
 
       {recCtx.input?.lowQuality ? (
         <Notice kind="warning" title={t.record.bluetoothTitle} body={t.settings.bluetoothWarning} />
@@ -393,6 +400,11 @@ export function StudioTab({
       <Sheet
         visible={sheet === 'insert'}
         onClose={() => setSheet(null)}
+        onDismissed={() => {
+          if (!afterInsert.current) return;
+          afterInsert.current.dismissed = true;
+          openInserted();
+        }}
         title={t.edit.insertTitle}
         subtitle={t.edit.insertSubtitle(formatSmp(insertPosition))}
       >
@@ -407,8 +419,18 @@ export function StudioTab({
             sub={formatSmp(smp(a.duration_smp))}
             last={i === state.assets.length - 1}
             onPress={() => {
+              afterInsert.current = { id: null, dismissed: false };
               setSheet(null);
-              onInsertAsset(a, insertPosition);
+              void onInsertAsset(a, insertPosition).then((id) => {
+                const pending = afterInsert.current;
+                if (!pending) return;
+                if (!id) {
+                  afterInsert.current = null;
+                  return;
+                }
+                pending.id = id;
+                openInserted();
+              });
             }}
           />
         ))}
@@ -519,7 +541,6 @@ export function StudioTab({
 
 const st = StyleSheet.create({
   flex: { flex: 1 },
-  emptySub: { marginTop: space.xs },
   // 見本 `.timeline`: 角丸 8、上 12・下 14。
   timeline: {
     borderRadius: radius.sm,

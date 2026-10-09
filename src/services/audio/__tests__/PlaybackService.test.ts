@@ -283,6 +283,49 @@ describe('PlaybackService', () => {
     expect(engine.timelines[0]).toMatchObject({ channels: 1 });
   });
 
+  describe('playing a range (Issue #177)', () => {
+    it('stops at the end of the range and leaves the position there', async () => {
+      const { engine, svc } = await setup({ withVoice: true });
+      await svc.reload('e');
+      const positions: number[] = [];
+      svc.on('position', (e) => positions.push(e.frame));
+      await svc.playRange(smp(12000), smp(36000));
+      expect(engine.calls).toContain('play:12000');
+      expect(svc.isPlaying).toBe(true);
+      engine.emit('onPosition', { frame: 24000 });
+      expect(svc.isPlaying).toBe(true);
+      // 位置の通知は少し過ぎてから届く
+      engine.emit('onPosition', { frame: 37000 });
+      await new Promise((r) => setImmediate(r));
+      expect(svc.isPlaying).toBe(false);
+      expect(svc.position).toBe(36000);
+      expect(positions).not.toContain(37000);
+      expect(positions.at(-1)).toBe(36000);
+    });
+
+    it('does not stop at the end once the user pauses and plays again', async () => {
+      const { engine, svc } = await setup({ withVoice: true });
+      await svc.reload('e');
+      await svc.playRange(smp(12000), smp(36000));
+      await svc.toggle(); // 止める
+      await svc.toggle(); // 続きから
+      engine.emit('onPosition', { frame: 40000 });
+      await new Promise((r) => setImmediate(r));
+      expect(svc.isPlaying).toBe(true);
+      expect(svc.position).toBe(40000);
+    });
+
+    it('does not stop at the end after a seek', async () => {
+      const { engine, svc } = await setup({ withVoice: true });
+      await svc.reload('e');
+      await svc.playRange(smp(12000), smp(36000));
+      await svc.seek(smp(30000));
+      engine.emit('onPosition', { frame: 40000 });
+      await new Promise((r) => setImmediate(r));
+      expect(svc.isPlaying).toBe(true);
+    });
+  });
+
   describe('preview sound (Issue #158)', () => {
     const sound = {
       loudness: { enabled: true, targetLufs: -16, truePeakDbtp: -1 },

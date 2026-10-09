@@ -129,7 +129,8 @@ export const ja = {
   seed: {
     showName: 'マイポッドキャスト',
     takeName: (n: number) => `録音 ${n}`,
-    addTakeOp: (take: string) => `${take} を追加`,
+    /** 取り消しの履歴の名前。テイクの番号は出さない（Issue #179）。 */
+    addTakeOp: '録音を追加',
     descriptionTemplate: `――――――
 Podcast: {{show_name}}
 感想は #PodsNow まで`,
@@ -293,6 +294,8 @@ Podcast: {{show_name}}
     cannotStartTitle: '録音を始められません',
     interrupted: '割り込みで録音が止まりました。ここまでは保存済みです',
     builtInMic: '内蔵マイク',
+    /** 名前の取れない外部の入力。 */
+    externalInput: '外部マイク',
     routeChanged: (input: string) => `入力が ${input} に切り替わりました`,
     takeAdded: (duration: string) => `録音を追加しました（${duration}）`,
     takeInserted: (duration: string, at: string) => `${at} に録音を差し込みました（${duration}）`,
@@ -313,7 +316,6 @@ Podcast: {{show_name}}
     stateInterrupted: '割り込みで止まっています',
     statePreparing: 'マイクを準備しています',
     stateStopping: '録音を保存しています',
-    takeLabel: (n: number) => `録音 ${String(n).padStart(2, '0')}`,
     a11yElapsed: (time: string) => `録音時間 ${time}`,
     inputLine: (name: string, channels: string) => `${name} · ${channels}`,
     inputUnknown: '入力を確認できません',
@@ -354,8 +356,6 @@ Podcast: {{show_name}}
     seconds: (s: string) => `${s} 秒`,
     enterNumbers: '秒数で指定',
     playheadInfo: (pos: string, total: string) => `${pos} / ${total}`,
-    emptyTitle: 'まだ録音がありません',
-    emptySub: '下の録音ボタンで始めます。途中の位置を選んで録ると、そこに差し込まれます',
     insertBefore: '前に素材',
     insertAfter: '後ろに素材',
     insert: '素材を追加',

@@ -33,6 +33,8 @@ export const SYMBOLS: Record<IconName, SFSymbol> = {
   music: 'music.note',
   headphones: 'headphones',
   mic: 'mic',
+  usb: 'cable.connector',
+  bluetooth: 'antenna.radiowaves.left.and.right',
   undo: 'arrow.uturn.backward',
   redo: 'arrow.uturn.forward',
   trimSilence: 'arrow.right.and.line.vertical.and.arrow.left',

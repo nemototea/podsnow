@@ -12,8 +12,8 @@ export interface ServiceLabels {
   descriptionTemplate: string;
   /** Take の既定名（`録音 1` / `Recording 1`）。 */
   takeName: (takeNumber: number) => string;
-  /** 録音の追加を取り消しの履歴に積むときの名前（`録音 2 を追加`）。Issue #122。 */
-  addTakeOp: (takeName: string) => string;
+  /** 録音の追加を取り消しの履歴に積むときの名前（`録音を追加`）。Issue #122。番号は出さない（Issue #179）。 */
+  addTakeOp: string;
   /** 割り込みからの再開時に記録する「録音中の出来事」のラベル。 */
   interruptionNote: string;
   /** Android の録音中通知（フォアグラウンドサービス）の文言。 */

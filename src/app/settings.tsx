@@ -5,6 +5,7 @@ import { APP_VERSION } from '@/domain/version';
 import { useServices } from '@/features/app/ServicesProvider';
 import { formatBytes, summarizeStorage, type StorageSummary } from '@/features/settings/storage';
 import { useAsyncData } from '@/features/show/useAsyncData';
+import { describeInput } from '@/features/episode/describeInput';
 import { useT, type Messages } from '@/i18n';
 import { availableDiskBytes } from '@/infra/files/fileSystem';
 import type { AppSettings } from '@/infra/db/repositories/settingsRepo';
@@ -94,7 +95,8 @@ export default function SettingsScreen() {
     set('silence', { ...settings.silence, ...p });
 
   // 内蔵マイクは端末名（例: Pixel 9a）ではなく「内蔵マイク」と出し、端末名は補足に回す。
-  const inputName = (i: AudioInput) => (i.type === 'builtin' ? t.record.builtInMic : i.name);
+  // 名前は録音画面・編集のシートと同じ関数で決める（Issue #179）
+  const inputName = (i: AudioInput) => describeInput(t, i).name;
   const inputSub = (i: AudioInput) =>
     `${i.type === 'builtin' ? i.name : t.settings.inputTypes[i.type]}${
       i.lowQuality ? t.settings.lowQualitySuffix : ''
