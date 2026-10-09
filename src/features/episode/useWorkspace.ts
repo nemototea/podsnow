@@ -34,6 +34,7 @@ import { fileExists } from '@/infra/files/fileSystem';
 import type { LevelEvent } from '../../../modules/podsnow-recorder/src/PodsnowRecorder.types';
 import { useServices } from '../app/ServicesProvider';
 import { tapBlock } from './blockTap';
+import { newInsertedClip } from './insertClip';
 import { LEVEL_STEP_SMP, readPeaksFile, timelineLevels, type TakePeaks } from './peaks';
 
 export interface WorkspaceState {
@@ -51,6 +52,8 @@ export interface WorkspaceState {
    * 再生位置が画面外なら見える位置へスクロールする（Issue #176）。
    */
   revealSeq: number;
+  /** 見せたい位置。null なら再生位置（素材を入れた直後だけ、入れた位置を見せる。Issue #178）。 */
+  revealAt: Smp | null;
   playing: boolean;
   recording: SessionState;
   recFrames: number;
@@ -92,6 +95,7 @@ export function useWorkspace(episodeId: string) {
     total: ZERO_SMP,
     playhead: ZERO_SMP,
     revealSeq: 0,
+    revealAt: null,
     playing: false,
     recording: recording.current,
     recFrames: 0,
@@ -125,6 +129,7 @@ export function useWorkspace(episodeId: string) {
         return {
           doc,
           revealSeq: s.revealSeq + 1,
+          revealAt: null,
           total: totalDuration(doc.voice),
           placedOverlays: placeOverlays(doc.voice, doc.overlays, durations),
           canUndo: e.canUndo,
@@ -243,7 +248,7 @@ export function useWorkspace(episodeId: string) {
   /** 再生位置を置く（保存もする）。範囲の確認は呼び出し側で済ませる。 */
   const placePlayhead = useCallback(
     async (to: Smp) => {
-      patch((s) => ({ playhead: to, revealSeq: s.revealSeq + 1 }));
+      patch((s) => ({ playhead: to, revealSeq: s.revealSeq + 1, revealAt: null }));
       await playback.seek(to).catch(() => {});
       void services.episodes.update(episodeId, { playheadSmp: to });
     },
@@ -325,7 +330,7 @@ export function useWorkspace(episodeId: string) {
   const seek = useCallback(
     async (to: Smp) => {
       const t = smp(Math.max(0, Math.min(state.total, to)));
-      patch((s) => ({ playhead: t, revealSeq: s.revealSeq + 1 }));
+      patch((s) => ({ playhead: t, revealSeq: s.revealSeq + 1, revealAt: null }));
       await playback.seek(t);
       void services.episodes.update(episodeId, { playheadSmp: t });
     },
@@ -480,7 +485,7 @@ export function useWorkspace(episodeId: string) {
   const playSelection = useCallback(async () => {
     const sel = state.selection;
     if (!sel) return;
-    patch((s) => ({ playhead: sel.start, revealSeq: s.revealSeq + 1 }));
+    patch((s) => ({ playhead: sel.start, revealSeq: s.revealSeq + 1, revealAt: null }));
     await playback.playRange(sel.start, sel.end);
   }, [patch, playback, state.selection]);
 
@@ -533,47 +538,31 @@ export function useWorkspace(episodeId: string) {
   /**
    * 素材を入れる。位置は録音中なら発言位置、そうでなければ再生位置か、
    * 呼び出し側が指定した時刻（選択の前 / 後 に入れるときに使う）。
+   * 入れた素材の id を返す（入れられなかったら null）。編集中は呼び出し側がその素材を選ぶ（Issue #178）。
    */
   const insertAsset = useCallback(
-    async (asset: AssetRow, at: 'playhead' | 'recording' | Smp) => {
-      let anchor: OverlayClip['anchor'];
+    async (asset: AssetRow, at: 'playhead' | 'recording' | Smp): Promise<string | null> => {
+      const id = services.newId();
       if (at === 'recording') {
         const pos = recording.currentSourcePosition();
-        if (!pos) return;
-        anchor = { type: 'source', takeId: pos.takeId, srcSmp: pos.srcSmp };
-      } else {
-        const tl = at === 'playhead' ? state.playhead : at;
-        const src = resolveSource(state.doc.voice, tl);
-        anchor = src
-          ? { type: 'source', takeId: src.takeId, srcSmp: src.srcSmp }
-          : { type: 'timeline_abs', smp: tl };
-      }
-      const clip: OverlayClip = {
-        id: services.newId(),
-        assetId: asset.id,
-        kind: asset.kind,
-        anchor,
-        srcStart: ZERO_SMP,
-        srcEnd: null,
-        gainDb: asset.default_gain_db,
-        fadeIn: ZERO_SMP,
-        fadeOut: ZERO_SMP,
-        loop: asset.kind === 'bgm',
-        endMode: asset.kind === 'bgm' ? 'timeline_end' : 'asset_end',
-      };
-      if (at === 'recording') {
         const e = editingRef.current;
-        if (!e) return;
+        if (!pos || !e) return null;
+        const clip = newInsertedClip({ id, asset, at: pos });
         await e.writeWithoutHistory((d) => ({ ...d, overlays: [...d.overlays, clip] }));
         syncFromEditing(e);
-      } else {
-        await apply(t.undo.insertAsset(asset.name), (d) => ({
-          ...d,
-          overlays: [...d.overlays, clip],
-        }));
+        return id;
       }
+      const tl = at === 'playhead' ? state.playhead : at;
+      const clip = newInsertedClip({ id, asset, at: { timeline: tl, voice: state.doc.voice } });
+      await apply(t.undo.insertAsset(asset.name), (d) => ({
+        ...d,
+        overlays: [...d.overlays, clip],
+      }));
+      // 入れた位置が画面外なら、波形をそこへ送る（Issue #176 の仕組み）
+      patch((s) => ({ revealAt: tl, revealSeq: s.revealSeq + 1 }));
+      return id;
     },
-    [apply, recording, services, state.doc.voice, state.playhead, syncFromEditing, t],
+    [apply, patch, recording, services, state.doc.voice, state.playhead, syncFromEditing, t],
   );
 
   const updateOverlay = useCallback(

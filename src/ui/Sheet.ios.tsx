@@ -19,7 +19,7 @@ export type { SheetProps };
  * 閉じる操作（スワイプ・閉じるボタン）はどちらも `onClose` に集める。
  * 中身のジェスチャーとスクロールの関係は `Sheet.tsx` と揃える。
  */
-export function Sheet({ visible, onClose, title, subtitle, children }: SheetProps) {
+export function Sheet({ visible, onClose, title, subtitle, children, onDismissed }: SheetProps) {
   const c = useAppTheme();
   const t = useT();
   const insets = useSafeAreaInsets();
@@ -31,6 +31,7 @@ export function Sheet({ visible, onClose, title, subtitle, children }: SheetProp
       presentationStyle="pageSheet"
       allowSwipeDismissal
       onRequestClose={onClose}
+      onDismiss={onDismissed}
     >
       <GestureHandlerRootView
         style={[st.root, { backgroundColor: c.surfaceRaised }]}

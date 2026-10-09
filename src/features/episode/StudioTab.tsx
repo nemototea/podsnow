@@ -1,4 +1,4 @@
-import { useCallback, useState, type ReactNode } from 'react';
+import { useCallback, useRef, useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -38,8 +38,8 @@ export interface StudioTabProps {
   overlay: ReactNode;
   /** 録音を始める（再生位置から。途中なら差し込む）。 */
   onRecord: () => void;
-  /** `at` を省くと再生位置に入る。 */
-  onInsertAsset: (a: AssetRow, at?: Smp) => void;
+  /** `at` を省くと再生位置に入る。入れた素材の id を返す（入れられなかったら null）。 */
+  onInsertAsset: (a: AssetRow, at?: Smp) => Promise<string | null>;
   onOpenAssets: () => void;
   onShowToast: (text: string, undo?: () => void) => void;
   onError: (message: string) => void;
@@ -82,6 +82,19 @@ export function StudioTab({
   // 開始・終了の秒数入力（読み上げでも選べるように。DESIGN_SYSTEM.md §8）。ふだんは畳んでおく
   const [numeric, setNumeric] = useState(false);
   const [notesOpen, setNotesOpen] = useState(false);
+
+  /**
+   * 入れた素材をその場で選び、素材のシートを開く（Issue #178）。挿入のシートが閉じ終わり、
+   * 素材が入り終わってから開く（どちらが先に済むかは決まっていない）。
+   */
+  const afterInsert = useRef<{ id: string | null; dismissed: boolean } | null>(null);
+  const openInserted = () => {
+    const pending = afterInsert.current;
+    if (!pending?.id || !pending.dismissed) return;
+    afterInsert.current = null;
+    ws.selectOverlay(pending.id);
+    setSheet('overlay');
+  };
 
   const sel = state.selection;
   const shown = dragSel ?? sel;
@@ -335,6 +348,7 @@ export function StudioTab({
             total={state.total}
             playhead={state.playhead}
             revealSeq={state.revealSeq}
+            revealAt={state.revealAt}
             selection={sel}
             selectedOverlay={state.selectedOverlay}
             pps={pps}
@@ -394,6 +408,11 @@ export function StudioTab({
       <Sheet
         visible={sheet === 'insert'}
         onClose={() => setSheet(null)}
+        onDismissed={() => {
+          if (!afterInsert.current) return;
+          afterInsert.current.dismissed = true;
+          openInserted();
+        }}
         title={t.edit.insertTitle}
         subtitle={t.edit.insertSubtitle(formatSmp(insertPosition))}
       >
@@ -408,8 +427,18 @@ export function StudioTab({
             sub={formatSmp(smp(a.duration_smp))}
             last={i === state.assets.length - 1}
             onPress={() => {
+              afterInsert.current = { id: null, dismissed: false };
               setSheet(null);
-              onInsertAsset(a, insertPosition);
+              void onInsertAsset(a, insertPosition).then((id) => {
+                const pending = afterInsert.current;
+                if (!pending) return;
+                if (!id) {
+                  afterInsert.current = null;
+                  return;
+                }
+                pending.id = id;
+                openInserted();
+              });
             }}
           />
         ))}

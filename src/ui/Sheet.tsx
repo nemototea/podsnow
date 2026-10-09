@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import { Modal, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { GestureHandlerRootView, ScrollView } from 'react-native-gesture-handler';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
@@ -18,6 +18,8 @@ export interface SheetProps {
   title?: string;
   subtitle?: string;
   children: ReactNode;
+  /** 閉じ終わったとき。続けて別のシートを開くときに使う（iOS は閉じ切る前に次を出せない）。 */
+  onDismissed?: () => void;
 }
 
 /**
@@ -33,12 +35,18 @@ export interface SheetProps {
  * で下に余白を足す（Modal のウィンドウのキーボードも拾える）。背景が先に縮み、足りなければ
  * シート自身と中の ScrollView が縮む。入力中の欄は Android の ScrollView が見える位置へ送る。
  */
-export function Sheet({ visible, onClose, title, subtitle, children }: SheetProps) {
+export function Sheet({ visible, onClose, title, subtitle, children, onDismissed }: SheetProps) {
   const c = useAppTheme();
   const t = useT();
   const insets = useSafeAreaInsets();
   const g = useGutter();
   const { height } = useWindowDimensions();
+  // Android と Web の Modal は閉じたらすぐ次を出せるので、見えなくなった時点で知らせる
+  const wasVisible = useRef(visible);
+  useEffect(() => {
+    if (wasVisible.current && !visible) onDismissed?.();
+    wasVisible.current = visible;
+  }, [onDismissed, visible]);
   return (
     <Modal
       visible={visible}

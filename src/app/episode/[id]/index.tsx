@@ -224,7 +224,7 @@ export default function EpisodeScreen() {
   }, [finish, showError, t]);
 
   const insertAsset = useCallback(
-    async (a: AssetRow, at?: Smp) => {
+    async (a: AssetRow, at?: Smp): Promise<string | null> => {
       // 割り込みで止まっている間も録音中のテイクに付ける（履歴には止めたときに積む）
       if (isRec || interrupted) {
         await ws.insertAsset(a, 'recording');
@@ -240,11 +240,13 @@ export default function EpisodeScreen() {
         } else {
           showToast({ text: t.record.insertedNoMonitor(a.name) });
         }
-        return;
+        // 録音中は画面を変えない（素材を選ばない。Issue #178）
+        return null;
       }
       const where = at ?? state.playhead;
-      await ws.insertAsset(a, where);
-      toast1(t.record.insertedAt(a.name, formatSmp(where)), () => void ws.undo());
+      const id = await ws.insertAsset(a, where);
+      if (id) toast1(t.record.insertedAt(a.name, formatSmp(where)), () => void ws.undo());
+      return id;
     },
     [interrupted, isRec, services, showToast, state.playhead, t, toast1, ws],
   );
@@ -412,7 +414,7 @@ export default function EpisodeScreen() {
         header={header}
         overlay={overlay}
         onRecord={() => void toggleRec()}
-        onInsertAsset={(a, at) => void insertAsset(a, at)}
+        onInsertAsset={insertAsset}
         onOpenAssets={() => router.push('/show/assets')}
         onShowToast={toast1}
         onError={showError}

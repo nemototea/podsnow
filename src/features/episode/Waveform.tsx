@@ -46,6 +46,8 @@ export interface WaveformProps {
    * 見える位置へスクロールする（Issue #176）。
    */
   revealSeq: number;
+  /** `revealSeq` が変わったときに見せる位置。省略・null なら再生位置（Issue #178）。 */
+  revealAt?: Smp | null;
   selection: Range | null;
   selectedOverlay: string | null;
   /** 1 秒あたりのピクセル。 */
@@ -165,10 +167,11 @@ export const Waveform = memo(function Waveform(p: WaveformProps) {
   useEffect(() => {
     if (viewW === 0 || lastReveal.current === p.revealSeq) return;
     lastReveal.current = p.revealSeq;
-    const to = reveal(headX, viewport(), followRef.current);
+    const target = p.revealAt == null ? headX : PAD + (p.revealAt / SAMPLE_RATE) * p.pps;
+    const to = reveal(target, viewport(), followRef.current);
     if (to !== null) scrollTo(to);
     if (!followRef.current.dragging) followRef.current = { dragging: false, armed: true };
-  }, [headX, p.revealSeq, scrollTo, viewW, viewport]);
+  }, [headX, p.pps, p.revealAt, p.revealSeq, scrollTo, viewW, viewport]);
 
   // 可視範囲（前後 1 画面分の余裕）
   const from = Math.max(0, scrollX - viewW);
