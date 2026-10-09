@@ -94,7 +94,7 @@ export default function SearchScreen() {
             accessibilityLabel={t.search.placeholder}
             returnKeyType="search"
             autoCorrect={false}
-            style={[typography.bodyStrong, st.input, { color: c.textPrimary }]}
+            style={[st.input, { color: c.textPrimary }]}
           />
         </View>
 
@@ -171,7 +171,15 @@ const st = StyleSheet.create({
     paddingHorizontal: space.md,
     borderRadius: radius.sm,
   },
-  input: { flex: 1, paddingVertical: space.x10 },
+  // 入力欄には lineHeight を渡さない（Android は字の上に積み、プレースホルダーが上に寄る。`Field` と同じ）。
+  // 太字にもしない（プレースホルダーまで太くなる）。Android の EditText の既定の左右の余白も消す。
+  input: {
+    flex: 1,
+    fontSize: typography.body.fontSize,
+    fontWeight: typography.body.fontWeight,
+    paddingVertical: space.x10,
+    paddingHorizontal: 0,
+  },
   section: { gap: space.md },
   list: { gap: space.x14 },
   sound: { flexDirection: 'row', alignItems: 'center', gap: space.md },

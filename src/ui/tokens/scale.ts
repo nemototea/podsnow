@@ -286,7 +286,7 @@ export const field = {
   radius: radius.sm,
   paddingX: space.lg,
   paddingY: space.sm,
-  /** 通常時の枠（地の色と同じにして見せない。DESIGN_SYSTEM.md §6）。 */
+  /** 通常時の枠（`borderStrong` の細い線。入力欄だと分かるように常に見せる。DESIGN_SYSTEM.md §6.1）。 */
   border: stroke.hairline,
   /** 入力中・エラー時の枠。 */
   borderActive: stroke.selected,

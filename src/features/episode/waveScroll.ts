@@ -3,6 +3,23 @@
  * 位置はすべて ScrollView の中身の座標（px）。
  */
 
+/** 拡大率（1 秒あたりの px）の下限と上限。 */
+export const ZOOM_MIN = 4;
+export const ZOOM_MAX = 200;
+
+/** ボタンで 1 段変えるときの倍率。 */
+export const ZOOM_STEP = 1.6;
+
+/**
+ * ピンチの倍率から拡大率を決める。`base` はピンチを始めたときの拡大率。
+ * UI スレッド（Reanimated のワークレット）から呼ぶ。
+ */
+export function pinchPps(base: number, scale: number): number {
+  'worklet';
+  if (!Number.isFinite(scale) || scale <= 0) return base;
+  return Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, base * scale));
+}
+
 /** 追うときに再生位置を置く場所（見本 `.playhead` の left 46%）。 */
 export const PLAYHEAD_AT = 0.46;
 

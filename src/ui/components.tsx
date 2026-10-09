@@ -943,7 +943,8 @@ export function Field({
   const [focused, setFocused] = useState(false);
   // 呼び出し側の書体スタイル（typography.numeric など）に含まれる lineHeight も入力欄には渡さない（s.input）。
   const { lineHeight: _lineHeight, ...inputStyle } = StyleSheet.flatten(style) ?? {};
-  // 通常は細い枠。入力中とエラー時だけ太くする（色だけでなく太さでも状態を示す）。
+  // 通常も細い枠を見せ、入力欄だと分かるようにする（シートの地と入力欄の地が同じ色でも見分けられる）。
+  // 入力中とエラー時だけ太くする（色だけでなく太さでも状態を示す）。
   const borderWidth = error || focused ? field.borderActive : field.border;
   return (
     <View style={s.field}>
@@ -970,7 +971,7 @@ export function Field({
           {
             color: c.textPrimary,
             backgroundColor: c.surfaceRaised,
-            borderColor: error ? c.dangerBorder : focused ? c.focusRing : c.surfaceRaised,
+            borderColor: error ? c.dangerBorder : focused ? c.focusRing : c.borderStrong,
             borderWidth,
           },
           fieldPadding(borderWidth),

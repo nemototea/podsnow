@@ -1,7 +1,14 @@
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useEffect, useEffectEvent, useState, type ReactNode } from 'react';
 import { Modal, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { GestureHandlerRootView, ScrollView } from 'react-native-gesture-handler';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
+import Animated, {
+  Easing,
+  runOnJS,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useT } from '@/i18n';
@@ -10,7 +17,12 @@ import { IconButton, useGutter } from './components';
 import { DialogHost } from './Dialog';
 import { Text } from './Text';
 import { useAppTheme } from './ThemeContext';
-import { grabber, radius, space, typography } from './tokens';
+import { grabber, motion, radius, space, typography } from './tokens';
+import { useReducedMotion } from './useReducedMotion';
+
+/** 出るときは減速、引っ込むときは加速（面の大きい要素の動き）。 */
+const EASE_IN = { duration: motion.moderate, easing: Easing.out(Easing.cubic) };
+const EASE_OUT = { duration: motion.quick, easing: Easing.in(Easing.cubic) };
 
 export interface SheetProps {
   visible: boolean;
@@ -34,6 +46,10 @@ export interface SheetProps {
  * `adjustResize` で画面が縮まないので、react-native-keyboard-controller の `KeyboardAvoidingView`
  * で下に余白を足す（Modal のウィンドウのキーボードも拾える）。背景が先に縮み、足りなければ
  * シート自身と中の ScrollView が縮む。入力中の欄は Android の ScrollView が見える位置へ送る。
+ *
+ * 出し入れは自前で動かす。Modal の `animationType="slide"` は背景の暗幕まで一緒に下から滑らせ、
+ * 画面のいちばん上まで暗い面がせり上がって見えるので、暗幕はその場で薄く出し、シートだけを下から出す。
+ * 閉じるときは動きが終わってから Modal を外す。
  */
 export function Sheet({ visible, onClose, title, subtitle, children, onDismissed }: SheetProps) {
   const c = useAppTheme();
@@ -41,37 +57,64 @@ export function Sheet({ visible, onClose, title, subtitle, children, onDismissed
   const insets = useSafeAreaInsets();
   const g = useGutter();
   const { height } = useWindowDimensions();
-  // Android と Web の Modal は閉じたらすぐ次を出せるので、見えなくなった時点で知らせる
-  const wasVisible = useRef(visible);
+  const reduced = useReducedMotion();
+  // 閉じる動きの間も Modal を出しておく。開くときは描画中に出す（effect で setState しない）
+  const [mounted, setMounted] = useState(visible);
+  if (visible && !mounted) setMounted(true);
+  const progress = useSharedValue(0);
+  // 閉じ切った（Modal を外した）ときに知らせる。Android と Web の Modal は外せばすぐ次を出せる
+  const dismissed = useEffectEvent(() => {
+    setMounted(false);
+    onDismissed?.();
+  });
   useEffect(() => {
-    if (wasVisible.current && !visible) onDismissed?.();
-    wasVisible.current = visible;
-  }, [onDismissed, visible]);
+    if (!mounted) return;
+    const fast = { duration: motion.instant };
+    if (visible) {
+      progress.value = withTiming(1, reduced ? fast : EASE_IN);
+      return;
+    }
+    progress.value = withTiming(0, reduced ? fast : EASE_OUT, (finished) => {
+      if (finished) runOnJS(dismissed)();
+    });
+  }, [mounted, progress, reduced, visible]);
+  const scrimStyle = useAnimatedStyle(() => ({ opacity: progress.value }));
+  const sheetStyle = useAnimatedStyle(() =>
+    reduced
+      ? { opacity: progress.value }
+      : { transform: [{ translateY: (1 - progress.value) * height }] },
+  );
   return (
     <Modal
-      visible={visible}
+      visible={mounted}
       transparent
-      animationType="slide"
+      animationType="none"
       onRequestClose={onClose}
       statusBarTranslucent
       navigationBarTranslucent
     >
       <GestureHandlerRootView style={st.root}>
-        {/* シート自身が下端に safe area 分の余白を持つので、キーボードが出ている間はその分を差し引く。 */}
-        <KeyboardAvoidingView
-          style={st.root}
-          behavior="padding"
-          keyboardVerticalOffset={-insets.bottom}
-        >
+        {/* 暗幕は画面全体に敷き、その場で薄く出す（シートと一緒に滑らせない） */}
+        <Animated.View style={[StyleSheet.absoluteFill, scrimStyle]}>
           <Pressable
-            style={[st.backdrop, { backgroundColor: c.overlayScrim }]}
+            style={[st.root, { backgroundColor: c.overlayScrim }]}
             onPress={onClose}
             accessibilityRole="button"
             accessibilityLabel={t.a11y.close}
           />
-          <View
+        </Animated.View>
+        {/* シート自身が下端に safe area 分の余白を持つので、キーボードが出ている間はその分を差し引く。 */}
+        <KeyboardAvoidingView
+          style={st.root}
+          pointerEvents="box-none"
+          behavior="padding"
+          keyboardVerticalOffset={-insets.bottom}
+        >
+          <View style={st.backdrop} pointerEvents="none" />
+          <Animated.View
             style={[
               st.sheet,
+              sheetStyle,
               {
                 backgroundColor: c.surfaceRaised,
                 paddingHorizontal: g,
@@ -104,7 +147,7 @@ export function Sheet({ visible, onClose, title, subtitle, children, onDismissed
             <ScrollView style={st.scroll} keyboardShouldPersistTaps="handled">
               {children}
             </ScrollView>
-          </View>
+          </Animated.View>
         </KeyboardAvoidingView>
         {/* シートの中から出す確認は、シートの上に出す（DESIGN_SYSTEM.md §6.3）。 */}
         <DialogHost />

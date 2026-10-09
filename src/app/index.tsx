@@ -4,8 +4,8 @@ import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { formatClock } from '@/domain/time';
 import { useServices } from '@/features/app/ServicesProvider';
-import { draftBar, pickDraft, useDraftBar } from '@/features/home/draftBar';
-import { EpisodeRow, itemLabel } from '@/features/home/EpisodeRow';
+import { draftBar, pickDraft } from '@/features/home/draftBar';
+import { EpisodeRow } from '@/features/home/EpisodeRow';
 import { settleHandoffs } from '@/features/home/handToHome';
 import { episodeStatusKind, type EpisodeStatusKind } from '@/features/home/statusIcon';
 import { useEpisodeActions } from '@/features/home/useEpisodeActions';
@@ -21,6 +21,7 @@ import type { IconName } from '@/ui/IconSvg';
 import { useAppTheme } from '@/ui/ThemeContext';
 import {
   artwork,
+  hitSlop,
   pressedOpacity,
   quickTile,
   radius,
@@ -40,12 +41,19 @@ function matches(filter: Filter, kind: EpisodeStatusKind): boolean {
   return filter === 'exported' ? done : !done;
 }
 
-/** 続きからの素材のタイル（見本 `.quick .mat`）。行き先は番組画面の素材・ひな形。 */
+/**
+ * 素材とひな形のタイル（見本 `.quick .mat`）。行き先は素材の画面と番組画面のひな形。
+ * 途中の回は並べない（下書きバーと「最近のエピソード」で開ける。ユーザー判断 2026-10-09）。2 列 × 2 段。
+ */
 const SHORTCUTS: readonly { key: string; icon: IconName; kind?: AssetKind }[] = [
   { key: 'openingEnding', icon: 'music', kind: 'opening' },
   { key: 'bgmJingle', icon: 'music', kind: 'bgm' },
+  { key: 'sfx', icon: 'music', kind: 'sfx' },
   { key: 'notesTemplate', icon: 'edit' },
 ];
+
+/** 「最近のエピソード」に並べる上限。全部は番組画面の一覧で見る（ユーザー判断 2026-10-09）。 */
+const RECENT_LIMIT = 5;
 
 export default function HomeScreen() {
   const c = useAppTheme();
@@ -55,7 +63,6 @@ export default function HomeScreen() {
   const { show, recovered } = services;
   const { list, playable, loading, reload } = useHome();
   const player = usePlaybackStatus();
-  const draft = useDraftBar();
   const [onboardingDone, setOnboardingDone] = useState(services.settings.onboardingDone);
   const { toast, show: showToast, act, dismiss } = useToast();
   const [recoveredOpen, setRecoveredOpen] = useState(recovered.length > 0);
@@ -103,23 +110,8 @@ export default function HomeScreen() {
       });
   };
 
-  // 続きから: 途中の回（左）と、よく使う素材（右）を交互に並べる（見本 `.quick`）
-  const inProgress = list
-    .filter((item) => {
-      const kind = episodeStatusKind(item);
-      return kind === 'new' || kind === 'draft' || kind === 'ready';
-    })
-    .slice(0, SHORTCUTS.length);
-  const tiles: (
-    { type: 'episode'; item: HomeEpisodeItem } | { type: 'shortcut'; index: number }
-  )[] = [];
-  for (let i = 0; i < SHORTCUTS.length; i++) {
-    const item = inProgress[i];
-    if (item) tiles.push({ type: 'episode', item });
-    tiles.push({ type: 'shortcut', index: i });
-  }
-
-  const visible = list.filter((item) => matches(filter, episodeStatusKind(item)));
+  const filtered = list.filter((item) => matches(filter, episodeStatusKind(item)));
+  const visible = filtered.slice(0, RECENT_LIMIT);
 
   // 復元した録音は、回ごとに確認できるようにする（Issue #168 E8）
   const rec = recovered[0];
@@ -237,35 +229,7 @@ export default function HomeScreen() {
 
         {showOnboarding ? null : (
           <View style={st.quick}>
-            {tiles.map((tile) => {
-              if (tile.type === 'episode') {
-                const { item } = tile;
-                const label = itemLabel(t, item);
-                return (
-                  <Pressable
-                    key={item.key}
-                    onPress={() => open(item)}
-                    accessibilityRole="button"
-                    accessibilityLabel={label}
-                    style={({ pressed }) => [
-                      st.tile,
-                      { backgroundColor: pressed ? c.surfaceHover : c.surfaceRaised },
-                    ]}
-                  >
-                    <Artwork uri={cover} name={show.name} size={quickTile} frameless />
-                    <Text
-                      style={[typography.captionStrong, st.tileText, { color: c.textPrimary }]}
-                      numberOfLines={2}
-                    >
-                      {label}
-                    </Text>
-                    {draft?.key === item.key ? (
-                      <View style={[st.live, { backgroundColor: c.accentSolid }]} />
-                    ) : null}
-                  </Pressable>
-                );
-              }
-              const sc = SHORTCUTS[tile.index]!;
+            {SHORTCUTS.map((sc) => {
               const label = t.home.shortcuts[sc.key as keyof Messages['home']['shortcuts']];
               return (
                 <Pressable
@@ -327,9 +291,27 @@ export default function HomeScreen() {
 
         {visible.length > 0 ? (
           <View style={st.section}>
-            <Text style={[typography.title, { color: c.textPrimary }]} accessibilityRole="header">
-              {t.home.sectionRecent}
-            </Text>
+            <View style={st.sectionHead}>
+              <Text
+                style={[typography.title, st.flex, { color: c.textPrimary }]}
+                accessibilityRole="header"
+              >
+                {t.home.sectionRecent}
+              </Text>
+              {filtered.length > visible.length ? (
+                <Pressable
+                  onPress={() => router.push('/show')}
+                  accessibilityRole="link"
+                  accessibilityLabel={t.home.a11ySeeAll(filtered.length)}
+                  hitSlop={hitSlop(typography.captionStrong.lineHeight)}
+                  style={({ pressed }) => (pressed ? st.pressed : null)}
+                >
+                  <Text style={[typography.captionStrong, { color: c.textSecondary }]}>
+                    {t.home.seeAll}
+                  </Text>
+                </Pressable>
+              ) : null}
+            </View>
             <View style={st.list}>
               {visible.map((item) => (
                 <EpisodeRow
@@ -370,6 +352,8 @@ const st = StyleSheet.create({
   mat: { width: quickTile, height: quickTile, alignItems: 'center', justifyContent: 'center' },
   live: { width: space.sm, height: space.sm, borderRadius: radius.pill },
   section: { gap: space.md },
+  sectionHead: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
+  flex: { flex: 1 },
   // 見本 `.showcard`: 幅 128、間 8（番組名と本数の間は 2）。
   showCard: { width: artwork.showCard, gap: space.sm },
   showCardText: { gap: space.hair },
