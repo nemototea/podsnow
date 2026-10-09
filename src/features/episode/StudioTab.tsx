@@ -43,6 +43,9 @@ export interface StudioTabProps {
   onOpenAssets: () => void;
   onShowToast: (text: string, undo?: () => void) => void;
   onError: (message: string) => void;
+  /** 波形の拡大率（1 秒あたりの px）。タブを切り替えても保つため、エピソード画面が持つ（Issue #177）。 */
+  pps: number;
+  onZoom: (pps: number) => void;
 }
 
 const toSec = (s: number) => (s / 48000).toFixed(1);
@@ -62,12 +65,15 @@ export function StudioTab({
   onOpenAssets,
   onShowToast,
   onError,
+  pps,
+  onZoom,
 }: StudioTabProps) {
   const c = useAppTheme();
   const t = useT();
   const insets = useSafeAreaInsets();
   const { state } = ws;
-  const [pps, setPps] = useState(24);
+  // ハンドルを動かしている間の範囲（Issue #177）。離すまで `state.selection` は変わらない
+  const [dragSel, setDragSel] = useState<Range | null>(null);
   const [sheet, setSheet] = useState<null | 'overlay' | 'insert'>(null);
   const [insertSide, setInsertSide] = useState<'before' | 'after'>('after');
   const [analyzing, setAnalyzing] = useState(false);
@@ -78,6 +84,7 @@ export function StudioTab({
   const [notesOpen, setNotesOpen] = useState(false);
 
   const sel = state.selection;
+  const shown = dragSel ?? sel;
   const selKey = sel ? `${sel.start}-${sel.end}` : '';
   const f =
     fields && fields.key === selKey
@@ -140,12 +147,6 @@ export function StudioTab({
     ws.setSelection({ start: secToSmp(start!), end: secToSmp(end!) });
   };
 
-  const playSelection = async () => {
-    if (!sel) return;
-    await ws.seek(sel.start);
-    if (!state.playing) await ws.togglePlay();
-  };
-
   /** 選択の先頭から録る（見本「ここから録る」）。差し込みになる。 */
   const recordFromSelection = async () => {
     if (sel) await ws.seek(sel.start);
@@ -163,13 +164,16 @@ export function StudioTab({
       <View style={[st.grab, { backgroundColor: c.grabber }]} />
       {sel ? (
         <>
-          {/* 見本 `.sheet .info`: 「選択中 <b>04:31.2 – 04:35.4</b> · 4.2 秒」 */}
-          <Text style={[typography.caption, tabularNums, { color: c.textSecondary }]}>
+          {/* 見本 `.sheet .info`: 「選択中 <b>04:31.2 – 04:35.4</b> · 4.2 秒」。ハンドルを動かしている間はその位置 */}
+          <Text
+            style={[typography.caption, tabularNums, { color: c.textSecondary }]}
+            accessibilityLiveRegion="polite"
+          >
             {`${t.edit.selectedLabel} `}
             <Text style={[typography.captionStrong, { color: c.textPrimary }]}>
-              {`${formatSmp(sel.start, { tenths: true })} – ${formatSmp(sel.end, { tenths: true })}`}
+              {`${formatSmp(shown!.start, { tenths: true })} – ${formatSmp(shown!.end, { tenths: true })}`}
             </Text>
-            {` · ${t.edit.seconds(toSec(sel.end - sel.start))}`}
+            {` · ${t.edit.seconds(toSec(shown!.end - shown!.start))}`}
           </Text>
           {numeric ? (
             <View style={st.fields}>
@@ -201,7 +205,7 @@ export function StudioTab({
               raised
               label={t.edit.playSelection}
               icon="play"
-              onPress={() => void playSelection()}
+              onPress={() => void ws.playSelection()}
             />
             <Chip
               raised
@@ -273,13 +277,13 @@ export function StudioTab({
                 raised
                 label={t.a11y.zoomOut}
                 icon="minus"
-                onPress={() => setPps((p) => Math.max(4, p / 1.6))}
+                onPress={() => onZoom(Math.max(4, pps / 1.6))}
               />
               <Chip
                 raised
                 label={t.a11y.zoomIn}
                 icon="plus"
-                onPress={() => setPps((p) => Math.min(200, p * 1.6))}
+                onPress={() => onZoom(Math.min(200, pps * 1.6))}
               />
             </View>
           )}
@@ -335,11 +339,9 @@ export function StudioTab({
             selectedOverlay={state.selectedOverlay}
             pps={pps}
             blocks={ws.blocks}
-            onSelectBlock={(at: Smp) => {
-              const b = ws.selectBlockAt(at);
-              void ws.seek(b ? b.start : at);
-            }}
+            onTap={(at: Smp, longPress: boolean) => void ws.tapAt(at, longPress)}
             onSelectionChange={(range: Range) => ws.setSelection(range)}
+            onSelectionDrag={setDragSel}
             onSeek={(to: Smp) => void ws.seek(to)}
             onSelectOverlay={(oid: string | null) => {
               ws.selectOverlay(oid);

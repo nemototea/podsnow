@@ -129,6 +129,8 @@ export class PlaybackService {
   private nowPlayingSent: { key: string; playing: boolean; total: number } | null = null;
   private nowPlayingMeta: { key: string; meta: NowPlayingMeta } | null = null;
   private nowPlayingSeq = 0;
+  /** 範囲の試聴の終わり（Issue #177）。ここまで鳴ったら止め、位置をここに置く。利用者の操作で捨てる。 */
+  private stopAt: Smp | null = null;
 
   constructor(
     private readonly deps: {
@@ -150,6 +152,7 @@ export class PlaybackService {
     this.subs.push(
       deps.engine.on('onPlaybackState', (e) => {
         this.timelineFrame = e.frame;
+        if (!e.playing) this.stopAt = null;
         if (this.mode !== 'timeline') return;
         this.playing = e.playing;
         this.frame = e.frame;
@@ -158,6 +161,12 @@ export class PlaybackService {
       deps.engine.on('onPosition', (e) => {
         this.timelineFrame = e.frame;
         if (this.mode !== 'timeline') return;
+        const end = this.stopAt;
+        if (end !== null && e.frame >= end) {
+          this.stopAt = null;
+          void this.stopAtEnd(end);
+          return;
+        }
         this.frame = e.frame;
         this.dispatch('position', e);
       }),
@@ -361,6 +370,25 @@ export class PlaybackService {
     this.timelineStarting = false;
   }
 
+  /**
+   * 範囲だけを鳴らす（選択部分の試聴、Issue #177）。`to` で止め、再生位置を `to` に置く。
+   * 途中で利用者が操作したら、範囲の終わりでは止めない。
+   */
+  async playRange(from: Smp, to: Smp): Promise<void> {
+    this.userAction();
+    this.timelineItem = null;
+    if (to <= from) return;
+    this.stopAt = to;
+    await this.playTimeline(from);
+  }
+
+  /** 範囲の終わりに来た。位置の通知は数十 ms ごとなので、少し過ぎた分を `end` へ戻す。 */
+  private async stopAtEnd(end: Smp): Promise<void> {
+    await this.deps.engine.pause();
+    await this.seek(end);
+    this.dispatch('position', { frame: end });
+  }
+
   async pause(): Promise<void> {
     this.userAction();
     await this.pauseCurrent();
@@ -418,6 +446,7 @@ export class PlaybackService {
   }
 
   async seek(frame: Smp): Promise<void> {
+    this.stopAt = null;
     this.timelineFrame = frame;
     if (this.mode !== 'file') this.frame = frame;
     await this.deps.engine.seek(frame);
@@ -572,6 +601,7 @@ export class PlaybackService {
   /** 利用者の操作（と録音の開始）。割り込みのあとの自動再開をやめる（§10.3）。 */
   private userAction(): void {
     this.interruptedMode = null;
+    this.stopAt = null;
   }
 
   private async onInterruptionBegan(): Promise<void> {

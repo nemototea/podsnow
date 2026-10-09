@@ -33,6 +33,7 @@ import { fileExists } from '@/infra/files/fileSystem';
 
 import type { LevelEvent } from '../../../modules/podsnow-recorder/src/PodsnowRecorder.types';
 import { useServices } from '../app/ServicesProvider';
+import { tapBlock } from './blockTap';
 import { LEVEL_STEP_SMP, readPeaksFile, timelineLevels, type TakePeaks } from './peaks';
 
 export interface WorkspaceState {
@@ -453,16 +454,35 @@ export function useWorkspace(episodeId: string) {
       },
     }));
   }, [patch]);
-  /** 塊をそのまま選ぶ（タップ）。無音の位置なら選択を外す。 */
-  const selectBlockAt = useCallback(
-    (at: Smp) => {
-      const b = blocks.find((x) => at >= x.start && at < x.end) ?? null;
-      patch({ selection: b, selectedOverlay: null });
-      if (b) haptics.play('selection');
-      return b;
+  /**
+   * 波形を押した（Issue #177）。再生位置はいつも押した位置へ移す。選択は同じ塊への 2 回目のタップか
+   * 長押しで作り、選択の中をもう一度押すと外す（`tapBlock`）。
+   */
+  const lastTapRef = useRef<Range | null>(null);
+  const tapAt = useCallback(
+    async (at: Smp, longPress = false) => {
+      const r = tapBlock({
+        at,
+        blocks,
+        selection: state.selection,
+        last: lastTapRef.current,
+        longPress,
+      });
+      lastTapRef.current = r.last;
+      patch({ selection: r.selection, selectedOverlay: null });
+      if (r.selection) haptics.play('selection');
+      await seek(at);
     },
-    [blocks, haptics, patch],
+    [blocks, haptics, patch, seek, state.selection],
   );
+
+  /** 選択部分を試聴する。選択の先頭から鳴らし、終わりで止める（Issue #177）。 */
+  const playSelection = useCallback(async () => {
+    const sel = state.selection;
+    if (!sel) return;
+    patch((s) => ({ playhead: sel.start, revealSeq: s.revealSeq + 1 }));
+    await playback.playRange(sel.start, sel.end);
+  }, [patch, playback, state.selection]);
 
   /** ハンドルのドラッグ後に確定する。隣の塊の境界へ吸い付かせる。 */
   const setSelection = useCallback(
@@ -470,10 +490,10 @@ export function useWorkspace(episodeId: string) {
     [patch],
   );
 
-  const clearSelection = useCallback(
-    () => patch({ selection: null, selectedOverlay: null }),
-    [patch],
-  );
+  const clearSelection = useCallback(() => {
+    lastTapRef.current = null;
+    patch({ selection: null, selectedOverlay: null });
+  }, [patch]);
 
   const deleteSelection = useCallback(async () => {
     const sel = state.selection;
@@ -618,7 +638,8 @@ export function useWorkspace(episodeId: string) {
     resumeAfterInterruption,
     setSelectionStart,
     setSelectionEnd,
-    selectBlockAt,
+    tapAt,
+    playSelection,
     setSelection,
     clearSelection,
     deleteSelection,

@@ -497,7 +497,7 @@ figcaption span { color: var(--sub); font-size: 13.5px; line-height: 1.7; }
         </div>
       </div>
     </div>
-    <figcaption><b>4. 編集（収録タブの中）</b><span>作業の画面は番組の色を使わず、無彩色とアクセントだけにしています。細かい波形を見る場所に色が混ざると、選択中の塊が見分けにくくなるためです。塊を押すと選択が移り、削除すると取り消しの通知が出ます。カンペは鉛筆のボタンで開いて書きます。新しいエピソードには番組の「カンペのひな形」が最初から入ります。</span></figcaption>
+    <figcaption><b>4. 編集（収録タブの中）</b><span>作業の画面は番組の色を使わず、無彩色とアクセントだけにしています。細かい波形を見る場所に色が混ざると、選択中の塊が見分けにくくなるためです。波形を押すと再生位置が移り、同じ塊をもう一度押すか長押しすると選択されます。削除すると取り消しの通知が出ます。カンペは鉛筆のボタンで開いて書きます。新しいエピソードには番組の「カンペのひな形」が最初から入ります。</span></figcaption>
   </figure>
 
   <!-- 5. Export -->
@@ -868,7 +868,7 @@ figcaption span { color: var(--sub); font-size: 13.5px; line-height: 1.7; }
     toast.hidden = false;
     var nxt = chunks.findIndex(function (c, k) { return k > selIdx && !c.classList.contains('gone'); });
     if (nxt < 0) nxt = chunks.findIndex(function (c) { return !c.classList.contains('gone'); });
-    if (nxt >= 0) select(nxt); else { selIdx = null; info.textContent = '塊をタップして選びます'; }
+    if (nxt >= 0) select(nxt); else { selIdx = null; info.textContent = '塊をもう一度押すか長押しして選びます'; }
     clearTimeout(tmr); tmr = setTimeout(function () { toast.hidden = true; }, 4000);
   });
   document.getElementById('undoBtn').addEventListener('click', function () {

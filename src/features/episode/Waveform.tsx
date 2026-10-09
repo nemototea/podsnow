@@ -26,6 +26,8 @@ import { sampleVoiceColumns, type TakePeaks } from './peaks';
 import { follow, release, reveal, zoomScroll, type FollowState } from './waveScroll';
 
 const SAMPLE_RATE = 48000;
+/** 0.1 秒（ハンドルを動かしている間に時間を知らせる刻み）。 */
+const TENTH = SAMPLE_RATE / 10;
 const COL_W = 3;
 /** 塊の間（見本 `.lane` の gap 3）。 */
 const CHUNK_GAP = 3;
@@ -50,12 +52,17 @@ export interface WaveformProps {
   pps: number;
   onSeek: (to: Smp) => void;
   onSelectOverlay: (id: string | null) => void;
-  /** 無音で区切られた声の塊（FR-EDIT-2）。タップで選び、ハンドルで広げる。 */
+  /** 無音で区切られた声の塊（FR-EDIT-2）。2 回目のタップか長押しで選び、ハンドルで広げる。 */
   blocks?: readonly Range[];
-  /** 塊をタップしたとき。指定すると、タップはシークではなく選択になる。 */
-  onSelectBlock?: (at: Smp) => void;
+  /**
+   * 波形を押したとき（Issue #177）。指定しなければ、押した位置へシークするだけ。
+   * 選ぶかどうかは呼び出し側が決める（`tapBlock`）。
+   */
+  onTap?: (at: Smp, longPress: boolean) => void;
   /** ハンドルのドラッグを確定したとき。 */
   onSelectionChange?: (range: Range) => void;
+  /** ハンドルを動かしている間の範囲（0.1 秒ごと）。離したら null（Issue #177）。 */
+  onSelectionDrag?: (range: Range | null) => void;
 }
 
 /**
@@ -181,10 +188,10 @@ export const Waveform = memo(function Waveform(p: WaveformProps) {
   const selX = p.selection ? ([xOf(p.selection.start), xOf(p.selection.end)] as const) : null;
   const placed = useMemo(() => placeVoice(p.voice), [p.voice]);
 
-  const seekAt = (x: number) => {
+  const tapAt = (x: number, longPress: boolean) => {
     if (!Number.isFinite(x)) return;
-    const at = smp(Math.max(0, (x / p.pps) * SAMPLE_RATE));
-    if (p.onSelectBlock) p.onSelectBlock(at);
+    const at = smp(Math.max(0, Math.min(p.total, (x / p.pps) * SAMPLE_RATE)));
+    if (p.onTap) p.onTap(at, longPress);
     else p.onSeek(at);
   };
 
@@ -200,19 +207,27 @@ export const Waveform = memo(function Waveform(p: WaveformProps) {
     selEnd.value = p.selection?.end ?? 0;
   }, [p.selection, selStart, selEnd]);
 
+  const { onSelectionChange, onSelectionDrag } = p;
   const commit = useCallback(
     (a: number, b: number) => {
       const lo = Math.min(a, b);
       const hi = Math.max(a, b);
       // 隣の塊の切れ目に吸い付かせる（画面 12px 相当）
       const within = (12 / pps) * SAMPLE_RATE;
-      p.onSelectionChange?.({
+      onSelectionDrag?.(null);
+      onSelectionChange?.({
         start: snapToBoundary(blocks, smp(lo), within),
         end: snapToBoundary(blocks, smp(hi), within),
       });
     },
-    [blocks, p, pps],
+    [blocks, onSelectionChange, onSelectionDrag, pps],
   );
+  // 動かしている間の時間を JS へ渡す。0.1 秒が変わったときだけ（毎フレーム描き直さない）
+  const dragging = useCallback(
+    (a: number, b: number) => onSelectionDrag?.({ start: smp(a), end: smp(b) }),
+    [onSelectionDrag],
+  );
+  const lastTenths = useSharedValue('');
 
   const startBase = useSharedValue(0);
   const endBase = useSharedValue(0);
@@ -226,11 +241,17 @@ export const Waveform = memo(function Waveform(p: WaveformProps) {
         .onUpdate((e) => {
           const delta = (e.translationX / pps) * SAMPLE_RATE;
           selStart.value = Math.max(0, Math.min(selEnd.value, startBase.value + delta));
+          const key = `${Math.round(selStart.value / TENTH)}-${Math.round(selEnd.value / TENTH)}`;
+          if (key !== lastTenths.value) {
+            lastTenths.value = key;
+            runOnJS(dragging)(selStart.value, selEnd.value);
+          }
         })
         .onEnd(() => {
+          lastTenths.value = '';
           runOnJS(commit)(selStart.value, selEnd.value);
         }),
-    [commit, pps, selEnd, selStart, startBase],
+    [commit, dragging, lastTenths, pps, selEnd, selStart, startBase],
   );
   const endPan = useMemo(
     () =>
@@ -242,11 +263,17 @@ export const Waveform = memo(function Waveform(p: WaveformProps) {
         .onUpdate((e) => {
           const delta = (e.translationX / pps) * SAMPLE_RATE;
           selEnd.value = Math.min(total, Math.max(selStart.value, endBase.value + delta));
+          const key = `${Math.round(selStart.value / TENTH)}-${Math.round(selEnd.value / TENTH)}`;
+          if (key !== lastTenths.value) {
+            lastTenths.value = key;
+            runOnJS(dragging)(selStart.value, selEnd.value);
+          }
         })
         .onEnd(() => {
+          lastTenths.value = '';
           runOnJS(commit)(selStart.value, selEnd.value);
         }),
-    [commit, endBase, pps, selEnd, selStart, total],
+    [commit, dragging, endBase, lastTenths, pps, selEnd, selStart, total],
   );
 
   const selectionStyle = useAnimatedStyle(() => ({
@@ -276,7 +303,8 @@ export const Waveform = memo(function Waveform(p: WaveformProps) {
       >
         <Pressable
           style={{ width: contentW, height: laneTop + space.xl }}
-          onPress={(e) => seekAt(e.nativeEvent.locationX)}
+          onPress={(e) => tapAt(e.nativeEvent.locationX, false)}
+          onLongPress={(e) => tapAt(e.nativeEvent.locationX, true)}
         >
           {/* 目盛り */}
           {Array.from({ length: Math.ceil(totalSec / tickSec) + 2 }).map((_, i) => (
@@ -341,7 +369,7 @@ export const Waveform = memo(function Waveform(p: WaveformProps) {
             ) : null}
           </View>
           {/* 選択のハンドル。掴んで伸ばす（FR-EDIT-2） */}
-          {p.selection && p.onSelectionChange ? (
+          {p.selection && onSelectionChange ? (
             <>
               <GestureDetector gesture={startPan}>
                 <Animated.View style={[styles.handle, styles.handleStart, startStyle]}>

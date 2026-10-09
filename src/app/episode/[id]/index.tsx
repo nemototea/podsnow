@@ -40,6 +40,8 @@ export default function EpisodeScreen() {
   const recCtx = useRecordingContext(state.recording);
   const { toast, show: showToast, act, dismiss } = useToast();
   const [tab, setTab] = useState<Tab>('studio');
+  // 波形の拡大率（1 秒あたりの px）。収録タブはタブを切り替えると作り直されるので、ここで持つ（Issue #177）
+  const [pps, setPps] = useState(24);
   const undoToast = useRef<UndoToast | null>(null);
   const c = useAppTheme();
   const colors = useShowColors();
@@ -414,6 +416,8 @@ export default function EpisodeScreen() {
         onOpenAssets={() => router.push('/show/assets')}
         onShowToast={toast1}
         onError={showError}
+        pps={pps}
+        onZoom={setPps}
       />
     );
   }
