@@ -188,7 +188,8 @@ export class EpisodeService {
   /**
    * この回のオープニング・エンディング・BGM の並びを、番組の既定にする（Issue #254）。
    * 次に作る回からこの形で始まる。作成済みの回は変えない。素材が無い枠は「付けない」にする。
-   * 音量・BGM を下げる量以外の、番組の設定画面にある値（素材の選択）もここで上書きする。
+   * 素材・配置・フェード・音量に加えて、この回の BGM を下げる量（書き出しの下げ幅）も写す（Issue #263）。
+   * 既定の構成を変える入口はここだけ（番組画面では素材の選択だけを変える）。
    */
   async saveStructureAsDefault(episodeId: string): Promise<void> {
     const { db } = this.deps;
@@ -213,6 +214,8 @@ export class EpisodeService {
       openingAssetId: op && opLen !== null ? op.assetId : null,
       endingAssetId: ed && edLen !== null ? ed.assetId : null,
       bgmAssetId: bgm ? bgm.assetId : null,
+      // BGM の音量と下げ幅は耳で一緒に決める値なので、BGM の有無にかかわらず写す
+      bgmDuckDb: parseSoundSettings(ep.sound_settings).ducking.depthDb,
     };
     if (op && opLen !== null && op.anchor.type === 'timeline_start') {
       Object.assign(patch, {

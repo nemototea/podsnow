@@ -146,7 +146,7 @@ MVP は起動時に 1 行自動作成。【事実】
 | ending_asset_id | TEXT FK nullable | |
 | bgm_asset_id | TEXT FK nullable | |
 | bgm_gain_db | REAL | 既定 -14 |
-| bgm_duck_db | REAL | 既定 -10（声がある区間での追加減衰）。新しいエピソードの既定の下げ幅で、作成時に `episodes.sound_settings.ducking.depthDb` へ写す。写した後はエピソードの値で、ここを変えても作成済みの回は変わらない（Issue #174） |
+| bgm_duck_db | REAL | 既定 -10（声がある区間での追加減衰）。新しいエピソードの既定の下げ幅で、作成時に `episodes.sound_settings.ducking.depthDb` へ写す。写した後はエピソードの値で、ここを変えても作成済みの回は変わらない（Issue #174）。「この構成を既定にする」で、その回の `ducking.depthDb` から書き戻す（Issue #263） |
 | opening_gain_db / ending_gain_db | REAL | |
 | opening_overlap_smp | INTEGER NOT NULL DEFAULT 0 | オープニングの終わりが本編の始まりに重なる量。0 = 流し終えてから話す。`timeline_start` のオフセット = overlap − 素材の長さ（負）。移行 0011 |
 | opening_fade_in_smp / opening_fade_out_smp | INTEGER NOT NULL DEFAULT 0 | 移行 0011 |
@@ -158,8 +158,8 @@ MVP は起動時に 1 行自動作成。【事実】
 新規エピソード作成時、この行から `overlay_clips` を生成する（`EpisodeService.defaultOverlays`）。MVP は 1 種類のみ【事実】。将来 `episode_templates` テーブルに一般化。
 
 既定の形は「オープニングを流し終えてから話し、話し終えてからエンディング。BGM は本編の下」。素材の列が NULL の枠は「付けない」。
-行を書き換えるのは、エピソード画面の「この構成を既定にする」（`EpisodeService.saveStructureAsDefault(episodeId)`）だけ。その回のオープニング・エンディング・BGM の素材・配置・フェード・音量を写し、外してある枠は素材 NULL にする。
-番組設定の画面には、素材ごとのフェードの欄を置かない（ユーザー判断 2026-10-10、Issue #254）。【事実】
+素材以外の値を書き換えるのは、エピソード画面の「この構成を既定にする」（`EpisodeService.saveStructureAsDefault(episodeId)`）だけ。その回のオープニング・エンディング・BGM の素材・配置・フェード・音量と、BGM の下げ幅（`sound_settings.ducking.depthDb` → `bgm_duck_db`）を写し、外してある枠は素材 NULL にする。
+番組設定の画面で変えられるのは枠ごとの素材の選択だけで、音量・フェード・下げ幅の欄は置かない（フェードはユーザー判断 2026-10-10、Issue #254。音量・下げ幅は同日、Issue #263）。素材の選択は、まだエピソードが無い人が最初の構成を決める入口として残す。【事実】
 
 ### 4.2.1 カンペのひな形（`shows.notes_template`）
 
