@@ -9,7 +9,7 @@ import { describeInput } from '@/features/episode/describeInput';
 import { ExportTab } from '@/features/episode/ExportTab';
 import { playMonitor } from '@/features/episode/monitor';
 import { RecordingView } from '@/features/episode/RecordingView';
-import { StudioTab } from '@/features/episode/StudioTab';
+import { useStudioTab } from '@/features/episode/StudioTab';
 import { useLivePeaks } from '@/features/episode/livePeaks';
 import { useShowColors } from '@/features/show/useShowColors';
 import { useDetailsDraft } from '@/features/episode/useDetailsDraft';
@@ -266,6 +266,19 @@ export default function EpisodeScreen() {
     setTab(next);
   };
 
+  // 収録タブの中身。書き出しタブの間も呼び、画面と上部は下の 1 つの `Screen` に置く（Issue #262）
+  const studio = useStudioTab({
+    ws,
+    recCtx,
+    onRecord: () => void toggleRec(),
+    onInsertAsset: insertAsset,
+    onOpenAssets: () => router.push('/show/assets'),
+    onShowToast: toast1,
+    onError: showError,
+    pps,
+    onZoom: setPps,
+  });
+
   if (!state.ready || !state.episode) return <Loading label={t.common.loadingEpisode} />;
 
   const episode = state.episode;
@@ -410,36 +423,28 @@ export default function EpisodeScreen() {
     </View>
   );
 
-  if (tab === 'studio') {
-    return (
-      <StudioTab
-        ws={ws}
-        recCtx={recCtx}
-        header={header}
-        overlay={overlay}
-        onRecord={() => void toggleRec()}
-        onInsertAsset={insertAsset}
-        onOpenAssets={() => router.push('/show/assets')}
-        onShowToast={toast1}
-        onError={showError}
-        pps={pps}
-        onZoom={setPps}
-      />
-    );
-  }
-
+  // 両タブで同じ `Screen` と上部を使い、中身だけ入れ替える。切り替えのたびに画面ごと作り直すと
+  // 一瞬ちらつく（Issue #262）
   return (
-    <Screen edgeTop overlay={overlay}>
+    <Screen
+      edgeTop
+      overlay={overlay}
+      scrollKey={tab}
+      {...(tab === 'studio' ? { bottomBar: studio.bottomBar, bottomBarBare: true } : {})}
+    >
       {header}
-      <ExportTab
-        ws={ws}
-        details={details}
-        onShowToast={toast1}
-        onGoEdit={() => setTab('studio')}
-        onDone={(exportId) =>
-          router.push(`/episode/${episodeId}/share?exportId=${exportId}` as never)
-        }
-      />
+      {tab === 'studio' ? (
+        studio.body
+      ) : (
+        <ExportTab
+          ws={ws}
+          details={details}
+          onShowToast={toast1}
+          onDone={(exportId) =>
+            router.push(`/episode/${episodeId}/share?exportId=${exportId}` as never)
+          }
+        />
+      )}
     </Screen>
   );
 }

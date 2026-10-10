@@ -298,6 +298,20 @@ figcaption span { color: var(--sub); font-size: 13.5px; line-height: 1.7; }
 .checks { display: grid; gap: 10px; background: var(--s1); border-radius: 8px; padding: 14px; }
 .check { display: flex; align-items: center; gap: 10px; font-size: 13.5px; }
 .check .dot { width: 20px; height: 20px; border-radius: 50%; background: var(--accent); color: var(--accent-ink); display: grid; place-items: center; flex: none; }
+.check .dot.off { background: none; border: 2px solid #7a7a7a; }
+.checknote { margin: -4px 0 0 30px; font-size: 12.5px; line-height: 19px; color: var(--sub); }
+/* 詳細設定（Issue #262）: 行全体が押せる見出し。中身は直下に開き、書き出しボタンはその下 */
+.acc { display: flex; align-items: center; gap: 10px; min-height: 48px; border-bottom: 1px solid var(--line); }
+.acc b { flex: 1; font-size: 15px; line-height: 22px; font-weight: 800; }
+.acc [data-ic] { color: var(--sub); display: grid; }
+.adv { display: grid; gap: 10px; }
+.adv h5 { margin: 6px 0 0; font-size: 13.5px; line-height: 20px; font-weight: 600; }
+.adv small { display: flex; align-items: center; gap: 4px; font-size: 12.5px; line-height: 19px; color: var(--sub); }
+.adv .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.adv .kv { display: flex; align-items: center; gap: 4px; min-height: 48px; font-size: 13.5px; border-bottom: 1px solid var(--line); }
+.adv .kv span { flex: 1; display: flex; align-items: center; gap: 4px; }
+.adv .kv b { min-width: 84px; text-align: center; font-size: 12px; font-weight: 500; font-variant-numeric: tabular-nums; }
+.info { color: var(--sub); display: inline-grid; }
 
 /* ---------- 6. 取り込み（Issue #260） ---------- */
 .im { padding: 0 16px 20px; }
@@ -660,6 +674,7 @@ figcaption span { color: var(--sub); font-size: 13.5px; line-height: 1.7; }
           </div>
           <div style="display:grid;gap:10px">
             <div class="row" style="gap:8px"><span class="chip on">M4A</span><span class="chip">WAV</span><span style="margin-left:auto;font-size:12px;color:var(--sub)">約 28 MB</span></div>
+            <div class="acc"><b>詳細設定</b><span data-ic="down"></span></div>
             <button class="btn pri" style="height:50px;font-size:15px"><span data-ic="share"></span>書き出して共有</button>
           </div>
           <div class="fields">
@@ -672,7 +687,46 @@ figcaption span { color: var(--sub); font-size: 13.5px; line-height: 1.7; }
         </div>
       </div>
     </div>
-    <figcaption><b>5. 書き出し</b><span>ここも無彩色とアクセントだけです。番組らしさはアートワークの画像で十分に出るので、画面全体を塗る必要はありません。</span></figcaption>
+    <figcaption><b>5. 書き出し</b><span>ここも無彩色とアクセントだけです。番組らしさはアートワークの画像で十分に出るので、画面全体を塗る必要はありません。「詳細設定」は形式のチップと書き出しボタンの間の見出しの行で、行全体が押せます（Issue #262）。</span></figcaption>
+  </figure>
+
+  <!-- 5b. Export（詳細設定を開いたところ。Issue #262） -->
+  <figure>
+    <div class="phone">
+      <div class="status"><span>9:41</span><span>100%</span></div>
+      <div class="ephead">
+        <div class="row"><button class="ib" data-ic="back"></button><b data-b="ep1"></b><button class="ib" data-ic="more"></button></div>
+        <div class="seg"><span class="chip">収録</span><span class="chip on">書き出し</span></div>
+      </div>
+      <div class="scroll">
+        <div class="ex">
+          <div class="checks">
+            <div class="check"><span class="dot" data-ic="check"></span>音量をそろえる<span class="val">-16 LUFS</span></div>
+            <div class="check"><span class="dot" data-ic="check"></span>話す間は BGM を下げる<span class="val">-12 dB</span></div>
+            <div class="check"><span class="dot" data-ic="check"></span>アートワークとタイトルを埋め込む</div>
+          </div>
+          <div style="display:grid;gap:10px">
+            <div class="row" style="gap:8px"><span class="chip on">M4A</span><span class="chip">WAV</span><span style="margin-left:auto;font-size:12px;color:var(--sub)">約 28 MB</span></div>
+            <div class="acc"><b>詳細設定</b><span data-ic="up"></span></div>
+            <div class="adv">
+              <h5>音の仕上げ</h5>
+              <small>目標ラウドネス<span class="info" data-ic="info"></span></small>
+              <div class="chips"><span class="chip">-14 LUFS</span><span class="chip on">-16 LUFS（推奨）</span><span class="chip">-18 LUFS</span></div>
+              <div class="kv"><span>トゥルーピーク上限<i class="info" data-ic="info"></i></span><button class="ib" data-ic="minus"></button><b>-1.0 dBTP</b><button class="ib" data-ic="plus"></button></div>
+              <div class="kv"><span>下げ幅<i class="info" data-ic="info"></i></span><button class="ib" data-ic="minus"></button><b>-12 dB</b><button class="ib" data-ic="plus"></button></div>
+              <div class="kv"><span>アタック<i class="info" data-ic="info"></i></span><button class="ib" data-ic="minus"></button><b>50 ms</b><button class="ib" data-ic="plus"></button></div>
+              <div class="kv"><span>リリース<i class="info" data-ic="info"></i></span><button class="ib" data-ic="minus"></button><b>500 ms</b><button class="ib" data-ic="plus"></button></div>
+              <div class="kv"><span>声のしきい値<i class="info" data-ic="info"></i></span><button class="ib" data-ic="minus"></button><b>-40 dBFS</b><button class="ib" data-ic="plus"></button></div>
+              <h5>ファイル形式</h5>
+              <div class="chips"><span class="chip on">Podcast</span><span class="chip">高音質</span><span class="chip">WAV</span><span class="chip">カスタム</span></div>
+              <small>M4A · 128 kbps · モノラル</small>
+            </div>
+            <button class="btn pri" style="height:50px;font-size:15px"><span data-ic="share"></span>書き出して共有</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <figcaption><b>5b. 書き出し（詳細設定を開いたところ）</b><span>見出しの行を押すと、中身はその直下に開きます。「音の仕上げ」（目標ラウドネス・トゥルーピーク上限・BGM を下げる 4 項目）と「ファイル形式」（プリセット・カスタムの項目）を小見出しで分け、書き出しボタンはいつも一番下です。ラウドネスの項目は「音量をそろえる」、BGM の項目は「話す間は BGM を下げる」が入っているときだけ出します。どの項目にも ⓘ があり、書き出しにどう効くかを説明します。BGM が無い回でも「話す間は BGM を下げる」は押せば入・切が替わり（画面は移りません）、その下に「BGM が無いので、今回の書き出しには効きません。収録タブで BGM を入れられます」と添えます（Issue #262）。</span></figcaption>
   </figure>
 
   <!-- 6. Import preview（Issue #260） -->
@@ -776,6 +830,8 @@ figcaption span { color: var(--sub); font-size: 13.5px; line-height: 1.7; }
     pause: '<rect x="6" y="5" width="4" height="14" rx="1" fill="currentColor"/><rect x="14" y="5" width="4" height="14" rx="1" fill="currentColor"/>',
     back: '<path d="M15 5 8 12l7 7" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>',
     down: '<path d="m5 9 7 7 7-7" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>',
+    up: '<path d="m5 15 7-7 7 7" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>',
+    info: '<circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 11v5.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="7.8" r="1.2" fill="currentColor"/>',
     pen: '<path d="M4 20h4L19 9l-4-4L4 16z" stroke="currentColor" stroke-width="2" fill="none" stroke-linejoin="round"/>',
     link: '<path d="M10 14a4.5 4.5 0 0 0 6.4 0l3.2-3.2a4.5 4.5 0 0 0-6.4-6.4L11.6 6M14 10a4.5 4.5 0 0 0-6.4 0l-3.2 3.2a4.5 4.5 0 0 0 6.4 6.4l1.6-1.6" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>',
     share: '<path d="M12 3v12M7 8l5-5 5 5M5 14v6h14v-6" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>',
@@ -786,7 +842,7 @@ figcaption span { color: var(--sub); font-size: 13.5px; line-height: 1.7; }
     trash: '<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" stroke="currentColor" stroke-width="2" fill="none" stroke-linejoin="round"/>',
     check: '<path d="m5 12 4.5 4.5L19 7" stroke="currentColor" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>'
   };
-  var SIZES = { 'mic-lg': ['mic', 26], 'mic-sm': ['mic', 15], note: ['note', 15], check: ['check', 12], trash: ['trash', 18], share: ['share', 20], 'pen-sm': ['pen', 15], link: ['link', 15], 'flag-sm': ['flag', 18] };
+  var SIZES = { 'mic-lg': ['mic', 26], 'mic-sm': ['mic', 15], note: ['note', 15], check: ['check', 12], trash: ['trash', 18], share: ['share', 20], 'pen-sm': ['pen', 15], link: ['link', 15], 'flag-sm': ['flag', 18], info: ['info', 18] };
   document.querySelectorAll('[data-ic]').forEach(function (el) {
     var k = el.getAttribute('data-ic'), size = 22, name = k;
     if (SIZES[k]) { name = SIZES[k][0]; size = SIZES[k][1]; }

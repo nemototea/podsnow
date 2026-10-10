@@ -7,7 +7,7 @@ import { isStructureClip } from '@/domain/timeline/overlays';
 import type { Range } from '@/domain/timeline/types';
 import { useT } from '@/i18n';
 import type { AssetRow } from '@/infra/db/repositories/assetsRepo';
-import { Button, Chip, Field, IconButton, Notice, Row, Screen, Text } from '@/ui/components';
+import { Button, Chip, Field, IconButton, Notice, Row, Text } from '@/ui/components';
 import { Sheet } from '@/ui/Sheet';
 import { useAppTheme } from '@/ui/ThemeContext';
 import { useScreenReader } from '@/ui/useScreenReader';
@@ -25,10 +25,6 @@ import { ZOOM_MAX, ZOOM_MIN, ZOOM_STEP } from './waveScroll';
 export interface StudioTabProps {
   ws: Workspace;
   recCtx: RecordingContext;
-  /** 画面の上部（戻る・題・取り消し）と「収録 / 書き出し」のチップ。 */
-  header: ReactNode;
-  /** 通知（トースト）。 */
-  overlay: ReactNode;
   /** 録音を始める（再生位置から。途中なら差し込む）。 */
   onRecord: () => void;
   /** `at` を省くと再生位置に入る。入れた素材の id を返す（入れられなかったら null）。 */
@@ -43,16 +39,26 @@ export interface StudioTabProps {
 
 const toSec = (s: number) => (s / 48000).toFixed(1);
 
+/** 収録タブの中身。画面（`Screen`）と上部はエピソード画面が持つ。 */
+export interface StudioTabParts {
+  /** 画面のスクロールの中（波形・カンペ・シート）。 */
+  body: ReactNode;
+  /** 画面の下のシート（選択中の操作、再生・録音）。 */
+  bottomBar: ReactNode;
+}
+
 /**
  * 収録タブの待機中・編集（見本 4.「編集」、DESIGN_SYSTEM.md §8）。無彩色とアクセントだけ。
  * 波形のパネル（目盛り・声のレーン・素材のレーン・再生ヘッド）、カンペ、下から出る選択のシート。
  * 録音中は `RecordingView` に切り替わる（Issue #122）。
+ *
+ * 画面と上部（戻る・題・「収録 / 書き出し」）は両タブで共通の親に置き、タブを切り替えても作り直さない
+ * （Issue #262）。そのため部品ではなくフックにして、中身と下のシートを別々に返す。書き出しタブを
+ * 開いている間も呼ばれ、選択の入力などの状態は残る。
  */
-export function StudioTab({
+export function useStudioTab({
   ws,
   recCtx,
-  header,
-  overlay,
   onRecord,
   onInsertAsset,
   onOpenAssets,
@@ -60,7 +66,7 @@ export function StudioTab({
   onError,
   pps,
   onZoom,
-}: StudioTabProps) {
+}: StudioTabProps): StudioTabParts {
   const c = useAppTheme();
   const t = useT();
   const insets = useSafeAreaInsets();
@@ -479,10 +485,8 @@ export function StudioTab({
     </View>
   );
 
-  return (
-    <Screen edgeTop overlay={overlay} bottomBar={editSheet} bottomBarBare>
-      {header}
-
+  const body = (
+    <>
       {/* 録音が無いときも、説明の文は置かずに空の波形の枠だけ出す（DESIGN_SYSTEM.md §2.3、Issue #179） */}
       <View testID="timeline" style={[st.timeline, { backgroundColor: c.surface }]}>
         <Waveform
@@ -600,8 +604,10 @@ export function StudioTab({
           />
         ))}
       </Sheet>
-    </Screen>
+    </>
   );
+
+  return { body, bottomBar: editSheet };
 }
 
 const st = StyleSheet.create({
