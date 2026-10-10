@@ -785,8 +785,13 @@ export function Chip({
     <Pressable
       onPress={onPress}
       disabled={disabled || !onPress}
-      accessibilityRole="button"
-      accessibilityState={{ selected: !!active, disabled: !!disabled }}
+      // 押せないチップ（番組のカテゴリーなど。Issue #259）はボタンとして読み上げない
+      {...(onPress
+        ? {
+            accessibilityRole: 'button' as const,
+            accessibilityState: { selected: !!active, disabled: !!disabled },
+          }
+        : { accessibilityRole: 'text' as const })}
       {...(accessibilityLabel ? { accessibilityLabel } : {})}
       hitSlop={hitSlop(typography.chip.lineHeight + 2 * chipSize.paddingY)}
       style={({ pressed }) => [
@@ -808,16 +813,24 @@ export function Pill({
   label,
   kind = 'default',
   icon: iconName,
+  accessibilityLabel,
 }: {
   label: string;
   kind?: 'default' | 'strong' | 'rec';
   icon?: IconName;
+  /** 札の文字が略号（「E」など）のとき、読み上げる言葉。 */
+  accessibilityLabel?: string;
 }) {
   const c = useAppTheme();
   const bg = kind === 'rec' ? c.recSolid : kind === 'strong' ? c.pillStrong : c.surfaceHover;
   const fg = kind === 'rec' ? c.recOnSolid : kind === 'strong' ? c.textPrimary : c.textSecondary;
   return (
-    <View style={[s.pill, { backgroundColor: bg }]}>
+    <View
+      style={[s.pill, { backgroundColor: bg }]}
+      {...(accessibilityLabel
+        ? { accessible: true, accessibilityRole: 'text' as const, accessibilityLabel }
+        : {})}
+    >
       {iconName ? <Icon name={iconName} color={fg} size={typography.overline.lineHeight} /> : null}
       <Text style={[typography.overline, { color: fg }]}>{label}</Text>
     </View>

@@ -173,6 +173,10 @@ export const typography = {
   subtitle: { fontSize: 14, lineHeight: 20, fontWeight: '400' },
   /** 番組画面の著者の行（見本 `.showhead .by`）。 */
   byline: { fontSize: 13, lineHeight: 19, fontWeight: '400' },
+  /** 番組画面の紹介（見本 `.showhead .about p` の 13 / 1.55。Issue #259）。 */
+  about: { fontSize: 13, lineHeight: 20, fontWeight: '400' },
+  /** 紹介の「もっと見る」（見本 `.showhead .about b`）。 */
+  aboutStrong: { fontSize: 13, lineHeight: 20, fontWeight: '700' },
   /** 補助情報、概要（見本 `.ep .t span`、`.epi p`）。 */
   caption: { fontSize: 12.5, lineHeight: 19, fontWeight: '400' },
   /** 続きからのタイル、ジングルの押しボタン（見本 `.quick button`、`.pads button`）。 */
