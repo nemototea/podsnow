@@ -764,7 +764,7 @@ Podcast: {{show_name}}
     a11yEditEpisode: (label: string) => `${label} を編集`,
     a11yShareEpisode: (label: string) => `${label} を共有`,
     editShowInfo: '番組情報を編集',
-    a11yEditShowInfo: '番組名、概要、著者、Web サイトを編集',
+    a11yEditShowInfo: '番組名、概要、著者、Web サイト、カテゴリー、言語を編集',
     a11ySaveShowInfo: '完了して番組情報を保存',
     showInfoSaved: '番組情報を保存しました',
     name: '番組名',
@@ -772,6 +772,11 @@ Podcast: {{show_name}}
     author: '著者',
     website: 'Web サイト',
     websitePlaceholder: 'https://',
+    /** 編集シートの配信の情報（Issue #259。Spotify for Creators / Apple Podcasts Connect と同じ項目）。 */
+    category: 'カテゴリー',
+    subcategory: 'サブカテゴリー',
+    language: '言語',
+    explicit: '露骨な表現を含む',
     /** 番組画面の紹介（見本 `.showhead .about`。Issue #259）。3 行に収まらないときの開閉。 */
     aboutMore: 'もっと見る',
     aboutLess: '閉じる',
@@ -856,6 +861,10 @@ Podcast: {{show_name}}
    */
   glossary: {
     a11yInfo: (term: string) => `${term} の説明`,
+    explicit: {
+      term: '露骨な表現',
+      body: '性的な表現、乱暴な言葉、暴力の描写などを含む番組でオンにします。配信サービスで番組に「E」の印が付き、子ども向けの制限で隠れることがあります。',
+    },
     ducking: {
       term: 'ダッキング',
       body: '声が入っている間だけ、BGM の音量を自動で下げます。話し声が BGM に埋もれず、聞き取りやすくなります。',

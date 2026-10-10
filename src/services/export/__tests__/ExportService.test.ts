@@ -208,6 +208,17 @@ describe('ExportService', () => {
     expect(ep?.status).toBe('exported');
   });
 
+  it('lists the history and tells whether the file is still on the device', async () => {
+    const { db, svc, missing } = await setup();
+    await insertExportRow(db, 'a', 'done', 'episodes/e/exports/a.m4a');
+    await insertExportRow(db, 'b', 'failed', null);
+    expect((await svc.list('e')).map((r) => r.id).sort()).toEqual(['a', 'b']);
+    expect(svc.fileIsPresent({ path: 'episodes/e/exports/a.m4a' })).toBe(true);
+    missing.add('/root/episodes/e/exports/a.m4a');
+    expect(svc.fileIsPresent({ path: 'episodes/e/exports/a.m4a' })).toBe(false);
+    expect(svc.fileIsPresent({ path: null })).toBe(false);
+  });
+
   it('marks cancelled exports', async () => {
     const { db, svc } = await setup();
     const exportId = await svc.start('e', EXPORT_PRESETS.wav);

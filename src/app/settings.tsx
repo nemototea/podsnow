@@ -3,11 +3,11 @@ import { Platform, StyleSheet } from 'react-native';
 
 import { APP_VERSION } from '@/domain/version';
 import { useServices } from '@/features/app/ServicesProvider';
-import { formatBytes, summarizeStorage, type StorageSummary } from '@/features/settings/storage';
+import { formatBytes } from '@/features/settings/storage';
+import type { StorageSummary } from '@/services/storage/StorageService';
 import { useAsyncData } from '@/features/show/useAsyncData';
 import { describeInput } from '@/features/episode/describeInput';
 import { useT, type Messages } from '@/i18n';
-import { availableDiskBytes } from '@/infra/files/fileSystem';
 import type { AppSettings } from '@/infra/db/repositories/settingsRepo';
 import { space, tabularNums, typography } from '@/ui/tokens';
 import {
@@ -62,22 +62,16 @@ export default function SettingsScreen() {
   const c = useAppTheme();
   const t: Messages = useT();
   const services = useServices();
-  const { db, recorder, updateSettings } = services;
+  const { storage: storageService, recorder, updateSettings } = services;
   const [settings, setSettings] = useState<AppSettings>(services.settings);
 
   const loader = useCallback(async (): Promise<Loaded> => {
     const [storage, inputs] = await Promise.all([
-      summarizeStorage(db),
+      storageService.summarize(),
       recorder.getInputs().catch(() => [] as AudioInput[]),
     ]);
-    let freeBytes = 0;
-    try {
-      freeBytes = availableDiskBytes();
-    } catch {
-      freeBytes = 0;
-    }
-    return { storage, freeBytes, inputs };
-  }, [db, recorder]);
+    return { storage, freeBytes: storageService.freeBytes(), inputs };
+  }, [storageService, recorder]);
   const { data } = useAsyncData<Loaded>(loader, {
     storage: { recordingsBytes: 0, exportsBytes: 0, exportedEpisodesRecordingsBytes: 0 },
     freeBytes: 0,
