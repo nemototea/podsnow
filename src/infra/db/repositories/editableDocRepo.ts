@@ -40,6 +40,7 @@ interface OverlayRow extends SqlRow {
   fade_out_smp: number;
   loop: number;
   end_mode: string;
+  end_offset_smp: number;
 }
 
 export async function loadDoc(db: SqlExecutor, episodeId: string): Promise<EditableDoc> {
@@ -48,7 +49,7 @@ export async function loadDoc(db: SqlExecutor, episodeId: string): Promise<Edita
     [episodeId],
   );
   const overlayRows = await db.all<OverlayRow>(
-    'SELECT id, asset_id, kind, anchor_type, anchor_take_id, anchor_smp, src_start_smp, src_end_smp, gain_db, fade_in_smp, fade_out_smp, loop, end_mode FROM overlay_clips WHERE episode_id = ? ORDER BY rowid',
+    'SELECT id, asset_id, kind, anchor_type, anchor_take_id, anchor_smp, src_start_smp, src_end_smp, gain_db, fade_in_smp, fade_out_smp, loop, end_mode, end_offset_smp FROM overlay_clips WHERE episode_id = ? ORDER BY rowid',
     [episodeId],
   );
   return {
@@ -87,7 +88,7 @@ export async function saveDoc(
   for (const o of doc.overlays) {
     const a = o.anchor;
     await db.run(
-      'INSERT INTO overlay_clips (id, episode_id, asset_id, kind, anchor_type, anchor_take_id, anchor_smp, src_start_smp, src_end_smp, gain_db, fade_in_smp, fade_out_smp, duck, loop, end_mode, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+      'INSERT INTO overlay_clips (id, episode_id, asset_id, kind, anchor_type, anchor_take_id, anchor_smp, src_start_smp, src_end_smp, gain_db, fade_in_smp, fade_out_smp, duck, loop, end_mode, end_offset_smp, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
       [
         o.id,
         episodeId,
@@ -105,6 +106,7 @@ export async function saveDoc(
         ducksUnderVoice(o.kind) ? 1 : 0,
         o.loop ? 1 : 0,
         o.endMode,
+        o.endOffset ?? 0,
         now,
       ],
     );
@@ -162,5 +164,7 @@ function rowToOverlay(r: OverlayRow): OverlayClip {
     fadeOut: r.fade_out_smp as Smp,
     loop: r.loop === 1,
     endMode: r.end_mode as OverlayEndMode,
+    // 0 のときは持たない（書き出しの指紋を 0011 より前と同じにする）
+    ...(r.end_offset_smp ? { endOffset: r.end_offset_smp as Smp } : {}),
   };
 }

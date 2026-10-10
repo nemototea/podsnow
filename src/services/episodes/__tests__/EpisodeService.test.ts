@@ -1,3 +1,5 @@
+import type { EditableDoc } from '@/domain/editing/doc';
+import { smp, ZERO_SMP } from '@/domain/time';
 import { createNodeSqliteExecutor } from '@/infra/db/__tests__/nodeSqliteExecutor';
 import { migrate } from '@/infra/db/migrate';
 import { loadDoc, saveDoc } from '@/infra/db/repositories/editableDocRepo';
@@ -120,9 +122,74 @@ describe('EpisodeService', () => {
       ['opening', 'timeline_start', false],
       ['bgm', 'timeline_start', true],
     ]);
+    // オープニングは本編の前に置き、流し終えてから話す（Issue #254）
+    expect(doc.overlays[0]!.anchor).toEqual({ type: 'timeline_start', offset: -480000 });
+    expect(doc.overlays[1]).toMatchObject({ fadeIn: 48000, fadeOut: 96000 });
+    expect(doc.overlays[1]!.endOffset).toBeUndefined();
     const ep2 = await svc.create(show.id);
     // 一覧は作った順の新しい方から（話数に関係なく。Issue #211）
     expect((await svc.list(show.id)).map((e) => e.id)).toEqual([ep2.id, ep.id]);
+  });
+
+  it('この回の構成を番組の既定にすると、次の回がその形で始まる（Issue #254）', async () => {
+    const { db, show, svc } = await setup();
+    await db.run(
+      'INSERT INTO assets (id, show_id, kind, name, path, duration_smp, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)',
+      ['ed', show.id, 'ending', 'Ed', 'z', 96000, 1, 1],
+    );
+    const ep = await svc.create(show.id);
+    const doc = await loadDoc(db, ep.id);
+    const [op, bgm] = doc.overlays;
+    // 本編がオープニングに 1 秒重なり、BGM はオープニングの 2 秒前から始まってエンディングの下まで続く
+    const edited = {
+      voice: [],
+      overlays: [
+        {
+          ...op!,
+          anchor: { type: 'timeline_start', offset: smp(-480000 + 48000) },
+          fadeOut: smp(24000),
+        },
+        {
+          ...bgm!,
+          anchor: { type: 'timeline_start', offset: smp(-96000) },
+          endOffset: smp(96000),
+          gainDb: -20,
+        },
+        {
+          ...op!,
+          id: 'edc',
+          assetId: 'ed',
+          kind: 'ending',
+          anchor: { type: 'timeline_end', offset: smp(96000 + 48000) },
+          fadeIn: ZERO_SMP,
+          fadeOut: smp(144000),
+        },
+      ],
+    } satisfies EditableDoc;
+    await saveDoc(db, ep.id, edited, 6000);
+    await svc.saveStructureAsDefault(ep.id);
+
+    const next = await loadDoc(db, (await svc.create(show.id)).id);
+    const strip = (d: EditableDoc) => d.overlays.map(({ id: _id, ...rest }) => rest);
+    expect(strip(next)).toEqual(
+      expect.arrayContaining(strip({ voice: [], overlays: edited.overlays })),
+    );
+    expect(next.overlays).toHaveLength(3);
+  });
+
+  it('既定にした回から外した素材は、次の回に付かない', async () => {
+    const { db, show, svc } = await setup();
+    const ep = await svc.create(show.id);
+    const doc = await loadDoc(db, ep.id);
+    await saveDoc(
+      db,
+      ep.id,
+      { voice: [], overlays: doc.overlays.filter((o) => o.kind !== 'bgm') },
+      6000,
+    );
+    await svc.saveStructureAsDefault(ep.id);
+    const next = await loadDoc(db, (await svc.create(show.id)).id);
+    expect(next.overlays.map((o) => o.kind)).toEqual(['opening']);
   });
 
   it('BGM を下げる量は番組の既定を写し、写した後は番組を変えても変わらない（Issue #174）', async () => {

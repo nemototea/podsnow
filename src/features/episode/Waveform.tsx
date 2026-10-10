@@ -22,6 +22,8 @@ import { Icon, Text } from '@/ui/components';
 import { hit, icon, radius, space, stroke, tabularNums, timeline, typography } from '@/ui/tokens';
 import { useAppTheme } from '@/ui/ThemeContext';
 
+import { OverlayBar } from './OverlayBar';
+import { fadePxToSmp, pxToSmp } from './overlayDrag';
 import { sampleVoiceColumns, type TakePeaks } from './peaks';
 import { follow, pinchPps, release, reveal, zoomScroll, type FollowState } from './waveScroll';
 
@@ -40,7 +42,18 @@ export interface WaveformProps {
   /** 割り込みなど、アプリが記録した位置（DATA_MODEL.md §4.10）。 */
   events: readonly { event: RecordingEvent; at: Smp }[];
   total: Smp;
+  /**
+   * 出力の 0 から本編の始まりまで（Issue #254）。オープニングを本編の前に置くと正になり、
+   * 波形はその分だけ本編を右へずらして描く。目盛りは出力の時刻（書き出したファイルの時刻）。
+   */
+  origin: Smp;
+  /** 書き出す範囲の終わり（本編の位置）。エンディングを本編のあとに置くと本編の終わりより後ろ。 */
+  end: Smp;
+  /** 録音前の仮の本編の長さ。指定すると、そこに「録音するとここに入ります」の枠を出す。 */
+  placeholder?: Smp | null;
   playhead: Smp;
+  /** 再生中か。再生中だけ、再生位置を追って横に送る。 */
+  playing: boolean;
   /**
    * シーク・カット・取り消し / やり直しのたびに変わる値。変わったとき、再生位置が画面外なら
    * 見える位置へスクロールする（Issue #176）。
@@ -56,6 +69,12 @@ export interface WaveformProps {
   onZoom?: (pps: number) => void;
   onSeek: (to: Smp) => void;
   onSelectOverlay: (id: string | null) => void;
+  /** 選んだ素材の帯を引いて動かした。`start` は新しい始まり（本編の位置）。 */
+  onMoveOverlay?: (id: string, start: Smp) => void;
+  /** BGM の端を引いた。`at` は新しい端の位置。 */
+  onResizeOverlay?: (id: string, edge: 'start' | 'end', at: Smp) => void;
+  /** 帯の上の丸を引いてフェードの長さを変えた。 */
+  onFadeOverlay?: (id: string, fadeIn: Smp, fadeOut: Smp) => void;
   /** 無音で区切られた声の塊（FR-EDIT-2）。2 回目のタップか長押しで選び、ハンドルで広げる。 */
   blocks?: readonly Range[];
   /**
@@ -105,15 +124,18 @@ export const Waveform = memo(function Waveform(p: WaveformProps) {
   const [viewW, setViewW] = useState(0);
   const [scrollX, setScrollX] = useState(0);
   const scrollRef = useRef<ScrollView>(null);
-  const totalSec = p.total / SAMPLE_RATE;
+  // 出力の長さ（オープニングからエンディングの終わりまで）
+  const totalSec = (p.end + p.origin) / SAMPLE_RATE;
   const contentW = Math.max(viewW, totalSec * p.pps + viewW);
+  /** 本編の位置を、波形の中身の x に直す（出力の 0 が x = 0）。 */
+  const xAt = useCallback((s: number) => ((s + p.origin) / SAMPLE_RATE) * p.pps, [p.origin, p.pps]);
   const onLayout = useCallback((e: LayoutChangeEvent) => setViewW(e.nativeEvent.layout.width), []);
 
   // ---- 再生位置を追う（Issue #176） ----
   // スクロール位置と指の状態は描画に使わないので ref で持つ（描き直しを増やさない）
   const scrollXRef = useRef(0);
   const followRef = useRef<FollowState>({ dragging: false, armed: true });
-  const headX = PAD + (p.playhead / SAMPLE_RATE) * p.pps;
+  const headX = PAD + xAt(p.playhead);
   const viewport = useCallback(
     () => ({ scrollX: scrollXRef.current, viewW, contentW: contentW + PAD * 2 }),
     [contentW, viewW],
@@ -146,7 +168,7 @@ export const Waveform = memo(function Waveform(p: WaveformProps) {
     scrollTo(
       zoomScroll({
         pad: PAD,
-        headSec: p.playhead / SAMPLE_RATE,
+        headSec: (p.playhead + p.origin) / SAMPLE_RATE,
         oldPps,
         newPps: p.pps,
         scrollX: scrollXRef.current,
@@ -154,41 +176,44 @@ export const Waveform = memo(function Waveform(p: WaveformProps) {
         newContentW: contentW + PAD * 2,
       }),
     );
-  }, [contentW, p.playhead, p.pps, scrollTo, viewW]);
+  }, [contentW, p.origin, p.playhead, p.pps, scrollTo, viewW]);
 
-  // 再生中など、再生位置が動いたとき。画面の外へ出たら追う
+  // 再生中に再生位置が動いたとき。画面の外へ出たら追う。
+  // 止まっている間は追わない。素材の帯を動かして本編の始まりがずれ、再生エンジンを読み直したときに
+  // 一瞬だけ古い位置が届いても、画面が飛ばないように（Issue #254）。シークの後は下の reveal が見せる
   useEffect(() => {
-    if (viewW === 0) return;
+    if (viewW === 0 || !p.playing) return;
     const r = follow(headX, viewport(), followRef.current);
     followRef.current = r.state;
     if (r.scrollTo !== null) scrollTo(r.scrollTo);
-  }, [headX, scrollTo, viewW, viewport]);
+  }, [headX, p.playing, scrollTo, viewW, viewport]);
 
   // シーク・カット・取り消し / やり直しの後。画面外なら見える位置へ移し、また追うようにする
   const lastReveal = useRef(p.revealSeq);
   useEffect(() => {
     if (viewW === 0 || lastReveal.current === p.revealSeq) return;
     lastReveal.current = p.revealSeq;
-    const target = p.revealAt == null ? headX : PAD + (p.revealAt / SAMPLE_RATE) * p.pps;
+    const target = p.revealAt == null ? headX : PAD + xAt(p.revealAt);
     const to = reveal(target, viewport(), followRef.current);
     if (to !== null) scrollTo(to);
     if (!followRef.current.dragging) followRef.current = { dragging: false, armed: true };
-  }, [headX, p.pps, p.revealAt, p.revealSeq, scrollTo, viewW, viewport]);
+  }, [headX, p.revealAt, p.revealSeq, scrollTo, viewW, viewport, xAt]);
 
-  // 可視範囲（前後 1 画面分の余裕）
-  const from = Math.max(0, scrollX - viewW);
-  const to = Math.min(contentW, scrollX + viewW * 2);
+  // 可視範囲（前後 1 画面分の余裕）。棒は本編の範囲だけに描く
+  const originX = xAt(0);
+  const from = Math.max(originX, scrollX - viewW);
+  const to = Math.min(contentW, scrollX + viewW * 2, xAt(p.total));
   const columns = useMemo(() => {
     // 削除の直後など、内容が縮んでスクロール位置が追いつく前は範囲が空になる。
     // 録音が無いときは棒を描かず、空の枠だけにする（Issue #179）
     if (viewW === 0 || to <= from || p.voice.length === 0) return null;
     const n = Math.ceil((to - from) / COL_W);
-    const fromSmp = Math.floor((from / p.pps) * SAMPLE_RATE);
-    const toSmp = Math.floor((to / p.pps) * SAMPLE_RATE);
+    const fromSmp = Math.floor(((from - originX) / p.pps) * SAMPLE_RATE);
+    const toSmp = Math.floor(((to - originX) / p.pps) * SAMPLE_RATE);
     return { x: from, n, data: sampleVoiceColumns(p.voice, p.peaksByTake, fromSmp, toSmp, n) };
-  }, [from, to, viewW, p.pps, p.voice, p.peaksByTake]);
+  }, [from, to, viewW, originX, p.pps, p.voice, p.peaksByTake]);
 
-  const xOf = (s: number) => (s / SAMPLE_RATE) * p.pps;
+  const xOf = xAt;
   // 目盛りの間隔。拡大率に合わせて、隣と重ならない最小の刻みを選ぶ（見本 `.ruler` は画面幅に 4 つ）
   const tickSec = TICK_STEPS.find((sec) => sec * p.pps >= TICK_MIN_GAP) ?? TICK_STEPS.at(-1)!;
   const selX = p.selection ? ([xOf(p.selection.start), xOf(p.selection.end)] as const) : null;
@@ -196,7 +221,7 @@ export const Waveform = memo(function Waveform(p: WaveformProps) {
 
   const tapAt = (x: number, longPress: boolean) => {
     if (!Number.isFinite(x)) return;
-    const at = smp(Math.max(0, Math.min(p.total, (x / p.pps) * SAMPLE_RATE)));
+    const at = smp(Math.max(-p.origin, Math.min(p.end, (x / p.pps) * SAMPLE_RATE - p.origin)));
     if (p.onTap) p.onTap(at, longPress);
     else p.onSeek(at);
   };
@@ -315,15 +340,54 @@ export const Waveform = memo(function Waveform(p: WaveformProps) {
   );
 
   const selectionStyle = useAnimatedStyle(() => ({
-    left: (selStart.value / SAMPLE_RATE) * pps,
+    left: (selStart.value / SAMPLE_RATE) * pps + originX,
     width: Math.max(2, ((selEnd.value - selStart.value) / SAMPLE_RATE) * pps),
   }));
   const startStyle = useAnimatedStyle(() => ({
-    left: (selStart.value / SAMPLE_RATE) * pps - (HANDLE_W - HANDLE_IN),
+    left: (selStart.value / SAMPLE_RATE) * pps + originX - (HANDLE_W - HANDLE_IN),
   }));
   const endStyle = useAnimatedStyle(() => ({
-    left: (selEnd.value / SAMPLE_RATE) * pps - HANDLE_IN,
+    left: (selEnd.value / SAMPLE_RATE) * pps + originX - HANDLE_IN,
   }));
+
+  // ---- 素材の帯（Issue #254） ----
+  const { onSelectOverlay, onMoveOverlay, onResizeOverlay, onFadeOverlay } = p;
+  const placedById = useMemo(
+    () =>
+      new Map(p.overlays.flatMap((o) => (o.status === 'placed' ? [[o.clip.id, o] as const] : []))),
+    [p.overlays],
+  );
+  // 吸い付く位置: 本編の始まり・終わりと、帯の端
+  const snaps = useMemo(() => {
+    const xs = [xAt(0), xAt(p.placeholder ?? p.total)];
+    for (const o of placedById.values()) xs.push(xAt(o.range.start), xAt(o.range.end));
+    return xs;
+  }, [p.placeholder, p.total, placedById, xAt]);
+  const moveBar = useCallback(
+    (id: string, deltaPx: number) => {
+      const o = placedById.get(id);
+      if (o) onMoveOverlay?.(id, smp(o.range.start + pxToSmp(deltaPx, pps)));
+    },
+    [onMoveOverlay, placedById, pps],
+  );
+  const resizeBar = useCallback(
+    (id: string, edge: 'start' | 'end', deltaPx: number) => {
+      const o = placedById.get(id);
+      if (!o) return;
+      const at = (edge === 'start' ? o.range.start : o.range.end) + pxToSmp(deltaPx, pps);
+      onResizeOverlay?.(id, edge, smp(at));
+    },
+    [onResizeOverlay, placedById, pps],
+  );
+  const fadeBar = useCallback(
+    (id: string, finPx: number, foutPx: number) =>
+      onFadeOverlay?.(id, smp(fadePxToSmp(finPx, pps)), smp(fadePxToSmp(foutPx, pps))),
+    [onFadeOverlay, pps],
+  );
+  const pressBar = useCallback(
+    (id: string) => onSelectOverlay(p.selectedOverlay === id ? null : id),
+    [onSelectOverlay, p.selectedOverlay],
+  );
 
   return (
     <GestureDetector gesture={pinch}>
@@ -423,38 +487,59 @@ export const Waveform = memo(function Waveform(p: WaveformProps) {
                 </GestureDetector>
               </>
             ) : null}
+            {/* 録音前は、本編が入る場所を点線の枠で見せる（Issue #254） */}
+            {p.placeholder ? (
+              <View
+                pointerEvents="none"
+                style={[
+                  styles.placeholder,
+                  {
+                    top: RULER,
+                    height,
+                    left: xOf(0),
+                    width: xOf(p.placeholder) - xOf(0),
+                    borderColor: c.borderStrong,
+                  },
+                ]}
+              >
+                <Text style={[typography.caption, { color: c.textSecondary }]}>
+                  {t.edit.voicePlaceholder}
+                </Text>
+              </View>
+            ) : null}
+            {/* 素材の段: 上が差し込む素材とオープニング・エンディング、下が BGM（重ねられるように分ける） */}
             <View style={[styles.overlayTrack, { top: layersTop }]}>
               {p.overlays.map((o) => {
                 if (o.status !== 'placed') return null;
-                const music =
-                  o.clip.kind === 'bgm' || o.clip.kind === 'opening' || o.clip.kind === 'ending';
-                const selected = p.selectedOverlay === o.clip.id;
+                const bgm = o.clip.kind === 'bgm';
+                // 見本 `.layer.insert` / `.layer.music`: オープニング・エンディングは差し込み素材と同じ地、BGM だけ別
                 const name =
                   p.assetNames?.find((a) => a.id === o.clip.assetId)?.name ??
                   t.assetKinds[o.clip.kind].label;
+                const left = xOf(o.range.start);
+                const width = Math.max(6, xOf(o.range.end) - left);
                 return (
-                  <Pressable
+                  <OverlayBar
                     key={o.clip.id}
-                    onPress={() => p.onSelectOverlay(o.clip.id)}
-                    accessibilityRole="button"
+                    id={o.clip.id}
+                    left={left}
+                    width={width}
+                    top={bgm ? LAYER_H + LAYER_GAP : 0}
+                    height={LAYER_H}
+                    label={name}
                     accessibilityLabel={t.edit.a11yOverlay(t.assetKinds[o.clip.kind].label, name)}
-                    style={[
-                      styles.overlayClip,
-                      {
-                        left: xOf(o.range.start),
-                        top: music ? LAYER_H + LAYER_GAP : 0,
-                        width: Math.max(6, xOf(o.range.end) - xOf(o.range.start)),
-                        backgroundColor: music ? c.musicFill : c.insertFill,
-                        // 見本 `.layer` は枠を持たない。選んでいるときだけアクセントの輪郭
-                        borderColor: mark,
-                        borderWidth: selected ? stroke.selected : 0,
-                      },
-                    ]}
-                  >
-                    <Text numberOfLines={1} style={[styles.overlayLabel, { color: c.textPrimary }]}>
-                      {name}
-                    </Text>
-                  </Pressable>
+                    fill={bgm ? c.musicFill : c.insertFill}
+                    ground={c.surface}
+                    selected={p.selectedOverlay === o.clip.id}
+                    resizable={bgm && o.clip.endMode === 'timeline_end'}
+                    fadeInPx={(o.clip.fadeIn / SAMPLE_RATE) * p.pps}
+                    fadeOutPx={(o.clip.fadeOut / SAMPLE_RATE) * p.pps}
+                    snaps={snaps}
+                    onPress={pressBar}
+                    onMove={moveBar}
+                    onResize={resizeBar}
+                    onFade={fadeBar}
+                  />
                 );
               })}
             </View>
@@ -527,14 +612,14 @@ const styles = StyleSheet.create({
   grip: { width: timeline.handleW, height: timeline.handleH, borderRadius: radius.pill },
   overlayTrack: { position: 'absolute', left: 0, right: 0, height: LAYERS_H },
   // 見本 `.layer`: 高さ 24、角丸 4、左右 8、白の 10.5 / 700。
-  overlayClip: {
+  placeholder: {
     position: 'absolute',
-    height: LAYER_H,
+    borderWidth: stroke.hairline,
+    borderStyle: 'dashed',
     borderRadius: radius.xs,
+    alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: space.sm,
   },
-  overlayLabel: typography.overline,
   event: { position: 'absolute', alignItems: 'center' },
   // 見本 `.playhead`: 白の 2、目盛りの下から素材のレーンの下まで、上端に 10 の丸。
   playhead: {

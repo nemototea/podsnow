@@ -389,7 +389,7 @@ export function ExportTab({ ws, details, onShowToast, onDone, onGoEdit }: Export
             {episodeName(t, episode.title)}
           </Text>
           <Text style={[typography.caption, { color: c.textSecondary }]} numberOfLines={1}>
-            {`${show.name} · ${formatSmp(state.total)}`}
+            {`${show.name} · ${formatSmp(smp(state.bounds.end - state.bounds.start))}`}
           </Text>
         </View>
         <CircleButton
@@ -529,7 +529,9 @@ export function ExportTab({ ws, details, onShowToast, onDone, onGoEdit }: Export
             onPress={() => (p.format === 'wav' ? undefined : choosePreset('wav'))}
           />
           <Text style={[typography.small, st.size, tabularNums, { color: c.textSecondary }]}>
-            {t.export.estimatedSizeShort(formatBytes(estimateExportBytes(p, state.total)))}
+            {t.export.estimatedSizeShort(
+              formatBytes(estimateExportBytes(p, smp(state.bounds.end - state.bounds.start))),
+            )}
           </Text>
         </View>
         {soundAdvanced ? (

@@ -148,8 +148,18 @@ MVP は起動時に 1 行自動作成。【事実】
 | bgm_gain_db | REAL | 既定 -14 |
 | bgm_duck_db | REAL | 既定 -10（声がある区間での追加減衰）。新しいエピソードの既定の下げ幅で、作成時に `episodes.sound_settings.ducking.depthDb` へ写す。写した後はエピソードの値で、ここを変えても作成済みの回は変わらない（Issue #174） |
 | opening_gain_db / ending_gain_db | REAL | |
+| opening_overlap_smp | INTEGER NOT NULL DEFAULT 0 | オープニングの終わりが本編の始まりに重なる量。0 = 流し終えてから話す。`timeline_start` のオフセット = overlap − 素材の長さ（負）。移行 0011 |
+| opening_fade_in_smp / opening_fade_out_smp | INTEGER NOT NULL DEFAULT 0 | 移行 0011 |
+| ending_gap_smp | INTEGER NOT NULL DEFAULT 0 | 本編の終わりからエンディングの始まりまでの間。`timeline_end` のオフセット = 素材の長さ + gap（§4.9）。移行 0011 |
+| ending_fade_in_smp / ending_fade_out_smp | INTEGER NOT NULL DEFAULT 0 | 移行 0011 |
+| bgm_start_offset_smp / bgm_end_offset_smp | INTEGER NOT NULL DEFAULT 0 | BGM の始まり（本編の始まりから）と終わり（本編の終わりから。正で下へ伸びる）のずれ。移行 0011 |
+| bgm_fade_in_smp / bgm_fade_out_smp | INTEGER NOT NULL DEFAULT 48000 / 96000 | 1 秒 / 2 秒。これまで `EpisodeService` に書いていた値。移行 0011 |
 
-新規エピソード作成時、この行から `overlay_clips` を生成する。MVP は 1 種類のみ【事実】。将来 `episode_templates` テーブルに一般化。
+新規エピソード作成時、この行から `overlay_clips` を生成する（`EpisodeService.defaultOverlays`）。MVP は 1 種類のみ【事実】。将来 `episode_templates` テーブルに一般化。
+
+既定の形は「オープニングを流し終えてから話し、話し終えてからエンディング。BGM は本編の下」。素材の列が NULL の枠は「付けない」。
+行を書き換えるのは、エピソード画面の「この構成を既定にする」（`EpisodeService.saveStructureAsDefault(episodeId)`）だけ。その回のオープニング・エンディング・BGM の素材・配置・フェード・音量を写し、外してある枠は素材 NULL にする。
+番組設定の画面には、素材ごとのフェードの欄を置かない（ユーザー判断 2026-10-10、Issue #254）。【事実】
 
 ### 4.2.1 カンペのひな形（`shows.notes_template`）
 
@@ -282,18 +292,24 @@ Take の「時間軸」は Segment を `seq` 順に連結したもの。割り�
 | kind | TEXT | asset.kind のコピー（レイヤー分類用） |
 | anchor_type | TEXT | `source` / `timeline_start` / `timeline_end` / `timeline_abs` |
 | anchor_take_id | TEXT FK nullable | `source` のとき |
-| anchor_smp | INTEGER | `source`: Take 内位置 / `timeline_abs`: 声トラック上の位置 / start,end: オフセット |
+| anchor_smp | INTEGER | `source`: Take 内位置 / `timeline_abs`: 声トラック上の位置 / start,end: オフセット（**負にできる**。下の「タイムラインの座標」） |
 | src_start_smp / src_end_smp | INTEGER | 素材内の使用範囲（トリム） |
 | gain_db | REAL | |
 | fade_in_smp / fade_out_smp | INTEGER | |
 | duck | INTEGER | 互換のために残す列。**読まない。** 下げるかどうかは `kind` で決まり（BGM だけ。`domain/timeline/types.ts` の `ducksUnderVoice`）、書き込みは `kind = 'bgm'` のとき 1（Issue #174） |
 | loop | INTEGER | BGM を末尾まで繰り返すか |
 | end_mode | TEXT | `asset_end` / `timeline_end` / `fixed`（BGM 用） |
+| end_offset_smp | INTEGER NOT NULL DEFAULT 0 | `end_mode='timeline_end'` のとき、終わりを本編の終わりからずらす量。正なら本編の後ろ（エンディングの下）まで伸びる。ドメインの `OverlayClip.endOffset` は 0 のとき省く（書き出しの指紋を変えないため）。移行 0011 |
 | updated_at | INTEGER | |
 
 アンカー設計【仮説】:
 - 収録中のジングル挿入は `anchor_type='source'`（Take 内の時刻）。**声を前でカットしてもジングルは同じ発言位置に追従する**。アンカー位置自体がカットされた場合は「孤立」として警告し、最寄りの生きている位置へ移動を提案。
 - Opening は `timeline_start`、Ending は `timeline_end`（オフセット付き）。声の総尺が変わっても自動追従。
+- **タイムラインの座標【事実: Issue #254、ユーザー判断 2026-10-10】**: 声（本編）の時刻は 0 から始まり、カット・差し込み・録音の操作は変えない。素材は**負の位置**（本編より前）に置ける。`resolveAnchorStart`（`domain/timeline/overlays.ts`）は 0 に丸めない。
+  - `timeline_start` のオフセットは本編の始まりからの相対で、負にできる。オープニングを流し終えてから話すなら、オフセット = −（素材の長さ − 重なり）。
+  - `timeline_end` の始まりは「本編の長さ − 素材の長さ + オフセット」。オフセット = 素材の長さなら、エンディングは本編の直後から始まる。
+  - `timelineBounds(voice, placed)` は {start ≤ 0, end ≥ 本編の終わり} を返す。出力の長さ = end − start。出力の 0 は最も早い素材の始まりで、`outputOrigin()` = −start。
+- `episodes.playhead_smp` は**出力のフレーム**で持つ（0 = 先頭の素材の始まり）。エディタは再生位置を本編の時刻で扱い、再生サービスとやり取りするときだけ原点を足し引きする。
 - 後から手で配置した素材は `timeline_abs`（絶対位置）だが、UI で「発言に追従」に切り替え可。
 
 ### 4.10 `recording_events`（録音中の出来事）

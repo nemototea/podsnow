@@ -46,6 +46,11 @@ export interface OverlayClip {
   endMode: OverlayEndMode;
   /** endMode = 'fixed' のときの長さ。 */
   fixedDuration?: Smp;
+  /**
+   * endMode = 'timeline_end' のとき、本編の終わりからのずれ（Issue #254）。正ならエンディングの下まで伸ばす。
+   * 0 のときは持たない（書き出しの指紋を変えないため）。
+   */
+  endOffset?: Smp;
 }
 
 export interface Timeline {

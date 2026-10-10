@@ -235,7 +235,9 @@ export function RecordingView({
       : null;
   const clock = formatClock(smp(state.recFrames));
   const where =
-    state.recAt === null ? t.record.appendAtEnd : t.record.insertAtPosition(formatSmp(state.recAt));
+    state.recAt === null
+      ? t.record.appendAtEnd
+      : t.record.insertAtPosition(formatSmp(ws.toOutput(state.recAt)));
 
   return (
     <View style={st.root}>

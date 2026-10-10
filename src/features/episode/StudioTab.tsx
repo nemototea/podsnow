@@ -6,17 +6,7 @@ import { formatSmp, secToSmp, smp, type Smp } from '@/domain/time';
 import type { Range } from '@/domain/timeline/types';
 import { useT } from '@/i18n';
 import type { AssetRow } from '@/infra/db/repositories/assetsRepo';
-import {
-  Button,
-  Chip,
-  Field,
-  IconButton,
-  Notice,
-  Row,
-  Screen,
-  Text,
-  Toggle,
-} from '@/ui/components';
+import { Button, Chip, Field, IconButton, Notice, Row, Screen, Text } from '@/ui/components';
 import { Sheet } from '@/ui/Sheet';
 import { useAppTheme } from '@/ui/ThemeContext';
 import { useScreenReader } from '@/ui/useScreenReader';
@@ -27,7 +17,7 @@ import { describeInput } from './describeInput';
 import { storageLine } from './storageLine';
 import { NotesSheet } from './NotesSheet';
 import type { RecordingContext } from './useRecordingContext';
-import type { Workspace } from './useWorkspace';
+import { PLACEHOLDER_VOICE, type Workspace } from './useWorkspace';
 import { Waveform } from './Waveform';
 import { ZOOM_MAX, ZOOM_MIN, ZOOM_STEP } from './waveScroll';
 
@@ -76,7 +66,7 @@ export function StudioTab({
   const { state } = ws;
   // ハンドルを動かしている間の範囲（Issue #177）。離すまで `state.selection` は変わらない
   const [dragSel, setDragSel] = useState<Range | null>(null);
-  const [sheet, setSheet] = useState<null | 'overlay' | 'insert'>(null);
+  const [sheet, setSheet] = useState<null | 'insert'>(null);
   const [insertSide, setInsertSide] = useState<'before' | 'after'>('after');
   const [analyzing, setAnalyzing] = useState(false);
   const [fields, setFields] = useState<{ key: string; start: string; end: string } | null>(null);
@@ -96,27 +86,41 @@ export function StudioTab({
     if (!pending?.id || !pending.dismissed) return;
     afterInsert.current = null;
     ws.selectOverlay(pending.id);
-    setSheet('overlay');
   };
 
+  // 画面に出す時刻は出力（書き出したファイル）の時刻。オープニングを前に置くとずれる（Issue #254）
+  const out = ws.toOutput;
+  const origin = out(smp(0));
   const sel = state.selection;
   const shown = dragSel ?? sel;
   const selKey = sel ? `${sel.start}-${sel.end}` : '';
   const f =
     fields && fields.key === selKey
       ? fields
-      : { key: selKey, start: sel ? toSec(sel.start) : '', end: sel ? toSec(sel.end) : '' };
+      : {
+          key: selKey,
+          start: sel ? toSec(sel.start + origin) : '',
+          end: sel ? toSec(sel.end + origin) : '',
+        };
 
   const insertPosition = sel ? (insertSide === 'before' ? sel.start : sel.end) : state.playhead;
   const selectedOverlay = state.doc.overlays.find((o) => o.id === state.selectedOverlay) ?? null;
   const selectedAsset = selectedOverlay
     ? state.assets.find((a) => a.id === selectedOverlay.assetId)
     : null;
+  const placedSelected = state.placedOverlays.find(
+    (o) => o.clip.id === state.selectedOverlay && o.status === 'placed',
+  );
   const inputName = recCtx.inputKnown ? describeInput(t, recCtx.input).name : t.record.inputUnknown;
   const storage = storageLine(t, recCtx, false);
   const channels = recCtx.channels === 2 ? t.settings.stereo : t.settings.mono;
   const empty = state.total === 0;
-  const inMiddle = state.playhead < state.total;
+  // オープニングの上（本編より前）から録ると本編の頭に差し込む。録音が無ければ「録音を開始」
+  const inMiddle = state.total > 0 && state.playhead < state.total;
+  const length = smp(state.bounds.end - state.bounds.start);
+  const hasStructure = state.doc.overlays.some(
+    (o) => o.kind === 'opening' || o.kind === 'ending' || o.kind === 'bgm',
+  );
 
   /**
    * 調べて、そのまま詰める。取り消せる編集なので確認は出さず、件数と長さを「取り消す」付きで伝える
@@ -150,16 +154,25 @@ export function StudioTab({
   }, [onShowToast, sel, t, ws]);
 
   const commitFields = () => {
+    // 入力は出力の時刻（画面の目盛りと同じ）。選択は本編の位置で持つ
+    const offsetSec = origin / 48000;
     const start = parseSeconds(f.start);
     const end = parseSeconds(f.end);
     const totalSec = state.total / 48000;
-    const err = validateRange(start, end, totalSec);
+    const err = validateRange(
+      start === null ? null : start - offsetSec,
+      end === null ? null : end - offsetSec,
+      totalSec,
+    );
     if (err) {
-      setRangeError(t.edit.rangeError(totalSec.toFixed(1)));
+      setRangeError(t.edit.rangeError((totalSec + offsetSec).toFixed(1)));
       return;
     }
     setRangeError(null);
-    ws.setSelection({ start: secToSmp(start!), end: secToSmp(end!) });
+    ws.setSelection({
+      start: secToSmp(start! - offsetSec),
+      end: secToSmp(end! - offsetSec),
+    });
   };
 
   /** 選択の先頭から録る（見本「ここから録る」）。差し込みになる。 */
@@ -167,6 +180,100 @@ export function StudioTab({
     if (sel) await ws.seek(sel.start);
     onRecord();
   };
+
+  /**
+   * 選んだ素材の帯の操作（Issue #254）。波形の帯をさわれるよう、画面を覆わない下のシートに出す。
+   * 位置・フェード・長さは帯を直接引いて変え、ここは値の確認と音量・外すだけ。
+   */
+  const overlayPanel =
+    selectedOverlay && placedSelected && placedSelected.status === 'placed' ? (
+      <>
+        <View style={st.overlayHead}>
+          <View style={st.flex}>
+            <Text style={[typography.caption, tabularNums, { color: c.textSecondary }]}>
+              {`${t.assetKinds[selectedOverlay.kind].label} · ${formatSmp(out(placedSelected.range.start))} – ${formatSmp(out(placedSelected.range.end))}`}
+            </Text>
+            <Text style={[typography.bodyStrong, { color: c.textPrimary }]} numberOfLines={1}>
+              {selectedAsset?.name ?? t.edit.overlayFallback}
+            </Text>
+          </View>
+          <IconButton
+            name={state.playing ? 'pause' : 'play'}
+            label={state.playing ? t.a11y.pause : t.edit.playFromOverlay}
+            onPress={() =>
+              void (state.playing
+                ? ws.togglePlay()
+                : ws.seek(placedSelected.range.start).then(() => ws.togglePlay()))
+            }
+          />
+          <IconButton
+            name="close"
+            label={t.edit.closeOverlay}
+            onPress={() => ws.selectOverlay(null)}
+          />
+        </View>
+        <Text style={[typography.caption, tabularNums, { color: c.textSecondary }]}>
+          {t.edit.fadeLine(
+            t.edit.seconds(toSec(selectedOverlay.fadeIn)),
+            t.edit.seconds(toSec(selectedOverlay.fadeOut)),
+          )}
+        </Text>
+        <Text style={[typography.small, { color: c.textTertiary }]}>{t.edit.overlayHint}</Text>
+
+        <View style={[st.gainRow, { borderBottomColor: c.border }]}>
+          <Text style={[typography.body, { color: c.textPrimary, flex: 1 }]}>{t.edit.gain}</Text>
+          <IconButton
+            name="minus"
+            label={t.a11y.decrease(t.edit.gain)}
+            onPress={() =>
+              void ws.updateOverlay(
+                selectedOverlay.id,
+                t.undo.changeGain,
+                (o) => ({ ...o, gainDb: Math.max(-40, o.gainDb - 1) }),
+                `gain:${selectedOverlay.id}`,
+              )
+            }
+          />
+          <Text style={[typography.numeric, tabularNums, st.gainValue, { color: c.textPrimary }]}>
+            {selectedOverlay.gainDb.toFixed(1)} dB
+          </Text>
+          <IconButton
+            name="plus"
+            label={t.a11y.increase(t.edit.gain)}
+            onPress={() =>
+              void ws.updateOverlay(
+                selectedOverlay.id,
+                t.undo.changeGain,
+                (o) => ({ ...o, gainDb: Math.min(12, o.gainDb + 1) }),
+                `gain:${selectedOverlay.id}`,
+              )
+            }
+          />
+        </View>
+        {selectedOverlay.kind !== 'opening' &&
+        selectedOverlay.kind !== 'ending' &&
+        selectedOverlay.kind !== 'bgm' ? (
+          <Row
+            label={t.edit.moveHere}
+            sub={t.edit.moveHereSub(formatSmp(out(state.playhead)))}
+            onPress={() => {
+              void ws.moveOverlayTo(selectedOverlay.id, state.playhead);
+            }}
+          />
+        ) : null}
+        <Row
+          icon="trash"
+          label={t.edit.removeOverlay}
+          danger
+          last
+          onPress={() => {
+            void ws
+              .removeOverlay(selectedOverlay.id)
+              .then(() => onShowToast(t.edit.overlayRemoved, () => void ws.undo()));
+          }}
+        />
+      </>
+    ) : null;
 
   // 見本 `.sheet`: 選択中は情報と「削除」「ここから録る」、選んでいなければ再生位置と「再生」「録音」
   const editSheet = (
@@ -177,7 +284,9 @@ export function StudioTab({
       ]}
     >
       <View style={[st.grab, { backgroundColor: c.grabber }]} />
-      {sel ? (
+      {selectedOverlay && placedSelected ? (
+        overlayPanel
+      ) : sel ? (
         <>
           {/* 見本 `.sheet .info`: 「選択中 <b>04:31.2 – 04:35.4</b> · 4.2 秒」。ハンドルを動かしている間はその位置 */}
           <Text
@@ -186,7 +295,7 @@ export function StudioTab({
           >
             {`${t.edit.selectedLabel} `}
             <Text style={[typography.captionStrong, { color: c.textPrimary }]}>
-              {`${formatSmp(shown!.start, { tenths: true })} – ${formatSmp(shown!.end, { tenths: true })}`}
+              {`${formatSmp(out(shown!.start), { tenths: true })} – ${formatSmp(out(shown!.end), { tenths: true })}`}
             </Text>
             {` · ${t.edit.seconds(toSec(shown!.end - shown!.start))}`}
           </Text>
@@ -271,22 +380,48 @@ export function StudioTab({
           <Text
             style={[typography.caption, tabularNums, { color: c.textSecondary }]}
             accessibilityLabel={t.edit.a11yPlayhead(
-              formatSmp(state.playhead),
-              formatSmp(state.total),
+              formatSmp(out(state.playhead)),
+              formatSmp(length),
             )}
           >
-            {`${t.edit.playheadInfo(formatSmp(state.playhead), formatSmp(state.total))} · ${t.record.inputLine(inputName, channels)}`}
+            {/* 録音前は仮の本編の長さになるので、時刻は出さない */}
+            {empty
+              ? t.record.inputLine(inputName, channels)
+              : `${t.edit.playheadInfo(formatSmp(out(state.playhead)), formatSmp(length))} · ${t.record.inputLine(inputName, channels)}`}
           </Text>
-          {empty ? null : (
+          {empty && !hasStructure ? null : (
             <View style={st.chips}>
-              <Chip
-                raised
-                label={t.edit.removeSilence}
-                icon="trimSilence"
-                disabled={analyzing}
-                onPress={() => void trimSilence()}
-              />
-              <Chip raised label={t.edit.insert} icon="plus" onPress={() => setSheet('insert')} />
+              {empty ? null : (
+                <>
+                  <Chip
+                    raised
+                    label={t.edit.removeSilence}
+                    icon="trimSilence"
+                    disabled={analyzing}
+                    onPress={() => void trimSilence()}
+                  />
+                  <Chip
+                    raised
+                    label={t.edit.insert}
+                    icon="plus"
+                    onPress={() => setSheet('insert')}
+                  />
+                </>
+              )}
+              {/* この回のオープニング・エンディング・BGM の並びを番組に覚えさせる（Issue #254） */}
+              {hasStructure ? (
+                <Chip
+                  raised
+                  label={t.edit.saveStructure}
+                  icon="check"
+                  onPress={() =>
+                    void ws
+                      .saveStructureAsDefault()
+                      .then(() => onShowToast(t.edit.structureSaved))
+                      .catch((e: unknown) => onError(String(e)))
+                  }
+                />
+              ) : null}
               {/* 拡大・縮小は波形のピンチで行う（ユーザー判断 2026-10-09）。ピンチできない読み上げ中だけボタンを出す */}
               {screenReader ? (
                 <>
@@ -310,8 +445,8 @@ export function StudioTab({
             <IconButton
               name="toStart"
               label={t.edit.toStart}
-              disabled={empty || state.playhead === 0}
-              onPress={() => void ws.seek(smp(0))}
+              disabled={state.playhead <= state.bounds.start}
+              onPress={() => void ws.seek(state.bounds.start)}
             />
             <Button
               label={state.playing ? t.a11y.pause : t.a11y.play}
@@ -352,7 +487,11 @@ export function StudioTab({
           assetNames={state.assets}
           events={ws.eventsOnTimeline}
           total={state.total}
+          origin={origin}
+          end={state.bounds.end}
+          placeholder={empty ? PLACEHOLDER_VOICE : null}
           playhead={state.playhead}
+          playing={state.playing}
           revealSeq={state.revealSeq}
           revealAt={state.revealAt}
           selection={sel}
@@ -364,10 +503,14 @@ export function StudioTab({
           onSelectionChange={(range: Range) => ws.setSelection(range)}
           onSelectionDrag={setDragSel}
           onSeek={(to: Smp) => void ws.seek(to)}
-          onSelectOverlay={(oid: string | null) => {
-            ws.selectOverlay(oid);
-            if (oid) setSheet('overlay');
-          }}
+          onSelectOverlay={(oid: string | null) => ws.selectOverlay(oid)}
+          onMoveOverlay={(oid: string, start: Smp) => void ws.moveOverlay(oid, start)}
+          onResizeOverlay={(oid: string, edge: 'start' | 'end', at: Smp) =>
+            void ws.resizeOverlay(oid, edge, at)
+          }
+          onFadeOverlay={(oid: string, fadeIn: Smp, fadeOut: Smp) =>
+            void ws.setOverlayFades(oid, fadeIn, fadeOut)
+          }
         />
       </View>
 
@@ -423,7 +566,7 @@ export function StudioTab({
           openInserted();
         }}
         title={t.edit.insertTitle}
-        subtitle={t.edit.insertSubtitle(formatSmp(insertPosition))}
+        subtitle={t.edit.insertSubtitle(formatSmp(out(insertPosition)))}
       >
         {state.assets.length === 0 ? (
           <Row label={t.record.registerAssets} onPress={onOpenAssets} last />
@@ -451,106 +594,6 @@ export function StudioTab({
             }}
           />
         ))}
-      </Sheet>
-
-      <Sheet
-        visible={sheet === 'overlay' && !!selectedOverlay}
-        onClose={() => {
-          setSheet(null);
-          ws.selectOverlay(null);
-        }}
-        title={selectedAsset?.name ?? t.edit.overlayFallback}
-      >
-        {selectedOverlay ? (
-          <>
-            <View style={[st.gainRow, { borderBottomColor: c.border }]}>
-              <Text style={[typography.body, { color: c.textPrimary, flex: 1 }]}>
-                {t.edit.gain}
-              </Text>
-              <IconButton
-                name="minus"
-                label={t.a11y.decrease(t.edit.gain)}
-                onPress={() =>
-                  void ws.updateOverlay(
-                    selectedOverlay.id,
-                    t.undo.changeGain,
-                    (o) => ({ ...o, gainDb: Math.max(-40, o.gainDb - 1) }),
-                    `gain:${selectedOverlay.id}`,
-                  )
-                }
-              />
-              <Text
-                style={[typography.numeric, tabularNums, st.gainValue, { color: c.textPrimary }]}
-              >
-                {selectedOverlay.gainDb.toFixed(1)} dB
-              </Text>
-              <IconButton
-                name="plus"
-                label={t.a11y.increase(t.edit.gain)}
-                onPress={() =>
-                  void ws.updateOverlay(
-                    selectedOverlay.id,
-                    t.undo.changeGain,
-                    (o) => ({ ...o, gainDb: Math.min(12, o.gainDb + 1) }),
-                    `gain:${selectedOverlay.id}`,
-                  )
-                }
-              />
-            </View>
-            <Row
-              label={t.edit.fadeIn}
-              right={
-                <Toggle
-                  accessibilityLabel={t.edit.fadeIn}
-                  value={selectedOverlay.fadeIn > 0}
-                  onChange={(v) =>
-                    void ws.updateOverlay(selectedOverlay.id, t.undo.changeFade, (o) => ({
-                      ...o,
-                      fadeIn: smp(v ? 96000 : 0),
-                    }))
-                  }
-                />
-              }
-            />
-            <Row
-              label={t.edit.fadeOut}
-              right={
-                <Toggle
-                  accessibilityLabel={t.edit.fadeOut}
-                  value={selectedOverlay.fadeOut > 0}
-                  onChange={(v) =>
-                    void ws.updateOverlay(selectedOverlay.id, t.undo.changeFade, (o) => ({
-                      ...o,
-                      fadeOut: smp(v ? 96000 : 0),
-                    }))
-                  }
-                />
-              }
-            />
-            {selectedOverlay.kind !== 'opening' && selectedOverlay.kind !== 'ending' ? (
-              <Row
-                label={t.edit.moveHere}
-                sub={t.edit.moveHereSub(formatSmp(state.playhead))}
-                onPress={() => {
-                  void ws.moveOverlayTo(selectedOverlay.id, state.playhead);
-                  setSheet(null);
-                }}
-              />
-            ) : null}
-            <Row
-              icon="trash"
-              label={t.edit.removeOverlay}
-              danger
-              last
-              onPress={() => {
-                setSheet(null);
-                void ws
-                  .removeOverlay(selectedOverlay.id)
-                  .then(() => onShowToast(t.edit.overlayRemoved, () => void ws.undo()));
-              }}
-            />
-          </>
-        ) : null}
       </Sheet>
     </Screen>
   );
@@ -595,4 +638,5 @@ const st = StyleSheet.create({
     borderBottomWidth: stroke.hairline,
   },
   gainValue: { minWidth: 72, textAlign: 'center' },
+  overlayHead: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
 });
