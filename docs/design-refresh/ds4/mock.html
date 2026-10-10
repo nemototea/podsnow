@@ -164,6 +164,15 @@ figcaption span { color: var(--sub); font-size: 13.5px; line-height: 1.7; }
 .showhead .by { font-size: 13px; color: rgba(255,255,255,.75); display: flex; gap: 8px; align-items: center; }
 .showhead .by .avatar { width: 22px; height: 22px; font-size: 10px; }
 .showhead .by b { color: var(--fg); }
+.showhead .about { display: grid; gap: 4px; justify-items: start; text-align: left; font-size: 13px; line-height: 1.55; }
+.showhead .about p { margin: 0; color: rgba(255,255,255,.75); white-space: pre-wrap; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.showhead .about.open p { display: block; }
+.showhead .about b { font-weight: 700; }
+.showhead .write { display: flex; gap: 8px; align-items: center; font-size: 13px; font-weight: 700; }
+.showhead .facts { display: grid; gap: 10px; }
+.showhead .cats { display: flex; flex-wrap: wrap; gap: 8px; }
+.showhead .meta { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 12.5px; color: rgba(255,255,255,.75); }
+.showhead .meta .site { display: flex; gap: 6px; align-items: center; font-weight: 700; color: var(--fg); }
 .actions { display: flex; align-items: center; gap: 6px; }
 .actions .ib { color: rgba(255,255,255,.75); }
 .actions .grow { flex: 1; }
@@ -405,6 +414,12 @@ figcaption span { color: var(--sub); font-size: 13.5px; line-height: 1.7; }
           <div class="art" data-art="cover"></div>
           <h3 data-b="name"></h3>
           <div class="by"><div class="avatar">N</div><b>nemoto</b> · <span data-b="count"></span></div>
+          <button class="about" id="about" aria-expanded="false"><p data-b="about"></p><b>もっと見る</b></button>
+          <button class="write" id="aboutWrite" data-ic="pen-sm" hidden>番組の紹介を書く</button>
+          <div class="facts" id="facts">
+            <div class="cats" id="cats"></div>
+            <div class="meta"><button class="site" id="site" data-ic="link"><span data-b="site"></span></button><span id="langDot">·</span><span data-b="lang"></span></div>
+          </div>
           <div class="actions">
             <button class="ib" data-ic="pen"></button>
             <button class="ib" data-ic="share"></button>
@@ -444,7 +459,7 @@ figcaption span { color: var(--sub); font-size: 13.5px; line-height: 1.7; }
         </nav>
       </div>
     </div>
-    <figcaption><b>2. 番組</b><span>上部のグラデーションはアートワークの代表色から作ります。録音ボタンだけは番組に関係なくアクセント色で、どの番組でも同じ場所・同じ色です。</span></figcaption>
+    <figcaption><b>2. 番組</b><span>上部のグラデーションはアートワークの代表色から作ります。録音ボタンだけは番組に関係なくアクセント色で、どの番組でも同じ場所・同じ色です。著者の下に番組の紹介を 3 行まで出し、押すと全文が開きます。その下はカテゴリー・Web サイト・言語のうち値のあるものだけで、Web サイトは押すとブラウザで開きます。紹介が空の番組（「いまここ雑談」）は「番組の紹介を書く」から編集シートを開きます。直すのは今までどおり鉛筆からです（Issue #259）。</span></figcaption>
   </figure>
 
   <!-- 3. Recording -->
@@ -696,6 +711,7 @@ figcaption span { color: var(--sub); font-size: 13.5px; line-height: 1.7; }
     back: '<path d="M15 5 8 12l7 7" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>',
     down: '<path d="m5 9 7 7 7-7" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>',
     pen: '<path d="M4 20h4L19 9l-4-4L4 16z" stroke="currentColor" stroke-width="2" fill="none" stroke-linejoin="round"/>',
+    link: '<path d="M10 14a4.5 4.5 0 0 0 6.4 0l3.2-3.2a4.5 4.5 0 0 0-6.4-6.4L11.6 6M14 10a4.5 4.5 0 0 0-6.4 0l-3.2 3.2a4.5 4.5 0 0 0 6.4 6.4l1.6-1.6" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>',
     share: '<path d="M12 3v12M7 8l5-5 5 5M5 14v6h14v-6" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>',
     undo: '<path d="M9 14 4 9l5-5" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 9h10a6 6 0 0 1 0 12h-3" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>',
     redo: '<path d="m15 14 5-5-5-5" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M20 9H10a6 6 0 0 0 0 12h3" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>',
@@ -704,7 +720,7 @@ figcaption span { color: var(--sub); font-size: 13.5px; line-height: 1.7; }
     trash: '<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" stroke="currentColor" stroke-width="2" fill="none" stroke-linejoin="round"/>',
     check: '<path d="m5 12 4.5 4.5L19 7" stroke="currentColor" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>'
   };
-  var SIZES = { 'mic-lg': ['mic', 26], 'mic-sm': ['mic', 15], note: ['note', 15], check: ['check', 12], trash: ['trash', 18], share: ['share', 20] };
+  var SIZES = { 'mic-lg': ['mic', 26], 'mic-sm': ['mic', 15], note: ['note', 15], check: ['check', 12], trash: ['trash', 18], share: ['share', 20], 'pen-sm': ['pen', 15], link: ['link', 15] };
   document.querySelectorAll('[data-ic]').forEach(function (el) {
     var k = el.getAttribute('data-ic'), size = 22, name = k;
     if (SIZES[k]) { name = SIZES[k][0]; size = SIZES[k][1]; }
@@ -717,24 +733,31 @@ figcaption span { color: var(--sub); font-size: 13.5px; line-height: 1.7; }
   /* ---------- shows（色は本来アートワーク画像から取る。ここでは代表色を手で与える） ---------- */
   var SHOWS = [
     { key: 'yoru', name: '夜更けのラジオ', cover: '夜更けの<br>ラジオ', count: '43 エピソード', dominant: '#c4492f',
+      about: '眠れない夜に、ひとりで話すラジオ。読んだ本、見つけた古いもの、雨の日のこと。\n毎週土曜の夜に更新しています。お便りは概要欄のフォームから。番組の感想は #夜更けのラジオ でどうぞ。',
+      cats: ['社会/文化', '日記・個人', 'アート', '本'], site: 'yofuke-radio.example', lang: '日本語',
       eps: [
         { no: 43, t: '寝る前に読む本', d: '眠れない夜に開く本の話。途中まで収録済み。', dur: '18:04' },
         { no: 42, t: '雨の日の話', d: '梅雨が明けたのに雨ばかり。雨の日にしかしないことを 3 つ話しました。', dur: '29:51', date: '9月27日', day: '2026年9月27日' },
         { no: 41, t: '古い手帳を見つけた', d: '引っ越しの片付けで出てきた 2014 年の手帳。当時の予定を読み上げます。', dur: '24:17', date: '9月20日' }],
       notes: 'オープニング: 今夜は寝る前に読む本の話\n・最近、寝る前に読んで眠れなくなった本\n　→ 最後の 50 ページで朝になった\n・紙と電子のどちら派か\n・おたより 2 通（「積読が減りません」）\nエンディング: 次回は「雨の日の話」の続き' },
     { key: 'coffee', name: '朝のコーヒー会議', cover: '朝の<br>コーヒー<br>会議', count: '128 エピソード', dominant: '#1d8c84',
+      about: 'コーヒー好きの 2 人が、出勤前の 20 分で話す番組。豆、道具、喫茶店。',
+      cats: ['フード', '趣味'], site: 'coffee-kaigi.example', lang: '日本語',
       eps: [
         { no: 129, t: '浅煎りに戻れない', d: '深煎り派だった 2 人が浅煎りに転んだ経緯。いま収録中。', dur: '09:12' },
         { no: 128, t: 'ハンドドリップの道具', d: 'ケトル、ドリッパー、スケール。最初に買うならどれか。', dur: '21:40', date: '10月1日', day: '2026年10月1日' },
         { no: 127, t: '近所の喫茶店ベスト 3', d: 'リスナーのおすすめを全部回ってきました。', dur: '26:05', date: '9月24日' }],
       notes: 'オープニング: 深煎り派だった 2 人の近況\n・浅煎りを初めておいしいと思った日\n・家で淹れるときの失敗\n　→ 湯の温度、挽き目\n・おすすめの豆を 1 つずつ\nエンディング: おたより募集' },
     { key: 'cinema', name: '週末シネマ部', cover: '週末<br>シネマ部', count: '67 エピソード', dominant: '#b8123c',
+      about: '週末に観た映画を、ネタバレ控えめで語ります。新作も旧作も、映画館も配信も。毎週日曜の朝に更新。リクエストはお便りフォームから受け付けています。',
+      cats: ['テレビ/映画', '映画レビュー'], site: '', lang: '日本語',
       eps: [
         { no: 68, t: '字幕と吹替', d: '同じ映画を字幕と吹替で 2 回観て比べた話。', dur: '14:30' },
         { no: 67, t: '秋に観たい 5 本', d: '涼しくなってきたので、夜長に向く映画を 5 本選びました。', dur: '33:12', date: '9月30日', day: '2026年9月30日' },
         { no: 66, t: '映画館の座席はどこがいい', d: '前方派と後方派で 30 分揉めました。', dur: '28:48', date: '9月23日' }],
       notes: 'オープニング: 同じ映画を 2 回観た話\n・吹替のほうが良かった映画\n・字幕の文字数の制約\n　→ 1 秒に 4 文字\n・次に吹替で観たい 1 本\nエンディング: 来週は秋の映画' },
     { key: 'ima', name: 'いまここ雑談', cover: 'いまここ<br>雑談', count: '12 エピソード', dominant: '#1f5fd6',
+      about: '', cats: [], site: '', lang: '',
       eps: [
         { no: 13, t: '散歩のルール', d: '毎朝の散歩で決めているルールを紹介。', dur: '06:51' },
         { no: 12, t: '最近買ってよかったもの', d: '今月の買い物から 3 つ。', dur: '19:22', date: '10月3日', day: '2026年10月3日' },
@@ -808,7 +831,17 @@ figcaption span { color: var(--sub); font-size: 13.5px; line-height: 1.7; }
   function applyShow(i) {
     cur = i; var s = SHOWS[i];
     setVars(derive(s.dominant));
-    var b = { name: s.name, count: s.count, notes: s.notes };
+    var b = { name: s.name, count: s.count, notes: s.notes, about: s.about, site: s.site, lang: s.lang };
+    // 番組の紹介と詳細は値のあるものだけ（Issue #259）
+    var about = document.getElementById('about');
+    about.hidden = !s.about; about.classList.remove('open'); about.setAttribute('aria-expanded', 'false');
+    about.querySelector('b').textContent = 'もっと見る';
+    document.getElementById('aboutWrite').hidden = !!s.about;
+    document.getElementById('cats').innerHTML = s.cats.map(function (c) { return '<span class="chip">' + c + '</span>'; }).join('');
+    document.getElementById('cats').hidden = !s.cats.length;
+    document.getElementById('site').hidden = !s.site;
+    document.getElementById('langDot').hidden = !(s.site && s.lang);
+    document.getElementById('facts').hidden = !(s.cats.length || s.site || s.lang);
     s.eps.forEach(function (e, k) {
       // 一覧・見出し・ミニプレーヤーには話数を出さず題だけ（Issue #211）
       b['ep' + k] = e.t;
@@ -1035,6 +1068,24 @@ figcaption span { color: var(--sub); font-size: 13.5px; line-height: 1.7; }
   var startLogo = 'a';
   try { var sl = localStorage.getItem('pn-logo2'); if (sl === 'a' || sl === 'b' || sl === 'c') startLogo = sl; } catch (e) {}
   setLogo(startLogo);
+
+  // 紹介は 3 行まで。収まらないときだけ「もっと見る」を出し、押すと全文（Issue #259）
+  var aboutBtn = document.getElementById('about');
+  function fitAbout() {
+    var p = aboutBtn.querySelector('p'), more = aboutBtn.querySelector('b');
+    if (aboutBtn.classList.contains('open')) return;
+    more.hidden = p.scrollHeight <= p.clientHeight + 1;
+    aboutBtn.disabled = more.hidden;
+  }
+  aboutBtn.addEventListener('click', function () {
+    var open = aboutBtn.classList.toggle('open');
+    aboutBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    aboutBtn.querySelector('b').textContent = open ? '閉じる' : 'もっと見る';
+    if (!open) fitAbout();
+  });
+  document.querySelectorAll('[data-show]').forEach(function (el) { el.addEventListener('click', function () { setTimeout(fitAbout, 0); }); });
+  if (document.fonts) document.fonts.ready.then(fitAbout);
+  fitAbout();
 
   document.querySelectorAll('.copybtn').forEach(function (b) {
     b.addEventListener('click', function () {

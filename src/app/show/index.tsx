@@ -1,6 +1,6 @@
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
-import { Pressable, ScrollView, Share, StyleSheet, View } from 'react-native';
+import { Linking, Pressable, ScrollView, Share, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { compositeHex } from '@/domain/color/showColors';
@@ -12,6 +12,7 @@ import {
   type TextSelection,
 } from '@/domain/metadata/template';
 import { htmlToPlainText } from '@/domain/podcast/parseFeed';
+import { categoryNames, primaryLanguage, showWebsite } from '@/domain/podcast/showInfo';
 import { formatSmp, smp } from '@/domain/time';
 import { useServices } from '@/features/app/ServicesProvider';
 import { episodeStatusKind, type EpisodeStatusKind } from '@/features/home/statusIcon';
@@ -28,6 +29,7 @@ import {
   getDefaultTemplate,
   getLayout,
   getShow,
+  listCategories,
   updateLayout,
   updateShow,
   updateTemplate,
@@ -62,6 +64,7 @@ import { useAppTheme } from '@/ui/ThemeContext';
 import {
   artwork,
   hit,
+  hitSlop,
   icon,
   motion,
   pressedOpacity,
@@ -86,6 +89,9 @@ function sameDay(a: number, b: number): boolean {
 
 /** 著者の行と操作の白の濃さ（見本 `.showhead .by`、`.actions .ib` の 75%）。 */
 const BY_ALPHA = 0.75;
+
+/** 番組の紹介を畳んだときの行数（見本 `.showhead .about p` の 3 行。Issue #259）。 */
+const ABOUT_LINES = 3;
 
 /** 一覧の切り替え（見本 `.eplist .chip`「エピソード / 素材 / ひな形」）。 */
 const SECTIONS = ['episodes', 'assets', 'templates'] as const;
@@ -115,6 +121,8 @@ interface Loaded {
   assets: AssetRow[];
   /** カンペのひな形（FR-SHOW-4）。1 つの文章。 */
   notesTemplate: string;
+  /** カテゴリーの名前（英語の分類名。主と副を平らにしたもの。FR-SHOW-3a）。 */
+  categories: string[];
 }
 
 type LayoutSlot = 'opening' | 'ending' | 'bgm';
@@ -177,14 +185,22 @@ export default function ShowScreen() {
   };
 
   const loader = useCallback(async (): Promise<Loaded> => {
-    const [show, layout, template, list, notesTemplate] = await Promise.all([
+    const [show, layout, template, list, notesTemplate, categories] = await Promise.all([
       getShow(db, showId),
       getLayout(db, showId),
       getDefaultTemplate(db, showId),
       assets.list(showId),
       services.notes.getTemplate(showId),
+      listCategories(db, showId),
     ]);
-    return { show, layout, template, assets: list, notesTemplate };
+    return {
+      show,
+      layout,
+      template,
+      assets: list,
+      notesTemplate,
+      categories: categoryNames(categories),
+    };
   }, [assets, db, services.notes, showId]);
   const { data, reload } = useAsyncData<Loaded>(loader, {
     show: null,
@@ -192,6 +208,7 @@ export default function ShowScreen() {
     template: null,
     assets: [],
     notesTemplate: '',
+    categories: [],
   });
 
   // 取り込み（/import）から戻ったときに、上書きされた番組情報を読み直す
@@ -207,6 +224,7 @@ export default function ShowScreen() {
     name: string;
     description: string;
     author: string;
+    websiteUrl: string;
   } | null>(null);
   const [notesDraft, setNotesDraft] = useState<string | null>(null);
   const [templateDraft, setTemplateDraft] = useState<string | null>(null);
@@ -222,6 +240,7 @@ export default function ShowScreen() {
       name: data.show?.name ?? '',
       description: data.show?.description ?? '',
       author: data.show?.author ?? '',
+      websiteUrl: data.show?.website_url ?? '',
     });
     setEditing('show');
   };
@@ -256,16 +275,19 @@ export default function ShowScreen() {
       name: draft.name.trim() || t.seed.showName,
       description: draft.description,
       author: draft.author,
+      websiteUrl: draft.websiteUrl.trim(),
     };
     const prev = {
       name: before.name,
       description: before.description,
       author: before.author,
+      websiteUrl: before.website_url,
     };
     if (
       next.name === prev.name &&
       next.description === prev.description &&
-      next.author === prev.author
+      next.author === prev.author &&
+      next.websiteUrl === prev.websiteUrl
     ) {
       return;
     }
@@ -400,6 +422,11 @@ export default function ShowScreen() {
   const cover = services.coverArt.uri(data.show?.cover_path ?? null);
   const showName = data.show?.name ?? services.show.name;
   const author = data.show?.author ?? '';
+  // 番組の紹介と詳細（Issue #259）。取り込んだ概要は HTML のことがあるので文にする
+  const about = data.show ? htmlToPlainText(data.show.description) : null;
+  const website = showWebsite(data.show?.website_url ?? '');
+  const languageCode = primaryLanguage(data.show?.language ?? '');
+  const language = languageCode ? t.showSettings.languageName(languageCode) : '';
   const by = compositeHex(c.textPrimary, BY_ALPHA, colors.header);
   const actionColor = compositeHex(c.textPrimary, BY_ALPHA, colors.header);
 
@@ -493,6 +520,52 @@ export default function ShowScreen() {
             {t.home.showCardCount(list.length)}
           </Text>
         </View>
+        {about === null ? null : (
+          <ShowAbout key={about} text={about} color={by} onWrite={openShowEditor} />
+        )}
+        {data.categories.length || website || language ? (
+          <View style={st.facts}>
+            {data.categories.length ? (
+              <View style={st.cats}>
+                {data.categories.map((name) => (
+                  <Chip key={name} label={t.showSettings.categoryName(name)} />
+                ))}
+              </View>
+            ) : null}
+            {website || language ? (
+              <View style={st.meta}>
+                {website ? (
+                  <Pressable
+                    onPress={() => void Linking.openURL(website.href).catch(() => undefined)}
+                    accessibilityRole="link"
+                    accessibilityLabel={t.showSettings.a11yOpenWebsite(website.label)}
+                    hitSlop={hitSlop(typography.captionStrong.lineHeight)}
+                    style={({ pressed }) => [st.site, pressed ? { opacity: pressedOpacity } : null]}
+                  >
+                    <Icon name="link" color={c.textPrimary} size={icon.inline} />
+                    <Text
+                      style={[typography.captionStrong, st.shrink, { color: c.textPrimary }]}
+                      numberOfLines={1}
+                    >
+                      {website.label}
+                    </Text>
+                  </Pressable>
+                ) : null}
+                {website && language ? (
+                  <Text style={[typography.caption, { color: by }]}>·</Text>
+                ) : null}
+                {language ? (
+                  <Text
+                    style={[typography.caption, { color: by }]}
+                    accessibilityLabel={t.showSettings.a11yLanguage(language)}
+                  >
+                    {language}
+                  </Text>
+                ) : null}
+              </View>
+            ) : null}
+          </View>
+        ) : null}
         <View style={st.actions}>
           <IconButton
             name="edit"
@@ -780,6 +853,16 @@ export default function ShowScreen() {
               value={showDraft.author}
               onChangeText={(author) => setShowDraft({ ...showDraft, author })}
             />
+            <Field
+              label={t.showSettings.website}
+              value={showDraft.websiteUrl}
+              onChangeText={(websiteUrl) => setShowDraft({ ...showDraft, websiteUrl })}
+              placeholder={t.showSettings.websitePlaceholder}
+              keyboardType="url"
+              autoCapitalize="none"
+              autoCorrect={false}
+              textContentType="URL"
+            />
             <View style={st.sheetActions}>
               <Button
                 label={t.common.done}
@@ -904,6 +987,79 @@ export default function ShowScreen() {
   );
 }
 
+/**
+ * 番組の紹介（見本 `.showhead .about`。Issue #259）。3 行に収まらなければ「もっと見る」で全文を開く。
+ * 空なら「番組の紹介を書く」（見本 `.showhead .write`）で編集シートへ誘う。
+ * 文が変わったら畳んだ状態に戻すため、呼び出し側で `key` に文を渡す。
+ */
+function ShowAbout({
+  text,
+  color,
+  onWrite,
+}: {
+  text: string;
+  /** 本文の色（著者の行と同じ、番組の色に重ねた 75% の白）。 */
+  color: string;
+  onWrite: () => void;
+}) {
+  const c = useAppTheme();
+  const t = useT();
+  const [open, setOpen] = useState(false);
+  const [overflow, setOverflow] = useState(false);
+
+  if (!text) {
+    return (
+      <Pressable
+        onPress={onWrite}
+        accessibilityRole="button"
+        hitSlop={hitSlop(typography.chipStrong.lineHeight)}
+        style={({ pressed }) => [st.write, pressed ? { opacity: pressedOpacity } : null]}
+      >
+        <Icon name="edit" color={c.textPrimary} size={icon.inline} />
+        <Text style={[typography.chipStrong, { color: c.textPrimary }]}>
+          {t.showSettings.writeAbout}
+        </Text>
+      </Pressable>
+    );
+  }
+
+  return (
+    <View>
+      {/* 3 行に収まるかを測るための見えない全文。読み上げには出さない */}
+      <Text
+        style={[typography.about, st.measure]}
+        onTextLayout={(e) => setOverflow(e.nativeEvent.lines.length > ABOUT_LINES)}
+        accessibilityElementsHidden
+        importantForAccessibility="no-hide-descendants"
+      >
+        {text}
+      </Text>
+      <Pressable
+        onPress={() => setOpen((v) => !v)}
+        disabled={!overflow}
+        accessibilityLabel={text}
+        {...(overflow
+          ? {
+              accessibilityRole: 'button' as const,
+              accessibilityState: { expanded: open },
+              accessibilityHint: open ? t.showSettings.aboutLess : t.showSettings.aboutMore,
+            }
+          : { accessibilityRole: 'text' as const })}
+        style={({ pressed }) => [st.about, pressed ? { opacity: pressedOpacity } : null]}
+      >
+        <Text style={[typography.about, { color }]} numberOfLines={open ? 0 : ABOUT_LINES}>
+          {text}
+        </Text>
+        {overflow ? (
+          <Text style={[typography.aboutStrong, { color: c.textPrimary }]}>
+            {open ? t.showSettings.aboutLess : t.showSettings.aboutMore}
+          </Text>
+        ) : null}
+      </Pressable>
+    </View>
+  );
+}
+
 function Stepper({
   label,
   onMinus,
@@ -984,6 +1140,15 @@ const st = StyleSheet.create({
   name: { marginTop: space.x6 },
   by: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   actions: { flexDirection: 'row', alignItems: 'center', gap: space.x6 },
+  // 見本 `.showhead .about`: 本文と「もっと見る」の間 4。`.write`: 印と文字の間 8
+  about: { gap: space.xs, alignItems: 'flex-start' },
+  measure: { position: 'absolute', left: 0, right: 0, opacity: 0 },
+  write: { flexDirection: 'row', alignItems: 'center', gap: space.sm, alignSelf: 'flex-start' },
+  // 見本 `.showhead .facts`: カテゴリーと Web サイト・言語の行の間 10、`.cats` / `.meta` の間 8、`.site` の印と文字の間 6
+  facts: { gap: space.x10 },
+  cats: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
+  meta: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: space.sm },
+  site: { flexDirection: 'row', alignItems: 'center', gap: space.x6, flexShrink: 1 },
   grow: { flex: 1 },
   // 見本 `.eplist`: 左右 16、下 16。チップの下 4。
   body: { paddingBottom: space.lg },

@@ -8,6 +8,20 @@
 
 import type { Messages } from './types';
 
+/** 番組の言語（`shows.language` の主の部分）の英語名。ここに無い言語はコードのまま出す。 */
+const LANGUAGE_NAMES: Readonly<Record<string, string>> = {
+  ja: 'Japanese',
+  en: 'English',
+  zh: 'Chinese',
+  ko: 'Korean',
+  es: 'Spanish',
+  fr: 'French',
+  de: 'German',
+  it: 'Italian',
+  pt: 'Portuguese',
+  ru: 'Russian',
+};
+
 export const en: Messages = {
   app: {
     name: 'PodsNow',
@@ -585,12 +599,22 @@ Tag #PodsNow to share your thoughts`,
     a11yEditEpisode: (label: string) => `Edit ${label}`,
     a11yShareEpisode: (label: string) => `Share ${label}`,
     editShowInfo: 'Edit show details',
-    a11yEditShowInfo: 'Edit the show name, description, author and default season',
+    a11yEditShowInfo: 'Edit the show name, description, author and website',
     a11ySaveShowInfo: 'Done, save show details',
     showInfoSaved: 'Saved the show details',
     name: 'Show name',
     description: 'Description',
     author: 'Author',
+    website: 'Website',
+    websitePlaceholder: 'https://',
+    aboutMore: 'More',
+    aboutLess: 'Less',
+    writeAbout: 'Write a show description',
+    a11yOpenWebsite: (site: string) => `Open the website ${site}`,
+    // Apple の分類名は英語なので、そのまま出す
+    categoryName: (name: string) => String(name),
+    languageName: (code: string) => LANGUAGE_NAMES[code] ?? String(code),
+    a11yLanguage: (language: string) => `Language: ${language}`,
     artworkA11y: 'Show artwork',
     chooseArtwork: 'Choose image',
     changeArtwork: 'Change image',

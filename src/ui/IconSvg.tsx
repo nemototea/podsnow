@@ -134,6 +134,10 @@ const SHAPES = {
   ],
   noAudio: [p('M4 10v4M8 7v10M12 4v16M16 7v10M20 10v4'), p('m3 3 18 18')],
   edit: [p('M4 20h4L19 9l-4-4L4 16Z')],
+  link: [
+    p('M10 14a4.5 4.5 0 0 0 6.4 0l3.2-3.2a4.5 4.5 0 0 0-6.4-6.4L11.6 6'),
+    p('M14 10a4.5 4.5 0 0 0-6.4 0l-3.2 3.2a4.5 4.5 0 0 0 6.4 6.4l1.6-1.6'),
+  ],
   info: [{ k: 'circle', cx: 12, cy: 12, r: 9 }, p('M12 11v6M12 7.5v.01')],
 } satisfies Record<string, Shape[]>;
 

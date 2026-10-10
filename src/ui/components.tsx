@@ -785,8 +785,13 @@ export function Chip({
     <Pressable
       onPress={onPress}
       disabled={disabled || !onPress}
-      accessibilityRole="button"
-      accessibilityState={{ selected: !!active, disabled: !!disabled }}
+      // 押せないチップ（番組のカテゴリーなど。Issue #259）はボタンとして読み上げない
+      {...(onPress
+        ? {
+            accessibilityRole: 'button' as const,
+            accessibilityState: { selected: !!active, disabled: !!disabled },
+          }
+        : { accessibilityRole: 'text' as const })}
       {...(accessibilityLabel ? { accessibilityLabel } : {})}
       hitSlop={hitSlop(typography.chip.lineHeight + 2 * chipSize.paddingY)}
       style={({ pressed }) => [
