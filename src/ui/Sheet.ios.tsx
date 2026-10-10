@@ -44,12 +44,21 @@ export function Sheet({ visible, onClose, title, subtitle, children, onDismissed
               <Text
                 style={[typography.heading, { color: c.textPrimary }]}
                 accessibilityRole="header"
+                // 素材名を含む題などは 2 行、副題は 1 行で省略し、全文は読み上げる（Issue #261）
+                numberOfLines={2}
+                accessibilityLabel={title}
               >
                 {title}
               </Text>
             ) : null}
             {subtitle ? (
-              <Text style={[typography.caption, { color: c.textSecondary }]}>{subtitle}</Text>
+              <Text
+                style={[typography.caption, { color: c.textSecondary }]}
+                numberOfLines={1}
+                accessibilityLabel={subtitle}
+              >
+                {subtitle}
+              </Text>
             ) : null}
           </View>
           <IconButton name="close" label={t.a11y.close} onPress={onClose} />
