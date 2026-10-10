@@ -439,6 +439,137 @@ describe('PodcastImportService: same / different show (docs/podcast-import-cases
   });
 });
 
+describe('PodcastImportService.unimport（Issue #258）', () => {
+  const SEEDS = [TEST_SHOW_SEED.descriptionTemplate, '別の言語の初期値'];
+  const OTHER_URL = 'https://other.example.com/feed.xml';
+  const otherFeed = `<rss><channel><title>正しい番組</title>${[1, 2]
+    .map(
+      (n) =>
+        `<item><guid>b-${n}</guid><itunes:episode>${n}</itunes:episode><pubDate>${pubDate(n)}</pubDate></item>`,
+    )
+    .join('')}</channel></rss>`;
+  const routes = (): Record<string, Route> => ({
+    [FEED_URL]: { text: feedXml(item(119) + item(120)) },
+    [OTHER_URL]: { text: otherFeed },
+    [ART_URL]: { bytes: JPEG, contentType: 'image/jpeg' },
+  });
+
+  it('reports nothing to remove before the first import', async () => {
+    const { svc, show } = await setup(routes());
+    expect(await svc.unimportSummary(show.id, SEEDS)).toEqual({
+      imported: false,
+      feedEpisodes: 0,
+      templateEdited: false,
+    });
+  });
+
+  it('removes the imported show, including hand-edited details, so another show can be imported', async () => {
+    const { svc, db, show, root } = await setup(routes());
+    await svc.commit(show.id, await svc.preview(show.id, { feedUrl: FEED_URL }));
+    // 取り込んだあとに手で直した名前・概要も消す（ユーザー判断 2026-10-10）
+    await updateShow(db, show.id, { name: '手で直した名前', description: '手で直した概要' }, 6000);
+    const imported = (await getShow(db, show.id))!;
+    expect(imported.cover_path).not.toBeNull();
+    expect(await svc.unimportSummary(show.id, SEEDS)).toEqual({
+      imported: true,
+      feedEpisodes: 2,
+      templateEdited: false,
+    });
+
+    await svc.unimport(show.id, { showName: '仮の番組名' });
+
+    const after = (await getShow(db, show.id))!;
+    expect(after).toMatchObject({
+      name: '仮の番組名',
+      description: '',
+      author: '',
+      website_url: '',
+      language: '',
+      explicit: 0,
+      cover_path: null,
+      cover_source_url: null,
+      cover_color: null,
+      feed_url: null,
+      podcast_guid: null,
+      feed_imported_at: null,
+    });
+    expect(await listFeedEpisodes(db, show.id)).toEqual([]);
+    expect(await listCategories(db, show.id)).toEqual([]);
+    expect(await listFunding(db, show.id)).toEqual([]);
+    expect(await getExternalId(db, show.id, 'apple_podcasts')).toBeNull();
+    expect(fs.existsSync(path.join(root, imported.cover_path!))).toBe(false);
+
+    // 別の番組は「初めての取り込み」として入り、話数はその番組の続きになる
+    const other = await svc.preview(show.id, { feedUrl: OTHER_URL });
+    expect(other.identity).toBe('new');
+    await svc.commit(show.id, other);
+    expect((await getShow(db, show.id))!.name).toBe('正しい番組');
+    expect(initialNumbering(await listPublishedNumbering(db, show.id)).episodeNumber).toBe(3);
+  });
+
+  it('keeps local episodes (and their numbers) and PodsNow-only settings', async () => {
+    const { svc, db, show } = await setup(routes());
+    await svc.commit(show.id, await svc.preview(show.id, { feedUrl: FEED_URL }));
+    await db.run(
+      'INSERT INTO episodes (id, show_id, episode_number, created_at, updated_at) VALUES (?,?,?,?,?)',
+      ['ep-local', show.id, 121, 6000, 6000],
+    );
+    // 配信済みの回と結びついていても、手元の回は残す
+    await db.run('UPDATE feed_episodes SET episode_id = ? WHERE guid = ?', ['ep-local', 'ep-120']);
+    await db.run('UPDATE shows SET notes_template = ? WHERE id = ?', ['カンペ', show.id]);
+    await db.run('UPDATE show_layout SET bgm_gain_db = -20 WHERE show_id = ?', [show.id]);
+    const template = await db.get<{ body: string }>(
+      'SELECT body FROM description_templates WHERE show_id = ?',
+      [show.id],
+    );
+
+    await svc.unimport(show.id, { showName: '仮の番組名' });
+
+    expect(
+      await db.get('SELECT episode_number, deleted_at FROM episodes WHERE id = ?', ['ep-local']),
+    ).toEqual({ episode_number: 121, deleted_at: null });
+    expect((await getShow(db, show.id))!.notes_template).toBe('カンペ');
+    expect(
+      await db.get('SELECT bgm_gain_db FROM show_layout WHERE show_id = ?', [show.id]),
+    ).toEqual({ bgm_gain_db: -20 });
+    expect(
+      await db.get('SELECT body FROM description_templates WHERE show_id = ?', [show.id]),
+    ).toEqual(template);
+  });
+
+  it('tells whether the description template was changed, and resets it only when asked', async () => {
+    const { svc, db, show } = await setup(routes());
+    await svc.commit(show.id, await svc.preview(show.id, { feedUrl: FEED_URL }), {
+      descriptionTemplate: '番組 A のお便りフォーム',
+    });
+    expect((await svc.unimportSummary(show.id, SEEDS)).templateEdited).toBe(true);
+
+    await svc.unimport(show.id, { showName: '仮の番組名' });
+    expect((await getDefaultTemplate(db, show.id))!.body).toBe('番組 A のお便りフォーム');
+
+    await svc.commit(show.id, await svc.preview(show.id, { feedUrl: FEED_URL }));
+    await svc.unimport(show.id, { showName: '仮の番組名' }, { resetTemplate: '初期値' });
+    expect((await getDefaultTemplate(db, show.id))!.body).toBe('初期値');
+    expect((await svc.unimportSummary(show.id, ['初期値'])).templateEdited).toBe(false);
+  });
+
+  it('changes nothing when the database write fails', async () => {
+    const { svc, db, show, root } = await setup(routes());
+    await svc.commit(show.id, await svc.preview(show.id, { feedUrl: FEED_URL }));
+    const before = (await getShow(db, show.id))!;
+    const run = db.run.bind(db);
+    db.run = async (sql, params) => {
+      if (sql.startsWith('UPDATE shows')) throw new Error('disk full');
+      return run(sql, params);
+    };
+    await expect(svc.unimport(show.id, { showName: '仮の番組名' })).rejects.toThrow('disk full');
+    db.run = run;
+    expect(await getShow(db, show.id)).toEqual(before);
+    expect(await listFeedEpisodes(db, show.id)).toHaveLength(2);
+    expect(fs.existsSync(path.join(root, before.cover_path!))).toBe(true);
+  });
+});
+
 describe('PodcastImportService: description template suggestion (Issue #260)', () => {
   const FOOTER = 'お便り: https://forms.example.com\nX: @show #番組';
   const withDesc = (n: number) =>
@@ -446,42 +577,32 @@ describe('PodcastImportService: description template suggestion (Issue #260)', (
       '</item>',
       `<description><![CDATA[<p>第${n}回の話</p><p>${FOOTER.replace('\n', '<br/>')}</p>]]></description></item>`,
     );
-  const SEEDS = [TEST_SHOW_SEED.descriptionTemplate, '別の言語の初期値'];
-
-  it('suggests the shared lines of the latest episodes, preselected while the template is the initial one', async () => {
+  it('suggests the shared lines of the latest episodes', async () => {
     const { svc, db, show } = await setup({
       [FEED_URL]: { text: feedXml(withDesc(1) + withDesc(2)) },
     });
     const p = await svc.preview(show.id, { feedUrl: FEED_URL });
-    expect(await svc.templateSuggestion(show.id, p, SEEDS)).toEqual({
-      body: FOOTER,
-      preselect: true,
-    });
+    expect(await svc.templateSuggestion(show.id, p)).toEqual({ body: FOOTER });
     // 候補を出しただけでは書かない
     expect((await getDefaultTemplate(db, show.id))!.body).toBe(TEST_SHOW_SEED.descriptionTemplate);
   });
 
-  it('does not preselect when the user wrote the template, and is null when it already matches', async () => {
+  it('suggests even when the user wrote the template (they turn it off to keep theirs), and is null when it already matches', async () => {
     const { svc, db, show } = await setup({
       [FEED_URL]: { text: feedXml(withDesc(1) + withDesc(2)) },
     });
     const tpl = (await getDefaultTemplate(db, show.id))!;
     await updateTemplate(db, tpl.id, '手で書いたひな形', 2000);
     const p = await svc.preview(show.id, { feedUrl: FEED_URL });
-    expect(await svc.templateSuggestion(show.id, p, SEEDS)).toEqual({
-      body: FOOTER,
-      preselect: false,
-    });
+    expect(await svc.templateSuggestion(show.id, p)).toEqual({ body: FOOTER });
     await updateTemplate(db, tpl.id, `${FOOTER}\n`, 2000);
-    expect(await svc.templateSuggestion(show.id, p, SEEDS)).toBeNull();
-    await updateTemplate(db, tpl.id, '', 2000);
-    expect((await svc.templateSuggestion(show.id, p, SEEDS))?.preselect).toBe(true);
+    expect(await svc.templateSuggestion(show.id, p)).toBeNull();
   });
 
   it('is null when the episodes share nothing', async () => {
     const { svc, show } = await setup({ [FEED_URL]: { text: feedXml(item(1) + item(2)) } });
     const p = await svc.preview(show.id, { feedUrl: FEED_URL });
-    expect(await svc.templateSuggestion(show.id, p, SEEDS)).toBeNull();
+    expect(await svc.templateSuggestion(show.id, p)).toBeNull();
   });
 
   it('writes the template only when chosen, together with the import', async () => {
@@ -507,7 +628,7 @@ describe('PodcastImportService: description template suggestion (Issue #260)', (
     });
     await svc.commit(show.id, await svc.preview(show.id, { feedUrl: FEED_URL }));
     const p = await svc.previewRefresh(show.id);
-    expect(await svc.templateSuggestion(show.id, p, SEEDS)).toBeNull();
+    expect(await svc.templateSuggestion(show.id, p)).toBeNull();
     await svc.commit(show.id, p, { descriptionTemplate: FOOTER });
     expect((await getDefaultTemplate(db, show.id))!.body).toBe(TEST_SHOW_SEED.descriptionTemplate);
   });

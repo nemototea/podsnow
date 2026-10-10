@@ -111,6 +111,19 @@ export async function listFeedEpisodes(db: SqlExecutor, showId: string): Promise
   );
 }
 
+export async function countFeedEpisodes(db: SqlExecutor, showId: string): Promise<number> {
+  const r = await db.get<{ n: number }>(
+    'SELECT COUNT(*) AS n FROM feed_episodes WHERE show_id = ?',
+    [showId],
+  );
+  return r?.n ?? 0;
+}
+
+/** 番組の配信済みの回をすべて消す（取り込みの解除。Issue #258）。トランザクションは呼び出し側で張る。 */
+export async function deleteFeedEpisodes(db: SqlExecutor, showId: string): Promise<void> {
+  await db.run('DELETE FROM feed_episodes WHERE show_id = ?', [showId]);
+}
+
 /** PodsNow で作った回と、配信済みの回を結びつける（または `null` で外す）。 */
 export async function linkFeedEpisode(
   db: SqlExecutor,

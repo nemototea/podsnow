@@ -14,11 +14,14 @@ import { parsePodcastFeed } from '@/domain/podcast/parseFeed';
 import { AppError } from '@/domain/errors';
 import type { SqlExecutor } from '@/infra/db/executor';
 import {
+  countFeedEpisodes,
+  deleteFeedEpisodes,
   listFeedEpisodes,
   listPublishedNumbering,
   upsertFeedEpisodes,
 } from '@/infra/db/repositories/feedEpisodesRepo';
 import {
+  deleteExternalIds,
   getDefaultTemplate,
   getExternalId,
   getShow,
@@ -65,12 +68,11 @@ export interface ImportPreview {
 
 /**
  * 取り込む回の概要から作った、概要欄テンプレートの候補（Issue #260）。
- * 書くのはユーザーが選んだときだけ（docs/podcast-import-cases.md P3）。
+ * 書くのはユーザーが選んだときだけ（docs/podcast-import-cases.md P3）。画面では既定で選んでおき、
+ * 今のテンプレートを残したい人が外す（ユーザー判断 2026-10-10）。
  */
 export interface TemplateSuggestion {
   body: string;
-  /** 既定で選んでおくか。今のテンプレートが空か初期値のままのときだけ true */
-  preselect: boolean;
 }
 
 export interface ImportOptions {
@@ -85,6 +87,19 @@ export interface ImportResult {
   coverSaved: boolean;
   /** 概要欄テンプレートを書き換えたか（Issue #260） */
   templateSaved: boolean;
+}
+
+/** 取り込みの解除で消えるもの（確認に数字で出す。Issue #258）。 */
+export interface UnimportSummary {
+  /** 取り込み済みか。まだなら解除するものが無い */
+  imported: boolean;
+  /** 消える配信済みの回の数 */
+  feedEpisodes: number;
+  /**
+   * 概要欄テンプレートが初期値から変わっているか。変わっていれば、解除のときに初期値へ戻すかを聞く
+   * （取り込みで入れた別の番組の行が残らないように。ユーザー判断 2026-10-10）
+   */
+  templateEdited: boolean;
 }
 
 export function assertHttps(url: string): void {
@@ -219,19 +234,17 @@ export class PodcastImportService {
   /**
    * 概要欄テンプレートの候補（Issue #260）。初めての取り込み（`new`）のときだけ出す。
    * 読み込み直し・追加済み・別の番組では出さない（PodsNow だけの設定は触らない。#139 の決定）。
-   * `seedTemplates` は各言語の初期のテンプレート（`ServiceLabels.descriptionTemplate` の全言語分）。
    */
   async templateSuggestion(
     showId: string,
     preview: ImportPreview,
-    seedTemplates: readonly string[],
   ): Promise<TemplateSuggestion | null> {
     if (preview.identity !== 'new') return null;
     const body = suggestDescriptionTemplate(preview.feed.items);
     if (body === null) return null;
     const current = await getDefaultTemplate(this.deps.db, showId);
     if (current?.body.trim() === body.trim()) return null;
-    return { body, preselect: isUntouchedTemplate(current?.body ?? null, seedTemplates) };
+    return { body };
   }
 
   /**
@@ -301,6 +314,87 @@ export class PodcastImportService {
       coverSaved: coverPath !== null,
       templateSaved: template !== undefined,
     };
+  }
+
+  /** `seedTemplates` は各言語の初期のテンプレート（`ServiceLabels.descriptionTemplate` の全言語分）。 */
+  async unimportSummary(
+    showId: string,
+    seedTemplates: readonly string[],
+  ): Promise<UnimportSummary> {
+    const { db } = this.deps;
+    const [show, feedEpisodes, template] = await Promise.all([
+      getShow(db, showId),
+      countFeedEpisodes(db, showId),
+      getDefaultTemplate(db, showId),
+    ]);
+    return {
+      imported: show?.feed_imported_at != null,
+      feedEpisodes,
+      templateEdited: !isUntouchedTemplate(template?.body ?? null, seedTemplates),
+    };
+  }
+
+  /**
+   * 取り込みを解除する（Issue #258、docs/podcast-import-cases.md A-1）。
+   * 番組情報（手で直した名前・概要を含む）・アートワーク・配信済みの回・外部 ID・カテゴリー・支援リンクを消し、
+   * 別の番組を取り込める状態（判定が `new`）に戻す。番組名は初期値（`showName`）にする。
+   *
+   * 消さないもの: 手元のエピソード（録音・話数）、素材、既定の構成、カンペのひな形。
+   * 概要欄テンプレートは `resetTemplate` を渡したときだけ、その本文（初期値）に戻す（確認で選ばせる）。
+   * 話数は配信済みの回が正なので、手元のエピソードの話数は触らない（ユーザー判断 2026-10-10）。
+   */
+  async unimport(
+    showId: string,
+    labels: { showName: string },
+    options: { resetTemplate?: string } = {},
+  ): Promise<void> {
+    const { db, fs, root, newId, now } = this.deps;
+    const before = await getShow(db, showId);
+    if (!before) return;
+    const t = now();
+    await db.transaction(async () => {
+      await deleteFeedEpisodes(db, showId);
+      await deleteExternalIds(db, showId);
+      await replaceCategories(db, showId, [], newId);
+      await replaceFunding(db, showId, [], newId);
+      if (options.resetTemplate !== undefined) {
+        await setDefaultTemplateBody(db, showId, options.resetTemplate, newId, t);
+      }
+      await updateShow(
+        db,
+        showId,
+        {
+          name: labels.showName,
+          description: '',
+          author: '',
+          websiteUrl: '',
+          language: '',
+          explicit: false,
+          showType: 'episodic',
+          copyright: '',
+          ownerName: '',
+          ownerEmail: '',
+          complete: false,
+          locked: false,
+          feedUrl: null,
+          podcastGuid: null,
+          coverPath: null,
+          coverSourceUrl: null,
+          coverColor: null,
+          feedImportedAt: null,
+        },
+        t,
+      );
+    });
+    // DB が「画像なし」で確定してからファイルを消す。残っても次の取り込み・画像の設定で片付く（CoverArtService と同じ）
+    if (before.cover_path) {
+      try {
+        fs.delete(joinRoot(root, before.cover_path));
+      } catch {
+        // 孤立ファイルは removeStaleCovers が回収する
+      }
+    }
+    await this.removeStaleCovers(showId);
   }
 
   /** アートワークを取得して保存し、相対パスを返す。失敗したら null（取り込みは続ける）。 */
