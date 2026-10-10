@@ -164,6 +164,7 @@ Podcast: {{show_name}}
     changeGain: '音量を変更',
     removeAsset: '素材を削除',
     moveAsset: '素材を移動',
+    resizeAsset: '素材の長さを変更',
     insertAsset: (name: string) => `${name} を挿入`,
     reanchored: (label: string) => `${label}（素材を追従）`,
     changeFade: 'フェードを変更',
@@ -378,8 +379,17 @@ Podcast: {{show_name}}
     insertSubtitle: (at: string) => `${at} に入ります`,
     overlayFallback: '素材',
     gain: '音量',
-    fadeIn: 'フェードイン 2 秒',
-    fadeOut: 'フェードアウト 2 秒',
+    /** 選んだ素材の帯のフェード（Issue #254）。長さは帯の上の丸を引いて変える。 */
+    fadeLine: (fadeIn: string, fadeOut: string) =>
+      `フェードイン ${fadeIn} · フェードアウト ${fadeOut}`,
+    overlayHint: '帯を引くと動きます。上の丸でフェード、BGM は両端で長さを変えます',
+    playFromOverlay: 'この素材の位置から再生',
+    closeOverlay: '選ぶのをやめる',
+    /** 録音前の波形で、本編が入る場所の枠（Issue #254）。 */
+    voicePlaceholder: '録音するとここに入ります',
+    /** 何も選んでいないときのシート。この回の並びを番組に覚えさせる（Issue #254）。 */
+    saveStructure: 'この構成を既定にする',
+    structureSaved: '次のエピソードからこの構成で始まります',
     moveHere: '再生位置へ移す',
     moveHereSub: (at: string) => `${at} に置き直す（発言に追従）`,
     removeOverlay: 'この素材を外す',

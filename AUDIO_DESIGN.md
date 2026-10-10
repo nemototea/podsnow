@@ -156,7 +156,7 @@ AudioRecord(source = VOICE_RECOGNITION or UNPROCESSED or MIC,
 - **推奨**: 両 OS とも「自前ミキサー（§8 と同じコード）が PCM を生成 → 出力 1 本」に統一する。再生と書き出しで同じレンダラを使えば、聴いた通りに書き出せる。Phase 2 で確定。
 
 Issue #135 の画面間再生【事実】:
-- 書き出しタブはこのタイムライン再生を使い、聴いた内容と書き出し結果を一致させる。
+- 書き出しタブはこのタイムライン再生を使い、聴いた内容と書き出し結果を一致させる。位置は出力のフレーム（先頭の素材の始まりが 0。§8、Issue #254）。
 - 試聴には音の仕上げをすべて即座に反映する（ユーザー判断 2026-09-29、REQUIREMENTS.md FR-EP-7、Issue #158）。構成は §7.1。
 - Home は制作中の回と RSS から取り込んだ配信済みの回を同じ一覧に見せる。再生元は、端末に実体がある最新の書き出し済みファイル、対応する RSS `enclosure_url`、ローカルのタイムラインの順で選ぶ。RSS だけの回も `enclosure_url` があれば再生する。
 - ファイル再生（書き出し・RSS）は読み込みを待たずに「読み込み中」を出し、音が出たら再生中に変える。バッファ待ちの間も読み込み中を出す。読み込みに失敗したら（URL が切れている・通信できない・壊れたファイル）再生を止め、`AppErrorCode`（`playback_stream_failed` / `playback_file_failed`）を出す。次に再生を押すと同じ再生元を読み込み直す。読み込み中に一時停止したら、読み込みが終わっても鳴らさない。後から別の回を再生したら、先の読み込みの結果は捨てる。【事実: Issue #185】【確認済み: expo-audio 57.0.5 の `AudioStatus` に `isLoaded` / `isBuffering` / `error`（`node_modules/expo-audio/build/Audio.types.d.ts`。https://docs.expo.dev/versions/v57.0.0/sdk/audio/ はこの環境から開けず未照合）】
@@ -255,6 +255,10 @@ Encoder: AAC (iOS AVAssetWriter / Android MediaCodec+MediaMuxer) または WAV w
   ▼ progress イベント → exports.progress
 後処理（JS、§8.3）: 題名・番組名・アートワーク等のメタデータを埋め込む → exports を done に
 ```
+- **出力の時間軸【事実: Issue #254】**: オープニング・エンディングは本編の外（負の位置・本編の後ろ）に置ける（DATA_MODEL.md §4.9）。`buildRenderDocument` は最も早いクリップが出力のフレーム 0 になるよう全体をずらし、`totalFrames` = `timelineBounds` の end − start（本編の外の素材を含む）にする。ネイティブのエンジンは変えない（受け取った位置をそのまま鳴らす）。`outputOrigin()` = −start。
+  - 再生側: エディタ（`useWorkspace`）は再生位置を本編の時刻で持ち、`PlaybackService` とやり取りするときだけ原点を足し引きする。`episodes.playhead_smp` は本編の時刻。編集で原点が変わったら、本編の同じ位置を保つようエンジンの位置をずらす。画面の時刻（収録・書き出しタブ）は出力の時刻で、0 はオープニングの始まり。
+  - BGM の終わり（`timeline_end`）は本編の終わり + `endOffset`。
+  - 既知の制約: ダッキングは録音した声にだけ反応する。声を含むオープニング素材の下では BGM を下げない（後続）。
 - 中間 PCM は持たず、パスごとにミキサーで作り直す（60 分でも一時ファイルが要らない）。
 - `exports.measured_lufs` / `measured_true_peak` は**書き出したファイル（出力）**の実測値。UI（書き出し履歴・配信の準備）に表示し、目標より 1 LU 以上小さければ「目標に届いていません」と出す。
 - 書き出しはネイティブスレッド。iOS はバックグラウンドでも数分は継続（`beginBackgroundTask`【仮説】）。Android は短時間 FGS（`dataSync` 種別【仮説】）または前面のみ。

@@ -46,6 +46,20 @@ export interface ShowLayoutRow extends SqlRow {
   bgm_duck_db: number;
   opening_gain_db: number;
   ending_gain_db: number;
+  /** 本編がオープニングに重なる長さ。0 = 流し終えてから話す（0011、Issue #254）。 */
+  opening_overlap_smp: number;
+  opening_fade_in_smp: number;
+  opening_fade_out_smp: number;
+  /** 本編の終わりからエンディングまで。0 = 話し終えてすぐ、負なら重なる。 */
+  ending_gap_smp: number;
+  ending_fade_in_smp: number;
+  ending_fade_out_smp: number;
+  /** BGM の始まりの本編の始まりからのずれ。負ならオープニングに重なる。 */
+  bgm_start_offset_smp: number;
+  /** BGM の終わりの本編の終わりからのずれ。正ならエンディングに重なる。 */
+  bgm_end_offset_smp: number;
+  bgm_fade_in_smp: number;
+  bgm_fade_out_smp: number;
 }
 
 export interface TemplateRow extends SqlRow {
@@ -174,6 +188,16 @@ export async function updateLayout(
     bgmDuckDb: number;
     openingGainDb: number;
     endingGainDb: number;
+    openingOverlapSmp: number;
+    openingFadeInSmp: number;
+    openingFadeOutSmp: number;
+    endingGapSmp: number;
+    endingFadeInSmp: number;
+    endingFadeOutSmp: number;
+    bgmStartOffsetSmp: number;
+    bgmEndOffsetSmp: number;
+    bgmFadeInSmp: number;
+    bgmFadeOutSmp: number;
   }>,
 ): Promise<void> {
   await getLayout(db, showId);
@@ -185,6 +209,16 @@ export async function updateLayout(
     bgmDuckDb: 'bgm_duck_db',
     openingGainDb: 'opening_gain_db',
     endingGainDb: 'ending_gain_db',
+    openingOverlapSmp: 'opening_overlap_smp',
+    openingFadeInSmp: 'opening_fade_in_smp',
+    openingFadeOutSmp: 'opening_fade_out_smp',
+    endingGapSmp: 'ending_gap_smp',
+    endingFadeInSmp: 'ending_fade_in_smp',
+    endingFadeOutSmp: 'ending_fade_out_smp',
+    bgmStartOffsetSmp: 'bgm_start_offset_smp',
+    bgmEndOffsetSmp: 'bgm_end_offset_smp',
+    bgmFadeInSmp: 'bgm_fade_in_smp',
+    bgmFadeOutSmp: 'bgm_fade_out_smp',
   };
   const sets: string[] = [];
   const vals: (string | number | null)[] = [];

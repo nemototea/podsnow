@@ -16,6 +16,8 @@ async function openDatabaseAsync() {
     ...(seed.get('showAuthor') ? { author: seed.get('showAuthor') } : {}),
   });
   const rows = (sql, params) => { const out = raw(sql, params); return /\bFROM shows\b/i.test(sql) ? out.map(patchShow) : out; };
+  // 撮影用: スクリプトから素材や番組の構成を入れられるように DB を出しておく（製品には含めない）
+  if (typeof window !== 'undefined') window.__podsnowDb = db;
   let inTx = false;
   const api = {
     execAsync: async (sql) => { db.exec(sql.replace(/PRAGMA journal_mode = WAL;/, '')); },

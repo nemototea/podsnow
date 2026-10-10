@@ -3,8 +3,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { EditableDoc } from '@/domain/editing/doc';
 import { smp, ZERO_SMP, type Smp } from '@/domain/time';
 import { detectBlocks } from '@/domain/timeline/blocks';
-import { placeOverlays, suggestReanchor, type PlacedOverlay } from '@/domain/timeline/overlays';
-import type { OverlayClip, Range } from '@/domain/timeline/types';
+import {
+  overlaySourceLength,
+  placeOverlays,
+  suggestReanchor,
+  timelineBounds,
+  type PlacedOverlay,
+} from '@/domain/timeline/overlays';
+import type { OverlayClip, Range, VoiceSegment } from '@/domain/timeline/types';
 import {
   deleteRange,
   deleteRanges,
@@ -37,6 +43,29 @@ import { tapBlock } from './blockTap';
 import { newInsertedClip } from './insertClip';
 import { LEVEL_STEP_SMP, readPeaksFile, timelineLevels, type TakePeaks } from './peaks';
 
+/**
+ * 録音前（本編が空）の回で、構成を並べて見せるための仮の本編の長さ（Issue #254）。
+ * 「録音するとここに入ります」の枠の長さで、エンディングと BGM はこの後ろ・下に並ぶ。
+ * 帯を動かしたときのずれも、この仮の本編に対して数える（本編に付くので、録れば追従する）。
+ */
+export const PLACEHOLDER_VOICE = smp(30 * 48000);
+
+/** 構成を並べるときの本編。空なら仮の本編。 */
+export function layoutVoice(voice: readonly VoiceSegment[]): readonly VoiceSegment[] {
+  if (voice.length) return voice;
+  return [
+    {
+      id: 'placeholder',
+      takeId: 'placeholder',
+      srcStart: ZERO_SMP,
+      srcEnd: PLACEHOLDER_VOICE,
+      gainDb: 0,
+      fadeIn: ZERO_SMP,
+      fadeOut: ZERO_SMP,
+    },
+  ];
+}
+
 export interface WorkspaceState {
   episode: EpisodeRow | null;
   doc: EditableDoc;
@@ -44,6 +73,12 @@ export interface WorkspaceState {
   assets: AssetRow[];
   assetDurations: Map<string, Smp>;
   placedOverlays: PlacedOverlay[];
+  /**
+   * 書き出す範囲（本編の始まりを 0 とした位置。Issue #254）。`start` は 0 以下で、オープニングを
+   * 本編の前に置いていれば負になる。再生エンジンの位置は `start` を 0 とした位置なので、
+   * やり取りのたびに `-start`（= 出力の 0 から本編の始まりまで）を足し引きする。
+   */
+  bounds: Range;
   peaksByTake: Map<string, TakePeaks>;
   total: Smp;
   playhead: Smp;
@@ -91,6 +126,7 @@ export function useWorkspace(episodeId: string) {
     assets: [],
     assetDurations: new Map(),
     placedOverlays: [],
+    bounds: { start: ZERO_SMP, end: ZERO_SMP },
     peaksByTake: new Map(),
     total: ZERO_SMP,
     playhead: ZERO_SMP,
@@ -119,19 +155,29 @@ export function useWorkspace(episodeId: string) {
     [],
   );
 
+  /** 出力の 0 から本編の始まりまで（サンプル）。再生エンジンとのやり取りで足し引きする（Issue #254）。 */
+  const originRef = useRef(0);
+  const durationsRef = useRef<Map<string, Smp>>(new Map());
+
   // ---- 読み込み ----
   const syncFromEditing = useCallback(
-    (e: EditingService, extra: Partial<WorkspaceState> = {}) => {
+    (e: EditingService, extra: Partial<WorkspaceState> = {}, reveal = true) => {
       const doc = e.current;
       undoTopRef.current = e.undoTopId;
+      // 再生エンジンとのやり取りに使うので、state の更新を待たずにここで求める
+      if (extra.assetDurations) durationsRef.current = extra.assetDurations;
+      const placed = placeOverlays(layoutVoice(doc.voice), doc.overlays, durationsRef.current);
+      const bounds = timelineBounds(layoutVoice(doc.voice), placed);
+      originRef.current = -bounds.start;
       patch((s) => {
-        const durations = extra.assetDurations ?? s.assetDurations;
         return {
           doc,
-          revealSeq: s.revealSeq + 1,
-          revealAt: null,
+          // 素材の帯を動かしたときは画面を動かさない（指で触っている所から離れないように）
+          revealSeq: reveal ? s.revealSeq + 1 : s.revealSeq,
+          revealAt: reveal ? null : s.revealAt,
           total: totalDuration(doc.voice),
-          placedOverlays: placeOverlays(doc.voice, doc.overlays, durations),
+          placedOverlays: placed,
+          bounds,
           canUndo: e.canUndo,
           canRedo: e.canRedo,
           undoLabel: e.undoLabel,
@@ -189,23 +235,23 @@ export function useWorkspace(episodeId: string) {
         services.assets.list(services.show.id),
       ]);
       const assetDurations = new Map(assets.map((a) => [a.id, a.duration_smp as Smp]));
-      syncFromEditing(e, {
-        episode,
-        takes,
-        assets,
-        assetDurations,
-        ready: true,
-        playhead: smp(episode?.playhead_smp ?? 0),
-      });
+      // 保存してある再生位置は本編の位置（Issue #254）。オープニングを動かしても同じ発言を指す
+      syncFromEditing(e, { episode, takes, assets, assetDurations, ready: true });
+      const saved = episode?.playhead_smp ?? 0;
+      patch((s) => ({
+        playhead: smp(Math.max(s.bounds.start, Math.min(s.bounds.end, saved))),
+      }));
       await Promise.all([loadPeaks(takes), loadNotesAndEvents()]);
       await playback.reload(episodeId).catch(() => {});
       // 開いたとき・戻ってきたときは、再生エンジンの位置をこの回の保存位置に合わせる
       // （エンジンは 1 つなので、直前に開いていた別の回の位置が残っている）
       if ((opts.open || opts.refocus) && episode) {
-        await playback.seek(smp(episode.playhead_smp ?? 0)).catch(() => {});
+        await playback
+          .seek(smp(Math.max(0, (episode.playhead_smp ?? 0) + originRef.current)))
+          .catch(() => {});
       }
     },
-    [db, episodeId, loadPeaks, loadNotesAndEvents, playback, services, syncFromEditing],
+    [db, episodeId, loadPeaks, loadNotesAndEvents, patch, playback, services, syncFromEditing],
   );
 
   useEffect(() => {
@@ -249,7 +295,7 @@ export function useWorkspace(episodeId: string) {
   const placePlayhead = useCallback(
     async (to: Smp) => {
       patch((s) => ({ playhead: to, revealSeq: s.revealSeq + 1, revealAt: null }));
-      await playback.seek(to).catch(() => {});
+      await playback.seek(smp(to + originRef.current)).catch(() => {});
       void services.episodes.update(episodeId, { playheadSmp: to });
     },
     [episodeId, patch, playback, services.episodes],
@@ -269,23 +315,47 @@ export function useWorkspace(episodeId: string) {
       // 再生エンジンは 1 つ。下に積まれた別の回の画面は、その回を読み込んでいる間だけ受ける
       playback.on('state', (e) => {
         if (playback.loadedEpisodeId !== episodeId || playback.source?.kind !== 'timeline') return;
-        patch({ playing: e.playing, playhead: smp(e.frame) });
+        patch({ playing: e.playing, playhead: smp(e.frame - originRef.current) });
       }),
       playback.on('position', (e) => {
         if (playback.loadedEpisodeId !== episodeId || playback.source?.kind !== 'timeline') return;
-        patch({ playhead: smp(e.frame) });
+        patch({ playhead: smp(e.frame - originRef.current) });
       }),
     ];
     return () => subs.forEach((s) => s.remove());
   }, [episodeId, patch, placePlayhead, playback, recording, reloadAll]);
 
   // ---- 編集の共通ルート ----
+  /**
+   * 編集のあとに再生エンジンを読み直す。オープニングを動かすなどで本編の始まりの出力上の位置が
+   * 変わったら、エンジンの位置も同じだけずらし、聴いている本編の位置を保つ（Issue #254）。
+   */
+  const reloadPlayback = useCallback(
+    async (prevOrigin: number) => {
+      // 読み直すと位置が新しい長さに丸められるので、ずらす前の位置を先に取っておく
+      const mine = playback.loadedEpisodeId === episodeId && playback.source?.kind === 'timeline';
+      const before = playback.position;
+      await playback.reload(episodeId).catch(() => {});
+      const delta = originRef.current - prevOrigin;
+      if (delta !== 0 && mine) {
+        await playback.seek(smp(Math.max(0, before + delta))).catch(() => {});
+      }
+    },
+    [episodeId, playback],
+  );
+
   // 録音中（割り込みで止まっている間も含む）は履歴に積まない。録音中の変更は
   // 止めたときに録音の追加と 1 つの操作にまとまる（Issue #122）。
   const apply = useCallback(
-    async (label: string, mutate: (d: EditableDoc) => EditableDoc, groupKey?: string) => {
+    async (
+      label: string,
+      mutate: (d: EditableDoc) => EditableDoc,
+      groupKey?: string,
+      opts: { reveal?: boolean } = {},
+    ) => {
       const e = editingRef.current;
       if (!e || !recording.isIdle) return;
+      const prevOrigin = originRef.current;
       const before = e.current;
       const op = await e.apply(label, mutate, { groupKey: groupKey ?? null });
       if (!op) return;
@@ -297,44 +367,55 @@ export function useWorkspace(episodeId: string) {
           groupKey: `reanchor:${op.id}`,
         });
       }
-      syncFromEditing(e);
-      await playback.reload(episodeId).catch(() => {});
+      syncFromEditing(e, {}, opts.reveal ?? true);
+      await reloadPlayback(prevOrigin);
       services.loudness.contentChanged(episodeId);
       void services.episodes.refreshStatus(episodeId);
     },
-    [episodeId, playback, recording, services.episodes, services.loudness, syncFromEditing, t],
+    [
+      episodeId,
+      recording,
+      reloadPlayback,
+      services.episodes,
+      services.loudness,
+      syncFromEditing,
+      t,
+    ],
   );
 
   // 録音中（準備・停止処理を含む）は取り消せない。トーストの「取り消す」もここを通る。
   const undo = useCallback(async () => {
     const e = editingRef.current;
     if (!e || !recording.isIdle) return null;
+    const prevOrigin = originRef.current;
     const op = await e.undo();
     syncFromEditing(e);
-    await playback.reload(episodeId).catch(() => {});
+    await reloadPlayback(prevOrigin);
     services.loudness.contentChanged(episodeId);
     return op;
-  }, [episodeId, playback, recording, services.loudness, syncFromEditing]);
+  }, [episodeId, recording, reloadPlayback, services.loudness, syncFromEditing]);
 
   const redo = useCallback(async () => {
     const e = editingRef.current;
     if (!e || !recording.isIdle) return null;
+    const prevOrigin = originRef.current;
     const op = await e.redo();
     syncFromEditing(e);
-    await playback.reload(episodeId).catch(() => {});
+    await reloadPlayback(prevOrigin);
     services.loudness.contentChanged(episodeId);
     return op;
-  }, [episodeId, playback, recording, services.loudness, syncFromEditing]);
+  }, [episodeId, recording, reloadPlayback, services.loudness, syncFromEditing]);
 
   // ---- 再生 ----
+  // 位置は本編の位置。オープニングの上（負）からエンディングの終わりまで動ける（Issue #254）
   const seek = useCallback(
     async (to: Smp) => {
-      const t = smp(Math.max(0, Math.min(state.total, to)));
+      const t = smp(Math.max(state.bounds.start, Math.min(state.bounds.end, to)));
       patch((s) => ({ playhead: t, revealSeq: s.revealSeq + 1, revealAt: null }));
-      await playback.seek(t);
+      await playback.seek(smp(t + originRef.current));
       void services.episodes.update(episodeId, { playheadSmp: t });
     },
-    [episodeId, patch, playback, services.episodes, state.total],
+    [episodeId, patch, playback, services.episodes, state.bounds],
   );
   const togglePlay = useCallback(() => playback.toggle(), [playback]);
 
@@ -380,7 +461,9 @@ export function useWorkspace(episodeId: string) {
    */
   const startRecording = useCallback(async () => {
     await playback.stopForRecording();
-    const at = state.playhead < state.total ? state.playhead : null;
+    // オープニングの上（本編より前）から録るときは、本編の頭に差し込む
+    const at =
+      state.total > 0 && state.playhead < state.total ? smp(Math.max(0, state.playhead)) : null;
     await recording.start(episodeId, { insertAtSmp: at });
     patch({ selection: null, selectedOverlay: null, recAt: at, recFrames: 0 });
     haptics.play('impact');
@@ -486,7 +569,7 @@ export function useWorkspace(episodeId: string) {
     const sel = state.selection;
     if (!sel) return;
     patch((s) => ({ playhead: sel.start, revealSeq: s.revealSeq + 1, revealAt: null }));
-    await playback.playRange(sel.start, sel.end);
+    await playback.playRange(smp(sel.start + originRef.current), smp(sel.end + originRef.current));
   }, [patch, playback, state.selection]);
 
   /** ハンドルのドラッグ後に確定する。隣の塊の境界へ吸い付かせる。 */
@@ -571,6 +654,7 @@ export function useWorkspace(episodeId: string) {
         label,
         (d) => ({ ...d, overlays: d.overlays.map((o) => (o.id === id ? mutate(o) : o)) }),
         groupKey,
+        { reveal: false },
       ),
     [apply],
   );
@@ -596,6 +680,65 @@ export function useWorkspace(episodeId: string) {
         };
       }),
     [state.doc.voice, updateOverlay, t],
+  );
+
+  /**
+   * 素材の帯を引いて動かした（Issue #254）。`start` は帯の新しい始まり（本編の位置）。
+   * オープニング・エンディング・BGM は本編の始まり / 終わりに付けたまま、ずれだけを変える。
+   * BGM は長さを保ったまま両端を動かす。ほかの素材は発言に付け直す（`moveOverlayTo` と同じ）。
+   */
+  const moveOverlay = useCallback(
+    (id: string, start: Smp) =>
+      updateOverlay(id, t.undo.moveAsset, (o) => {
+        const total = totalDuration(layoutVoice(state.doc.voice));
+        const placed = state.placedOverlays.find((p) => p.clip.id === o.id);
+        if (o.anchor.type === 'timeline_start') {
+          const delta = start - o.anchor.offset;
+          return {
+            ...o,
+            anchor: { type: 'timeline_start', offset: start },
+            ...(o.endMode === 'timeline_end' ? { endOffset: smp((o.endOffset ?? 0) + delta) } : {}),
+          };
+        }
+        if (o.anchor.type === 'timeline_end') {
+          const len = overlaySourceLength(o, state.assetDurations.get(o.assetId) ?? ZERO_SMP);
+          return { ...o, anchor: { type: 'timeline_end', offset: smp(start - (total - len)) } };
+        }
+        if (!placed || placed.status !== 'placed') return o;
+        const src = resolveSource(state.doc.voice, start);
+        return {
+          ...o,
+          anchor: src
+            ? { type: 'source', takeId: src.takeId, srcSmp: src.srcSmp }
+            : { type: 'timeline_abs', smp: start },
+        };
+      }),
+    [state.assetDurations, state.doc.voice, state.placedOverlays, t, updateOverlay],
+  );
+
+  /** BGM の端を引いた（Issue #254）。始まりは本編の始まりから、終わりは本編の終わりからのずれで持つ。 */
+  const resizeOverlay = useCallback(
+    (id: string, edge: 'start' | 'end', at: Smp) =>
+      updateOverlay(id, t.undo.resizeAsset, (o) => {
+        if (o.endMode !== 'timeline_end' || o.anchor.type !== 'timeline_start') return o;
+        if (edge === 'start') return { ...o, anchor: { type: 'timeline_start', offset: at } };
+        const total = totalDuration(layoutVoice(state.doc.voice));
+        return { ...o, endOffset: smp(at - total) };
+      }),
+    [state.doc.voice, t, updateOverlay],
+  );
+
+  /** 帯の上の丸を引いてフェードの長さを変えた（Issue #254）。 */
+  const setOverlayFades = useCallback(
+    (id: string, fadeIn: Smp, fadeOut: Smp) =>
+      updateOverlay(id, t.undo.changeFade, (o) => ({ ...o, fadeIn, fadeOut })),
+    [t, updateOverlay],
+  );
+
+  /** この回のオープニング・エンディング・BGM の並びを番組の既定にする（Issue #254）。 */
+  const saveStructureAsDefault = useCallback(
+    () => services.episodes.saveStructureAsDefault(episodeId),
+    [episodeId, services.episodes],
   );
 
   // ---- カンペ（FR-OUT-1..2）。編集画面で書き、録音中は読むだけ ----
@@ -639,6 +782,12 @@ export function useWorkspace(episodeId: string) {
     updateOverlay,
     removeOverlay,
     moveOverlayTo,
+    moveOverlay,
+    resizeOverlay,
+    setOverlayFades,
+    saveStructureAsDefault,
+    /** 本編の位置を、出力（書き出し・再生）の位置に直す。画面に出す時刻に使う（Issue #254）。 */
+    toOutput: (at: Smp) => smp(at - state.bounds.start),
     selectOverlay: (id: string | null) => patch({ selectedOverlay: id, selection: null }),
     saveNotes,
     reloadAll,

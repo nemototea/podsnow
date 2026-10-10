@@ -1,7 +1,7 @@
 import type { Smp } from '../time';
-import { placeOverlays } from '../timeline/overlays';
+import { placeOverlays, timelineBounds } from '../timeline/overlays';
 import { ducksUnderVoice, type OverlayClip, type VoiceSegment } from '../timeline/types';
-import { placeVoice, totalDuration } from '../timeline/voice';
+import { placeVoice } from '../timeline/voice';
 import type {
   DuckingSettings,
   LoudnessSettings,
@@ -72,16 +72,34 @@ export function expandVoiceSegment(
   return out;
 }
 
+/**
+ * 出力の 0 が本編のどこに当たるか（Issue #254）。本編より前に素材が無ければ 0、
+ * オープニングを本編の前に置いていれば、その長さ（本編の始まりの出力上の位置）。
+ * 編集画面は本編の位置で数え、再生エンジンとのやり取りでこの分を足し引きする。
+ */
+export function outputOrigin(
+  voice: readonly VoiceSegment[],
+  overlays: readonly OverlayClip[],
+  assetDurations: ReadonlyMap<string, Smp>,
+): number {
+  return -timelineBounds(voice, placeOverlays(voice, overlays, assetDurations)).start;
+}
+
 export function buildRenderDocument(input: BuildInput): RenderDocument {
-  const voice: RenderClip[] = [];
-  for (const p of placeVoice(input.voice)) {
-    voice.push(...expandVoiceSegment(p.segment, p.start, input.takeFiles));
-  }
-  const totalFrames = totalDuration(input.voice);
   const durations = new Map(input.assets.map((a) => [a.assetId, a.duration]));
   const paths = new Map(input.assets.map((a) => [a.assetId, a.path]));
+  const placedAll = placeOverlays(input.voice, input.overlays, durations);
+  // 本編より前の素材があれば、いちばん前を出力の 0 に合わせて全体をずらす。
+  // ネイティブは 0 から totalFrames までを鳴らすので、負の位置を渡さない（Issue #254）
+  const bounds = timelineBounds(input.voice, placedAll);
+  const shift = -bounds.start;
+  const totalFrames = bounds.end - bounds.start;
+  const voice: RenderClip[] = [];
+  for (const p of placeVoice(input.voice)) {
+    voice.push(...expandVoiceSegment(p.segment, p.start + shift, input.takeFiles));
+  }
   const overlays: RenderOverlay[] = [];
-  for (const placed of placeOverlays(input.voice, input.overlays, durations)) {
+  for (const placed of placedAll) {
     if (placed.status !== 'placed') continue; // 孤立したオーバーレイは鳴らさない
     const c = placed.clip;
     const path = paths.get(c.assetId);
@@ -93,8 +111,8 @@ export function buildRenderDocument(input: BuildInput): RenderDocument {
       path,
       fileStart: c.srcStart,
       fileEnd,
-      tlStart: placed.range.start,
-      tlEnd: placed.range.end,
+      tlStart: placed.range.start + shift,
+      tlEnd: placed.range.end + shift,
       gainDb: c.gainDb,
       fadeInFrames: c.fadeIn,
       fadeOutFrames: c.fadeOut,

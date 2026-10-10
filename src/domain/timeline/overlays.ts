@@ -13,7 +13,10 @@ export function overlaySourceLength(clip: OverlayClip, assetDuration: Smp): Smp 
   return smp(Math.max(0, Math.min(end, assetDuration) - clip.srcStart));
 }
 
-/** アンカーを声トラック上の開始位置に解決する。source アンカーがカット済みなら null。 */
+/**
+ * アンカーを声トラック上の開始位置に解決する。source アンカーがカット済みなら null。
+ * 位置は本編（声）の始まりを 0 として数え、本編より前（オープニングなど）は負になる（Issue #254）。
+ */
 export function resolveAnchorStart(
   voice: readonly VoiceSegment[],
   clip: OverlayClip,
@@ -25,12 +28,13 @@ export function resolveAnchorStart(
     case 'source':
       return resolveTimeline(voice, a.takeId, a.srcSmp);
     case 'timeline_start':
-      return smp(Math.max(0, a.offset));
+      // 本編の始まりから offset。負なら本編より前（オープニングを流し終えてから話す形）
+      return smp(a.offset);
     case 'timeline_end':
-      // Ending: 声トラックの末尾に、素材の末尾が offset だけ食い込む/離れるように置く
-      return smp(Math.max(0, total - overlayLength + a.offset));
+      // 素材の末尾を本編の末尾に合わせ、そこから offset ずらす。offset = 素材の長さなら本編のあとに続く
+      return smp(total - overlayLength + a.offset);
     case 'timeline_abs':
-      return smp(Math.max(0, a.smp));
+      return smp(a.smp);
   }
 }
 
@@ -54,16 +58,37 @@ export function placeOverlay(
     case 'asset_end':
       end = addSmp(start, srcLen);
       break;
-    case 'timeline_end':
-      end = clip.loop ? smp(Math.max(total, start)) : smp(Math.min(total, start + srcLen));
-      if (end < addSmp(start, srcLen) && !clip.loop) end = smp(Math.min(total, start + srcLen));
+    case 'timeline_end': {
+      // 本編の終わり（から endOffset ずらした所）まで
+      const until = total + (clip.endOffset ?? 0);
+      end = clip.loop ? smp(Math.max(until, start)) : smp(Math.min(until, start + srcLen));
       break;
+    }
     case 'fixed':
       end = addSmp(start, clip.fixedDuration ?? srcLen);
       break;
   }
   if (end <= start) end = addSmp(start, smp(1));
   return { clip, status: 'placed', range: { start, end } };
+}
+
+/**
+ * 書き出す範囲（Issue #254）。本編の始まりを 0 とした位置で、始まりは 0 以下、終わりは本編の終わり以上。
+ * 本編より前に置いた素材（オープニング）や、本編のあとに置いた素材（エンディング）まで含める。
+ * 書き出しと再生は `start` を 0 に合わせて全体をずらす（`buildRenderDocument`）。
+ */
+export function timelineBounds(
+  voice: readonly VoiceSegment[],
+  placed: readonly PlacedOverlay[],
+): Range {
+  let start = 0;
+  let end: number = totalDuration(voice);
+  for (const p of placed) {
+    if (p.status !== 'placed') continue;
+    start = Math.min(start, p.range.start);
+    end = Math.max(end, p.range.end);
+  }
+  return { start: smp(start), end: smp(end) };
 }
 
 export function placeOverlays(
@@ -107,4 +132,21 @@ export function suggestReanchor(
   }
   if (!best) return null;
   return { ...clip, anchor: { type: 'source', takeId, srcSmp: best.srcSmp } };
+}
+
+/**
+ * 番組の構成の素材か（Issue #254）。本編の始まりに付いたオープニング、本編の終わりに付いた
+ * エンディング、本編の下に敷いた BGM。素材を追加のシートから入れた BGM（発言に付く）は含めない。
+ */
+export function isStructureClip(o: OverlayClip): boolean {
+  switch (o.kind) {
+    case 'opening':
+      return o.anchor.type === 'timeline_start';
+    case 'ending':
+      return o.anchor.type === 'timeline_end';
+    case 'bgm':
+      return o.anchor.type === 'timeline_start' && o.endMode === 'timeline_end';
+    default:
+      return false;
+  }
 }

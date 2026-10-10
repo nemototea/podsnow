@@ -1,5 +1,11 @@
 import { smp, ZERO_SMP } from '../../time';
-import { placeOverlay, placeOverlays, suggestReanchor } from '../overlays';
+import {
+  isStructureClip,
+  placeOverlay,
+  placeOverlays,
+  suggestReanchor,
+  timelineBounds,
+} from '../overlays';
 import type { OverlayClip, VoiceSegment } from '../types';
 import { deleteRange } from '../voice';
 
@@ -87,5 +93,67 @@ describe('suggestReanchor', () => {
     const c = clip({ anchor: { type: 'source', takeId: 'A', srcSmp: smp(50) } });
     expect(suggestReanchor(voice, deleteRange(voice, smp(200), smp(300)), c)).toBeNull();
     expect(suggestReanchor(voice, voice, clip({}))).toBeNull();
+  });
+});
+
+describe('本編の前後に置く構成（Issue #254）', () => {
+  // 本編は 1500（voice の合計）
+  it('オープニングは負の位置に置ける（流し終えてから話す）', () => {
+    const op = clip({ kind: 'opening', anchor: { type: 'timeline_start', offset: smp(-100) } });
+    expect(placeOverlay(voice, op, smp(100))).toMatchObject({ range: { start: -100, end: 0 } });
+  });
+  it('エンディングは offset = 素材の長さで本編のあとに続き、カットに追従する', () => {
+    const ed = clip({ kind: 'ending', anchor: { type: 'timeline_end', offset: smp(100) } });
+    expect(placeOverlay(voice, ed, smp(100))).toMatchObject({ range: { start: 1500, end: 1600 } });
+    const cut = deleteRange(voice, smp(0), smp(500));
+    expect(placeOverlay(cut, ed, smp(100))).toMatchObject({ range: { start: 1000, end: 1100 } });
+  });
+  it('BGM の終わりは endOffset だけ本編の終わりからずらせる', () => {
+    const bgm = clip({
+      kind: 'bgm',
+      anchor: { type: 'timeline_start', offset: smp(-50) },
+      loop: true,
+      endMode: 'timeline_end',
+      endOffset: smp(80),
+    });
+    expect(placeOverlay(voice, bgm, smp(60))).toMatchObject({ range: { start: -50, end: 1580 } });
+  });
+  it('書き出す範囲は前後に置いた素材まで含む', () => {
+    const placed = placeOverlays(
+      voice,
+      [
+        clip({ id: 'op', kind: 'opening', anchor: { type: 'timeline_start', offset: smp(-100) } }),
+        clip({ id: 'ed', kind: 'ending', anchor: { type: 'timeline_end', offset: smp(100) } }),
+      ],
+      new Map([['asset', smp(100)]]),
+    );
+    expect(timelineBounds(voice, placed)).toEqual({ start: -100, end: 1600 });
+    expect(timelineBounds(voice, [])).toEqual({ start: 0, end: 1500 });
+  });
+});
+
+describe('isStructureClip（Issue #254）', () => {
+  it('本編の始まり・終わりに付いた素材だけを構成とみなす', () => {
+    const op = clip({ kind: 'opening', anchor: { type: 'timeline_start', offset: smp(-10) } });
+    const ed = clip({ kind: 'ending', anchor: { type: 'timeline_end', offset: smp(10) } });
+    const bgm = clip({
+      kind: 'bgm',
+      anchor: { type: 'timeline_start', offset: ZERO_SMP },
+      loop: true,
+      endMode: 'timeline_end',
+    });
+    const inserted = clip({
+      kind: 'bgm',
+      anchor: { type: 'source', takeId: 'A', srcSmp: smp(10) },
+      loop: true,
+      endMode: 'timeline_end',
+    });
+    expect([op, ed, bgm, inserted, clip({})].map(isStructureClip)).toEqual([
+      true,
+      true,
+      true,
+      false,
+      false,
+    ]);
   });
 });

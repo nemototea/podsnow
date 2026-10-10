@@ -166,7 +166,9 @@ export default function EpisodeScreen() {
     const duration = formatSmp(smp(r.durationSmp));
     showToast({
       text:
-        at === null ? t.record.takeAdded(duration) : t.record.takeInserted(duration, formatSmp(at)),
+        at === null
+          ? t.record.takeAdded(duration)
+          : t.record.takeInserted(duration, formatSmp(ws.toOutput(at))),
     });
   }, [showToast, state.recAt, t, ws]);
 
@@ -246,7 +248,8 @@ export default function EpisodeScreen() {
       }
       const where = at ?? state.playhead;
       const id = await ws.insertAsset(a, where);
-      if (id) toast1(t.record.insertedAt(a.name, formatSmp(where)), () => void ws.undo());
+      if (id)
+        toast1(t.record.insertedAt(a.name, formatSmp(ws.toOutput(where))), () => void ws.undo());
       return id;
     },
     [interrupted, isRec, services, showToast, state.playhead, t, toast1, ws],

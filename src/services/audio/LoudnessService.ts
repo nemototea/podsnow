@@ -216,7 +216,7 @@ export class LoudnessService {
     if (this.suspended) return;
     const doc = await renderDocumentFromDb(db, root, a.episodeId, { channels: a.channels });
     if (seq !== this.seq || this.active !== a) return;
-    if (doc.totalFrames <= 0) {
+    if (doc.voice.length === 0 || doc.totalFrames <= 0) {
       this.setStatus(IDLE);
       return;
     }

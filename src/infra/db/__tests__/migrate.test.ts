@@ -414,7 +414,7 @@ describe('migrate', () => {
       );
     }
 
-    expect((await migrate(db)).applied).toEqual(['0010_notes']);
+    expect((await migrate(db, MIGRATIONS.slice(0, 10))).applied).toEqual(['0010_notes']);
 
     // カンペは空から始まる（トークテーマは移さない）。録音（takes）は残る
     expect(await db.get('SELECT notes FROM episodes WHERE id = ?', ['e1'])).toEqual({ notes: '' });
@@ -433,6 +433,47 @@ describe('migrate', () => {
       { id: 'd2', body: 'はじめに\nおわり' },
       { id: 'd3', body: '{{title}} の回' },
     ]);
+  });
+
+  it('0011 adds the structure columns and keeps existing overlays as they were (Issue #254)', async () => {
+    const db = createNodeSqliteExecutor();
+    await migrate(db, MIGRATIONS.slice(0, 10));
+    const now = Date.now();
+    await db.run('INSERT INTO shows (id, created_at, updated_at) VALUES (?,?,?)', ['s1', now, now]);
+    await db.run('INSERT INTO show_layout (show_id) VALUES (?)', ['s1']);
+    await db.run(
+      'INSERT INTO episodes (id, show_id, title, created_at, updated_at) VALUES (?,?,?,?,?)',
+      ['e1', 's1', 'ep', now, now],
+    );
+    await db.run(
+      'INSERT INTO assets (id, show_id, kind, name, path, duration_smp, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)',
+      ['a1', 's1', 'bgm', 'BGM', 'assets/a1.wav', 48000, now, now],
+    );
+    await db.run(
+      'INSERT INTO overlay_clips (id, episode_id, asset_id, kind, anchor_type, loop, end_mode, updated_at) VALUES (?,?,?,?,?,?,?,?)',
+      ['o1', 'e1', 'a1', 'bgm', 'timeline_start', 1, 'timeline_end', now],
+    );
+
+    expect((await migrate(db)).applied).toEqual(['0011_structure_layout']);
+
+    // 既存の BGM は本編の終わりまでのまま
+    expect(await db.get('SELECT end_offset_smp FROM overlay_clips WHERE id = ?', ['o1'])).toEqual({
+      end_offset_smp: 0,
+    });
+    // 番組の既定は、流し終えてから話す形と、これまでの BGM のフェード
+    expect(
+      await db.get(
+        'SELECT opening_overlap_smp, ending_gap_smp, bgm_start_offset_smp, bgm_end_offset_smp, bgm_fade_in_smp, bgm_fade_out_smp FROM show_layout WHERE show_id = ?',
+        ['s1'],
+      ),
+    ).toEqual({
+      opening_overlap_smp: 0,
+      ending_gap_smp: 0,
+      bgm_start_offset_smp: 0,
+      bgm_end_offset_smp: 0,
+      bgm_fade_in_smp: 48000,
+      bgm_fade_out_smp: 96000,
+    });
   });
 
   it('calls beforeMigrate once with the old version only for an existing database with pending migrations', async () => {

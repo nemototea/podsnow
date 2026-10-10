@@ -4,6 +4,7 @@ import type { EditableDoc } from '@/domain/editing/doc';
 import { renderTemplate } from '@/domain/metadata/template';
 import { renderFingerprint } from '@/domain/render/fingerprint';
 import { smp, ZERO_SMP } from '@/domain/time';
+import { isStructureClip, overlaySourceLength } from '@/domain/timeline/overlays';
 import type { OverlayClip } from '@/domain/timeline/types';
 import type { SqlExecutor } from '@/infra/db/executor';
 import { getAsset } from '@/infra/db/repositories/assetsRepo';
@@ -27,6 +28,7 @@ import {
   getDefaultTemplate,
   getLayout,
   getShow,
+  updateLayout,
   type ShowRow,
 } from '@/infra/db/repositories/showsRepo';
 import { listPublishedNumbering } from '@/infra/db/repositories/feedEpisodesRepo';
@@ -117,37 +119,50 @@ export class EpisodeService {
     return soundSettingsFromShow(layout.bgm_duck_db);
   }
 
-  /** 新しい回の素材の配置（番組の既定構成。FR-EP-2）。 */
+  /**
+   * 新しい回の素材の配置（番組の既定構成。FR-EP-2）。
+   * オープニングは本編の前（負の位置）、エンディングは本編のあと、BGM は本編の下に置き、
+   * 番組が覚えている重なり・ずれ・フェードを当てる（Issue #254）。位置は本編に付くので、録るほど追従する。
+   */
   private async defaultOverlays(showId: string): Promise<OverlayClip[]> {
     const { db, newId } = this.deps;
     const layout = await getLayout(db, showId);
     const overlays: OverlayClip[] = [];
-    const base = {
-      srcStart: ZERO_SMP,
-      srcEnd: null,
-      fadeIn: ZERO_SMP,
-      fadeOut: ZERO_SMP,
-    } as const;
-    if (layout.opening_asset_id && (await getAsset(db, layout.opening_asset_id))) {
+    const base = { srcStart: ZERO_SMP, srcEnd: null } as const;
+    const opening = layout.opening_asset_id ? await getAsset(db, layout.opening_asset_id) : null;
+    if (opening) {
       overlays.push({
         ...base,
         id: newId(),
-        assetId: layout.opening_asset_id,
+        assetId: opening.id,
         kind: 'opening',
-        anchor: { type: 'timeline_start', offset: ZERO_SMP },
+        // 素材の終わりが本編の始まりより overlap だけ後ろ（0 なら流し終えてから話す）
+        anchor: {
+          type: 'timeline_start',
+          offset: smp(layout.opening_overlap_smp - opening.duration_smp),
+        },
         gainDb: layout.opening_gain_db,
+        fadeIn: smp(layout.opening_fade_in_smp),
+        fadeOut: smp(layout.opening_fade_out_smp),
         loop: false,
         endMode: 'asset_end',
       });
     }
-    if (layout.ending_asset_id && (await getAsset(db, layout.ending_asset_id))) {
+    const ending = layout.ending_asset_id ? await getAsset(db, layout.ending_asset_id) : null;
+    if (ending) {
       overlays.push({
         ...base,
         id: newId(),
-        assetId: layout.ending_asset_id,
+        assetId: ending.id,
         kind: 'ending',
-        anchor: { type: 'timeline_end', offset: ZERO_SMP },
+        // timeline_end は素材の末尾を本編の末尾に合わせる。長さ分ずらすと本編のあとに続く
+        anchor: {
+          type: 'timeline_end',
+          offset: smp(ending.duration_smp + layout.ending_gap_smp),
+        },
         gainDb: layout.ending_gain_db,
+        fadeIn: smp(layout.ending_fade_in_smp),
+        fadeOut: smp(layout.ending_fade_out_smp),
         loop: false,
         endMode: 'asset_end',
       });
@@ -158,15 +173,73 @@ export class EpisodeService {
         id: newId(),
         assetId: layout.bgm_asset_id,
         kind: 'bgm',
-        anchor: { type: 'timeline_start', offset: ZERO_SMP },
+        anchor: { type: 'timeline_start', offset: smp(layout.bgm_start_offset_smp) },
         gainDb: layout.bgm_gain_db,
-        fadeIn: smp(48000),
-        fadeOut: smp(96000),
+        fadeIn: smp(layout.bgm_fade_in_smp),
+        fadeOut: smp(layout.bgm_fade_out_smp),
         loop: true,
         endMode: 'timeline_end',
+        ...(layout.bgm_end_offset_smp ? { endOffset: smp(layout.bgm_end_offset_smp) } : {}),
       });
     }
     return overlays;
+  }
+
+  /**
+   * この回のオープニング・エンディング・BGM の並びを、番組の既定にする（Issue #254）。
+   * 次に作る回からこの形で始まる。作成済みの回は変えない。素材が無い枠は「付けない」にする。
+   * 音量・BGM を下げる量以外の、番組の設定画面にある値（素材の選択）もここで上書きする。
+   */
+  async saveStructureAsDefault(episodeId: string): Promise<void> {
+    const { db } = this.deps;
+    const ep = await getEpisode(db, episodeId);
+    if (!ep) return;
+    const doc = await loadDoc(db, episodeId);
+    // 本編の始まり・終わりに付いた構成の素材だけを見る（差し込んだ BGM などは含めない）
+    const find = (kind: OverlayClip['kind']) =>
+      doc.overlays.find((o) => o.kind === kind && isStructureClip(o)) ?? null;
+    const op = find('opening');
+    const ed = find('ending');
+    const bgm = find('bgm');
+    // 鳴らす長さ（素材の一部だけ使っていればその長さ）。置くときの長さ（`overlaySourceLength`）と同じ
+    const duration = async (o: OverlayClip | null) => {
+      if (!o) return null;
+      const asset = await getAsset(db, o.assetId);
+      return asset ? overlaySourceLength(o, smp(asset.duration_smp)) : null;
+    };
+    const opLen = await duration(op);
+    const edLen = await duration(ed);
+    const patch: Parameters<typeof updateLayout>[2] = {
+      openingAssetId: op && opLen !== null ? op.assetId : null,
+      endingAssetId: ed && edLen !== null ? ed.assetId : null,
+      bgmAssetId: bgm ? bgm.assetId : null,
+    };
+    if (op && opLen !== null && op.anchor.type === 'timeline_start') {
+      Object.assign(patch, {
+        openingOverlapSmp: op.anchor.offset + opLen,
+        openingGainDb: op.gainDb,
+        openingFadeInSmp: op.fadeIn,
+        openingFadeOutSmp: op.fadeOut,
+      });
+    }
+    if (ed && edLen !== null && ed.anchor.type === 'timeline_end') {
+      Object.assign(patch, {
+        endingGapSmp: ed.anchor.offset - edLen,
+        endingGainDb: ed.gainDb,
+        endingFadeInSmp: ed.fadeIn,
+        endingFadeOutSmp: ed.fadeOut,
+      });
+    }
+    if (bgm && bgm.anchor.type === 'timeline_start') {
+      Object.assign(patch, {
+        bgmStartOffsetSmp: bgm.anchor.offset,
+        bgmEndOffsetSmp: bgm.endMode === 'timeline_end' ? (bgm.endOffset ?? 0) : 0,
+        bgmGainDb: bgm.gainDb,
+        bgmFadeInSmp: bgm.fadeIn,
+        bgmFadeOutSmp: bgm.fadeOut,
+      });
+    }
+    await updateLayout(db, ep.show_id, patch);
   }
 
   async touch(id: string): Promise<void> {

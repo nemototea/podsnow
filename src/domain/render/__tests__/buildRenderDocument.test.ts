@@ -1,6 +1,11 @@
 import { smp, ZERO_SMP } from '../../time';
 import type { OverlayClip, VoiceSegment } from '../../timeline/types';
-import { buildRenderDocument, expandVoiceSegment, type TakeFile } from '../buildRenderDocument';
+import {
+  buildRenderDocument,
+  expandVoiceSegment,
+  outputOrigin,
+  type TakeFile,
+} from '../buildRenderDocument';
 import { DEFAULT_DUCKING, DEFAULT_LOUDNESS } from '../types';
 
 const seg = (
@@ -138,5 +143,63 @@ describe('buildRenderDocument', () => {
       loop: true,
       duck: true,
     });
+  });
+});
+
+describe('本編の前に素材があるとき（Issue #254）', () => {
+  const base = {
+    id: 'x',
+    srcStart: ZERO_SMP,
+    srcEnd: null,
+    gainDb: 0,
+    fadeIn: ZERO_SMP,
+    fadeOut: ZERO_SMP,
+    loop: false,
+    endMode: 'asset_end',
+  } as const;
+  const overlays: OverlayClip[] = [
+    {
+      ...base,
+      id: 'op',
+      assetId: 'O',
+      kind: 'opening',
+      anchor: { type: 'timeline_start', offset: smp(-200) },
+    },
+    {
+      ...base,
+      id: 'ed',
+      assetId: 'E',
+      kind: 'ending',
+      anchor: { type: 'timeline_end', offset: smp(150) },
+    },
+  ];
+  const assets = [
+    { assetId: 'O', path: '/assets/O.wav', duration: smp(200) },
+    { assetId: 'E', path: '/assets/E.wav', duration: smp(150) },
+  ];
+  it('いちばん前を 0 に合わせて全体をずらし、エンディングの終わりまでを長さにする', () => {
+    const doc = buildRenderDocument({
+      sampleRate: 48000,
+      channels: 1,
+      voice: [seg('b', 'B', 0, 300)],
+      overlays,
+      takeFiles: files,
+      assets,
+      ducking: DEFAULT_DUCKING,
+      loudness: DEFAULT_LOUDNESS,
+    });
+    expect(doc.totalFrames).toBe(200 + 300 + 150);
+    expect(doc.voice[0]).toMatchObject({ tlStart: 200 });
+    expect(doc.overlays.map((o) => [o.path, o.tlStart, o.tlEnd])).toEqual([
+      ['/assets/O.wav', 0, 200],
+      ['/assets/E.wav', 500, 650],
+    ]);
+    expect(
+      outputOrigin(
+        [seg('b', 'B', 0, 300)],
+        overlays,
+        new Map(assets.map((a) => [a.assetId, a.duration])),
+      ),
+    ).toBe(200);
   });
 });
