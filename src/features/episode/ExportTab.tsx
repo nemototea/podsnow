@@ -17,8 +17,6 @@ import {
   useT,
   type Messages,
 } from '@/i18n';
-import { isExportRunning, listExports, type ExportRow } from '@/infra/db/repositories/exportsRepo';
-import { getDefaultTemplate } from '@/infra/db/repositories/showsRepo';
 import type { LoudnessStatus } from '@/services/audio/LoudnessService';
 import { parseSoundSettings, type SoundSettings } from '@/services/audio/renderDocumentFromDb';
 import {
@@ -28,11 +26,13 @@ import {
   EXPORT_PRESETS,
   episodeExportPreset,
   exportLoudness,
+  isExportRunning,
   normalizeCustomExport,
   resolveExportPreset,
   type CustomExportSettings,
   type ExportPreset,
   type ExportPresetKey,
+  type ExportRow,
 } from '@/services/export/ExportService';
 import {
   artwork,
@@ -158,7 +158,7 @@ export function ExportTab({ ws, details, onShowToast, onDone, onGoEdit }: Export
   const t = useT();
   const locale = useLocale();
   const {
-    db,
+    shows,
     show,
     coverArt,
     episodes,
@@ -232,8 +232,8 @@ export function ExportTab({ ws, details, onShowToast, onDone, onGoEdit }: Export
   }, [episode, soundHydrated]);
 
   const reloadHistory = useCallback(async () => {
-    setHistory(await listExports(db, ws.state.episode?.id ?? ''));
-  }, [db, ws.state.episode?.id]);
+    setHistory(await exporter.list(ws.state.episode?.id ?? ''));
+  }, [exporter, ws.state.episode?.id]);
 
   useEffect(() => {
     // 読み込みはマイクロタスクへ逃がす（useWorkspace と同じ理由。Issue #86）。
@@ -772,7 +772,7 @@ export function ExportTab({ ws, details, onShowToast, onDone, onGoEdit }: Export
             kind="secondary"
             compact
             onPress={() => {
-              void getDefaultTemplate(db, show.id).then((tpl) => {
+              void shows.getDescriptionTemplate(show.id).then((tpl) => {
                 if (!tpl) {
                   onShowToast(t.details.noTemplate);
                   return;

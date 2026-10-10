@@ -56,6 +56,7 @@ export const SYMBOLS: Record<IconName, SFSymbol> = {
   published: 'dot.radiowaves.left.and.right',
   noAudio: 'waveform.slash',
   edit: 'pencil',
+  link: 'link',
   info: 'info.circle',
 };
 

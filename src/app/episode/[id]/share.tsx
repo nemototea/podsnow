@@ -11,9 +11,7 @@ import { shareExport } from '@/features/episode/shareExport';
 import { useCopy } from '@/features/episode/useCopy';
 import { useEpisode } from '@/features/episode/useEpisode';
 import { episodeName, errorText, formatDateTime, useLocale, useT } from '@/i18n';
-import { listExports, type ExportRow } from '@/infra/db/repositories/exportsRepo';
-import { fileExists } from '@/infra/files/fileSystem';
-import { joinRoot } from '@/infra/files/layout';
+import type { ExportRow } from '@/services/export/ExportService';
 import { exportLoudness } from '@/services/export/ExportService';
 import { radius, space, tabularNums, typography } from '@/ui/tokens';
 import { Button, Loading, Notice, Screen, Text, Toast } from '@/ui/components';
@@ -28,7 +26,7 @@ export default function DistributionPackScreen() {
   const t = useT();
   const locale = useLocale();
   const router = useRouter();
-  const { db, root, exporter } = useServices();
+  const { exporter } = useServices();
   const { episode } = useEpisode(episodeId);
   const { copied, copy } = useCopy();
   const { toast, show: showToast, act, dismiss } = useToast();
@@ -38,15 +36,15 @@ export default function DistributionPackScreen() {
   const [fileName, setFileName] = useState('');
 
   const load = useCallback(async () => {
-    const all = await listExports(db, episodeId);
+    const all = await exporter.list(episodeId);
     const done = all.filter((e) => e.status === 'done');
     const r = (exportId ? done.find((e) => e.id === exportId) : done[0]) ?? null;
     // 共有で実際に付く名前と同じもの（Issue #166）
     setFileName(r ? ((await exporter.shareFileName(r.id)) ?? '') : '');
     setLatestId(done[0]?.id ?? null);
     setRow(r);
-    setExists(r?.path ? fileExists(joinRoot(root, r.path)) : false);
-  }, [db, episodeId, exportId, exporter, root]);
+    setExists(r ? exporter.fileIsPresent(r) : false);
+  }, [episodeId, exportId, exporter]);
 
   useEffect(() => {
     let alive = true;
