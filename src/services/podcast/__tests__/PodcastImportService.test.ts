@@ -436,3 +436,109 @@ describe('PodcastImportService: same / different show (docs/podcast-import-cases
     expect(await codeOf(svc.previewRefresh(show.id))).toBe('import_other_show');
   });
 });
+
+describe('PodcastImportService.unimport（Issue #258）', () => {
+  const OTHER_URL = 'https://other.example.com/feed.xml';
+  const otherFeed = `<rss><channel><title>正しい番組</title>${[1, 2]
+    .map(
+      (n) =>
+        `<item><guid>b-${n}</guid><itunes:episode>${n}</itunes:episode><pubDate>${pubDate(n)}</pubDate></item>`,
+    )
+    .join('')}</channel></rss>`;
+  const routes = (): Record<string, Route> => ({
+    [FEED_URL]: { text: feedXml(item(119) + item(120)) },
+    [OTHER_URL]: { text: otherFeed },
+    [ART_URL]: { bytes: JPEG, contentType: 'image/jpeg' },
+  });
+
+  it('reports nothing to remove before the first import', async () => {
+    const { svc, show } = await setup(routes());
+    expect(await svc.unimportSummary(show.id)).toEqual({ imported: false, feedEpisodes: 0 });
+  });
+
+  it('removes the imported show, including hand-edited details, so another show can be imported', async () => {
+    const { svc, db, show, root } = await setup(routes());
+    await svc.commit(show.id, await svc.preview(show.id, { feedUrl: FEED_URL }));
+    // 取り込んだあとに手で直した名前・概要も消す（ユーザー判断 2026-10-10）
+    await updateShow(db, show.id, { name: '手で直した名前', description: '手で直した概要' }, 6000);
+    const imported = (await getShow(db, show.id))!;
+    expect(imported.cover_path).not.toBeNull();
+    expect(await svc.unimportSummary(show.id)).toEqual({ imported: true, feedEpisodes: 2 });
+
+    await svc.unimport(show.id, { showName: '仮の番組名' });
+
+    const after = (await getShow(db, show.id))!;
+    expect(after).toMatchObject({
+      name: '仮の番組名',
+      description: '',
+      author: '',
+      website_url: '',
+      language: '',
+      explicit: 0,
+      cover_path: null,
+      cover_source_url: null,
+      cover_color: null,
+      feed_url: null,
+      podcast_guid: null,
+      feed_imported_at: null,
+    });
+    expect(await listFeedEpisodes(db, show.id)).toEqual([]);
+    expect(await listCategories(db, show.id)).toEqual([]);
+    expect(await listFunding(db, show.id)).toEqual([]);
+    expect(await getExternalId(db, show.id, 'apple_podcasts')).toBeNull();
+    expect(fs.existsSync(path.join(root, imported.cover_path!))).toBe(false);
+
+    // 別の番組は「初めての取り込み」として入り、話数はその番組の続きになる
+    const other = await svc.preview(show.id, { feedUrl: OTHER_URL });
+    expect(other.identity).toBe('new');
+    await svc.commit(show.id, other);
+    expect((await getShow(db, show.id))!.name).toBe('正しい番組');
+    expect(initialNumbering(await listPublishedNumbering(db, show.id)).episodeNumber).toBe(3);
+  });
+
+  it('keeps local episodes (and their numbers) and PodsNow-only settings', async () => {
+    const { svc, db, show } = await setup(routes());
+    await svc.commit(show.id, await svc.preview(show.id, { feedUrl: FEED_URL }));
+    await db.run(
+      'INSERT INTO episodes (id, show_id, episode_number, created_at, updated_at) VALUES (?,?,?,?,?)',
+      ['ep-local', show.id, 121, 6000, 6000],
+    );
+    // 配信済みの回と結びついていても、手元の回は残す
+    await db.run('UPDATE feed_episodes SET episode_id = ? WHERE guid = ?', ['ep-local', 'ep-120']);
+    await db.run('UPDATE shows SET notes_template = ? WHERE id = ?', ['カンペ', show.id]);
+    await db.run('UPDATE show_layout SET bgm_gain_db = -20 WHERE show_id = ?', [show.id]);
+    const template = await db.get<{ body: string }>(
+      'SELECT body FROM description_templates WHERE show_id = ?',
+      [show.id],
+    );
+
+    await svc.unimport(show.id, { showName: '仮の番組名' });
+
+    expect(
+      await db.get('SELECT episode_number, deleted_at FROM episodes WHERE id = ?', ['ep-local']),
+    ).toEqual({ episode_number: 121, deleted_at: null });
+    expect((await getShow(db, show.id))!.notes_template).toBe('カンペ');
+    expect(
+      await db.get('SELECT bgm_gain_db FROM show_layout WHERE show_id = ?', [show.id]),
+    ).toEqual({ bgm_gain_db: -20 });
+    expect(
+      await db.get('SELECT body FROM description_templates WHERE show_id = ?', [show.id]),
+    ).toEqual(template);
+  });
+
+  it('changes nothing when the database write fails', async () => {
+    const { svc, db, show, root } = await setup(routes());
+    await svc.commit(show.id, await svc.preview(show.id, { feedUrl: FEED_URL }));
+    const before = (await getShow(db, show.id))!;
+    const run = db.run.bind(db);
+    db.run = async (sql, params) => {
+      if (sql.startsWith('UPDATE shows')) throw new Error('disk full');
+      return run(sql, params);
+    };
+    await expect(svc.unimport(show.id, { showName: '仮の番組名' })).rejects.toThrow('disk full');
+    db.run = run;
+    expect(await getShow(db, show.id)).toEqual(before);
+    expect(await listFeedEpisodes(db, show.id)).toHaveLength(2);
+    expect(fs.existsSync(path.join(root, before.cover_path!))).toBe(true);
+  });
+});

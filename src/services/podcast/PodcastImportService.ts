@@ -10,11 +10,14 @@ import { parsePodcastFeed } from '@/domain/podcast/parseFeed';
 import { AppError } from '@/domain/errors';
 import type { SqlExecutor } from '@/infra/db/executor';
 import {
+  countFeedEpisodes,
+  deleteFeedEpisodes,
   listFeedEpisodes,
   listPublishedNumbering,
   upsertFeedEpisodes,
 } from '@/infra/db/repositories/feedEpisodesRepo';
 import {
+  deleteExternalIds,
   getExternalId,
   getShow,
   replaceCategories,
@@ -62,6 +65,14 @@ export interface ImportResult {
   episodes: number;
   /** アートワークを保存できたか。失敗しても取り込み自体は成功させる */
   coverSaved: boolean;
+}
+
+/** 取り込みの解除で消えるもの（確認に数字で出す。Issue #258）。 */
+export interface UnimportSummary {
+  /** 取り込み済みか。まだなら解除するものが無い */
+  imported: boolean;
+  /** 消える配信済みの回の数 */
+  feedEpisodes: number;
 }
 
 export function assertHttps(url: string): void {
@@ -249,6 +260,70 @@ export class PodcastImportService {
     }
     await this.removeStaleCovers(showId);
     return { episodes: items.length, coverSaved: coverPath !== null };
+  }
+
+  async unimportSummary(showId: string): Promise<UnimportSummary> {
+    const { db } = this.deps;
+    const [show, feedEpisodes] = await Promise.all([
+      getShow(db, showId),
+      countFeedEpisodes(db, showId),
+    ]);
+    return { imported: show?.feed_imported_at != null, feedEpisodes };
+  }
+
+  /**
+   * 取り込みを解除する（Issue #258、docs/podcast-import-cases.md A-1）。
+   * 番組情報（手で直した名前・概要を含む）・アートワーク・配信済みの回・外部 ID・カテゴリー・支援リンクを消し、
+   * 別の番組を取り込める状態（判定が `new`）に戻す。番組名は初期値（`showName`）にする。
+   *
+   * 消さないもの: 手元のエピソード（録音・話数）、素材、既定の構成、カンペのひな形、概要欄テンプレート。
+   * 話数は配信済みの回が正なので、手元のエピソードの話数は触らない（ユーザー判断 2026-10-10）。
+   */
+  async unimport(showId: string, labels: { showName: string }): Promise<void> {
+    const { db, fs, root, newId, now } = this.deps;
+    const before = await getShow(db, showId);
+    if (!before) return;
+    const t = now();
+    await db.transaction(async () => {
+      await deleteFeedEpisodes(db, showId);
+      await deleteExternalIds(db, showId);
+      await replaceCategories(db, showId, [], newId);
+      await replaceFunding(db, showId, [], newId);
+      await updateShow(
+        db,
+        showId,
+        {
+          name: labels.showName,
+          description: '',
+          author: '',
+          websiteUrl: '',
+          language: '',
+          explicit: false,
+          showType: 'episodic',
+          copyright: '',
+          ownerName: '',
+          ownerEmail: '',
+          complete: false,
+          locked: false,
+          feedUrl: null,
+          podcastGuid: null,
+          coverPath: null,
+          coverSourceUrl: null,
+          coverColor: null,
+          feedImportedAt: null,
+        },
+        t,
+      );
+    });
+    // DB が「画像なし」で確定してからファイルを消す。残っても次の取り込み・画像の設定で片付く（CoverArtService と同じ）
+    if (before.cover_path) {
+      try {
+        fs.delete(joinRoot(root, before.cover_path));
+      } catch {
+        // 孤立ファイルは removeStaleCovers が回収する
+      }
+    }
+    await this.removeStaleCovers(showId);
   }
 
   /** アートワークを取得して保存し、相対パスを返す。失敗したら null（取り込みは続ける）。 */

@@ -103,7 +103,8 @@ export const en: Messages = {
     import_too_large: (maxMb: string) => `The file is too large (limit ${maxMb} MB)`,
     import_not_a_feed: 'This could not be read as a podcast RSS feed. Check the URL',
     import_no_feed_url: 'This podcast does not publish an RSS URL, so it cannot be imported',
-    import_other_show: 'Another show is already imported. You can have one show',
+    import_other_show:
+      'Another show is already imported. Remove the import from the … menu on the show screen to import a different show',
     import_unsupported_encoding: (encoding: string) =>
       `This RSS uses an unsupported encoding (${encoding}). Only UTF-8 feeds can be loaded`,
     cover_processing_failed: 'Could not save the artwork',
@@ -220,6 +221,11 @@ Tag #PodsNow to share your thoughts`,
 
   podcastImport: {
     title: 'Import an existing show',
+    unimport: 'Remove imported show',
+    confirmUnimport: (feedEpisodes: number) =>
+      `This deletes the show details such as the name and description (including your own edits) and the artwork${feedEpisodes > 0 ? `, plus the record of ${feedEpisodes} published ${feedEpisodes === 1 ? 'episode' : 'episodes'}` : ''}, so you can import a different show. Your recorded episodes, sounds and templates stay. This can’t be undone.`,
+    unimportConfirm: 'Remove',
+    unimported: 'Removed the imported show',
     searchLabel: 'Show name',
     searchPlaceholder: 'Search by show name',
     search: 'Search',

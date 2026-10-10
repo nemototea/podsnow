@@ -351,3 +351,8 @@ export async function setExternalId(
     [showId, provider, externalId, now],
   );
 }
+
+/** 外部サービスでの番組 ID をすべて消す（取り込みの解除。Issue #258）。トランザクションは呼び出し側で張る。 */
+export async function deleteExternalIds(db: SqlExecutor, showId: string): Promise<void> {
+  await db.run('DELETE FROM show_external_ids WHERE show_id = ?', [showId]);
+}

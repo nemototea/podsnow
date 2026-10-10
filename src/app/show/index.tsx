@@ -336,6 +336,36 @@ export default function ShowScreen() {
     }
   };
 
+  /** 取り込みの解除（Issue #258）。消えるものを数字で伝えてから実行する。 */
+  const confirmUnimport = async () => {
+    try {
+      const { feedEpisodes } = await services.podcastImport.unimportSummary(showId);
+      confirmDestructive({
+        title: t.podcastImport.unimport,
+        message: t.podcastImport.confirmUnimport(feedEpisodes),
+        confirmLabel: t.podcastImport.unimportConfirm,
+        cancelLabel: t.common.cancel,
+        onConfirm: () => void unimport(),
+      });
+    } catch (e) {
+      showToast({ text: errorText(t, e) });
+    }
+  };
+
+  const unimport = async () => {
+    try {
+      // 消える配信済みの回を再生していたら止める（ミニプレーヤーに消えた回を残さない）
+      if (services.playback.source?.kind === 'rss') await services.playback.stopHome();
+      await services.podcastImport.unimport(showId, { showName: t.seed.showName });
+      await services.reloadShow();
+      await reload();
+      await reloadList();
+      showToast({ text: t.podcastImport.unimported });
+    } catch (e) {
+      showToast({ text: errorText(t, e) });
+    }
+  };
+
   const setSlot = async (slot: LayoutSlot, assetId: string | null) => {
     setPicking(null);
     stopPreview();
@@ -434,6 +464,17 @@ export default function ShowScreen() {
       label: services.show.feed_url ? t.home.reimportShow : t.home.importShow,
       onPress: () => router.push('/import'),
     },
+    ...(data.show?.feed_imported_at != null
+      ? [
+          {
+            key: 'unimport',
+            icon: 'trash' as const,
+            label: t.podcastImport.unimport,
+            destructive: true,
+            onPress: () => void confirmUnimport(),
+          },
+        ]
+      : []),
   ];
 
   return (
