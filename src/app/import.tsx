@@ -5,7 +5,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { AppError } from '@/domain/errors';
 import type { DirectoryResult } from '@/domain/podcast/directory';
 import { useServices } from '@/features/app/ServicesProvider';
-import { CATALOGS, errorText, useLocale, useT } from '@/i18n';
+import { errorText, useLocale, useT } from '@/i18n';
 import { useDeviceRegion } from '@/i18n/deviceLocale';
 import type {
   ImportPreview,
@@ -33,8 +33,6 @@ import { hit, space, typography } from '@/ui/tokens';
 /** 一覧のアートワーク。行の高さ（hit.min）に収める */
 const THUMB = hit.min;
 const COVER = 160;
-/** 概要欄テンプレートの初期値（全言語。どの言語で作られたか分からないため。Issue #260） */
-const SEED_TEMPLATES = Object.values(CATALOGS).map((m) => m.seed.descriptionTemplate);
 
 type Step =
   | { kind: 'search' }
@@ -102,9 +100,7 @@ export default function ImportScreen() {
         : await podcastImport.preview(showId, source);
       const { episodeNumber: nextNumber } = await podcastImport.numberingAfter(showId, preview);
       // 読み込み直しでは PodsNow だけの設定に触らない（#139）
-      const template = refresh
-        ? null
-        : await podcastImport.templateSuggestion(showId, preview, SEED_TEMPLATES);
+      const template = refresh ? null : await podcastImport.templateSuggestion(showId, preview);
       setStep({
         kind: 'preview',
         preview,
@@ -112,7 +108,8 @@ export default function ImportScreen() {
         saving: false,
         refresh,
         template,
-        useTemplate: template?.preselect ?? false,
+        // 候補があれば既定で選んでおく。今のひな形を残したい人が外す（ユーザー判断 2026-10-10）
+        useTemplate: template !== null,
       });
     } catch (e) {
       setError(errorText(t, e));
