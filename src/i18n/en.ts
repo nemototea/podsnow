@@ -8,6 +8,20 @@
 
 import type { Messages } from './types';
 
+/** 番組の言語（`shows.language` の主の部分）の英語名。ここに無い言語はコードのまま出す。 */
+const LANGUAGE_NAMES: Readonly<Record<string, string>> = {
+  ja: 'Japanese',
+  en: 'English',
+  zh: 'Chinese',
+  ko: 'Korean',
+  es: 'Spanish',
+  fr: 'French',
+  de: 'German',
+  it: 'Italian',
+  pt: 'Portuguese',
+  ru: 'Russian',
+};
+
 export const en: Messages = {
   app: {
     name: 'PodsNow',
@@ -253,6 +267,11 @@ Tag #PodsNow to share your thoughts`,
       'The latest full episode in the RSS has no number, so new episodes start without one. Add it in each episode’s “Other details” if you use numbers',
     overwriteNote:
       'This replaces the name, description, author and other details. Anything the RSS leaves out keeps its current value',
+    templateHeader: 'Description template',
+    useTemplate: 'Use this as the description template',
+    templateHelp:
+      'Lines shared by the latest episode descriptions. Choosing this replaces your current template. You can edit it later in the show settings',
+    templateSaved: 'Also saved the description template',
     confirm: 'Import',
     back: 'Search again',
     cannotLeave: 'Please wait until the import finishes',
@@ -591,12 +610,27 @@ Tag #PodsNow to share your thoughts`,
     a11yEditEpisode: (label: string) => `Edit ${label}`,
     a11yShareEpisode: (label: string) => `Share ${label}`,
     editShowInfo: 'Edit show details',
-    a11yEditShowInfo: 'Edit the show name, description, author and default season',
+    a11yEditShowInfo: 'Edit the show name, description, author, website, category and language',
     a11ySaveShowInfo: 'Done, save show details',
     showInfoSaved: 'Saved the show details',
     name: 'Show name',
     description: 'Description',
     author: 'Author',
+    website: 'Website',
+    websitePlaceholder: 'https://',
+    category: 'Category',
+    subcategory: 'Subcategory',
+    language: 'Language',
+    explicit: 'Contains explicit content',
+    explicitBadge: 'E',
+    aboutMore: 'More',
+    aboutLess: 'Less',
+    writeAbout: 'Write a show description',
+    a11yOpenWebsite: (site: string) => `Open the website ${site}`,
+    // Apple の分類名は英語なので、そのまま出す
+    categoryName: (name: string) => String(name),
+    languageName: (code: string) => LANGUAGE_NAMES[code] ?? String(code),
+    a11yLanguage: (language: string) => `Language: ${language}`,
     artworkA11y: 'Show artwork',
     chooseArtwork: 'Choose image',
     changeArtwork: 'Change image',
@@ -663,6 +697,10 @@ Tag #PodsNow to share your thoughts`,
 
   glossary: {
     a11yInfo: (term: string) => `About ${term}`,
+    explicit: {
+      term: 'Explicit content',
+      body: 'Turn this on if the show contains sexual content, strong language or graphic violence. Podcast apps mark the show with an “E” and may hide it under parental restrictions.',
+    },
     ducking: {
       term: 'Ducking',
       body: 'Automatically turns the BGM down while someone is talking, so the voice stays clear over the music.',

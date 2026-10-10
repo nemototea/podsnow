@@ -257,6 +257,25 @@ export async function updateTemplate(
   ]);
 }
 
+/** 既定の概要欄テンプレートの本文を書き換える。無ければ既定として作る（Issue #260）。 */
+export async function setDefaultTemplateBody(
+  db: SqlExecutor,
+  showId: string,
+  body: string,
+  newId: () => string,
+  now: number,
+): Promise<void> {
+  const current = await getDefaultTemplate(db, showId);
+  if (current) {
+    await updateTemplate(db, current.id, body, now);
+    return;
+  }
+  await db.run(
+    'INSERT INTO description_templates (id, show_id, body, is_default, created_at, updated_at) VALUES (?,?,?,?,?,?)',
+    [newId(), showId, body, 1, now, now],
+  );
+}
+
 export interface ShowCategoryRow extends SqlRow {
   id: string;
   show_id: string;

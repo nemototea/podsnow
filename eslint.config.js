@@ -88,6 +88,33 @@ module.exports = defineConfig([
     },
   },
   {
+    // 画面と features は services を通して DB・ファイル・ネイティブに触る（AGENTS.md、ARCHITECTURE.md §2）。
+    // 行の型（`type EpisodeRow` など）を import するのはよい。
+    // 次の 3 つは収録タブの読み込み・波形・モニター再生を services へ移すまでの例外（Issue #259 で残した）。
+    files: ['src/app/**/*.{ts,tsx}', 'src/features/**/*.{ts,tsx}'],
+    ignores: [
+      '**/__tests__/**',
+      'src/features/episode/useWorkspace.ts',
+      'src/features/episode/peaks.ts',
+      'src/features/episode/monitor.ts',
+    ],
+    rules: {
+      '@typescript-eslint/no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['@/infra/*'],
+              allowTypeImports: true,
+              message:
+                '画面と features は infra を直接呼ばない。`src/services/` に入口を作って経由する。',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     // domain/ は副作用を持たない（ARCHITECTURE.md §2）
     files: ['src/domain/**/*.ts'],
     rules: {

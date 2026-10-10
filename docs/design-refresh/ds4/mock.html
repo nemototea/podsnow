@@ -164,6 +164,15 @@ figcaption span { color: var(--sub); font-size: 13.5px; line-height: 1.7; }
 .showhead .by { font-size: 13px; color: rgba(255,255,255,.75); display: flex; gap: 8px; align-items: center; }
 .showhead .by .avatar { width: 22px; height: 22px; font-size: 10px; }
 .showhead .by b { color: var(--fg); }
+.showhead .about { display: grid; gap: 4px; justify-items: start; text-align: left; font-size: 13px; line-height: 1.55; }
+.showhead .about p { margin: 0; color: rgba(255,255,255,.75); white-space: pre-wrap; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.showhead .about.open p { display: block; }
+.showhead .about b { font-weight: 700; }
+.showhead .write { display: flex; gap: 8px; align-items: center; font-size: 13px; font-weight: 700; }
+.showhead .facts { display: grid; gap: 10px; }
+.showhead .cats { display: flex; flex-wrap: wrap; gap: 8px; }
+.showhead .meta { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 12.5px; color: rgba(255,255,255,.75); }
+.showhead .meta .site { display: flex; gap: 6px; align-items: center; font-weight: 700; color: var(--fg); }
 .actions { display: flex; align-items: center; gap: 6px; }
 .actions .ib { color: rgba(255,255,255,.75); }
 .actions .grow { flex: 1; }
@@ -289,6 +298,32 @@ figcaption span { color: var(--sub); font-size: 13.5px; line-height: 1.7; }
 .checks { display: grid; gap: 10px; background: var(--s1); border-radius: 8px; padding: 14px; }
 .check { display: flex; align-items: center; gap: 10px; font-size: 13.5px; }
 .check .dot { width: 20px; height: 20px; border-radius: 50%; background: var(--accent); color: var(--accent-ink); display: grid; place-items: center; flex: none; }
+
+/* ---------- 6. 取り込み（Issue #260） ---------- */
+.im { padding: 0 16px 20px; }
+.im .h2 { line-height: 32px; margin: 22px 0 12px; }
+.im .h2:first-child { margin-top: 0; }
+.imcard { background: var(--s1); border-radius: 8px; padding: 14px; margin-bottom: 12px; }
+.imtop { display: grid; justify-items: center; gap: 8px; margin-bottom: 16px; text-align: center; }
+.imtop .art { width: 160px; height: 160px; font-size: 22px; padding: 12px; }
+.imtop b { font-size: 18px; line-height: 23px; font-weight: 800; }
+.imtop span { font-size: 12.5px; line-height: 19px; color: var(--sub); }
+.imcard p { margin: 0; font-size: 13.5px; line-height: 20px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.imcard .desc { color: var(--sub); display: -webkit-box; -webkit-line-clamp: 8; -webkit-box-orient: vertical; overflow: hidden; }
+.imcard .meta { display: grid; gap: 4px; margin-top: 16px; }
+.imcard .meta b { font-size: 13.5px; line-height: 20px; font-weight: 600; }
+.imcard .meta span { font-size: 12.5px; line-height: 19px; color: var(--sub); }
+.imrow { display: flex; align-items: center; gap: 12px; min-height: 48px; padding: 10px 0 0; }
+.imrow div { flex: 1; min-width: 0; display: grid; }
+.imrow b { font-size: 14.5px; line-height: 21px; font-weight: 600; }
+.imrow small { font-size: 12.5px; line-height: 19px; color: var(--sub); }
+.switch { width: 51px; height: 31px; border-radius: var(--r-pill); background: var(--s3); position: relative; flex: none; }
+.switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 27px; height: 27px; border-radius: 50%; background: #fff; box-shadow: 0 2px 4px rgba(0,0,0,.3); transition: transform .2s; }
+.switch[aria-checked="true"] { background: var(--accent); }
+.switch[aria-checked="true"]::after { transform: translateX(20px); }
+.notice { display: flex; gap: 10px; align-items: flex-start; background: var(--s2); border-radius: 8px; padding: 10px 12px; margin-bottom: 12px; color: var(--sub); }
+.notice b { flex: 1; color: var(--fg); font-size: 13.5px; line-height: 20px; font-weight: 600; }
+.imbtns { display: grid; gap: 8px; margin-top: 16px; }
 .check .val { color: var(--sub); margin-left: auto; font-size: 12px; font-variant-numeric: tabular-nums; }
 .fields { display: grid; }
 .fields h4 { margin: 0 0 4px; font-size: 15px; font-weight: 800; }
@@ -405,6 +440,12 @@ figcaption span { color: var(--sub); font-size: 13.5px; line-height: 1.7; }
           <div class="art" data-art="cover"></div>
           <h3 data-b="name"></h3>
           <div class="by"><div class="avatar">N</div><b>nemoto</b> · <span data-b="count"></span></div>
+          <button class="about" id="about" aria-expanded="false"><p data-b="about"></p><b>もっと見る</b></button>
+          <button class="write" id="aboutWrite" data-ic="pen-sm" hidden>番組の紹介を書く</button>
+          <div class="facts" id="facts">
+            <div class="cats" id="cats"></div>
+            <div class="meta"><span class="pill ok" id="explicit" aria-label="露骨な表現を含む" title="露骨な表現を含む">E</span><button class="site" id="site" data-ic="link"><span data-b="site"></span></button><span id="langDot">·</span><span data-b="lang"></span></div>
+          </div>
           <div class="actions">
             <button class="ib" data-ic="pen"></button>
             <button class="ib" data-ic="share"></button>
@@ -444,7 +485,7 @@ figcaption span { color: var(--sub); font-size: 13.5px; line-height: 1.7; }
         </nav>
       </div>
     </div>
-    <figcaption><b>2. 番組</b><span>上部のグラデーションはアートワークの代表色から作ります。録音ボタンだけは番組に関係なくアクセント色で、どの番組でも同じ場所・同じ色です。</span></figcaption>
+    <figcaption><b>2. 番組</b><span>上部のグラデーションはアートワークの代表色から作ります。録音ボタンだけは番組に関係なくアクセント色で、どの番組でも同じ場所・同じ色です。著者の下に番組の紹介を 3 行まで出し、押すと全文が開きます。その下はカテゴリー・Web サイト・言語のうち値のあるものだけで、Web サイトは押すとブラウザで開きます。露骨な表現を含む番組（「週末シネマ部」）は先頭に「E」の札が付きます。紹介が空の番組（「いまここ雑談」）は「番組の紹介を書く」から編集シートを開きます。直すのは今までどおり鉛筆からです（Issue #259）。</span></figcaption>
   </figure>
 
   <!-- 3. Recording -->
@@ -633,6 +674,46 @@ figcaption span { color: var(--sub); font-size: 13.5px; line-height: 1.7; }
     </div>
     <figcaption><b>5. 書き出し</b><span>ここも無彩色とアクセントだけです。番組らしさはアートワークの画像で十分に出るので、画面全体を塗る必要はありません。</span></figcaption>
   </figure>
+
+  <!-- 6. Import preview（Issue #260） -->
+  <figure>
+    <div class="phone">
+      <div class="status"><span>9:41</span><span>100%</span></div>
+      <div class="ephead">
+        <div class="row"><button class="ib" data-ic="back"></button><b>配信中の番組を取り込む</b><span class="ib"></span></div>
+      </div>
+      <div class="scroll" id="imScroll">
+        <div class="im">
+          <h2 class="h2">この番組を取り込みますか？</h2>
+          <div class="imcard">
+            <div class="imtop">
+              <div class="art" data-art="cover"></div>
+              <b data-b="name"></b>
+              <span>nemoto</span>
+            </div>
+            <p class="desc" id="imAbout" data-b="about"></p>
+            <div class="meta"><b data-b="imcount"></b><span data-b="imnext"></span></div>
+          </div>
+          <div id="imTpl">
+            <h2 class="h2">概要欄のひな形</h2>
+            <div class="imcard">
+              <p data-b="tpl"></p>
+              <div class="imrow">
+                <div><b>この内容を概要欄のひな形にする</b><small>直近の回の概要に共通する行です。選ぶと今のひな形を置き換えます。あとで番組の設定から直せます</small></div>
+                <button class="switch" id="tplSwitch" role="switch" aria-checked="true" aria-label="この内容を概要欄のひな形にする"></button>
+              </div>
+            </div>
+          </div>
+          <div class="notice"><span data-ic="flag-sm"></span><b>番組名・概要・著者などを、この内容で上書きします。RSS に無い項目は今の値を残します</b></div>
+          <div class="imbtns">
+            <button class="btn pri">取り込む</button>
+            <button class="btn">探し直す</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <figcaption><b>6. 取り込み（プレビュー）</b><span>配信中の番組を初めて取り込むとき、直近 5 回の概要に共通する行（お便りフォーム、SNS、ハッシュタグなど）を「概要欄のひな形」の候補として見せます。中身を見たうえで、スイッチを入れたときだけ取り込みと一緒に保存します。今のひな形が空か初期値のままなら最初からオン、手で書いたひな形があればオフで出します。共通する行が無い番組（「いまここ雑談」）では欄ごと出しません。読み込み直しでも出しません。候補がある番組では、図を候補が見える位置まで下げています（Issue #260）。</span></figcaption>
+  </figure>
 </main>
 
 <section class="logo-sec">
@@ -696,6 +777,7 @@ figcaption span { color: var(--sub); font-size: 13.5px; line-height: 1.7; }
     back: '<path d="M15 5 8 12l7 7" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>',
     down: '<path d="m5 9 7 7 7-7" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>',
     pen: '<path d="M4 20h4L19 9l-4-4L4 16z" stroke="currentColor" stroke-width="2" fill="none" stroke-linejoin="round"/>',
+    link: '<path d="M10 14a4.5 4.5 0 0 0 6.4 0l3.2-3.2a4.5 4.5 0 0 0-6.4-6.4L11.6 6M14 10a4.5 4.5 0 0 0-6.4 0l-3.2 3.2a4.5 4.5 0 0 0 6.4 6.4l1.6-1.6" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>',
     share: '<path d="M12 3v12M7 8l5-5 5 5M5 14v6h14v-6" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>',
     undo: '<path d="M9 14 4 9l5-5" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 9h10a6 6 0 0 1 0 12h-3" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>',
     redo: '<path d="m15 14 5-5-5-5" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M20 9H10a6 6 0 0 0 0 12h3" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>',
@@ -704,7 +786,7 @@ figcaption span { color: var(--sub); font-size: 13.5px; line-height: 1.7; }
     trash: '<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" stroke="currentColor" stroke-width="2" fill="none" stroke-linejoin="round"/>',
     check: '<path d="m5 12 4.5 4.5L19 7" stroke="currentColor" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>'
   };
-  var SIZES = { 'mic-lg': ['mic', 26], 'mic-sm': ['mic', 15], note: ['note', 15], check: ['check', 12], trash: ['trash', 18], share: ['share', 20] };
+  var SIZES = { 'mic-lg': ['mic', 26], 'mic-sm': ['mic', 15], note: ['note', 15], check: ['check', 12], trash: ['trash', 18], share: ['share', 20], 'pen-sm': ['pen', 15], link: ['link', 15], 'flag-sm': ['flag', 18] };
   document.querySelectorAll('[data-ic]').forEach(function (el) {
     var k = el.getAttribute('data-ic'), size = 22, name = k;
     if (SIZES[k]) { name = SIZES[k][0]; size = SIZES[k][1]; }
@@ -717,24 +799,34 @@ figcaption span { color: var(--sub); font-size: 13.5px; line-height: 1.7; }
   /* ---------- shows（色は本来アートワーク画像から取る。ここでは代表色を手で与える） ---------- */
   var SHOWS = [
     { key: 'yoru', name: '夜更けのラジオ', cover: '夜更けの<br>ラジオ', count: '43 エピソード', dominant: '#c4492f',
+      about: '眠れない夜に、ひとりで話すラジオ。読んだ本、見つけた古いもの、雨の日のこと。\n毎週土曜の夜に更新しています。お便りは概要欄のフォームから。番組の感想は #夜更けのラジオ でどうぞ。',
+      cats: ['社会/文化', '日記・個人', 'アート', '本'], site: 'yofuke-radio.example', lang: '日本語',
+      tpl: '――――――\nお便りはこちら: https://forms.example/yofuke\n番組の感想は #夜更けのラジオ で',
       eps: [
         { no: 43, t: '寝る前に読む本', d: '眠れない夜に開く本の話。途中まで収録済み。', dur: '18:04' },
         { no: 42, t: '雨の日の話', d: '梅雨が明けたのに雨ばかり。雨の日にしかしないことを 3 つ話しました。', dur: '29:51', date: '9月27日', day: '2026年9月27日' },
         { no: 41, t: '古い手帳を見つけた', d: '引っ越しの片付けで出てきた 2014 年の手帳。当時の予定を読み上げます。', dur: '24:17', date: '9月20日' }],
       notes: 'オープニング: 今夜は寝る前に読む本の話\n・最近、寝る前に読んで眠れなくなった本\n　→ 最後の 50 ページで朝になった\n・紙と電子のどちら派か\n・おたより 2 通（「積読が減りません」）\nエンディング: 次回は「雨の日の話」の続き' },
     { key: 'coffee', name: '朝のコーヒー会議', cover: '朝の<br>コーヒー<br>会議', count: '128 エピソード', dominant: '#1d8c84',
+      about: 'コーヒー好きの 2 人が、出勤前の 20 分で話す番組。豆、道具、喫茶店。',
+      cats: ['フード', '趣味'], site: 'coffee-kaigi.example', lang: '日本語',
+      tpl: 'お便り: https://forms.example/coffee\nX: @coffee_kaigi\n\nBGM: 喫茶の朝（フリー素材）',
       eps: [
         { no: 129, t: '浅煎りに戻れない', d: '深煎り派だった 2 人が浅煎りに転んだ経緯。いま収録中。', dur: '09:12' },
         { no: 128, t: 'ハンドドリップの道具', d: 'ケトル、ドリッパー、スケール。最初に買うならどれか。', dur: '21:40', date: '10月1日', day: '2026年10月1日' },
         { no: 127, t: '近所の喫茶店ベスト 3', d: 'リスナーのおすすめを全部回ってきました。', dur: '26:05', date: '9月24日' }],
       notes: 'オープニング: 深煎り派だった 2 人の近況\n・浅煎りを初めておいしいと思った日\n・家で淹れるときの失敗\n　→ 湯の温度、挽き目\n・おすすめの豆を 1 つずつ\nエンディング: おたより募集' },
     { key: 'cinema', name: '週末シネマ部', cover: '週末<br>シネマ部', count: '67 エピソード', dominant: '#b8123c',
+      about: '週末に観た映画を、ネタバレ控えめで語ります。新作も旧作も、映画館も配信も。毎週日曜の朝に更新。リクエストはお便りフォームから受け付けています。',
+      cats: ['テレビ/映画', '映画レビュー'], site: '', lang: '日本語', explicit: true,
+      tpl: 'リクエストはお便りフォームから: https://forms.example/cinema\n#週末シネマ部',
       eps: [
         { no: 68, t: '字幕と吹替', d: '同じ映画を字幕と吹替で 2 回観て比べた話。', dur: '14:30' },
         { no: 67, t: '秋に観たい 5 本', d: '涼しくなってきたので、夜長に向く映画を 5 本選びました。', dur: '33:12', date: '9月30日', day: '2026年9月30日' },
         { no: 66, t: '映画館の座席はどこがいい', d: '前方派と後方派で 30 分揉めました。', dur: '28:48', date: '9月23日' }],
       notes: 'オープニング: 同じ映画を 2 回観た話\n・吹替のほうが良かった映画\n・字幕の文字数の制約\n　→ 1 秒に 4 文字\n・次に吹替で観たい 1 本\nエンディング: 来週は秋の映画' },
     { key: 'ima', name: 'いまここ雑談', cover: 'いまここ<br>雑談', count: '12 エピソード', dominant: '#1f5fd6',
+      about: '', cats: [], site: '', lang: '', tpl: '',
       eps: [
         { no: 13, t: '散歩のルール', d: '毎朝の散歩で決めているルールを紹介。', dur: '06:51' },
         { no: 12, t: '最近買ってよかったもの', d: '今月の買い物から 3 つ。', dur: '19:22', date: '10月3日', day: '2026年10月3日' },
@@ -808,7 +900,25 @@ figcaption span { color: var(--sub); font-size: 13.5px; line-height: 1.7; }
   function applyShow(i) {
     cur = i; var s = SHOWS[i];
     setVars(derive(s.dominant));
-    var b = { name: s.name, count: s.count, notes: s.notes };
+    var b = { name: s.name, count: s.count, notes: s.notes, about: s.about, site: s.site, lang: s.lang, tpl: s.tpl };
+    // 取り込みのプレビュー。ひな形の候補は共通する行があるときだけ（Issue #260）
+    var published = parseInt(s.count, 10);
+    b.imcount = '配信済みの回 ' + published + ' 本';
+    b.imnext = '次の新しいエピソードは #' + (published + 1) + ' から';
+    document.getElementById('imAbout').hidden = !s.about;
+    document.getElementById('imTpl').hidden = !s.tpl;
+    document.getElementById('tplSwitch').setAttribute('aria-checked', 'true');
+    // 番組の紹介と詳細は値のあるものだけ（Issue #259）
+    var about = document.getElementById('about');
+    about.hidden = !s.about; about.classList.remove('open'); about.setAttribute('aria-expanded', 'false');
+    about.querySelector('b').textContent = 'もっと見る';
+    document.getElementById('aboutWrite').hidden = !!s.about;
+    document.getElementById('cats').innerHTML = s.cats.map(function (c) { return '<span class="chip">' + c + '</span>'; }).join('');
+    document.getElementById('cats').hidden = !s.cats.length;
+    document.getElementById('site').hidden = !s.site;
+    document.getElementById('langDot').hidden = !(s.site && s.lang);
+    document.getElementById('explicit').hidden = !s.explicit;
+    document.getElementById('facts').hidden = !(s.cats.length || s.site || s.lang || s.explicit);
     s.eps.forEach(function (e, k) {
       // 一覧・見出し・ミニプレーヤーには話数を出さず題だけ（Issue #211）
       b['ep' + k] = e.t;
@@ -1035,6 +1145,37 @@ figcaption span { color: var(--sub); font-size: 13.5px; line-height: 1.7; }
   var startLogo = 'a';
   try { var sl = localStorage.getItem('pn-logo2'); if (sl === 'a' || sl === 'b' || sl === 'c') startLogo = sl; } catch (e) {}
   setLogo(startLogo);
+
+  // 紹介は 3 行まで。収まらないときだけ「もっと見る」を出し、押すと全文（Issue #259）
+  var aboutBtn = document.getElementById('about');
+  function fitAbout() {
+    var p = aboutBtn.querySelector('p'), more = aboutBtn.querySelector('b');
+    if (aboutBtn.classList.contains('open')) return;
+    more.hidden = p.scrollHeight <= p.clientHeight + 1;
+    aboutBtn.disabled = more.hidden;
+  }
+  aboutBtn.addEventListener('click', function () {
+    var open = aboutBtn.classList.toggle('open');
+    aboutBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    aboutBtn.querySelector('b').textContent = open ? '閉じる' : 'もっと見る';
+    if (!open) fitAbout();
+  });
+  document.querySelectorAll('[data-show]').forEach(function (el) { el.addEventListener('click', function () { setTimeout(fitAbout, 0); }); });
+  if (document.fonts) document.fonts.ready.then(fitAbout);
+  fitAbout();
+
+  // 取り込み: スイッチは押すと切り替わる。図はひな形の候補が見える位置まで下げておく（Issue #260）
+  var tplSwitch = document.getElementById('tplSwitch');
+  tplSwitch.addEventListener('click', function () {
+    tplSwitch.setAttribute('aria-checked', tplSwitch.getAttribute('aria-checked') === 'true' ? 'false' : 'true');
+  });
+  function scrollImport() {
+    var sc = document.getElementById('imScroll'), tpl = document.getElementById('imTpl');
+    sc.scrollTop = tpl.hidden ? 0 : tpl.offsetTop - 120;
+  }
+  document.querySelectorAll('[data-show]').forEach(function (el) { el.addEventListener('click', function () { setTimeout(scrollImport, 0); }); });
+  if (document.fonts) document.fonts.ready.then(scrollImport);
+  scrollImport();
 
   document.querySelectorAll('.copybtn').forEach(function (b) {
     b.addEventListener('click', function () {

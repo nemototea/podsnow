@@ -4,6 +4,7 @@ import { failStaleExports } from '@/infra/db/repositories/exportsRepo';
 import { loadSettings, saveSetting, type AppSettings } from '@/infra/db/repositories/settingsRepo';
 import { ensureDefaultShow, type ShowRow } from '@/infra/db/repositories/showsRepo';
 import {
+  availableDiskBytes,
   copyAsNamed,
   dataRoot,
   deleteIfExists,
@@ -40,6 +41,8 @@ import { RECORDING_FORMAT, RecordingSession } from '../recording/RecordingSessio
 import { recoverUnfinishedTakes, type RecoveredTake } from '../recording/RecoveryService';
 import { CoverArtService } from '../shows/CoverArtService';
 import { ShowColorService } from '../shows/ShowColorService';
+import { ShowService } from '../shows/ShowService';
+import { StorageService } from '../storage/StorageService';
 import { newId } from './ids';
 import type { ServiceLabels } from './labels';
 
@@ -62,6 +65,10 @@ export interface AppServices {
   /** 番組アートワークの正規化・永続化・削除（Issue #133）。 */
   coverArt: CoverArtService;
   showColors: ShowColorService;
+  /** 番組の情報・カテゴリー・既定の構成・概要欄テンプレート（Issue #259）。 */
+  shows: ShowService;
+  /** 設定の「ストレージ」の使用量と空き容量（FR-SET-6）。 */
+  storage: StorageService;
   /** 配信中の番組の取り込み（Issue #101）。保存したあとは `reloadShow` で `show` を最新化する。 */
   podcastImport: PodcastImportService;
   /** 設定の「ハプティクス」に従う触覚（DESIGN_SYSTEM.md §6.2）。 */
@@ -203,6 +210,8 @@ export async function bootstrap(
     enabled: () => liveSettings.settings.haptics,
   });
   const home = new HomeService(db);
+  const shows = new ShowService({ db, newId, now });
+  const storage = new StorageService({ db, availableDiskBytes });
 
   const services: AppServices = {
     db,
@@ -220,6 +229,8 @@ export async function bootstrap(
     notes,
     coverArt,
     showColors,
+    shows,
+    storage,
     podcastImport,
     haptics,
     home,

@@ -53,6 +53,8 @@
 - `services/` は「1 ユースケース = 1 クラス/関数」。録音セッション、復旧、書き出しはここに状態機械を置く。
 - 再生状態はアプリ全体で `PlaybackService` 1 つだけが持つ。タイムライン試聴（ネイティブエンジン）と書き出しファイル / RSS enclosure の再生（expo-audio）は同サービスが切り替え、画面は再生実装を直接触らない。【事実: Issue #135】
 - 画面は `features/` のフックだけを呼ぶ。画面からネイティブモジュールを直接呼ばない。
+- 画面（`app/`）と `features/` は DB・ファイル・ネイティブに `services/` を通して触る（番組情報は `ShowService`、設定の容量は `StorageService`、書き出しの履歴は `ExportService`）。`infra/` からは行の型（`type EpisodeRow` など）だけを import してよい。**ESLint（`@typescript-eslint/no-restricted-imports`、`allowTypeImports`）で禁止**している。【事実: Issue #259】
+  例外は収録タブの読み込み・波形・モニター再生（`features/episode/useWorkspace.ts`、`peaks.ts`、`monitor.ts`）だけで、services へ移すまでの暫定。
 - **ユーザーに見える文言は `src/i18n/` だけに置く**（Issue #80、FR-I18N-4）。`domain/` / `services/` / `infra/` は文言を持たない:
   - エラーは `AppError` + `AppErrorCode`（`src/domain/errors.ts`）で返し、文言は UI 層が `errorText()` で引く。
   - domain が組み立てる表示テキスト（`formatAllMetadata()` の見出しなど）は見出しを引数で受け取る。

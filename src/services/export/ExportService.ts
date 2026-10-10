@@ -19,8 +19,10 @@ import {
   getExport,
   insertExport,
   isExportRunning,
+  listExports,
   updateExportProgress,
   type ExportFormat,
+  type ExportRow,
 } from '@/infra/db/repositories/exportsRepo';
 import { getLoudnessCache, saveLoudnessMeasure } from '@/infra/db/repositories/loudnessCacheRepo';
 import type { FsPort } from '@/infra/files/fsPort';
@@ -32,6 +34,9 @@ import type { Subscription } from '../recording/RecorderPort';
 
 import { embedExportMetadata } from './embedMetadata';
 import { currentSourceFingerprint } from './sourceFingerprint';
+
+// 画面が書き出しの履歴を扱うための型と判定（画面は infra を直接 import しない。Issue #259）
+export { isExportRunning, type ExportRow };
 
 export interface ExportPreset {
   format: ExportFormat;
@@ -253,6 +258,16 @@ export class ExportService {
     payload: Parameters<ExportEvents[K]>[0],
   ) {
     this.listeners.get(event)?.forEach((fn) => (fn as (p: unknown) => void)(payload));
+  }
+
+  /** 書き出したファイルが端末に残っているか（OS の掃除や手動の削除で消えることがある）。 */
+  fileIsPresent(row: Pick<ExportRow, 'path'>): boolean {
+    return row.path ? this.deps.fileExists(joinRoot(this.deps.root, row.path)) : false;
+  }
+
+  /** エピソードの書き出しの履歴（新しい順。DATA_MODEL.md §4.10）。 */
+  list(episodeId: string): Promise<ExportRow[]> {
+    return listExports(this.deps.db, episodeId);
   }
 
   /** 書き出しを開始し exportId を返す。 */
