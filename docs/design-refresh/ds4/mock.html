@@ -273,6 +273,12 @@ figcaption span { color: var(--sub); font-size: 13.5px; line-height: 1.7; }
 .sheet .hint { font-size: 11.5px; color: var(--dim); line-height: 1.5; }
 .sheet .danger { color: #ff8fb8; font-size: 14px; font-weight: 600; display: flex; gap: 10px; align-items: center; }
 
+.ghost { position: absolute; border: 1px dashed #7a7a7a; border-radius: 4px; display: grid; place-items: center; font-size: 12px; color: var(--sub); text-align: center; }
+.sheet .chips { display: flex; gap: 8px; flex-wrap: wrap; }
+.sheet .chips .chip { display: flex; align-items: center; gap: 6px; background: var(--s3); }
+.sheet .play3 { display: grid; grid-template-columns: auto 1fr 1fr; gap: 8px; align-items: center; }
+.btn.off { opacity: .4; }
+
 /* ---------- 5. Export ---------- */
 .ex { padding: 0 16px 20px; display: grid; gap: 20px; }
 .exhero { display: flex; gap: 14px; align-items: center; }
@@ -552,6 +558,44 @@ figcaption span { color: var(--sub); font-size: 13.5px; line-height: 1.7; }
       </div>
     </div>
     <figcaption><b>4b. 編集（構成の帯）</b><span>新しいエピソードは、オープニングを流し終えてから話し、話し終えてからエンディングが流れる形で始まります。オープニング・エンディング・差し込み素材は上の段、BGM は下の段です。帯を押すと黄色い輪郭で選ばれ、引くと動きます（本編の始まり・終わりやほかの帯の端に吸い付く）。上の 2 つの丸でフェードの長さを変え、帯の角の斜めで長さを見せます。BGM は両端を引いて長さを変えます。シートは画面を覆わず、帯をさわりながら値を確かめられます。並びが決まったら「この構成を既定にする」で次のエピソードの形にします（Issue #254）。</span></figcaption>
+  </figure>
+
+  <!-- 4c. 録音前の構成 -->
+  <figure>
+    <div class="phone">
+      <div class="status"><span>9:41</span><span>100%</span></div>
+      <div class="scroll" style="padding-bottom:16px">
+        <div class="ephead">
+          <div class="row"><button class="ib" data-ic="back"></button><b>タイトル未設定</b><button class="ib" data-ic="undo"></button><button class="ib" data-ic="redo"></button></div>
+          <div class="seg"><span class="chip on">収録</span><span class="chip">書き出し</span></div>
+        </div>
+        <div class="timeline">
+          <div class="tl2">
+            <div class="ruler"><span>00:00</span><span>00:20</span><span>00:40</span><span>01:00</span></div>
+            <div class="ghost" style="top:20px;height:72px;left:19.4%;width:48.3%">録音すると<br>ここに入ります</div>
+            <div class="playhead" style="left:0"></div>
+            <div class="bar insert" style="top:106px;left:0;width:19.4%"><span>夜更けのテーマ</span></div>
+            <div class="bar insert" style="top:106px;left:67.7%;right:0;overflow:hidden"><span>夜更けのテーマ（終わり）</span></div>
+            <div class="bar music" style="top:136px;left:19.4%;width:48.3%"><i class="cut in" style="width:6%"></i><i class="cut out" style="width:9%"></i><span>夜の散歩</span></div>
+          </div>
+        </div>
+        <div class="notesbox">
+          <div class="row"><h4>カンペ</h4><button class="ib" data-ic="pen" aria-label="カンペを書く"></button></div>
+          <div class="card"><p data-b="notes"></p></div>
+        </div>
+      </div>
+      <div class="sheet">
+        <div class="grab"></div>
+        <div class="info">内蔵マイク · ステレオ</div>
+        <div class="chips"><span class="chip"><span data-ic="check"></span>この構成を既定にする</span></div>
+        <div class="play3">
+          <button class="ib" aria-label="先頭へ戻る"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="5" width="3" height="14" rx="1" fill="currentColor"/><path d="M19 5v14L9 12z" fill="currentColor"/></svg></button>
+          <button class="btn sec off"><span data-ic="play"></span>再生</button>
+          <button class="btn wht"><span data-ic="mic-sm"></span>録音を開始</button>
+        </div>
+      </div>
+    </div>
+    <figcaption><b>4c. 新しいエピソード（録音前）</b><span>作った時点で番組の構成が入っています。本編が入る場所を点線の枠で見せ、その前にオープニング、後ろにエンディング、下に BGM を並べます。枠は録音前の目安（30 秒）で、録ると本編の長さになり、エンディングと BGM は本編に付いて動きます。録音前でも帯は動かせ、「この構成を既定にする」で番組に覚えさせられます。再生は録ってからです（Issue #254）。</span></figcaption>
   </figure>
 
   <!-- 5. Export -->
