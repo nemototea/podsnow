@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { formatSmp, secToSmp, smp, type Smp } from '@/domain/time';
+import { isStructureClip } from '@/domain/timeline/overlays';
 import type { Range } from '@/domain/timeline/types';
 import { useT } from '@/i18n';
 import type { AssetRow } from '@/infra/db/repositories/assetsRepo';
@@ -118,9 +119,8 @@ export function StudioTab({
   // オープニングの上（本編より前）から録ると本編の頭に差し込む。録音が無ければ「録音を開始」
   const inMiddle = state.total > 0 && state.playhead < state.total;
   const length = smp(state.bounds.end - state.bounds.start);
-  const hasStructure = state.doc.overlays.some(
-    (o) => o.kind === 'opening' || o.kind === 'ending' || o.kind === 'bgm',
-  );
+  // 構成の素材（本編の始まり・終わりに付いたオープニング・エンディング・BGM）。差し込んだ BGM は含めない
+  const hasStructure = state.doc.overlays.some(isStructureClip);
 
   /**
    * 調べて、そのまま詰める。取り消せる編集なので確認は出さず、件数と長さを「取り消す」付きで伝える
@@ -200,10 +200,15 @@ export function StudioTab({
           <IconButton
             name={state.playing ? 'pause' : 'play'}
             label={state.playing ? t.a11y.pause : t.edit.playFromOverlay}
+            // 録音前は仮の本編で並べているので、鳴る位置と合わない。録ってから鳴らす
+            disabled={empty}
             onPress={() =>
               void (state.playing
                 ? ws.togglePlay()
-                : ws.seek(placedSelected.range.start).then(() => ws.togglePlay()))
+                : ws
+                    .seek(placedSelected.range.start)
+                    .then(() => ws.togglePlay())
+                    .catch((e: unknown) => onError(String(e))))
             }
           />
           <IconButton
@@ -504,12 +509,12 @@ export function StudioTab({
           onSelectionDrag={setDragSel}
           onSeek={(to: Smp) => void ws.seek(to)}
           onSelectOverlay={(oid: string | null) => ws.selectOverlay(oid)}
-          onMoveOverlay={(oid: string, start: Smp) => void ws.moveOverlay(oid, start)}
+          onMoveOverlay={(oid: string, start: Smp) => ws.moveOverlay(oid, start)}
           onResizeOverlay={(oid: string, edge: 'start' | 'end', at: Smp) =>
-            void ws.resizeOverlay(oid, edge, at)
+            ws.resizeOverlay(oid, edge, at)
           }
           onFadeOverlay={(oid: string, fadeIn: Smp, fadeOut: Smp) =>
-            void ws.setOverlayFades(oid, fadeIn, fadeOut)
+            ws.setOverlayFades(oid, fadeIn, fadeOut)
           }
         />
       </View>

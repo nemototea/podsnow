@@ -4,6 +4,7 @@ import type { EditableDoc } from '@/domain/editing/doc';
 import { renderTemplate } from '@/domain/metadata/template';
 import { renderFingerprint } from '@/domain/render/fingerprint';
 import { smp, ZERO_SMP } from '@/domain/time';
+import { isStructureClip, overlaySourceLength } from '@/domain/timeline/overlays';
 import type { OverlayClip } from '@/domain/timeline/types';
 import type { SqlExecutor } from '@/infra/db/executor';
 import { getAsset } from '@/infra/db/repositories/assetsRepo';
@@ -194,12 +195,18 @@ export class EpisodeService {
     const ep = await getEpisode(db, episodeId);
     if (!ep) return;
     const doc = await loadDoc(db, episodeId);
-    const find = (kind: OverlayClip['kind']) => doc.overlays.find((o) => o.kind === kind) ?? null;
+    // 本編の始まり・終わりに付いた構成の素材だけを見る（差し込んだ BGM などは含めない）
+    const find = (kind: OverlayClip['kind']) =>
+      doc.overlays.find((o) => o.kind === kind && isStructureClip(o)) ?? null;
     const op = find('opening');
     const ed = find('ending');
     const bgm = find('bgm');
-    const duration = async (o: OverlayClip | null) =>
-      o ? ((await getAsset(db, o.assetId))?.duration_smp ?? null) : null;
+    // 鳴らす長さ（素材の一部だけ使っていればその長さ）。置くときの長さ（`overlaySourceLength`）と同じ
+    const duration = async (o: OverlayClip | null) => {
+      if (!o) return null;
+      const asset = await getAsset(db, o.assetId);
+      return asset ? overlaySourceLength(o, smp(asset.duration_smp)) : null;
+    };
     const opLen = await duration(op);
     const edLen = await duration(ed);
     const patch: Parameters<typeof updateLayout>[2] = {

@@ -133,3 +133,20 @@ export function suggestReanchor(
   if (!best) return null;
   return { ...clip, anchor: { type: 'source', takeId, srcSmp: best.srcSmp } };
 }
+
+/**
+ * 番組の構成の素材か（Issue #254）。本編の始まりに付いたオープニング、本編の終わりに付いた
+ * エンディング、本編の下に敷いた BGM。素材を追加のシートから入れた BGM（発言に付く）は含めない。
+ */
+export function isStructureClip(o: OverlayClip): boolean {
+  switch (o.kind) {
+    case 'opening':
+      return o.anchor.type === 'timeline_start';
+    case 'ending':
+      return o.anchor.type === 'timeline_end';
+    case 'bgm':
+      return o.anchor.type === 'timeline_start' && o.endMode === 'timeline_end';
+    default:
+      return false;
+  }
+}

@@ -38,9 +38,11 @@ export interface OverlayBarProps {
   /** 吸い付く位置（px）。本編の始まり・終わり、ほかの帯の端。 */
   snaps: readonly number[];
   onPress: (id: string) => void;
-  onMove: (id: string, deltaPx: number) => void;
-  onResize: (id: string, edge: 'start' | 'end', deltaPx: number) => void;
-  onFade: (id: string, fadeInPx: number, fadeOutPx: number) => void;
+  /** 確定したら解決する。何も変わらなかったときも、動かした分を戻すのに使う。 */
+  onMove: (id: string, deltaPx: number) => Promise<void> | void;
+  onResize: (id: string, edge: 'start' | 'end', deltaPx: number) => Promise<void> | void;
+  /** 動かしたほうのフェードだけを渡す（もう一方は丸め直さない）。 */
+  onFade: (id: string, which: 'in' | 'out', px: number) => Promise<void> | void;
 }
 
 /**
@@ -74,13 +76,36 @@ export const OverlayBar = memo(function OverlayBar(p: OverlayBarProps) {
   const markDragged = useCallback(() => {
     draggedAt.current = Date.now();
   }, []);
-  const { id, left, width, snaps, onMove, onResize, onFade } = p;
-  const move = useCallback((d: number) => onMove(id, d), [id, onMove]);
-  const resize = useCallback(
-    (edge: 'start' | 'end', d: number) => onResize(id, edge, d),
-    [id, onResize],
+  const { id, left, width, snaps, onMove, onResize, onFade, fadeInPx, fadeOutPx } = p;
+  // 確定のあと（値が変わらなかったときも）動かしていた分を戻す。値が変われば新しい位置で描き直される
+  // 確定した値。確定を待つ間に描き直されても、戻すときは最新の値を使う
+  const latest = useRef({ fadeInPx, fadeOutPx });
+  useEffect(() => {
+    latest.current = { fadeInPx, fadeOutPx };
+  }, [fadeInPx, fadeOutPx]);
+  const settle = useCallback(
+    (done: Promise<void> | void) => {
+      void Promise.resolve(done)
+        .catch(() => {})
+        .finally(() => {
+          dx.value = 0;
+          dl.value = 0;
+          dr.value = 0;
+          fin.value = latest.current.fadeInPx;
+          fout.value = latest.current.fadeOutPx;
+        });
+    },
+    [dl, dr, dx, fin, fout],
   );
-  const fade = useCallback((a: number, b: number) => onFade(id, a, b), [id, onFade]);
+  const move = useCallback((d: number) => settle(onMove(id, d)), [id, onMove, settle]);
+  const resize = useCallback(
+    (edge: 'start' | 'end', d: number) => settle(onResize(id, edge, d)),
+    [id, onResize, settle],
+  );
+  const fade = useCallback(
+    (which: 'in' | 'out', px: number) => settle(onFade(id, which, px)),
+    [id, onFade, settle],
+  );
 
   const movePan = useMemo(
     () =>
@@ -148,12 +173,13 @@ export const OverlayBar = memo(function OverlayBar(p: OverlayBarProps) {
           runOnJS(markDragged)();
         })
         .onUpdate((e) => {
-          fin.value = Math.max(0, Math.min(width - fout.value, base.value + e.translationX));
+          const w = width - dl.value + dr.value;
+          fin.value = Math.max(0, Math.min(w - fout.value, base.value + e.translationX));
         })
         .onEnd(() => {
-          runOnJS(fade)(fin.value, fout.value);
+          runOnJS(fade)('in', fin.value);
         }),
-    [base, fade, fin, fout, markDragged, width],
+    [base, dl, dr, fade, fin, fout, markDragged, width],
   );
   const foutPan = useMemo(
     () =>
@@ -166,12 +192,13 @@ export const OverlayBar = memo(function OverlayBar(p: OverlayBarProps) {
           runOnJS(markDragged)();
         })
         .onUpdate((e) => {
-          fout.value = Math.max(0, Math.min(width - fin.value, base.value - e.translationX));
+          const w = width - dl.value + dr.value;
+          fout.value = Math.max(0, Math.min(w - fin.value, base.value - e.translationX));
         })
         .onEnd(() => {
-          runOnJS(fade)(fin.value, fout.value);
+          runOnJS(fade)('out', fout.value);
         }),
-    [base, fade, fin, fout, markDragged, width],
+    [base, dl, dr, fade, fin, fout, markDragged, width],
   );
 
   const boxStyle = useAnimatedStyle(() => ({

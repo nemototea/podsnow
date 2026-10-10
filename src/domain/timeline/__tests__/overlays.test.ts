@@ -1,5 +1,11 @@
 import { smp, ZERO_SMP } from '../../time';
-import { placeOverlay, placeOverlays, suggestReanchor, timelineBounds } from '../overlays';
+import {
+  isStructureClip,
+  placeOverlay,
+  placeOverlays,
+  suggestReanchor,
+  timelineBounds,
+} from '../overlays';
 import type { OverlayClip, VoiceSegment } from '../types';
 import { deleteRange } from '../voice';
 
@@ -123,5 +129,31 @@ describe('本編の前後に置く構成（Issue #254）', () => {
     );
     expect(timelineBounds(voice, placed)).toEqual({ start: -100, end: 1600 });
     expect(timelineBounds(voice, [])).toEqual({ start: 0, end: 1500 });
+  });
+});
+
+describe('isStructureClip（Issue #254）', () => {
+  it('本編の始まり・終わりに付いた素材だけを構成とみなす', () => {
+    const op = clip({ kind: 'opening', anchor: { type: 'timeline_start', offset: smp(-10) } });
+    const ed = clip({ kind: 'ending', anchor: { type: 'timeline_end', offset: smp(10) } });
+    const bgm = clip({
+      kind: 'bgm',
+      anchor: { type: 'timeline_start', offset: ZERO_SMP },
+      loop: true,
+      endMode: 'timeline_end',
+    });
+    const inserted = clip({
+      kind: 'bgm',
+      anchor: { type: 'source', takeId: 'A', srcSmp: smp(10) },
+      loop: true,
+      endMode: 'timeline_end',
+    });
+    expect([op, ed, bgm, inserted, clip({})].map(isStructureClip)).toEqual([
+      true,
+      true,
+      true,
+      false,
+      false,
+    ]);
   });
 });

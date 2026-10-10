@@ -70,11 +70,11 @@ export interface WaveformProps {
   onSeek: (to: Smp) => void;
   onSelectOverlay: (id: string | null) => void;
   /** 選んだ素材の帯を引いて動かした。`start` は新しい始まり（本編の位置）。 */
-  onMoveOverlay?: (id: string, start: Smp) => void;
+  onMoveOverlay?: (id: string, start: Smp) => Promise<void> | void;
   /** BGM の端を引いた。`at` は新しい端の位置。 */
-  onResizeOverlay?: (id: string, edge: 'start' | 'end', at: Smp) => void;
+  onResizeOverlay?: (id: string, edge: 'start' | 'end', at: Smp) => Promise<void> | void;
   /** 帯の上の丸を引いてフェードの長さを変えた。 */
-  onFadeOverlay?: (id: string, fadeIn: Smp, fadeOut: Smp) => void;
+  onFadeOverlay?: (id: string, fadeIn: Smp, fadeOut: Smp) => Promise<void> | void;
   /** 無音で区切られた声の塊（FR-EDIT-2）。2 回目のタップか長押しで選び、ハンドルで広げる。 */
   blocks?: readonly Range[];
   /**
@@ -366,7 +366,7 @@ export const Waveform = memo(function Waveform(p: WaveformProps) {
   const moveBar = useCallback(
     (id: string, deltaPx: number) => {
       const o = placedById.get(id);
-      if (o) onMoveOverlay?.(id, smp(o.range.start + pxToSmp(deltaPx, pps)));
+      if (o) return onMoveOverlay?.(id, smp(o.range.start + pxToSmp(deltaPx, pps)));
     },
     [onMoveOverlay, placedById, pps],
   );
@@ -375,14 +375,23 @@ export const Waveform = memo(function Waveform(p: WaveformProps) {
       const o = placedById.get(id);
       if (!o) return;
       const at = (edge === 'start' ? o.range.start : o.range.end) + pxToSmp(deltaPx, pps);
-      onResizeOverlay?.(id, edge, smp(at));
+      return onResizeOverlay?.(id, edge, smp(at));
     },
     [onResizeOverlay, placedById, pps],
   );
+  // 動かしたほうのフェードだけを px から直す。もう一方は保存してある値のまま（丸め直さない）
   const fadeBar = useCallback(
-    (id: string, finPx: number, foutPx: number) =>
-      onFadeOverlay?.(id, smp(fadePxToSmp(finPx, pps)), smp(fadePxToSmp(foutPx, pps))),
-    [onFadeOverlay, pps],
+    (id: string, which: 'in' | 'out', px: number) => {
+      const o = placedById.get(id);
+      if (!o) return;
+      const v = smp(fadePxToSmp(px, pps));
+      return onFadeOverlay?.(
+        id,
+        which === 'in' ? v : o.clip.fadeIn,
+        which === 'out' ? v : o.clip.fadeOut,
+      );
+    },
+    [onFadeOverlay, placedById, pps],
   );
   const pressBar = useCallback(
     (id: string) => onSelectOverlay(p.selectedOverlay === id ? null : id),
@@ -531,10 +540,15 @@ export const Waveform = memo(function Waveform(p: WaveformProps) {
                     fill={bgm ? c.musicFill : c.insertFill}
                     ground={c.surface}
                     selected={p.selectedOverlay === o.clip.id}
-                    resizable={bgm && o.clip.endMode === 'timeline_end'}
+                    resizable={
+                      bgm &&
+                      o.clip.endMode === 'timeline_end' &&
+                      o.clip.anchor.type === 'timeline_start'
+                    }
                     fadeInPx={(o.clip.fadeIn / SAMPLE_RATE) * p.pps}
                     fadeOutPx={(o.clip.fadeOut / SAMPLE_RATE) * p.pps}
-                    snaps={snaps}
+                    // 自分の端には吸い付かない（少しだけ動かしたいときに元へ戻らないように）
+                    snaps={snaps.filter((x) => x !== left && x !== xOf(o.range.end))}
                     onPress={pressBar}
                     onMove={moveBar}
                     onResize={resizeBar}

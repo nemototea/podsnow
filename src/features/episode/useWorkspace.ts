@@ -235,16 +235,20 @@ export function useWorkspace(episodeId: string) {
         services.assets.list(services.show.id),
       ]);
       const assetDurations = new Map(assets.map((a) => [a.id, a.duration_smp as Smp]));
-      // 保存してある再生位置は出力の位置（Home の再生と同じ）。編集画面は本編の位置で持つ
+      // 保存してある再生位置は本編の位置（Issue #254）。オープニングを動かしても同じ発言を指す
       syncFromEditing(e, { episode, takes, assets, assetDurations, ready: true });
       const saved = episode?.playhead_smp ?? 0;
-      patch((s) => ({ playhead: smp(saved + s.bounds.start) }));
+      patch((s) => ({
+        playhead: smp(Math.max(s.bounds.start, Math.min(s.bounds.end, saved))),
+      }));
       await Promise.all([loadPeaks(takes), loadNotesAndEvents()]);
       await playback.reload(episodeId).catch(() => {});
       // 開いたとき・戻ってきたときは、再生エンジンの位置をこの回の保存位置に合わせる
       // （エンジンは 1 つなので、直前に開いていた別の回の位置が残っている）
       if ((opts.open || opts.refocus) && episode) {
-        await playback.seek(smp(episode.playhead_smp ?? 0)).catch(() => {});
+        await playback
+          .seek(smp(Math.max(0, (episode.playhead_smp ?? 0) + originRef.current)))
+          .catch(() => {});
       }
     },
     [db, episodeId, loadPeaks, loadNotesAndEvents, patch, playback, services, syncFromEditing],
@@ -291,9 +295,8 @@ export function useWorkspace(episodeId: string) {
   const placePlayhead = useCallback(
     async (to: Smp) => {
       patch((s) => ({ playhead: to, revealSeq: s.revealSeq + 1, revealAt: null }));
-      const out = smp(to + originRef.current);
-      await playback.seek(out).catch(() => {});
-      void services.episodes.update(episodeId, { playheadSmp: out });
+      await playback.seek(smp(to + originRef.current)).catch(() => {});
+      void services.episodes.update(episodeId, { playheadSmp: to });
     },
     [episodeId, patch, playback, services.episodes],
   );
@@ -329,10 +332,13 @@ export function useWorkspace(episodeId: string) {
    */
   const reloadPlayback = useCallback(
     async (prevOrigin: number) => {
+      // 読み直すと位置が新しい長さに丸められるので、ずらす前の位置を先に取っておく
+      const mine = playback.loadedEpisodeId === episodeId && playback.source?.kind === 'timeline';
+      const before = playback.position;
       await playback.reload(episodeId).catch(() => {});
       const delta = originRef.current - prevOrigin;
-      if (delta !== 0 && playback.loadedEpisodeId === episodeId) {
-        await playback.seek(smp(Math.max(0, playback.position + delta))).catch(() => {});
+      if (delta !== 0 && mine) {
+        await playback.seek(smp(Math.max(0, before + delta))).catch(() => {});
       }
     },
     [episodeId, playback],
@@ -406,9 +412,8 @@ export function useWorkspace(episodeId: string) {
     async (to: Smp) => {
       const t = smp(Math.max(state.bounds.start, Math.min(state.bounds.end, to)));
       patch((s) => ({ playhead: t, revealSeq: s.revealSeq + 1, revealAt: null }));
-      const out = smp(t + originRef.current);
-      await playback.seek(out);
-      void services.episodes.update(episodeId, { playheadSmp: out });
+      await playback.seek(smp(t + originRef.current));
+      void services.episodes.update(episodeId, { playheadSmp: t });
     },
     [episodeId, patch, playback, services.episodes, state.bounds],
   );

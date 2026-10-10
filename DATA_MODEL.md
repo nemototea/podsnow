@@ -208,7 +208,7 @@ MVP は起動時に 1 行自動作成。【事実】
 | publish_planned_at | INTEGER nullable | |
 | status | TEXT | `draft` / `ready` / `exported`（自動判定。DB にはキャッシュとして保存）。`exported` は書き出しが完了したときに付き、編集しても戻さない。Home で「書き出し済み」と見せるかは、今の編集と同じ書き出し（§4.13 の `source_fingerprint`）があるかで決める（REQUIREMENTS.md FR-EP-3、Issue #168） |
 | last_opened_at | INTEGER | Home の「続き」判定 |
-| playhead_smp | INTEGER | 最後の再生位置 |
+| playhead_smp | INTEGER | 最後の再生位置（本編の時刻。オープニングの上なら負。Issue #254） |
 | undo_cursor | INTEGER | `edit_ops.seq` の現在位置（0 = 履歴なし）。§4.12 |
 | sound_settings | TEXT | JSON: `{ loudness: { enabled, targetLufs: -16, truePeakDbtp: -1 }, ducking: { enabled, depthDb, attackMs, releaseMs } }` |
 | audio_purged_at | INTEGER nullable | 「音声を削除」（FR-EP-4）を実行した時刻。録音だけ消し、行・話数・メタデータ・書き出し履歴は残す。一覧では「音声なし」として表示する |
@@ -308,8 +308,10 @@ Take の「時間軸」は Segment を `seq` 順に連結したもの。割り�
 - **タイムラインの座標【事実: Issue #254、ユーザー判断 2026-10-10】**: 声（本編）の時刻は 0 から始まり、カット・差し込み・録音の操作は変えない。素材は**負の位置**（本編より前）に置ける。`resolveAnchorStart`（`domain/timeline/overlays.ts`）は 0 に丸めない。
   - `timeline_start` のオフセットは本編の始まりからの相対で、負にできる。オープニングを流し終えてから話すなら、オフセット = −（素材の長さ − 重なり）。
   - `timeline_end` の始まりは「本編の長さ − 素材の長さ + オフセット」。オフセット = 素材の長さなら、エンディングは本編の直後から始まる。
+  - 0011 より前に作った回は、エンディングのオフセットが 0（本編の終わりに素材の終わりを合わせる）。本編がエンディングより短い回だけ、以前は 0 に丸めていた始まりが負になり、書き出しの音が変わる。書き出しの指紋（`renderFingerprint`）は変えていないので、その回は以前の書き出しと「同じ」に見える。0.1.0 は未公開で該当する回はまれなので、指紋の版は上げない【事実: Issue #254 のレビュー】。
+  - 構成の素材（`isStructureClip`）は、`timeline_start` に付いたオープニング、`timeline_end` に付いたエンディング、`timeline_start` に付き本編の終わりまで続く BGM。素材を追加のシートから入れた BGM（発言に付く）は含めず、「この構成を既定にする」でも写さない。
   - `timelineBounds(voice, placed)` は {start ≤ 0, end ≥ 本編の終わり} を返す。出力の長さ = end − start。出力の 0 は最も早い素材の始まりで、`outputOrigin()` = −start。
-- `episodes.playhead_smp` は**出力のフレーム**で持つ（0 = 先頭の素材の始まり）。エディタは再生位置を本編の時刻で扱い、再生サービスとやり取りするときだけ原点を足し引きする。
+- `episodes.playhead_smp` は**本編の時刻**で持つ（オープニングの上なら負）。オープニングを動かしても同じ発言を指す。ミニプレーヤーの進み具合も本編の長さとの比で出す。エディタは再生位置を本編の時刻で扱い、再生サービスとやり取りするときだけ原点を足し引きする。
 - 後から手で配置した素材は `timeline_abs`（絶対位置）だが、UI で「発言に追従」に切り替え可。
 
 ### 4.10 `recording_events`（録音中の出来事）

@@ -256,7 +256,7 @@ Encoder: AAC (iOS AVAssetWriter / Android MediaCodec+MediaMuxer) または WAV w
 後処理（JS、§8.3）: 題名・番組名・アートワーク等のメタデータを埋め込む → exports を done に
 ```
 - **出力の時間軸【事実: Issue #254】**: オープニング・エンディングは本編の外（負の位置・本編の後ろ）に置ける（DATA_MODEL.md §4.9）。`buildRenderDocument` は最も早いクリップが出力のフレーム 0 になるよう全体をずらし、`totalFrames` = `timelineBounds` の end − start（本編の外の素材を含む）にする。ネイティブのエンジンは変えない（受け取った位置をそのまま鳴らす）。`outputOrigin()` = −start。
-  - 再生側: エディタ（`useWorkspace`）は再生位置を本編の時刻で持ち、`PlaybackService` とやり取りするときだけ原点を足し引きする。`episodes.playhead_smp` は出力のフレーム。編集で原点が変わったら、本編の同じ位置を保つようエンジンの位置をずらす。画面の時刻（収録・書き出しタブ）は出力の時刻で、0 はオープニングの始まり。
+  - 再生側: エディタ（`useWorkspace`）は再生位置を本編の時刻で持ち、`PlaybackService` とやり取りするときだけ原点を足し引きする。`episodes.playhead_smp` は本編の時刻。編集で原点が変わったら、本編の同じ位置を保つようエンジンの位置をずらす。画面の時刻（収録・書き出しタブ）は出力の時刻で、0 はオープニングの始まり。
   - BGM の終わり（`timeline_end`）は本編の終わり + `endOffset`。
   - 既知の制約: ダッキングは録音した声にだけ反応する。声を含むオープニング素材の下では BGM を下げない（後続）。
 - 中間 PCM は持たず、パスごとにミキサーで作り直す（60 分でも一時ファイルが要らない）。

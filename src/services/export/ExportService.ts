@@ -270,7 +270,8 @@ export class ExportService {
       channels: preset.channels,
       loudnessGainDb: cachedGain,
     });
-    if (doc.totalFrames <= 0) throw new AppError('voice_timeline_empty');
+    // 素材だけ（オープニングなど）で声が無い回は書き出さない（Issue #254 で totalFrames に素材も含むようになった）
+    if (doc.voice.length === 0 || doc.totalFrames <= 0) throw new AppError('voice_timeline_empty');
     const exportId = this.deps.newId();
     const relPath = relPaths.exportFile(episodeId, exportId, preset.format);
     const abs = joinRoot(this.deps.root, relPath);
