@@ -474,6 +474,7 @@ python3 scripts/brand/extract_glyphs.py 'path/to/Figtree[wght].ttf'   # 字形�
 | アイコンボタン | 見た目 32 の丸、色 `textSecondary`。収録画面の操作バーは 44 | `.ib`、`.transport .ib` | `IconButton` |
 | 番組画面の録音 | 56 のアクセントの丸 | `.bigplay` | — |
 | 番組画面の紹介と詳細 | 紹介は著者の行の下に 3 行まで（文字は著者の行と同じ 75% の白）、本文と「もっと見る」の間 4。詳細はカテゴリーのチップ（間 8、押せない）と、Web サイト（印 15・間 6、白の 12.5 / 700）・言語（75% の白の 12.5）の行。2 つの行の間 10。紹介が空なら鉛筆 15 と「番組の紹介を書く」（13 / 700、間 8）（Issue #259） | `.showhead .about`、`.showhead .write`、`.showhead .facts` | — |
+| 取り込みのプレビュー | 題は `title`（22 / 800、上 22・下 12）。カードは §6 のカード（地 `surface`、角丸 8、中 14）。中央にアートワーク 160、番組名 `heading`、著者 `caption`、間 8、下 16。紹介は `body` の `textSecondary` で 8 行まで。配信済みの本数（`bodyStrong`）と次の話数（`caption`）は上 16・間 4。概要欄のひな形の候補は別の見出しとカードで、本文（`body`、改行そのまま、12 行まで）の下にスイッチの行（`Row` + `Toggle`。補足は `caption`）。その下に情報の `Notice`、主操作「取り込む」と ghost の「探し直す」（間 8、上 16）（Issue #260） | `.im`、`.imcard`、`.imrow`、`.switch`、`.notice` | `src/app/import.tsx` |
 | 一覧の右端の丸 | 32 の白い丸に黒の記号（マイク / 再生） | `.minicircle` | — |
 | 録音・停止 | 72 の白い丸。中は `recSolid` の丸（30、待機中）/ 角丸 6 の四角（26、録音中） | `.recbtn` | `RecordingView` |
 | チップ | 上下 7・左右 14、丸い端、地 `surfaceRaised`、13 / 600。選択中はアクセントの塗りに `accentOnSolid` | `.chip` | `Chip` |

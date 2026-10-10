@@ -10,11 +10,13 @@ import { initialNumbering } from '@/domain/episodes/numbering';
 import { listFeedEpisodes, listPublishedNumbering } from '@/infra/db/repositories/feedEpisodesRepo';
 import {
   ensureDefaultShow,
+  getDefaultTemplate,
   getExternalId,
   getShow,
   listCategories,
   listFunding,
   updateShow,
+  updateTemplate,
 } from '@/infra/db/repositories/showsRepo';
 import { TEST_SHOW_SEED } from '@/services/app/__tests__/labels';
 import { nodeFsPort } from '@/infra/files/__tests__/nodeFsPort';
@@ -284,7 +286,7 @@ describe('PodcastImportService.commit', () => {
       genres: [],
     };
     const r = await svc.commit(show.id, await svc.preview(show.id, { directory }));
-    expect(r).toEqual({ episodes: 2, coverSaved: true });
+    expect(r).toEqual({ episodes: 2, coverSaved: true, templateSaved: false });
 
     const s = (await getShow(db, show.id))!;
     expect(s).toMatchObject({
@@ -324,7 +326,7 @@ describe('PodcastImportService.commit', () => {
     const p = await svc.preview(show.id, { feedUrl: FEED_URL });
     const withArt = { ...p, feed: { ...p.feed, show: { ...p.feed.show, imageUrl: ART_URL } } };
     const r = await svc.commit(show.id, withArt);
-    expect(r).toEqual({ episodes: 1, coverSaved: false });
+    expect(r).toEqual({ episodes: 1, coverSaved: false, templateSaved: false });
     const s = (await getShow(db, show.id))!;
     expect(s).toMatchObject({
       name: '最小',
@@ -434,5 +436,89 @@ describe('PodcastImportService: same / different show (docs/podcast-import-cases
     // 同じ URL でも番組の ID が変わっていれば別の番組
     routes[FEED_URL] = { text: feedXml(item(1), G('bbb')) };
     expect(await codeOf(svc.previewRefresh(show.id))).toBe('import_other_show');
+  });
+});
+
+describe('PodcastImportService: description template suggestion (Issue #260)', () => {
+  const FOOTER = 'お便り: https://forms.example.com\nX: @show #番組';
+  const withDesc = (n: number) =>
+    item(n).replace(
+      '</item>',
+      `<description><![CDATA[<p>第${n}回の話</p><p>${FOOTER.replace('\n', '<br/>')}</p>]]></description></item>`,
+    );
+  const SEEDS = [TEST_SHOW_SEED.descriptionTemplate, '別の言語の初期値'];
+
+  it('suggests the shared lines of the latest episodes, preselected while the template is the initial one', async () => {
+    const { svc, db, show } = await setup({
+      [FEED_URL]: { text: feedXml(withDesc(1) + withDesc(2)) },
+    });
+    const p = await svc.preview(show.id, { feedUrl: FEED_URL });
+    expect(await svc.templateSuggestion(show.id, p, SEEDS)).toEqual({
+      body: FOOTER,
+      preselect: true,
+    });
+    // 候補を出しただけでは書かない
+    expect((await getDefaultTemplate(db, show.id))!.body).toBe(TEST_SHOW_SEED.descriptionTemplate);
+  });
+
+  it('does not preselect when the user wrote the template, and is null when it already matches', async () => {
+    const { svc, db, show } = await setup({
+      [FEED_URL]: { text: feedXml(withDesc(1) + withDesc(2)) },
+    });
+    const tpl = (await getDefaultTemplate(db, show.id))!;
+    await updateTemplate(db, tpl.id, '手で書いたひな形', 2000);
+    const p = await svc.preview(show.id, { feedUrl: FEED_URL });
+    expect(await svc.templateSuggestion(show.id, p, SEEDS)).toEqual({
+      body: FOOTER,
+      preselect: false,
+    });
+    await updateTemplate(db, tpl.id, `${FOOTER}\n`, 2000);
+    expect(await svc.templateSuggestion(show.id, p, SEEDS)).toBeNull();
+    await updateTemplate(db, tpl.id, '', 2000);
+    expect((await svc.templateSuggestion(show.id, p, SEEDS))?.preselect).toBe(true);
+  });
+
+  it('is null when the episodes share nothing', async () => {
+    const { svc, show } = await setup({ [FEED_URL]: { text: feedXml(item(1) + item(2)) } });
+    const p = await svc.preview(show.id, { feedUrl: FEED_URL });
+    expect(await svc.templateSuggestion(show.id, p, SEEDS)).toBeNull();
+  });
+
+  it('writes the template only when chosen, together with the import', async () => {
+    const { svc, db, show } = await setup({
+      [FEED_URL]: { text: feedXml(withDesc(1) + withDesc(2)) },
+    });
+    const p = await svc.preview(show.id, { feedUrl: FEED_URL });
+    await svc.commit(show.id, p, { descriptionTemplate: FOOTER });
+    expect((await getDefaultTemplate(db, show.id))!.body).toBe(FOOTER);
+  });
+
+  it('leaves the template alone when not chosen', async () => {
+    const { svc, db, show } = await setup({
+      [FEED_URL]: { text: feedXml(withDesc(1) + withDesc(2)) },
+    });
+    await svc.commit(show.id, await svc.preview(show.id, { feedUrl: FEED_URL }));
+    expect((await getDefaultTemplate(db, show.id))!.body).toBe(TEST_SHOW_SEED.descriptionTemplate);
+  });
+
+  it('#139: refresh neither suggests nor writes the template', async () => {
+    const { svc, db, show } = await setup({
+      [FEED_URL]: { text: feedXml(withDesc(1) + withDesc(2)) },
+    });
+    await svc.commit(show.id, await svc.preview(show.id, { feedUrl: FEED_URL }));
+    const p = await svc.previewRefresh(show.id);
+    expect(await svc.templateSuggestion(show.id, p, SEEDS)).toBeNull();
+    await svc.commit(show.id, p, { descriptionTemplate: FOOTER });
+    expect((await getDefaultTemplate(db, show.id))!.body).toBe(TEST_SHOW_SEED.descriptionTemplate);
+  });
+
+  it('a failed import does not write the template either', async () => {
+    const { svc, db, show } = await setup({
+      [FEED_URL]: { text: feedXml(withDesc(1) + withDesc(2)) },
+    });
+    const p = await svc.preview(show.id, { feedUrl: FEED_URL });
+    await db.run('DROP TABLE feed_episodes');
+    await expect(svc.commit(show.id, p, { descriptionTemplate: FOOTER })).rejects.toThrow();
+    expect((await getDefaultTemplate(db, show.id))!.body).toBe(TEST_SHOW_SEED.descriptionTemplate);
   });
 });

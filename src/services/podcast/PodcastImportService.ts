@@ -4,6 +4,10 @@ import {
   parseAppleSearchResponse,
   type DirectoryResult,
 } from '@/domain/podcast/directory';
+import {
+  isUntouchedTemplate,
+  suggestDescriptionTemplate,
+} from '@/domain/podcast/descriptionTemplate';
 import type { PodcastFeed } from '@/domain/podcast/feed';
 import { judgeShowIdentity, type ShowIdentity } from '@/domain/podcast/identity';
 import { parsePodcastFeed } from '@/domain/podcast/parseFeed';
@@ -15,10 +19,12 @@ import {
   upsertFeedEpisodes,
 } from '@/infra/db/repositories/feedEpisodesRepo';
 import {
+  getDefaultTemplate,
   getExternalId,
   getShow,
   replaceCategories,
   replaceFunding,
+  setDefaultTemplateBody,
   setExternalId,
   updateShow,
 } from '@/infra/db/repositories/showsRepo';
@@ -57,11 +63,28 @@ export interface ImportPreview {
   identity: ShowIdentity;
 }
 
+/**
+ * 取り込む回の概要から作った、概要欄テンプレートの候補（Issue #260）。
+ * 書くのはユーザーが選んだときだけ（docs/podcast-import-cases.md P3）。
+ */
+export interface TemplateSuggestion {
+  body: string;
+  /** 既定で選んでおくか。今のテンプレートが空か初期値のままのときだけ true */
+  preselect: boolean;
+}
+
+export interface ImportOptions {
+  /** 概要欄テンプレートをこの本文にする。省けば触らない */
+  descriptionTemplate?: string;
+}
+
 export interface ImportResult {
   /** 保存した配信済みの回の数 */
   episodes: number;
   /** アートワークを保存できたか。失敗しても取り込み自体は成功させる */
   coverSaved: boolean;
+  /** 概要欄テンプレートを書き換えたか（Issue #260） */
+  templateSaved: boolean;
 }
 
 export function assertHttps(url: string): void {
@@ -194,12 +217,36 @@ export class PodcastImportService {
   }
 
   /**
+   * 概要欄テンプレートの候補（Issue #260）。初めての取り込み（`new`）のときだけ出す。
+   * 読み込み直し・追加済み・別の番組では出さない（PodsNow だけの設定は触らない。#139 の決定）。
+   * `seedTemplates` は各言語の初期のテンプレート（`ServiceLabels.descriptionTemplate` の全言語分）。
+   */
+  async templateSuggestion(
+    showId: string,
+    preview: ImportPreview,
+    seedTemplates: readonly string[],
+  ): Promise<TemplateSuggestion | null> {
+    if (preview.identity !== 'new') return null;
+    const body = suggestDescriptionTemplate(preview.feed.items);
+    if (body === null) return null;
+    const current = await getDefaultTemplate(this.deps.db, showId);
+    if (current?.body.trim() === body.trim()) return null;
+    return { body, preselect: isUntouchedTemplate(current?.body ?? null, seedTemplates) };
+  }
+
+  /**
    * プレビューの内容で番組を上書きし、配信済みの回を保存する（FR-SHOW-9 / FR-SHOW-10）。
    * RSS に値の無い文字列項目は、今の値を残す（空で上書きしない）。
    */
-  async commit(showId: string, preview: ImportPreview): Promise<ImportResult> {
+  async commit(
+    showId: string,
+    preview: ImportPreview,
+    options: ImportOptions = {},
+  ): Promise<ImportResult> {
     // 別の番組の回と話数の台帳を混ぜない（docs/podcast-import-cases.md B-1 / D-1）
     if (preview.identity === 'different') throw new AppError('import_other_show');
+    // テンプレートは初めての取り込みでだけ書く（読み込み直しでは触らない。#139）
+    const template = preview.identity === 'new' ? options.descriptionTemplate : undefined;
     const { db, newId, now } = this.deps;
     const { show, items } = preview.feed;
     const coverPath = show.imageUrl ? await this.saveCover(showId, show.imageUrl) : null;
@@ -240,6 +287,7 @@ export class PodcastImportService {
             t,
           );
         }
+        if (template !== undefined) await setDefaultTemplateBody(db, showId, template, newId, t);
         await upsertFeedEpisodes(db, showId, items, newId, t);
       });
     } catch (e) {
@@ -248,7 +296,11 @@ export class PodcastImportService {
       throw e;
     }
     await this.removeStaleCovers(showId);
-    return { episodes: items.length, coverSaved: coverPath !== null };
+    return {
+      episodes: items.length,
+      coverSaved: coverPath !== null,
+      templateSaved: template !== undefined,
+    };
   }
 
   /** アートワークを取得して保存し、相対パスを返す。失敗したら null（取り込みは続ける）。 */

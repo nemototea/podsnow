@@ -261,6 +261,11 @@ Tag #PodsNow to share your thoughts`,
       'The latest full episode in the RSS has no number, so new episodes start without one. Add it in each episode’s “Other details” if you use numbers',
     overwriteNote:
       'This replaces the name, description, author and other details. Anything the RSS leaves out keeps its current value',
+    templateHeader: 'Description template',
+    useTemplate: 'Use this as the description template',
+    templateHelp:
+      'Lines shared by the latest episode descriptions. Choosing this replaces your current template. You can edit it later in the show settings',
+    templateSaved: 'Also saved the description template',
     confirm: 'Import',
     back: 'Search again',
     cannotLeave: 'Please wait until the import finishes',

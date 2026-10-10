@@ -5,11 +5,26 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { AppError } from '@/domain/errors';
 import type { DirectoryResult } from '@/domain/podcast/directory';
 import { useServices } from '@/features/app/ServicesProvider';
-import { errorText, useLocale, useT } from '@/i18n';
+import { CATALOGS, errorText, useLocale, useT } from '@/i18n';
 import { useDeviceRegion } from '@/i18n/deviceLocale';
-import type { ImportPreview, ImportResult } from '@/services/podcast/PodcastImportService';
+import type {
+  ImportPreview,
+  ImportResult,
+  TemplateSuggestion,
+} from '@/services/podcast/PodcastImportService';
 import { Artwork } from '@/ui/Artwork';
-import { Button, Card, Field, Notice, Screen, SectionHeader, Text, Toast } from '@/ui/components';
+import {
+  Button,
+  Card,
+  Field,
+  Notice,
+  Row,
+  Screen,
+  SectionHeader,
+  Text,
+  Toast,
+  Toggle,
+} from '@/ui/components';
 import { ScreenHeader } from '@/ui/ScreenHeader';
 import { useAppTheme } from '@/ui/ThemeContext';
 import { useToast } from '@/ui/useToast';
@@ -18,6 +33,8 @@ import { hit, space, typography } from '@/ui/tokens';
 /** 一覧のアートワーク。行の高さ（hit.min）に収める */
 const THUMB = hit.min;
 const COVER = 160;
+/** 概要欄テンプレートの初期値（全言語。どの言語で作られたか分からないため。Issue #260） */
+const SEED_TEMPLATES = Object.values(CATALOGS).map((m) => m.seed.descriptionTemplate);
 
 type Step =
   | { kind: 'search' }
@@ -29,6 +46,10 @@ type Step =
       saving: boolean;
       /** 前回の RSS からの読み込み直し（取り込みとは別の操作） */
       refresh: boolean;
+      /** 回の概要の共通部分から作った概要欄テンプレートの候補（Issue #260）。読み込み直しでは出さない */
+      template: TemplateSuggestion | null;
+      /** 候補を概要欄テンプレートにするか。選んだときだけ書く（docs/podcast-import-cases.md P3） */
+      useTemplate: boolean;
     }
   | { kind: 'done'; result: ImportResult };
 
@@ -80,7 +101,19 @@ export default function ImportScreen() {
         ? await podcastImport.previewRefresh(showId)
         : await podcastImport.preview(showId, source);
       const { episodeNumber: nextNumber } = await podcastImport.numberingAfter(showId, preview);
-      setStep({ kind: 'preview', preview, nextNumber, saving: false, refresh });
+      // 読み込み直しでは PodsNow だけの設定に触らない（#139）
+      const template = refresh
+        ? null
+        : await podcastImport.templateSuggestion(showId, preview, SEED_TEMPLATES);
+      setStep({
+        kind: 'preview',
+        preview,
+        nextNumber,
+        saving: false,
+        refresh,
+        template,
+        useTemplate: template?.preselect ?? false,
+      });
     } catch (e) {
       setError(errorText(t, e));
       setStep({ kind: 'search' });
@@ -91,7 +124,11 @@ export default function ImportScreen() {
     setError(null);
     setStep({ ...s, saving: true });
     try {
-      const result = await podcastImport.commit(showId, s.preview);
+      const result = await podcastImport.commit(
+        showId,
+        s.preview,
+        s.template && s.useTemplate ? { descriptionTemplate: s.template.body } : {},
+      );
       await services.reloadShow();
       if (!services.settings.onboardingDone) await services.updateSettings('onboardingDone', true);
       setStep({ kind: 'done', result });
@@ -180,6 +217,14 @@ export default function ImportScreen() {
             </Text>
           </View>
         </Card>
+        {!blocked && step.template ? (
+          <TemplateCard
+            body={step.template.body}
+            value={step.useTemplate}
+            disabled={step.saving}
+            onChange={(useTemplate) => setStep({ ...step, useTemplate })}
+          />
+        ) : null}
         {blocked ? (
           <Notice kind={blocked.kind} title={blocked.title} body={blocked.body} />
         ) : (
@@ -220,6 +265,9 @@ export default function ImportScreen() {
           title={t.podcastImport.doneTitle}
           body={t.podcastImport.doneBody(step.result.episodes)}
         />
+        {step.result.templateSaved ? (
+          <Notice kind="info" title={t.podcastImport.templateSaved} />
+        ) : null}
         {step.result.coverSaved ? null : (
           <Notice kind="warning" title={t.podcastImport.coverFailed} />
         )}
@@ -319,6 +367,45 @@ export default function ImportScreen() {
         />
       </Card>
     </Screen>
+  );
+}
+
+/** 概要欄テンプレートの候補。中身を見せたうえで、選んだときだけ書く（Issue #260）。 */
+function TemplateCard({
+  body,
+  value,
+  disabled,
+  onChange,
+}: {
+  body: string;
+  value: boolean;
+  disabled: boolean;
+  onChange: (v: boolean) => void;
+}) {
+  const c = useAppTheme();
+  const t = useT();
+  return (
+    <>
+      <SectionHeader title={t.podcastImport.templateHeader} />
+      <Card>
+        <Text style={[typography.body, { color: c.textPrimary }]} numberOfLines={12}>
+          {body}
+        </Text>
+        <Row
+          label={t.podcastImport.useTemplate}
+          sub={t.podcastImport.templateHelp}
+          last
+          right={
+            <Toggle
+              value={value}
+              onChange={onChange}
+              disabled={disabled}
+              accessibilityLabel={t.podcastImport.useTemplate}
+            />
+          }
+        />
+      </Card>
+    </>
   );
 }
 
