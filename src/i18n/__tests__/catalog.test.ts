@@ -194,6 +194,8 @@ describe('文言カタログ', () => {
           /収録/,
           [
             'episode.tabs.studio',
+            // タブの名前で案内する（Issue #262）
+            'sound.duckingNoBgm',
             'export.emptyVoice',
             'details.recordedEyebrow',
             'details.badDate',

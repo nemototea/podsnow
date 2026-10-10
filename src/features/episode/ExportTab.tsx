@@ -146,14 +146,13 @@ export interface ExportTabProps {
   details: DetailsDraftState;
   onShowToast: (text: string, undo?: () => void) => void;
   onDone: (exportId: string) => void;
-  onGoEdit: () => void;
 }
 
 /**
  * 書き出しタブ（docs/ux-restructure.md §7）。
  * 旧「詳細」「音の仕上げ」「書き出し」の 3 画面を 1 本のスクロールにまとめる。
  */
-export function ExportTab({ ws, details, onShowToast, onDone, onGoEdit }: ExportTabProps) {
+export function ExportTab({ ws, details, onShowToast, onDone }: ExportTabProps) {
   const c = useAppTheme();
   const t = useT();
   const locale = useLocale();
@@ -174,7 +173,10 @@ export function ExportTab({ ws, details, onShowToast, onDone, onGoEdit }: Export
 
   // 詳細の入力中の値と自動保存はエピソード画面が持つ（タブを切り替えても消えない。Issue #167）
   const { draft, draftRef, edit, flush } = details;
-  const [sound, setSound] = useState<SoundSettings | null>(null);
+  // 保存してある値から同期で始め、切り替えた直後に「読み込み中」を挟まない（Issue #262）
+  const [sound, setSound] = useState<SoundSettings | null>(() =>
+    episode ? parseSoundSettings(episode.sound_settings) : null,
+  );
   const [soundAdvanced, setSoundAdvanced] = useState(false);
   // その回で最後に選んだもの → なければ設定の既定（DATA_MODEL.md §4.5.1）。
   // 選んだ直後は DB の保存を待たずに表示を切り替える。
@@ -423,96 +425,25 @@ export function ExportTab({ ws, details, onShowToast, onDone, onGoEdit }: Export
             })
           }
         />
-        {/* BGM が無いときは押すと収録タブへ（BGM を入れる） */}
+        {/* BGM の有無にかかわらず保存してある値を出し、押せば入・切が替わる（画面は移らない。Issue #262） */}
         <Check
           label={t.sound.ducking}
-          on={sound.ducking.enabled && hasBgm}
-          value={hasBgm ? (sound.ducking.enabled ? duckText : null) : t.sound.addBgm}
-          onPress={
-            hasBgm
-              ? () =>
-                  updateSound({
-                    ...sound,
-                    ducking: { ...sound.ducking, enabled: !sound.ducking.enabled },
-                  })
-              : onGoEdit
+          on={sound.ducking.enabled}
+          value={sound.ducking.enabled ? duckText : null}
+          {...(hasBgm ? {} : { a11yHint: t.sound.duckingNoBgm })}
+          onPress={() =>
+            updateSound({
+              ...sound,
+              ducking: { ...sound.ducking, enabled: !sound.ducking.enabled },
+            })
           }
         />
+        {hasBgm ? null : (
+          <Text style={[typography.caption, st.checkNote, { color: c.textSecondary }]}>
+            {t.sound.duckingNoBgm}
+          </Text>
+        )}
         <Check label={t.sound.embed} on />
-        {soundAdvanced ? (
-          <>
-            {sound.loudness.enabled ? (
-              <View style={st.chips}>
-                {[-14, -16, -18].map((v) => (
-                  <Chip
-                    key={v}
-                    label={`${v} LUFS${v === -16 ? t.sound.recommended : ''}`}
-                    active={sound.loudness.targetLufs === v}
-                    onPress={() =>
-                      updateSound({ ...sound, loudness: { ...sound.loudness, targetLufs: v } })
-                    }
-                  />
-                ))}
-              </View>
-            ) : null}
-            {sound.loudness.enabled ? (
-              <Stepper
-                label={t.sound.truePeak}
-                info={t.glossary.truePeak}
-                value={sound.loudness.truePeakDbtp}
-                unit="dBTP"
-                step={0.5}
-                min={-3}
-                max={0}
-                onChange={(v) =>
-                  updateSound({ ...sound, loudness: { ...sound.loudness, truePeakDbtp: v } })
-                }
-              />
-            ) : null}
-            <Stepper
-              label={t.sound.depth}
-              value={sound.ducking.depthDb}
-              unit="dB"
-              step={1}
-              min={-30}
-              max={0}
-              onChange={(v) => updateSound({ ...sound, ducking: { ...sound.ducking, depthDb: v } })}
-            />
-            <Stepper
-              label={t.sound.attack}
-              value={sound.ducking.attackMs}
-              unit="ms"
-              step={10}
-              min={0}
-              max={500}
-              onChange={(v) =>
-                updateSound({ ...sound, ducking: { ...sound.ducking, attackMs: v } })
-              }
-            />
-            <Stepper
-              label={t.sound.release}
-              value={sound.ducking.releaseMs}
-              unit="ms"
-              step={50}
-              min={0}
-              max={3000}
-              onChange={(v) =>
-                updateSound({ ...sound, ducking: { ...sound.ducking, releaseMs: v } })
-              }
-            />
-            <Stepper
-              label={t.sound.threshold}
-              value={sound.ducking.thresholdDb}
-              unit="dBFS"
-              step={2}
-              min={-70}
-              max={-10}
-              onChange={(v) =>
-                updateSound({ ...sound, ducking: { ...sound.ducking, thresholdDb: v } })
-              }
-            />
-          </>
-        ) : null}
       </View>
 
       {/* 見本: 形式のチップ（M4A / WAV）と見込みのサイズ、アクセントの「書き出して共有」 */}
@@ -534,26 +465,144 @@ export function ExportTab({ ws, details, onShowToast, onDone, onGoEdit }: Export
             )}
           </Text>
         </View>
-        {soundAdvanced ? (
-          <View style={st.chipsRow}>
-            {PRESET_KEYS.map((k) => (
-              <Chip
-                key={k}
-                label={presetText(k).label}
-                active={preset === k}
-                accessibilityLabel={`${presetText(k).label}, ${presetText(k).spec}`}
-                onPress={() => choosePreset(k)}
-              />
-            ))}
-          </View>
-        ) : null}
-        {soundAdvanced ? (
-          <Text style={[typography.small, { color: c.textSecondary }]}>
-            {presetText(preset).spec}
+        {/* 詳細設定（見本 5b、Issue #262）。行全体が押せる見出しで、中身はこの直下に開く。書き出しボタンはその下 */}
+        <Pressable
+          onPress={() => setSoundAdvanced((v) => !v)}
+          accessibilityRole="button"
+          accessibilityLabel={t.sound.advanced}
+          accessibilityState={{ expanded: soundAdvanced }}
+          style={({ pressed }) => [
+            st.accordion,
+            { borderBottomColor: c.border },
+            pressed ? { opacity: pressedOpacity } : null,
+          ]}
+        >
+          <Text style={[typography.subheading, st.flex, { color: c.textPrimary }]}>
+            {t.sound.advanced}
           </Text>
-        ) : null}
+          <Icon
+            name={soundAdvanced ? 'chevronUp' : 'chevron'}
+            color={c.textSecondary}
+            size={icon.action}
+          />
+        </Pressable>
         {soundAdvanced ? (
-          <>
+          <View style={st.advanced}>
+            {sound.loudness.enabled || sound.ducking.enabled ? (
+              <Text
+                style={[typography.bodyStrong, st.advHead, { color: c.textPrimary }]}
+                accessibilityRole="header"
+              >
+                {t.sound.sectionFinish}
+              </Text>
+            ) : null}
+            {sound.loudness.enabled ? (
+              <>
+                <View style={st.infoCaption}>
+                  <Text style={[typography.caption, { color: c.textSecondary }]}>
+                    {t.sound.targetLoudness}
+                  </Text>
+                  <InfoButton info={t.glossary.loudness} />
+                </View>
+                <View style={st.chipsRow}>
+                  {[-14, -16, -18].map((v) => (
+                    <Chip
+                      key={v}
+                      label={`${v} LUFS${v === -16 ? t.sound.recommended : ''}`}
+                      active={sound.loudness.targetLufs === v}
+                      accessibilityLabel={`${t.sound.targetLoudness}, ${v} LUFS${v === -16 ? t.sound.recommended : ''}`}
+                      onPress={() =>
+                        updateSound({ ...sound, loudness: { ...sound.loudness, targetLufs: v } })
+                      }
+                    />
+                  ))}
+                </View>
+                <Stepper
+                  label={t.sound.truePeak}
+                  info={t.glossary.truePeak}
+                  value={sound.loudness.truePeakDbtp}
+                  unit="dBTP"
+                  step={0.5}
+                  min={-3}
+                  max={0}
+                  onChange={(v) =>
+                    updateSound({ ...sound, loudness: { ...sound.loudness, truePeakDbtp: v } })
+                  }
+                />
+              </>
+            ) : null}
+            {sound.ducking.enabled ? (
+              <>
+                <Stepper
+                  label={t.sound.depth}
+                  info={t.glossary.duckDepth}
+                  value={sound.ducking.depthDb}
+                  unit="dB"
+                  step={1}
+                  min={-30}
+                  max={0}
+                  onChange={(v) =>
+                    updateSound({ ...sound, ducking: { ...sound.ducking, depthDb: v } })
+                  }
+                />
+                <Stepper
+                  label={t.sound.attack}
+                  info={t.glossary.duckAttack}
+                  value={sound.ducking.attackMs}
+                  unit="ms"
+                  step={10}
+                  min={0}
+                  max={500}
+                  onChange={(v) =>
+                    updateSound({ ...sound, ducking: { ...sound.ducking, attackMs: v } })
+                  }
+                />
+                <Stepper
+                  label={t.sound.release}
+                  info={t.glossary.duckRelease}
+                  value={sound.ducking.releaseMs}
+                  unit="ms"
+                  step={50}
+                  min={0}
+                  max={3000}
+                  onChange={(v) =>
+                    updateSound({ ...sound, ducking: { ...sound.ducking, releaseMs: v } })
+                  }
+                />
+                <Stepper
+                  label={t.sound.threshold}
+                  info={t.glossary.duckThreshold}
+                  value={sound.ducking.thresholdDb}
+                  unit="dBFS"
+                  step={2}
+                  min={-70}
+                  max={-10}
+                  onChange={(v) =>
+                    updateSound({ ...sound, ducking: { ...sound.ducking, thresholdDb: v } })
+                  }
+                />
+              </>
+            ) : null}
+            <Text
+              style={[typography.bodyStrong, st.advHead, { color: c.textPrimary }]}
+              accessibilityRole="header"
+            >
+              {t.sound.sectionFormat}
+            </Text>
+            <View style={st.chipsRow}>
+              {PRESET_KEYS.map((k) => (
+                <Chip
+                  key={k}
+                  label={presetText(k).label}
+                  active={preset === k}
+                  accessibilityLabel={`${presetText(k).label}, ${presetText(k).spec}`}
+                  onPress={() => choosePreset(k)}
+                />
+              ))}
+            </View>
+            <Text style={[typography.small, { color: c.textSecondary }]}>
+              {presetText(preset).spec}
+            </Text>
             {preset === 'custom' ? (
               <View style={st.custom}>
                 <Text style={[typography.caption, { color: c.textSecondary }]}>
@@ -615,7 +664,7 @@ export function ExportTab({ ws, details, onShowToast, onDone, onGoEdit }: Export
                 />
               </View>
             ) : null}
-          </>
+          </View>
         ) : null}
         {failure ? (
           <Notice
@@ -659,14 +708,6 @@ export function ExportTab({ ws, details, onShowToast, onDone, onGoEdit }: Export
             {t.export.emptyVoice}
           </Text>
         ) : null}
-        <Button
-          label={soundAdvanced ? t.sound.hideAdvanced : t.sound.advanced}
-          kind="ghost"
-          icon={soundAdvanced ? 'chevronUp' : 'chevron'}
-          compact
-          accessibilityLabel={t.sound.a11yAdvanced}
-          onPress={() => setSoundAdvanced((v) => !v)}
-        />
       </View>
 
       {episode.description_suggestion ? (
@@ -934,6 +975,7 @@ function Check({
   on,
   value,
   a11yValue,
+  a11yHint,
   disabled,
   onPress,
 }: {
@@ -943,6 +985,8 @@ function Check({
   value?: string | null;
   /** 読み上げで値の代わりに読む文（短い表示の値を補う）。 */
   a11yValue?: string;
+  /** 読み上げで添える補足（画面では項目の下に出す文）。 */
+  a11yHint?: string;
   disabled?: boolean;
   /** 無ければ切り替えられない（常に入っている項目）。 */
   onPress?: () => void;
@@ -994,6 +1038,7 @@ function Check({
       accessibilityRole="switch"
       accessibilityLabel={a11yValue || value ? `${label}, ${a11yValue ?? value}` : label}
       accessibilityState={{ checked: on, disabled: !!disabled }}
+      {...(a11yHint ? { accessibilityHint: a11yHint } : {})}
       hitSlop={{ top: space.x10 / 2, bottom: space.x10 / 2 }}
       style={({ pressed }) => [st.check, pressed ? { opacity: pressedOpacity } : null]}
     >
@@ -1015,6 +1060,19 @@ const st = StyleSheet.create({
   check: { flexDirection: 'row', alignItems: 'center', gap: space.x10 },
   checkLabel: { flexShrink: 1 },
   checkVal: { marginLeft: 'auto' },
+  // 項目の下の補足（BGM が無いとき）。字の頭を項目の名前にそろえる
+  checkNote: { marginLeft: icon.button + space.x10 },
+  // 見本 `.acc`: 行全体が押せる見出し。下端に線
+  accordion: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.x10,
+    minHeight: hit.min,
+    borderBottomWidth: stroke.hairline,
+  },
+  // 見本 `.adv`: 行の間 10、小見出しの上 6
+  advanced: { gap: space.x10 },
+  advHead: { marginTop: space.x6 },
   dot: {
     width: icon.button,
     height: icon.button,

@@ -1,4 +1,13 @@
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ComponentRef,
+  type ReactNode,
+} from 'react';
 import {
   ActivityIndicator,
   Animated,
@@ -93,6 +102,11 @@ interface ScreenProps {
    * 下部バーを余白も地の色も付けずに置く（見本 `.sheet` のように、バー自身が地の色と下の安全域を持つとき）。
    */
   bottomBarBare?: boolean;
+  /**
+   * 中身を入れ替えても `Screen` を作り直さない画面（エピソードの「収録 / 書き出し」。Issue #262）で、
+   * 入れ替えたときに先頭へ戻すための印。変わるとスクロールを先頭に戻す。
+   */
+  scrollKey?: string;
 }
 
 export function Screen(props: ScreenProps) {
@@ -112,6 +126,7 @@ function ScreenBody({
   bottomBar,
   edgeTop,
   bottomBarBare,
+  scrollKey,
 }: ScreenProps) {
   const c = useAppTheme();
   const insets = useSafeAreaInsets();
@@ -120,6 +135,16 @@ function ScreenBody({
   // ミニプレーヤーが出ている間は、その高さだけ下部バー・内容の下を空けて覆わせない（Issue #164）
   const floating = useFloatingInset();
   const inner = padded ? [{ paddingHorizontal: g, paddingTop: space.sm }, style] : style;
+  const scrollRef = useRef<ComponentRef<typeof KeyboardScroll>>(null);
+  const firstKey = useRef(true);
+  useEffect(() => {
+    // 最初の表示では動かさない（先頭にいる）
+    if (firstKey.current) {
+      firstKey.current = false;
+      return;
+    }
+    scrollRef.current?.scrollTo({ y: 0, animated: false });
+  }, [scrollKey]);
   const bottomPad = space.xxxl + (bottomBar ? 0 : insets.bottom + floating) + toastHeight;
   return (
     <SafeAreaView
@@ -130,7 +155,10 @@ function ScreenBody({
         {scroll ? (
           // キーボードが出たら入力中の欄が見えるまでずらす（Issue #132、`KeyboardScroll`）。
           // 下部バーはキーボードの裏に隠れたままにする（入力中は使わないので、見える範囲を削らない）。
-          <KeyboardScroll contentContainerStyle={[inner, { paddingBottom: bottomPad }]}>
+          <KeyboardScroll
+            ref={scrollRef}
+            contentContainerStyle={[inner, { paddingBottom: bottomPad }]}
+          >
             {children}
           </KeyboardScroll>
         ) : (
@@ -792,7 +820,8 @@ export function Chip({
             accessibilityState: { selected: !!active, disabled: !!disabled },
           }
         : { accessibilityRole: 'text' as const })}
-      {...(accessibilityLabel ? { accessibilityLabel } : {})}
+      // 省略しても全文を読む（Issue #261）
+      accessibilityLabel={accessibilityLabel ?? label}
       hitSlop={hitSlop(typography.chip.lineHeight + 2 * chipSize.paddingY)}
       style={({ pressed }) => [
         s.chip,
@@ -800,7 +829,10 @@ export function Chip({
       ]}
     >
       {iconName ? <Icon name={iconName} color={fg} size={icon.sm} /> : null}
-      <Text style={[typography.chip, { color: fg }]}>{label}</Text>
+      {/* 長い素材名などは 1 行で省略し、横の試聴ボタンや ± を押し出さない（Issue #261） */}
+      <Text style={[typography.chip, s.shrink, { color: fg }]} numberOfLines={1}>
+        {label}
+      </Text>
     </Pressable>
   );
 }
@@ -832,7 +864,14 @@ export function Pill({
         : {})}
     >
       {iconName ? <Icon name={iconName} color={fg} size={typography.overline.lineHeight} /> : null}
-      <Text style={[typography.overline, { color: fg }]}>{label}</Text>
+      {/* 英語表示などで長くなっても折り返さず 1 行で省略する（Issue #261） */}
+      <Text
+        style={[typography.overline, s.shrink, { color: fg }]}
+        numberOfLines={1}
+        accessibilityLabel={accessibilityLabel ?? label}
+      >
+        {label}
+      </Text>
     </View>
   );
 }
@@ -1084,11 +1123,15 @@ const s = StyleSheet.create({
     boxShadow: shadow.toast,
   },
   toastAction: { justifyContent: 'center' },
+  shrink: { flexShrink: 1 },
   toastActionText: { textDecorationLine: 'underline' },
   chip: {
     paddingVertical: chipSize.paddingY,
     paddingHorizontal: chipSize.paddingX,
     borderRadius: radius.pill,
+    // 並んだ行の幅を超えない。中の文字は 1 行で省略する（Issue #261）
+    maxWidth: '100%',
+    flexShrink: 1,
     flexDirection: 'row',
     gap: space.x6,
     alignItems: 'center',
@@ -1102,6 +1145,8 @@ const s = StyleSheet.create({
     alignItems: 'center',
     gap: space.xs,
     alignSelf: 'flex-start',
+    maxWidth: '100%',
+    flexShrink: 1,
   },
   track: { height: space.sm, borderRadius: radius.pill, overflow: 'hidden' },
   trackFill: { height: space.sm, borderRadius: radius.pill },

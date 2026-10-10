@@ -53,7 +53,6 @@ import {
   Field,
   Icon,
   IconButton,
-  InfoButton,
   Pill,
   Row,
   Screen,
@@ -77,7 +76,6 @@ import {
   pressedOpacity,
   space,
   stroke,
-  tabularNums,
   typography,
 } from '@/ui/tokens';
 import { useReducedMotion } from '@/ui/useReducedMotion';
@@ -139,11 +137,6 @@ const SLOT_COL: Record<LayoutSlot, keyof ShowLayoutRow> = {
   opening: 'opening_asset_id',
   ending: 'ending_asset_id',
   bgm: 'bgm_asset_id',
-};
-const SLOT_GAIN: Record<LayoutSlot, keyof ShowLayoutRow> = {
-  opening: 'opening_gain_db',
-  ending: 'ending_gain_db',
-  bgm: 'bgm_gain_db',
 };
 
 /** 概要欄テンプレートに挿入できる変数（DATA_MODEL.md §4.3）。説明は i18n から。 */
@@ -395,23 +388,6 @@ export default function ShowScreen() {
     await reload();
   };
 
-  const bumpGain = async (slot: LayoutSlot, delta: number) => {
-    if (!data.layout) return;
-    const cur = Number(data.layout[SLOT_GAIN[slot]] ?? 0);
-    const next = Math.max(-30, Math.min(6, cur + delta));
-    const key =
-      slot === 'opening' ? 'openingGainDb' : slot === 'ending' ? 'endingGainDb' : 'bgmGainDb';
-    await shows.updateLayout(showId, { [key]: next });
-    await reload();
-  };
-
-  const bumpDuck = async (delta: number) => {
-    if (!data.layout) return;
-    const next = Math.max(-30, Math.min(0, data.layout.bgm_duck_db + delta));
-    await shows.updateLayout(showId, { bgmDuckDb: next });
-    await reload();
-  };
-
   // 編集シートの選択肢（Issue #259）。今の値が一覧に無い（古い分類・一覧外の言語）ときも選択肢に残す
   const categoryOptions = (current: string) => [
     { value: '', label: t.common.notSet },
@@ -571,9 +547,12 @@ export default function ShowScreen() {
             shadow="large"
           />
         </View>
+        {/* 長い番組名は 3 行で省略し、全文は読み上げる（Issue #261） */}
         <Text
           style={[typography.display, st.name, { color: c.textPrimary }]}
           accessibilityRole="header"
+          numberOfLines={3}
+          accessibilityLabel={showName}
         >
           {showName}
         </Text>
@@ -581,7 +560,12 @@ export default function ShowScreen() {
           {author ? (
             <>
               <Avatar name={author} size="sm" />
-              <Text style={[typography.chipStrong, { color: c.textPrimary }]} numberOfLines={1}>
+              {/* 縮めて省略し、「· N 本」を画面の外へ押し出さない（Issue #261） */}
+              <Text
+                style={[typography.chipStrong, st.shrink, { color: c.textPrimary }]}
+                numberOfLines={1}
+                accessibilityLabel={author}
+              >
                 {author}
               </Text>
               <Text style={[typography.byline, { color: by }]}>·</Text>
@@ -823,7 +807,6 @@ export default function ShowScreen() {
               {t.showSettings.layoutEyebrow}
             </Text>
             {(['opening', 'ending', 'bgm'] as LayoutSlot[]).map((slot) => {
-              const gain = Number(data.layout?.[SLOT_GAIN[slot]] ?? 0);
               const asset = slotAsset(slot);
               const previewing = !!asset && previewingId === asset.id;
               return (
@@ -853,37 +836,13 @@ export default function ShowScreen() {
                       ) : null}
                     </View>
                   </View>
-                  {/* 素材が無い枠に音量は効かないので出さない（Issue #174 F5） */}
-                  {asset ? (
-                    <Stepper
-                      label={`${gain > 0 ? '+' : ''}${gain} dB`}
-                      onMinus={() => bumpGain(slot, -1)}
-                      onPlus={() => bumpGain(slot, 1)}
-                      a11y={t.showSettings.a11ySlotGain(slotLabel(slot))}
-                    />
-                  ) : null}
                 </View>
               );
             })}
-            <View style={[st.slot, { borderBottomColor: c.border }]}>
-              <View style={st.slotText}>
-                <View style={st.infoLabel}>
-                  <Text style={[typography.bodyStrong, st.shrink, { color: c.textPrimary }]}>
-                    {t.showSettings.duckingLabel}
-                  </Text>
-                  <InfoButton info={t.glossary.ducking} />
-                </View>
-                <Text style={[typography.caption, { color: c.textSecondary }]}>
-                  {t.showSettings.duckingSub}
-                </Text>
-              </View>
-              <Stepper
-                label={`${data.layout?.bgm_duck_db ?? -10} dB`}
-                onMinus={() => bumpDuck(-1)}
-                onPlus={() => bumpDuck(1)}
-                a11y={t.showSettings.a11yDuckAmount}
-              />
-            </View>
+            {/* 音量・配置・フェード・下げ幅はエピソードで聞いて決めて写す（Issue #263） */}
+            <Text style={[typography.caption, st.layoutNote, { color: c.textSecondary }]}>
+              {t.showSettings.layoutDefaultsNote}
+            </Text>
           </>
         ) : null}
 
@@ -1208,28 +1167,6 @@ function ShowAbout({
   );
 }
 
-function Stepper({
-  label,
-  onMinus,
-  onPlus,
-  a11y,
-}: {
-  label: string;
-  onMinus: () => void;
-  onPlus: () => void;
-  a11y: string;
-}) {
-  const c = useAppTheme();
-  const t = useT();
-  return (
-    <View style={st.stepper}>
-      <IconButton name="minus" label={t.a11y.decrease(a11y)} onPress={onMinus} />
-      <Text style={[st.stepValue, { color: c.textPrimary }]}>{label}</Text>
-      <IconButton name="plus" label={t.a11y.increase(a11y)} onPress={onPlus} />
-    </View>
-  );
-}
-
 /**
  * 番組画面の素材・ひな形の行（見本 `.field` の作法: 上に小さい名前、下に値、下端に線）。押すと編集を開く。
  */
@@ -1327,9 +1264,7 @@ const st = StyleSheet.create({
   slotText: { flex: 1, minWidth: 0, gap: space.hair },
   slotPick: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   shrink: { flexShrink: 1 },
-  stepper: { flexDirection: 'row', alignItems: 'center' },
-  infoLabel: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
-  stepValue: { ...typography.numeric, ...tabularNums, minWidth: 64, textAlign: 'center' },
+  layoutNote: { marginTop: space.sm },
   helpWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
   preview: { gap: space.xs, marginTop: space.md },
   sheetActions: { gap: space.sm, marginTop: space.md },

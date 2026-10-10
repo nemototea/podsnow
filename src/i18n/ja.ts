@@ -626,15 +626,17 @@ Podcast: {{show_name}}
     truePeak: 'トゥルーピーク上限',
     ducking: '話す間は BGM を下げる',
     advanced: '詳細設定',
-    a11yAdvanced: '詳細設定',
     depth: '下げ幅',
     attack: 'アタック',
     release: 'リリース',
     threshold: '声のしきい値',
     /** 試聴の正規化のゲインを裏で測っている間（Issue #158）。 */
     measuring: (pct: number) => `試聴の音量を測っています（${pct}%）`,
-    addBgm: 'BGM を入れる',
-    hideAdvanced: '詳細設定を閉じる',
+    sectionFinish: '音の仕上げ',
+    sectionFormat: 'ファイル形式',
+    targetLoudness: '目標ラウドネス',
+    /** BGM が無い回の「話す間は BGM を下げる」に添える（Issue #262）。 */
+    duckingNoBgm: 'BGM が無いので、今回の書き出しには効きません。収録タブで BGM を入れられます',
   },
 
   export: {
@@ -824,6 +826,8 @@ Podcast: {{show_name}}
     artworkSaved: 'アートワークを保存しました',
     artworkRemoved: 'アートワークを削除しました',
     layoutEyebrow: '新しいエピソードの構成',
+    layoutDefaultsNote:
+      '音量・配置・フェード・下げ幅は、エピソードの「この構成を既定にする」で変わります',
     notesTemplateEyebrow: 'カンペのひな形',
     notesTemplatePlaceholder: 'オープニング\n・今日の話題\n・お便り\nエンディング',
     notesTemplateHelp:
@@ -831,12 +835,8 @@ Podcast: {{show_name}}
     a11yEditNotesTemplate: 'カンペのひな形を編集',
     a11ySaveNotesTemplate: 'カンペのひな形を保存',
     notesTemplateSaved: 'カンペのひな形を保存しました',
-    duckingLabel: 'BGM ダッキング',
-    duckingSub: '新しいエピソードの既定。エピソードごとに書き出しタブで変えられます',
-    a11yDuckAmount: 'ダッキング量',
     chooseAsset: '素材から選ぶ',
     a11yPickAsset: (slot: string) => `${slot} の素材を選ぶ`,
-    a11ySlotGain: (slot: string) => `${slot} の音量`,
     a11ySlotPreview: (slot: string) => `${slot} の素材を試聴`,
     a11yStopSlotPreview: (slot: string) => `${slot} の試聴を止める`,
     templateEyebrow: '概要欄テンプレート',
@@ -892,6 +892,22 @@ Podcast: {{show_name}}
     explicit: {
       term: '露骨な表現',
       body: '性的な表現、乱暴な言葉、暴力の描写などを含む番組でオンにします。配信サービスで番組に「E」の印が付き、子ども向けの制限で隠れることがあります。',
+    },
+    duckDepth: {
+      term: '下げ幅',
+      body: '声が入っている間に BGM をどれだけ小さくするかです。数字が小さい（マイナスが大きい）ほど BGM が静かになります。-10 dB でおよそ半分の大きさに聞こえます。',
+    },
+    duckAttack: {
+      term: 'アタック',
+      body: '声が出てから BGM が下がりきるまでの時間です。短いと話し始めがはっきりし、長いと BGM の変化が目立ちません。',
+    },
+    duckRelease: {
+      term: 'リリース',
+      body: '声が止まってから BGM が元の大きさに戻るまでの時間です。短いと話の合間に BGM が出入りして落ち着きません。長いほどなめらかです。',
+    },
+    duckThreshold: {
+      term: '声のしきい値',
+      body: 'これより大きい音を「声」とみなして BGM を下げます。息や雑音で BGM が下がるなら上げ、声が小さくて下がらないなら下げます。',
     },
     ducking: {
       term: 'ダッキング',

@@ -34,6 +34,8 @@ export function Segmented<T extends string>({
             onPress={() => onChange(o.value)}
             accessibilityRole="tab"
             accessibilityState={{ selected: active, disabled: off }}
+            // 省略しても全文を読む（Issue #261）
+            accessibilityLabel={o.label}
             hitSlop={hitSlop(typography.chip.lineHeight + 2 * chip.paddingY)}
             style={({ pressed }) => [
               st.chip,
@@ -51,6 +53,8 @@ export function Segmented<T extends string>({
                 typography.chip,
                 { color: active ? c.accentOnSolid : off ? c.textDisabled : c.textPrimary },
               ]}
+              // 英語表示などで長くなっても折り返さず 1 行で省略する（Issue #261）
+              numberOfLines={1}
             >
               {o.label}
             </Text>
@@ -67,6 +71,8 @@ const st = StyleSheet.create({
     paddingVertical: chip.paddingY,
     paddingHorizontal: chip.paddingX,
     borderRadius: radius.pill,
+    maxWidth: '100%',
+    flexShrink: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },

@@ -11,7 +11,7 @@ import {
   setEpisodeNotes,
   setShowNotesTemplate,
 } from '@/infra/db/repositories/notesRepo';
-import { ensureDefaultShow, updateLayout } from '@/infra/db/repositories/showsRepo';
+import { ensureDefaultShow, getLayout, updateLayout } from '@/infra/db/repositories/showsRepo';
 import { TEST_LABELS, TEST_SHOW_SEED } from '@/services/app/__tests__/labels';
 import { parseSoundSettings } from '@/services/audio/renderDocumentFromDb';
 
@@ -205,6 +205,20 @@ describe('EpisodeService', () => {
     expect(parseSoundSettings(again!.sound_settings).ducking.depthDb).toBe(-14);
     const next = await svc.create(show.id);
     expect(parseSoundSettings(next.sound_settings).ducking.depthDb).toBe(-6);
+  });
+
+  it('この構成を既定にすると、その回の BGM を下げる量も番組の既定になる（Issue #263）', async () => {
+    const { db, show, svc } = await setup();
+    await updateLayout(db, show.id, { bgmDuckDb: -10 });
+    const ep = await svc.create(show.id);
+    const sound = parseSoundSettings(ep.sound_settings);
+    await svc.update(ep.id, {
+      soundSettings: JSON.stringify({ ...sound, ducking: { ...sound.ducking, depthDb: -16 } }),
+    });
+    await svc.saveStructureAsDefault(ep.id);
+    expect((await getLayout(db, show.id)).bgm_duck_db).toBe(-16);
+    const next = await svc.create(show.id);
+    expect(parseSoundSettings(next.sound_settings).ducking.depthDb).toBe(-16);
   });
 
   it('refreshStatus, remove and duplicate', async () => {
