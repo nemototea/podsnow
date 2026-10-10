@@ -418,7 +418,7 @@ figcaption span { color: var(--sub); font-size: 13.5px; line-height: 1.7; }
           <button class="write" id="aboutWrite" data-ic="pen-sm" hidden>番組の紹介を書く</button>
           <div class="facts" id="facts">
             <div class="cats" id="cats"></div>
-            <div class="meta"><button class="site" id="site" data-ic="link"><span data-b="site"></span></button><span id="langDot">·</span><span data-b="lang"></span></div>
+            <div class="meta"><span class="pill ok" id="explicit" aria-label="露骨な表現を含む" title="露骨な表現を含む">E</span><button class="site" id="site" data-ic="link"><span data-b="site"></span></button><span id="langDot">·</span><span data-b="lang"></span></div>
           </div>
           <div class="actions">
             <button class="ib" data-ic="pen"></button>
@@ -459,7 +459,7 @@ figcaption span { color: var(--sub); font-size: 13.5px; line-height: 1.7; }
         </nav>
       </div>
     </div>
-    <figcaption><b>2. 番組</b><span>上部のグラデーションはアートワークの代表色から作ります。録音ボタンだけは番組に関係なくアクセント色で、どの番組でも同じ場所・同じ色です。著者の下に番組の紹介を 3 行まで出し、押すと全文が開きます。その下はカテゴリー・Web サイト・言語のうち値のあるものだけで、Web サイトは押すとブラウザで開きます。紹介が空の番組（「いまここ雑談」）は「番組の紹介を書く」から編集シートを開きます。直すのは今までどおり鉛筆からです（Issue #259）。</span></figcaption>
+    <figcaption><b>2. 番組</b><span>上部のグラデーションはアートワークの代表色から作ります。録音ボタンだけは番組に関係なくアクセント色で、どの番組でも同じ場所・同じ色です。著者の下に番組の紹介を 3 行まで出し、押すと全文が開きます。その下はカテゴリー・Web サイト・言語のうち値のあるものだけで、Web サイトは押すとブラウザで開きます。露骨な表現を含む番組（「週末シネマ部」）は先頭に「E」の札が付きます。紹介が空の番組（「いまここ雑談」）は「番組の紹介を書く」から編集シートを開きます。直すのは今までどおり鉛筆からです（Issue #259）。</span></figcaption>
   </figure>
 
   <!-- 3. Recording -->
@@ -750,7 +750,7 @@ figcaption span { color: var(--sub); font-size: 13.5px; line-height: 1.7; }
       notes: 'オープニング: 深煎り派だった 2 人の近況\n・浅煎りを初めておいしいと思った日\n・家で淹れるときの失敗\n　→ 湯の温度、挽き目\n・おすすめの豆を 1 つずつ\nエンディング: おたより募集' },
     { key: 'cinema', name: '週末シネマ部', cover: '週末<br>シネマ部', count: '67 エピソード', dominant: '#b8123c',
       about: '週末に観た映画を、ネタバレ控えめで語ります。新作も旧作も、映画館も配信も。毎週日曜の朝に更新。リクエストはお便りフォームから受け付けています。',
-      cats: ['テレビ/映画', '映画レビュー'], site: '', lang: '日本語',
+      cats: ['テレビ/映画', '映画レビュー'], site: '', lang: '日本語', explicit: true,
       eps: [
         { no: 68, t: '字幕と吹替', d: '同じ映画を字幕と吹替で 2 回観て比べた話。', dur: '14:30' },
         { no: 67, t: '秋に観たい 5 本', d: '涼しくなってきたので、夜長に向く映画を 5 本選びました。', dur: '33:12', date: '9月30日', day: '2026年9月30日' },
@@ -841,7 +841,8 @@ figcaption span { color: var(--sub); font-size: 13.5px; line-height: 1.7; }
     document.getElementById('cats').hidden = !s.cats.length;
     document.getElementById('site').hidden = !s.site;
     document.getElementById('langDot').hidden = !(s.site && s.lang);
-    document.getElementById('facts').hidden = !(s.cats.length || s.site || s.lang);
+    document.getElementById('explicit').hidden = !s.explicit;
+    document.getElementById('facts').hidden = !(s.cats.length || s.site || s.lang || s.explicit);
     s.eps.forEach(function (e, k) {
       // 一覧・見出し・ミニプレーヤーには話数を出さず題だけ（Issue #211）
       b['ep' + k] = e.t;

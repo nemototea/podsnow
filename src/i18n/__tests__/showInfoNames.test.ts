@@ -12,7 +12,7 @@ describe('番組の分類と言語の表示名（Issue #259）', () => {
   });
 
   it('一覧に無い分類は元の名前のまま出す', () => {
-    expect(ja.showSettings.categoryName('Games & Hobbies')).toBe('Games & Hobbies');
+    expect(ja.showSettings.categoryName('Podcasting')).toBe('Podcasting');
   });
 
   it('選べる言語はすべて ja / en の名前を持つ。一覧外はコードのまま', () => {

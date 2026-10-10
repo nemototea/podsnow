@@ -2,9 +2,15 @@
  * Apple Podcasts の分類（`itunes:category`）と、番組の言語の選択肢（Issue #259、FR-SHOW-3a）。
  *
  * 分類名は英語の `text` 属性値そのもの（DB の `show_categories.category` / `subcategory` と同じ値）。
- * 表示名は UI 層（`src/i18n/`）で訳す。一覧は Apple の Podcasts Connect の分類に従う。
- * 【仮説】作業環境から Apple の公開一覧（https://podcasters.apple.com/support/1691-apple-podcasts-categories）を
- * 開けず、照合していない。食い違いを見つけたらここを直す（一覧に無い値も取り込みでは保存・表示できる）。
+ * 表示名は UI 層（`src/i18n/`）で訳す。
+ *
+ * - `itunes:category` の値は Apple の分類から選ぶのが RSS 配信の事実上の標準
+ *   【確認済み】PSP-1「selected from the list of Apple Podcasts categories」
+ *   https://github.com/Podcast-Standards-Project/PSP-1-Podcast-RSS-Specification
+ * - 一覧は 2019-08-09 の改定版（Enhanced Categories）。npm `podcast-categories@2.0.0`（Apple の Podcasts Connect の
+ *   ヘルプを書き写したもの）と主・副とも一致することを確かめた（2026-10-10）。Apple のページは作業環境から開けなかった。
+ *   あちらにだけある `Games & Hobbies`（副 `Other Games` など）は改定前の分類で `Leisure` に移った【仮説: 副の重なりからの推定】ので選ばせない
+ *   （取り込んだ値はそのまま保存・表示する）。
  */
 import type { PodcastCategory } from './feed';
 

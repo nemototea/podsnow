@@ -420,6 +420,7 @@ export default function ShowScreen() {
   const about = show ? htmlToPlainText(show.description) : null;
   const website = showWebsite(show?.website_url ?? '');
   const categories = categoryNames(data.info?.categories ?? []);
+  const explicit = show?.explicit === 1;
   const languageCode = primaryLanguage(show?.language ?? '');
   const language = languageCode ? t.showSettings.languageName(languageCode) : '';
   const by = compositeHex(c.textPrimary, BY_ALPHA, colors.header);
@@ -518,7 +519,7 @@ export default function ShowScreen() {
         {about === null ? null : (
           <ShowAbout key={about} text={about} color={by} onWrite={openShowEditor} />
         )}
-        {categories.length || website || language ? (
+        {categories.length || website || language || explicit ? (
           <View style={st.facts}>
             {categories.length ? (
               <View style={st.cats}>
@@ -527,8 +528,16 @@ export default function ShowScreen() {
                 ))}
               </View>
             ) : null}
-            {website || language ? (
+            {website || language || explicit ? (
               <View style={st.meta}>
+                {/* 見本 `.showhead .meta .pill`: 露骨な表現を含む番組の「E」（itunes:explicit） */}
+                {explicit ? (
+                  <Pill
+                    label={t.showSettings.explicitBadge}
+                    kind="strong"
+                    accessibilityLabel={t.showSettings.explicit}
+                  />
+                ) : null}
                 {website ? (
                   <Pressable
                     onPress={() => void Linking.openURL(website.href).catch(() => undefined)}

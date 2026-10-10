@@ -62,6 +62,9 @@ const CATEGORY_NAMES: Readonly<Record<string, string>> = {
   Crafts: 'クラフト',
   Games: 'ゲーム',
   Hobbies: '趣味',
+  // 2019 年 8 月より前の分類。新しく選ばせないが、古いフィードを取り込んだときに出る
+  'Games & Hobbies': 'ゲーム/趣味',
+  'Other Games': 'その他のゲーム',
   'Home & Garden': 'ホーム/ガーデン',
   'Video Games': 'ビデオゲーム',
   Music: '音楽',
@@ -777,6 +780,8 @@ Podcast: {{show_name}}
     subcategory: 'サブカテゴリー',
     language: '言語',
     explicit: '露骨な表現を含む',
+    /** 番組画面の札（見本 `.showhead .meta .pill`）。配信サービスと同じ略号。 */
+    explicitBadge: 'E',
     /** 番組画面の紹介（見本 `.showhead .about`。Issue #259）。3 行に収まらないときの開閉。 */
     aboutMore: 'もっと見る',
     aboutLess: '閉じる',
