@@ -238,6 +238,13 @@ Tag #PodsNow to share your thoughts`,
     unimport: 'Remove imported show',
     confirmUnimport: (feedEpisodes: number) =>
       `This deletes the show details such as the name and description (including your own edits) and the artwork${feedEpisodes > 0 ? `, plus the record of ${feedEpisodes} published ${feedEpisodes === 1 ? 'episode' : 'episodes'}` : ''}, so you can import a different show. Your recorded episodes, sounds and templates stay. This can’t be undone.`,
+    confirmUnimportResetTemplate: (feedEpisodes: number) =>
+      `This deletes the show details such as the name and description (including your own edits) and the artwork${feedEpisodes > 0 ? `, plus the record of ${feedEpisodes} published ${feedEpisodes === 1 ? 'episode' : 'episodes'}` : ''}, resets the description template to the default, and lets you import a different show. Your recorded episodes, sounds and notes template stay. This can’t be undone.`,
+    unimportTemplateTitle: 'Reset the description template too?',
+    unimportTemplateBody:
+      'If it has the show’s feedback form or links, they will stay in the descriptions of new episodes',
+    unimportTemplateReset: 'Reset to default',
+    unimportTemplateKeep: 'Keep',
     unimportConfirm: 'Remove',
     unimported: 'Removed the imported show',
     searchLabel: 'Show name',
@@ -270,7 +277,7 @@ Tag #PodsNow to share your thoughts`,
     templateHeader: 'Description template',
     useTemplate: 'Use this as the description template',
     templateHelp:
-      'Lines shared by the latest episode descriptions. Choosing this replaces your current template. You can edit it later in the show settings',
+      'Lines shared by the latest episode descriptions. This replaces your current template; turn it off to keep yours. You can edit it later in the show settings',
     templateSaved: 'Also saved the description template',
     confirm: 'Import',
     back: 'Search again',

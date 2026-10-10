@@ -385,6 +385,15 @@ Podcast: {{show_name}}
     /** `feedEpisodes` は消える配信済みの回の数。手で直した番組名・概要も消えることを必ず伝える。 */
     confirmUnimport: (feedEpisodes: number) =>
       `番組名・概要などの番組情報（手で編集した内容も含む）とアートワーク${feedEpisodes > 0 ? `、配信済みの回 ${feedEpisodes} 本の記録` : ''}を削除し、別の番組を取り込めるようにします。録音したエピソード・素材・ひな形は残ります。元に戻せません。`,
+    /** 直前の問いで「初期値に戻す」を選んだときの確認。 */
+    confirmUnimportResetTemplate: (feedEpisodes: number) =>
+      `番組名・概要などの番組情報（手で編集した内容も含む）とアートワーク${feedEpisodes > 0 ? `、配信済みの回 ${feedEpisodes} 本の記録` : ''}を削除し、概要欄のひな形を初期値に戻して、別の番組を取り込めるようにします。録音したエピソード・素材・カンペのひな形は残ります。元に戻せません。`,
+    /** 解除の前に、手を入れた概要欄のひな形をどうするか聞く（ユーザー判断 2026-10-10） */
+    unimportTemplateTitle: '概要欄のひな形も初期値に戻しますか？',
+    unimportTemplateBody:
+      '取り込んだ番組のお便りフォームやリンクの行が入っていると、このあと作るエピソードの概要欄にも残ります',
+    unimportTemplateReset: '初期値に戻す',
+    unimportTemplateKeep: '残す',
     unimportConfirm: '解除する',
     unimported: '番組の取り込みを解除しました',
     searchLabel: '番組名',
@@ -418,7 +427,7 @@ Podcast: {{show_name}}
     templateHeader: '概要欄のひな形',
     useTemplate: 'この内容を概要欄のひな形にする',
     templateHelp:
-      '直近の回の概要に共通する行です。選ぶと今のひな形を置き換えます。あとで番組の設定から直せます',
+      '直近の回の概要に共通する行です。今のひな形を置き換えます。今のひな形を残すときは外してください。あとで番組の設定から直せます',
     templateSaved: '概要欄のひな形も保存しました',
     confirm: '取り込む',
     back: '探し直す',

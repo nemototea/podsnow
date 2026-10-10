@@ -30,11 +30,19 @@ import {
   type ShowInfoDraft,
 } from '@/features/show/showInfoDraft';
 import { useShowColors } from '@/features/show/useShowColors';
-import { episodeName, errorText, formatShortDate, useLocale, useT, type Messages } from '@/i18n';
+import {
+  CATALOGS,
+  episodeName,
+  errorText,
+  formatShortDate,
+  useLocale,
+  useT,
+  type Messages,
+} from '@/i18n';
 import type { AssetKind, AssetRow } from '@/infra/db/repositories/assetsRepo';
 import type { ShowLayoutRow, TemplateRow } from '@/infra/db/repositories/showsRepo';
 import type { ShowInfo, ShowInfoPatch } from '@/services/shows/ShowService';
-import { confirmDestructive } from '@/ui/alerts';
+import { ask, confirmDestructive } from '@/ui/alerts';
 import { Artwork } from '@/ui/Artwork';
 import { Avatar } from '@/ui/Avatar';
 import { ChoiceMenu } from '@/ui/ChoiceMenu';
@@ -85,6 +93,9 @@ function sameDay(a: number, b: number): boolean {
     x.getDate() === y.getDate()
   );
 }
+
+/** 概要欄テンプレートの初期値（全言語。どの言語で作られたか分からないため。Issue #260 / #258） */
+const SEED_TEMPLATES = Object.values(CATALOGS).map((m) => m.seed.descriptionTemplate);
 
 /** 著者の行と操作の白の濃さ（見本 `.showhead .by`、`.actions .ib` の 75%）。 */
 const BY_ALPHA = 0.75;
@@ -322,27 +333,50 @@ export default function ShowScreen() {
     }
   };
 
-  /** 取り込みの解除（Issue #258）。消えるものを数字で伝えてから実行する。 */
+  /**
+   * 取り込みの解除（Issue #258）。概要欄のひな形を初期値から変えていれば、先に戻すかを聞く
+   * （取り込みで入れた別の番組の行が残らないように）。最後に消えるものを数字で伝えて確かめる。
+   * ひな形の問いを閉じたら「残す」、最後の確認を閉じたら何もしない。
+   */
   const confirmUnimport = async () => {
     try {
-      const { feedEpisodes } = await services.podcastImport.unimportSummary(showId);
-      confirmDestructive({
-        title: t.podcastImport.unimport,
-        message: t.podcastImport.confirmUnimport(feedEpisodes),
-        confirmLabel: t.podcastImport.unimportConfirm,
-        cancelLabel: t.common.cancel,
-        onConfirm: () => void unimport(),
+      const summary = await services.podcastImport.unimportSummary(showId, SEED_TEMPLATES);
+      const finalConfirm = (resetTemplate: boolean) =>
+        confirmDestructive({
+          title: t.podcastImport.unimport,
+          message: resetTemplate
+            ? t.podcastImport.confirmUnimportResetTemplate(summary.feedEpisodes)
+            : t.podcastImport.confirmUnimport(summary.feedEpisodes),
+          confirmLabel: t.podcastImport.unimportConfirm,
+          cancelLabel: t.common.cancel,
+          onConfirm: () => void unimport(resetTemplate),
+        });
+      if (!summary.templateEdited) {
+        finalConfirm(false);
+        return;
+      }
+      ask({
+        title: t.podcastImport.unimportTemplateTitle,
+        message: t.podcastImport.unimportTemplateBody,
+        confirmLabel: t.podcastImport.unimportTemplateReset,
+        cancelLabel: t.podcastImport.unimportTemplateKeep,
+        onConfirm: () => finalConfirm(true),
+        onCancel: () => finalConfirm(false),
       });
     } catch (e) {
       showToast({ text: errorText(t, e) });
     }
   };
 
-  const unimport = async () => {
+  const unimport = async (resetTemplate: boolean) => {
     try {
       // 消える配信済みの回を再生していたら止める（ミニプレーヤーに消えた回を残さない）
       if (services.playback.source?.kind === 'rss') await services.playback.stopHome();
-      await services.podcastImport.unimport(showId, { showName: t.seed.showName });
+      await services.podcastImport.unimport(
+        showId,
+        { showName: t.seed.showName },
+        resetTemplate ? { resetTemplate: t.seed.descriptionTemplate } : {},
+      );
       await services.reloadShow();
       await reload();
       await reloadList();
